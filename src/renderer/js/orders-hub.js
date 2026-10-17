@@ -330,7 +330,7 @@ const OrdersHub = {
       if (!rows.length) body.appendChild(VexSettingsGroups.note('No parcels yet.'));
       for (const o of rows) {
         const lines = [o.label + ' (' + this.CARRIERS[o.carrier].label + (o.number ? ', ' + o.number : '') + ')',
-          o.status === 'delivered' ? 'Delivered' : 'Open for ' + o.ageDays + ' day' + (o.ageDays === 1 ? '' : 's') + (o.old ? '. Longer than expected? Check it or contact the shop.' : '')];
+          o.status === 'delivered' ? 'Delivered' : 'Open for ' + o.ageDays + ' day' + VexPlural.s(o.ageDays) + (o.old ? '. Longer than expected? Check it or contact the shop.' : '')];
         if (o.holdDay) lines.push('Held until ' + o.holdDay);
         if (o.refundDay) lines.push('Refund expected by ' + o.refundDay);
         // The last few things that happened to it.

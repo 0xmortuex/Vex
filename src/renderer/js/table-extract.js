@@ -173,7 +173,7 @@ const TableExtract = {
     const sub = document.createElement('div');
     sub.style.cssText = 'padding:8px 14px;font-size:11.5px;color:var(--text-muted)';
     const cols = this._width(data.rows);
-    sub.textContent = data.rows.length + ' row' + (data.rows.length === 1 ? '' : 's') + ' by ' + cols + ' column' + (cols === 1 ? '' : 's') + (data.caption ? ' · ' + data.caption : '') + '. Read from the page; nothing leaves this computer.';
+    sub.textContent = data.rows.length + ' row' + VexPlural.s(data.rows.length) + ' by ' + cols + ' column' + VexPlural.s(cols) + (data.caption ? ' · ' + data.caption : '') + '. Read from the page; nothing leaves this computer.';
     const pre = document.createElement('pre');
     pre.style.cssText = 'margin:0;padding:10px 14px;font:12px ui-monospace,Consolas,monospace;color:var(--text);white-space:pre;overflow:auto;max-height:46vh';
     pre.textContent = this.toMarkdown(data.rows.slice(0, 30)) + (data.rows.length > 30 ? '\n… ' + (data.rows.length - 30) + ' more rows' : '');

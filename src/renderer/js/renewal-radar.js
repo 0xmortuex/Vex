@@ -408,7 +408,7 @@ const RenewalRadar = {
       const n = list.length;
       out.push({
         ...item, source: 'mail', status: 'detected',
-        evidence: n + ' mail header' + (n === 1 ? '' : 's') + ', latest: "' + last.subject.slice(0, 120) + '"' + (last.date ? ' (' + last.date + ')' : ''),
+        evidence: n + ' mail header' + VexPlural.s(n) + ', latest: "' + last.subject.slice(0, 120) + '"' + (last.date ? ' (' + last.date + ')' : ''),
         confidence: (last.known || n > 1 || item.cost != null) ? 'high' : 'medium', key,
       });
     }
@@ -838,7 +838,7 @@ const RenewalRadar = {
       try {
         const found = await this.scan();
         const n = this.addProposals(found);
-        window.showToast?.(n ? n + ' possible subscription' + (n === 1 ? '' : 's') + ' found. Nothing counts until you confirm it.' : 'Nothing new found in your local data.');
+        window.showToast?.(n ? n + ' possible subscription' + VexPlural.s(n) + ' found. Nothing counts until you confirm it.' : 'Nothing new found in your local data.');
         draw();
       } catch (err) { fail(err); }
     });
@@ -907,7 +907,7 @@ const RenewalRadar = {
   async tick(now = new Date()) {
     const r = await this.syncReminders(now);
     await this.syncAdmin(now);
-    if (r.failed.length) throw new Error('Could not set ' + r.failed.length + ' renewal reminder' + (r.failed.length === 1 ? '' : 's') + ': ' + r.failed[0].error);
+    if (r.failed.length) throw new Error('Could not set ' + r.failed.length + ' renewal reminder' + VexPlural.s(r.failed.length) + ': ' + r.failed[0].error);
     return r;
   },
 

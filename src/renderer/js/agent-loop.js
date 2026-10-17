@@ -744,7 +744,7 @@ const AgentLoop = {
   _costTotal() {
     const c = this._run && this._run.cost;
     if (!c || !c.steps) return '';
-    return ' — ' + c.steps + ' step' + (c.steps === 1 ? '' : 's') + ', ' + (c.ms / 1000).toFixed(1) + ' s thinking' + (c.counted ? ', ' + c.promptTokens.toLocaleString() + ' tokens in, ' + c.replyTokens.toLocaleString() + ' out' : '');
+    return ' — ' + c.steps + ' step' + VexPlural.s(c.steps) + ', ' + (c.ms / 1000).toFixed(1) + ' s thinking' + (c.counted ? ', ' + c.promptTokens.toLocaleString() + ' tokens in, ' + c.replyTokens.toLocaleString() + ' out' : '');
   },
 
   // ---- saved runs -------------------------------------------------------
@@ -973,7 +973,7 @@ const AgentLoop = {
       else this._renderStep('summary', 'The page has changed since this was recorded — the AI is taking over from here.', 'info');
     } else {
       if (typeof AgentCursor !== 'undefined') AgentCursor.finish(WebviewManager.getActiveWebview());
-      this._renderStep('end', 'Repeated ' + done.length + ' step' + (done.length === 1 ? '' : 's') + ', without the AI', 'info');
+      this._renderStep('end', 'Repeated ' + done.length + ' step' + VexPlural.s(done.length) + ', without the AI', 'info');
       const list = this.macros().map(m => (m.id === id ? { ...m, runs: (m.runs || 0) + 1, lastRunAt: Date.now() } : m));
       try { localStorage.setItem(this.MACROS_KEY, JSON.stringify(list)); } catch { /* the count is not worth an error */ }
     }
@@ -1254,7 +1254,7 @@ const AgentLoop = {
     if (tool === 'web_search' && Array.isArray(result.results)) return 'Found ' + result.results.length + ' results for "' + result.query + '" (' + result.engine + ')';
     if ((tool === 'read_url' || tool === 'read_tab') && typeof result.text === 'string') return 'Read ' + (result.title || result.url || 'the page') + ' — ' + result.text.length.toLocaleString() + ' characters' + (result.note ? ' (' + result.note + ')' : '');
     if (tool === 'screenshot' && result.hasScreenshot) return 'Looked at the page (' + result.width + ' × ' + result.height + ')';
-    if (Array.isArray(result)) return result.length + ' item' + (result.length === 1 ? '' : 's');
+    if (Array.isArray(result)) return result.length + ' item' + VexPlural.s(result.length);
     if (Array.isArray(result.elements)) return result.elements.length + ' interactive elements';
     return 'Done';
   },

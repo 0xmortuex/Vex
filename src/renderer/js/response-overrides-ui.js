@@ -70,7 +70,7 @@ const VexOverrides = {
     bar.setAttribute('role', 'alert');
     bar.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:100070;display:flex;gap:10px;align-items:center;padding:8px 14px;border-radius:10px;background:#7a1d1d;color:#fff;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.5);max-width:92vw';
     const text = document.createElement('span');
-    text.textContent = 'Response overrides are ON for ' + (this._info.origins.join(', ') || 'no origin') + ' (' + this._info.rules.length + ' rule' + (this._info.rules.length === 1 ? '' : 's') + '). Pages there are not getting the real answers.';
+    text.textContent = 'Response overrides are ON for ' + (this._info.origins.join(', ') || 'no origin') + ' (' + this._info.rules.length + ' rule' + VexPlural.s(this._info.rules.length) + '). Pages there are not getting the real answers.';
     const off = document.createElement('button');
     off.type = 'button'; off.textContent = 'Turn off';
     off.style.cssText = 'padding:4px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.15);color:#fff;cursor:pointer';

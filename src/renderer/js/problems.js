@@ -203,7 +203,7 @@ const VexProblems = (() => {
 
   function groupLine(g) {
     const span = g.firstVersion && g.lastVersion && g.firstVersion !== g.lastVersion ? `Vex ${g.firstVersion} to ${g.lastVersion}` : (g.lastVersion ? `Vex ${g.lastVersion}` : 'version unknown');
-    return `${g.area}: ${g.message} — ${g.count} time${g.count === 1 ? '' : 's'}, ${span}, last ${ago(g.lastAt)}`;
+    return `${g.area}: ${g.message} — ${g.count} time${VexPlural.s(g.count)}, ${span}, last ${ago(g.lastAt)}`;
   }
 
   // A text stub to paste into a bug report. No page content, no user data:
@@ -211,7 +211,7 @@ const VexProblems = (() => {
   function reproStub(g) {
     const out = [
       `### ${g.area}: ${g.message}`,
-      `- Seen ${g.count} time${g.count === 1 ? '' : 's'}`,
+      `- Seen ${g.count} time${VexPlural.s(g.count)}`,
       `- First: ${g.firstAt ? new Date(g.firstAt).toISOString() : 'unknown'}${g.firstVersion ? ' (Vex ' + g.firstVersion + ')' : ''}`,
       `- Last: ${g.lastAt ? new Date(g.lastAt).toISOString() : 'unknown'}${g.lastVersion ? ' (Vex ' + g.lastVersion + ')' : ''}`,
     ];

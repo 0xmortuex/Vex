@@ -161,7 +161,7 @@ const ResearchProjects = {
     const p = this.get(id);
     if (!p) throw new Error('That project is gone');
     const when = (t) => { try { return new Date(t).toLocaleDateString(); } catch { return ''; } };
-    const out = ['# ' + p.name, '', '_Started ' + when(p.at) + ' · ' + p.items.length + ' item' + (p.items.length === 1 ? '' : 's') + '_', ''];
+    const out = ['# ' + p.name, '', '_Started ' + when(p.at) + ' · ' + p.items.length + ' item' + VexPlural.s(p.items.length) + '_', ''];
 
     // One number per source, in the order it first appears, so a highlight
     // and the page it came from share an entry.
@@ -252,10 +252,10 @@ const ResearchProjects = {
             chat: p.items.filter(i => i.kind === 'chat').length,
             quote: p.items.filter(i => i.kind === 'quote').length,
           };
-          const parts = [counts.page + ' page' + (counts.page === 1 ? '' : 's')];
-          if (counts.quote) parts.push(counts.quote + ' highlight' + (counts.quote === 1 ? '' : 's'));
-          if (counts.note) parts.push(counts.note + ' note' + (counts.note === 1 ? '' : 's'));
-          if (counts.chat) parts.push(counts.chat + ' chat' + (counts.chat === 1 ? '' : 's'));
+          const parts = [counts.page + ' page' + VexPlural.s(counts.page)];
+          if (counts.quote) parts.push(counts.quote + ' highlight' + VexPlural.s(counts.quote));
+          if (counts.note) parts.push(counts.note + ' note' + VexPlural.s(counts.note));
+          if (counts.chat) parts.push(counts.chat + ' chat' + VexPlural.s(counts.chat));
           r.innerHTML = `
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;color:var(--text);font-weight:${p.id === activeId ? '650' : '400'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
@@ -286,7 +286,7 @@ const ResearchProjects = {
       const p = this.get(viewing && viewing.id);
       if (!p) { drawList(); return; }
       head.innerHTML = `${btn('&larr;', 'data-back')}<div style="flex:1;min-width:0;font-size:13.5px;font-weight:650;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>${btn('Open all', 'data-openall')}${btn('Copy as Markdown', 'data-export')}${btn('Save with references', 'data-save')}`;
-      foot.textContent = p.items.length + ' item' + (p.items.length === 1 ? '' : 's') + (this.activeId() === p.id ? ' · this is the one you are working on' : '');
+      foot.textContent = p.items.length + ' item' + VexPlural.s(p.items.length) + (this.activeId() === p.id ? ' · this is the one you are working on' : '');
 
       if (!p.items.length) {
         body.innerHTML = window.VexUI
@@ -321,7 +321,7 @@ const ResearchProjects = {
               <span style="flex:0 0 auto;color:var(--text-muted)">${window.VexIcons ? VexIcons.svg('sparkles', { size: 15 }) : ''}</span>
               <div style="flex:1;min-width:0">
                 <div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.title)}</div>
-                <div style="font-size:10.5px;color:var(--text-muted)">${item.messages.length} message${item.messages.length === 1 ? '' : 's'}</div>
+                <div style="font-size:10.5px;color:var(--text-muted)">${item.messages.length} message${VexPlural.s(item.messages.length)}</div>
               </div>`;
           }
           const del = document.createElement('button');
@@ -346,7 +346,7 @@ const ResearchProjects = {
         if (pages.length > 5 && !(await vexConfirm({ title: 'Open ' + pages.length + ' tabs?', message: 'Every page in “' + p.name + '” opens in its own tab.', okLabel: 'Open them' }))) return;
         close();
         for (const i of pages) { try { TabManager.createTab(i.url, false); } catch {} }
-        window.showToast?.('Opened ' + pages.length + ' page' + (pages.length === 1 ? '' : 's'));
+        window.showToast?.('Opened ' + pages.length + ' page' + VexPlural.s(pages.length));
       });
       head.querySelector('[data-export]').addEventListener('click', async () => {
         try {

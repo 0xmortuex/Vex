@@ -142,7 +142,7 @@ const CheckHistory = {
       draw();
       if (!before.length) return;
       window.VexUndo.offer({
-        message: 'Forgot ' + before.length + ' page check' + (before.length === 1 ? '' : 's'),
+        message: 'Forgot ' + before.length + ' page check' + VexPlural.s(before.length),
         undo: () => {
           localStorage.setItem(this.KEY, JSON.stringify(this.list().concat(before).slice(0, this.MAX)));
           if (body.isConnected) draw();

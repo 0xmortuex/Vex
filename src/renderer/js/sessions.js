@@ -126,7 +126,7 @@ const SessionManager = {
 
     const old = before.filter(id => TabManager.tabs.some(t => t.id === id));
     if (replace && restoredTabs.length && old.length) {
-      TabManager.closeTabsWithUndo(old, `Replaced ${old.length} tab${old.length === 1 ? '' : 's'} with “${session.name}”`, {
+      TabManager.closeTabsWithUndo(old, `Replaced ${old.length} tab${VexPlural.s(old.length)} with “${session.name}”`, {
         onUndo: () => this._takeBack(restoredTabs, wasActive, added),
       });
     } else {

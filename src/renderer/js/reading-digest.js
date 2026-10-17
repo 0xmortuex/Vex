@@ -230,7 +230,7 @@ const ReadingDigest = {
     const ok = d.items.filter(i => i.summary && !i.error).length;
     const kept = d.items.filter(i => i.skipped).length;
     const bad = d.items.length - ok - kept;
-    return ok + ' article' + (ok === 1 ? '' : 's') + ' summarised' + (bad ? ', ' + bad + ' could not be read' : '') + (kept ? ', ' + kept + ' kept private' : '') + '. Open the Library › Digest to read it.';
+    return ok + ' article' + VexPlural.s(ok) + ' summarised' + (bad ? ', ' + bad + ' could not be read' : '') + (kept ? ', ' + kept + ' kept private' : '') + '. Open the Library › Digest to read it.';
   },
 
   // With many articles, the ones sharing a topic go together and the rest

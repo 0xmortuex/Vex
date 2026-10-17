@@ -517,7 +517,7 @@ const PageChangelog = {
     const rows = [...d.removed.map(t => ['-', t]), ...d.added.map(t => ['+', t])].slice(0, cap);
     WebTaming.modal('wt-changelog-details', `
       <h2 class="wt-title">What changed on this page</h2>
-      <p class="wt-muted">${marked > 0 ? marked + ' place' + (marked === 1 ? '' : 's') + ' highlighted in the page.' : 'The new text could not be highlighted in the page; it is listed here.'}</p>
+      <p class="wt-muted">${marked > 0 ? marked + ' place' + VexPlural.s(marked) + ' highlighted in the page.' : 'The new text could not be highlighted in the page; it is listed here.'}</p>
       ${rows.map(([s, t]) => `<div class="wt-line"><span aria-label="${s === '+' ? 'added' : 'removed'}">${s}</span><span>${WebTaming.esc(t)}</span></div>`).join('')}
       <div class="wt-actions"><button class="wt-btn wt-primary" data-wt-close>Done</button></div>`);
   },
@@ -576,7 +576,7 @@ const TabDedupe = {
     }
     if (!toClose.length) return 0;
     // closeTabsWithUndo puts them back with the toast's Undo.
-    TabManager.closeTabsWithUndo(toClose, `Merged ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'} into ${groups.length}, keeping your place`);
+    TabManager.closeTabsWithUndo(toClose, `Merged ${toClose.length} duplicate tab${VexPlural.s(toClose.length)} into ${groups.length}, keeping your place`);
     if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind: 'organize' } }));
     return toClose.length;
   },

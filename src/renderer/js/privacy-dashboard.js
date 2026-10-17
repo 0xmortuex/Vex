@@ -128,7 +128,7 @@ const PrivacyDashboard = {
         : 'Nothing has left this computer in the ' + (keptHours < 1 ? 'last hour' : keptHours + ' hours') + ' this list has been kept (it counts back 24 hours once it is a day old).';
       proof.dataset.state = 'none';
     } else {
-      proof.textContent = sum.count + ' request' + (sum.count === 1 ? '' : 's') + ' in the last 24 hours: ' + this._fmtBytes(sum.bytesOut) + ' sent, ' + this._fmtBytes(sum.bytesIn) + ' received.';
+      proof.textContent = sum.count + ' request' + VexPlural.s(sum.count) + ' in the last 24 hours: ' + this._fmtBytes(sum.bytesOut) + ' sent, ' + this._fmtBytes(sum.bytesIn) + ' received.';
       proof.dataset.state = 'some';
     }
     const featSel = el.querySelector('#pd-egress-feature');
@@ -216,7 +216,7 @@ const PrivacyDashboard = {
       <div class="pd-hero">
         <div class="pd-hero-num">${total.toLocaleString()}</div>
         <div class="pd-hero-label">requests blocked this session</div>
-        <div class="pd-hero-sub">${top.length.toLocaleString()} tracker/ad host${top.length === 1 ? '' : 's'} from other sites</div>
+        <div class="pd-hero-sub">${top.length.toLocaleString()} tracker/ad host${VexPlural.s(top.length)} from other sites</div>
       </div>
       ${crossHtml}
       ${top.length ? `<div class="pd-section-title">Top offenders</div>

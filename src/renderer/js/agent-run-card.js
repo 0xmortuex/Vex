@@ -126,7 +126,7 @@ const AgentRunCard = (() => {
     function applyFilter() { for (const r of rows) r.li.hidden = !(filter === 'all' || r.cat === filter); }
     function paintCount() {
       const n = rows.filter(r => r.kind === 'step').length;
-      q('.arc-count').textContent = n + ' step' + (n === 1 ? '' : 's');
+      q('.arc-count').textContent = n + ' step' + VexPlural.s(n);
     }
     function stick() {
       const near = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
@@ -272,7 +272,7 @@ const AgentRunCard = (() => {
         // rounds of thinking, refused ones included, and disagreed with it.
         const foot = String(endText || '').replace(/^Agent finished\s*(—\s*)?/, '').replace(/^\d+ steps?,\s*/, '');
         const f = q('.arc-foot');
-        f.textContent = [foot, problems ? problems + ' problem' + (problems === 1 ? '' : 's') + ' along the way' : ''].filter(Boolean).join(' · ');
+        f.textContent = [foot, problems ? problems + ' problem' + VexPlural.s(problems) + ' along the way' : ''].filter(Boolean).join(' · ');
         f.hidden = !f.textContent;
       },
       alive: () => !finished,

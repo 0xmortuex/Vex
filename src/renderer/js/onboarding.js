@@ -655,7 +655,7 @@ const Onboarding = {
       if (!raw) { st.textContent = 'Paste a code that starts with VEXSETUP1.'; st.style.color = 'var(--text-muted)'; return; }
       const d = this._decodeSetupCode(raw);
       if (!d) { st.textContent = 'Not a valid setup code — check it copied completely.'; st.style.color = 'var(--danger, #ef4444)'; return; }
-      const sc = d.shortcuts == null ? 'stock shortcuts' : `${d.shortcuts.length} shortcut${d.shortcuts.length === 1 ? '' : 's'}`;
+      const sc = d.shortcuts == null ? 'stock shortcuts' : `${d.shortcuts.length} shortcut${VexPlural.s(d.shortcuts.length)}`;
       const look = [];
       if (d.skin && d.skin.pattern && d.skin.pattern !== 'none') { try { look.push(VexSkins.PATTERNS.find(x => x.id === d.skin.pattern).name.toLowerCase() + ' skin'); } catch { /* named below anyway */ } }
       if (d.font && d.font.ui) { try { look.push(VexFonts.get(d.font.ui).name); } catch { /* named below anyway */ } }

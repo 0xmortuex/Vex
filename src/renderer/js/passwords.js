@@ -775,7 +775,7 @@ const PasswordVault = {
       const r = await window.vex.vaultExportCsv();
       if (r && r.canceled) return;
       if (!r || !r.ok) throw new Error((r && r.error) || 'unknown error');
-      window.showToast?.(`Exported ${r.count} password${r.count === 1 ? '' : 's'} — delete the file once you have used it`);
+      window.showToast?.(`Exported ${r.count} password${VexPlural.s(r.count)} — delete the file once you have used it`);
     } catch (err) {
       window.showToast?.('Could not export: ' + err.message, 'error');
     }

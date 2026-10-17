@@ -221,7 +221,7 @@ const VexPdfTools = {
         const text = document.createElement('span');
         text.className = 'vexsr-host';
         text.style.wordBreak = 'normal';
-        text.textContent = (i + 1) + '. ' + f.name + '  (' + f.pages + ' page' + (f.pages === 1 ? '' : 's') + ', ' + this._size(f.bytes) + ')';
+        text.textContent = (i + 1) + '. ' + f.name + '  (' + f.pages + ' page' + VexPlural.s(f.pages) + ', ' + this._size(f.bytes) + ')';
         row.appendChild(text);
         if (i > 0) row.appendChild(VexSettingsGroups.button('Up', () => { [files[i - 1], files[i]] = [files[i], files[i - 1]]; draw(); }, { label: 'Move ' + f.name + ' up' }));
         if (i < files.length - 1) row.appendChild(VexSettingsGroups.button('Down', () => { [files[i + 1], files[i]] = [files[i], files[i + 1]]; draw(); }, { label: 'Move ' + f.name + ' down' }));
@@ -277,7 +277,7 @@ const VexPdfTools = {
           if (r.files[0] && r.files[0].before) window.showToast?.('From ' + this._size(r.files[0].before) + ' to ' + this._size(r.files[0].bytes), 'info', 8000);
           if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
           const first = r.files[0];
-          window.showToast?.(r.files.length === 1 ? 'Saved ' + first.name + ' (' + first.pages + ' page' + (first.pages === 1 ? '' : 's') + ')' : 'Saved ' + r.files.length + ' PDFs', 'success', 8000,
+          window.showToast?.(r.files.length === 1 ? 'Saved ' + first.name + ' (' + first.pages + ' page' + VexPlural.s(first.pages) + ')' : 'Saved ' + r.files.length + ' PDFs', 'success', 8000,
             window.vex && window.vex.downloadsShowInFolder ? { action: { label: 'Show in folder', run: () => window.vex.downloadsShowInFolder(first.path) } } : undefined);
         } catch (err) { window.showToast?.(err.message, 'error', 7000); }
       }, { primary: true }));

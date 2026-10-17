@@ -81,7 +81,7 @@ const PrivacyReportCard = {
     const row = (s) => `<label style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12.5px">
         <input type="checkbox" class="prc-pick" value="${esc(s.domain)}" ${s.tracker ? 'checked' : ''} aria-label="Select ${esc(s.domain)}">
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.domain)}</span>
-        <span style="color:var(--text-muted)">${s.tracker ? 'tracker · ' : ''}${num(s.count)} cookie${s.count === 1 ? '' : 's'}${s.longLived ? ' · ' + s.longLived + ' last over a year' : ''}</span></label>`;
+        <span style="color:var(--text-muted)">${s.tracker ? 'tracker · ' : ''}${num(s.count)} cookie${VexPlural.s(s.count)}${s.longLived ? ' · ' + s.longLived + ' last over a year' : ''}</span></label>`;
     const topSet = r.setThisWeek.top.length
       ? r.setThisWeek.top.map(s => `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.domain)}</span><span style="color:var(--text-muted)">${s.tracker ? 'tracker · ' : ''}${num(s.count)} set</span></div>`).join('')
       : '<div style="color:var(--text-muted);font-size:12px">Nothing counted yet. Counting starts when Vex is running; cookies set while it was closed are not included.</div>';
@@ -97,7 +97,7 @@ const PrivacyReportCard = {
       ${offenders.length ? `<div id="prc-list">${offenders.map(row).join('')}</div>
         <div style="display:flex;gap:8px;align-items:center;margin:10px 0 4px;flex-wrap:wrap">
           <button type="button" id="prc-clean" class="btn-primary" style="padding:7px 14px;font-size:12.5px">${VexIcons.svg('broom', { size: 13 })} Clear selected</button>
-          ${trackerSites.length ? `<button type="button" id="prc-clean-trackers" class="btn-secondary" style="padding:7px 14px;font-size:12.5px">Clear all ${trackerSites.length} tracker site${trackerSites.length === 1 ? '' : 's'}</button>` : ''}
+          ${trackerSites.length ? `<button type="button" id="prc-clean-trackers" class="btn-secondary" style="padding:7px 14px;font-size:12.5px">Clear all ${trackerSites.length} tracker site${VexPlural.s(trackerSites.length)}</button>` : ''}
           <span id="prc-status" role="status" style="font-size:11.5px;color:var(--text-muted)"></span>
         </div>
         <div style="font-size:11.5px;color:var(--text-muted)">Trackers are pre-selected. A site that is not a tracker is listed only because it keeps many cookies; clearing it signs you out of it.</div>`
@@ -112,13 +112,13 @@ const PrivacyReportCard = {
       if (!domains.length) { if (status) status.textContent = 'Pick at least one site.'; return; }
       const ok = await vexConfirm({
         title: 'Clear cookies?',
-        message: 'Remove every cookie from ' + domains.length + ' site' + (domains.length === 1 ? '' : 's') + '? Sites that keep you signed in with a cookie will sign you out.',
+        message: 'Remove every cookie from ' + domains.length + ' site' + VexPlural.s(domains.length) + '? Sites that keep you signed in with a cookie will sign you out.',
         okLabel: 'Clear cookies', danger: true,
       });
       if (!ok) return;
       try {
         const res = await window.vex.privacyReportClean(domains);
-        window.showToast?.('Removed ' + res.removed + ' cookie' + (res.removed === 1 ? '' : 's') + (res.failed.length ? ' (could not clear ' + res.failed.join(', ') + ')' : ''), res.failed.length ? 'error' : 'success');
+        window.showToast?.('Removed ' + res.removed + ' cookie' + VexPlural.s(res.removed) + (res.failed.length ? ' (could not clear ' + res.failed.join(', ') + ')' : ''), res.failed.length ? 'error' : 'success');
         await this._render(m);
       } catch (err) {
         window.showToast?.('Cleanup failed: ' + this._msg(err), 'error');

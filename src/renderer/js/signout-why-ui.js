@@ -35,7 +35,7 @@ const VexSignoutWhy = {
   describe(report) {
     if (!report.lines.length) {
       return (report.domain ? 'Nothing was recorded about ' + report.domain + ' in the last ' + report.windowDays + ' days.' : 'No lost sign-ins were recorded in the last ' + report.windowDays + ' days.')
-        + '\n\nVex is watching the sign-in cookies of ' + report.watching + ' site' + (report.watching === 1 ? '' : 's') + '. A sign-in that ends while Vex is closed shows up after the next start.';
+        + '\n\nVex is watching the sign-in cookies of ' + report.watching + ' site' + VexPlural.s(report.watching) + '. A sign-in that ends while Vex is closed shows up after the next start.';
     }
     return report.lines.map((l) => {
       const d = new Date(l.t).toISOString().slice(0, 10);

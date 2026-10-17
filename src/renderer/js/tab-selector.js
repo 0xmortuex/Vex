@@ -79,10 +79,10 @@ const TabSelector = {
     const labels = {
       current: 'Current tab', all: `All tabs (${count})`,
       group: `Current group (${count})`, workspace: `Workspace (${count})`,
-      custom: `${count} tab${count !== 1 ? 's' : ''} selected`
+      custom: `${count} tab${VexPlural.s(count)} selected`
     };
     if (el) el.textContent = labels[this._mode] || 'Current tab';
-    if (summary) summary.textContent = `${count} tab${count !== 1 ? 's' : ''} included`;
+    if (summary) summary.textContent = `${count} tab${VexPlural.s(count)} included`;
   },
 
   _esc(s) { return window.escapeHtml(s); }

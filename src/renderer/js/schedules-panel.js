@@ -207,7 +207,7 @@ const SchedulesPanel = {
           <button data-action="edit">${this._icon('pencil', 12)}<span>Edit</span></button>
           <button data-action="duplicate">${this._icon('copy', 12)}<span>Duplicate</span></button>
           <button data-action="delete" class="danger">${this._icon('trash', 12)}<span>Delete</span></button>
-          <span class="sched-card-stats">${t.runCount || 0} run${(t.runCount || 0) === 1 ? '' : 's'}${t.failCount ? ' · ' + t.failCount + ' failed' : ''}</span>
+          <span class="sched-card-stats">${t.runCount || 0} run${VexPlural.s(t.runCount || 0)}${t.failCount ? ' · ' + t.failCount + ' failed' : ''}</span>
           ${runs.length ? `<button class="sched-card-expand${open ? ' open' : ''}" data-action="expand" aria-expanded="${open}">${this._icon('chevron', 12)}<span>${open ? 'Hide' : 'Recent'} runs</span></button>` : ''}
         </div>
         ${open && runs.length ? `<div class="sched-card-runs">${runs.map(r => `
@@ -365,7 +365,7 @@ const SchedulesPanel = {
       this._render();
       if (!runs.length) return;
       window.VexUndo.offer({
-        message: 'Cleared ' + runs.length + ' recorded run' + (runs.length === 1 ? '' : 's'),
+        message: 'Cleared ' + runs.length + ' recorded run' + VexPlural.s(runs.length),
         undo: () => {
           Scheduler.restoreHistory(runs);
           this._historyFilter = filter;

@@ -152,7 +152,7 @@ const VexWeeklyNote = {
   async _command() {
     try {
       const r = this.generate();
-      window.showToast?.((r.created ? 'Wrote “' : 'Updated “') + r.note.title + '” — ' + r.counts.clips + ' clip' + (r.counts.clips === 1 ? '' : 's'));
+      window.showToast?.((r.created ? 'Wrote “' : 'Updated “') + r.note.title + '” — ' + r.counts.clips + ' clip' + VexPlural.s(r.counts.clips));
       if (typeof SidebarManager !== 'undefined') { try { SidebarManager.showPanel('notes'); } catch { /* notes panel name differs */ } }
     } catch (err) { window.showToast?.(err.message, 'error'); }
   },
@@ -191,7 +191,7 @@ const VexWeeklyNote = {
     c.addEventListener('click', async () => {
       const n = this.log().length;
       if (!n) { window.showToast?.('There is no clip record', 'info'); return; }
-      const ok = await window.vexConfirm({ title: 'Forget the clip record?', message: n + ' clip' + (n === 1 ? '' : 's') + ' are kept for the weekly note. Your notes are not touched.', okLabel: 'Forget', danger: true });
+      const ok = await window.vexConfirm({ title: 'Forget the clip record?', message: n + ' clip' + VexPlural.s(n) + ' are kept for the weekly note. Your notes are not touched.', okLabel: 'Forget', danger: true });
       if (!ok) return;
       try { localStorage.removeItem(this.LOG_KEY); window.showToast?.('Clip record cleared'); } catch (err) { window.showToast?.('Could not clear it: ' + err.message, 'error'); }
     });

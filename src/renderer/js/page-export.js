@@ -188,7 +188,7 @@ const PageExport = {
     if (urls.length > 8 && !(await vexConfirm({ title: 'Open ' + urls.length + ' tabs?', message: urls.slice(0, 6).join('\n') + '\n…and ' + (urls.length - 6) + ' more', okLabel: 'Open them' }))) return 0;
     // The first becomes the tab you are looking at; the rest wait behind it.
     urls.forEach((u, i) => { try { TabManager.createTab(u, i === 0); } catch {} });
-    window.showToast?.('Opened ' + urls.length + ' tab' + (urls.length === 1 ? '' : 's'));
+    window.showToast?.('Opened ' + urls.length + ' tab' + VexPlural.s(urls.length));
     return urls.length;
   },
 

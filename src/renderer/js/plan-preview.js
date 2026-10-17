@@ -39,7 +39,7 @@ const VexPlan = {
 
   // "Do these 12 things" wording, one place.
   countLine(n, noun = 'thing') {
-    return n === 0 ? 'Nothing is ticked.' : 'This will do ' + n + ' ' + noun + (n === 1 ? '' : 's') + '.';
+    return n === 0 ? 'Nothing is ticked.' : 'This will do ' + n + ' ' + noun + VexPlural.s(n) + '.';
   },
 
   snapshotTabs(tabs) {

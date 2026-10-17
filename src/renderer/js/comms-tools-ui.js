@@ -137,7 +137,7 @@ const CommsToolsUI = {
         this._btn('Look in my recent mail', async () => {
           const r = await MeetingLinks.fromMail();
           extra = r.found;
-          window.showToast?.('Read ' + r.read + ' recent messages, found ' + r.found.length + ' call link' + (r.found.length === 1 ? '' : 's'));
+          window.showToast?.('Read ' + r.read + ' recent messages, found ' + r.found.length + ' call link' + VexPlural.s(r.found.length));
           return draw();
         }),
         this._btn('Add a link', async () => {

@@ -160,7 +160,7 @@ const VexStudyNotes = {
     const content = this.cornell({ title, url, cues });
     const note = this.addNote({ title: 'Cornell: ' + (this._label(title) || 'Untitled').slice(0, 80), content, tags: ['cornell'], sourceUrl: /^https?:\/\//i.test(url) ? url : '', sourceTitle: this._label(title) });
     if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
-    window.showToast?.('Made a Cornell note' + (cues.length ? ' with ' + cues.length + ' question' + (cues.length === 1 ? '' : 's') + ' from this page' : ''), 'info', 4000);
+    window.showToast?.('Made a Cornell note' + (cues.length ? ' with ' + cues.length + ' question' + VexPlural.s(cues.length) + ' from this page' : ''), 'info', 4000);
     return note;
   },
 

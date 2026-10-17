@@ -145,7 +145,7 @@ const MemoryPanel = {
     if (!rows.length) { host.innerHTML = head; return; }
     host.innerHTML = head + `<table class="memory-proc-table memory-cost-table"><thead><tr><th>What</th><th>Processor</th><th>Memory</th><th>Downloaded</th><th></th></tr></thead><tbody>${rows.map((r, i) => {
       const sleeping = r.kind === 'site' && r.tabCount === 0;
-      const sub = r.kind === 'site' ? (r.tabCount ? r.tabCount + ' tab' + (r.tabCount === 1 ? '' : 's') : 'closed or asleep') + (r.shared ? ' · shares a process' : '')
+      const sub = r.kind === 'site' ? (r.tabCount ? r.tabCount + ' tab' + VexPlural.s(r.tabCount) : 'closed or asleep') + (r.shared ? ' · shares a process' : '')
         : r.kind === 'private' ? 'not itemised, by design' : r.kind;
       const acts = (r.actions || []).map(a => `<button class="memory-cost-act" data-i="${i}" data-act="${this._esc(a)}">${this._esc(TabCost.ACTION_LABELS[a] || a)}</button>`).join('');
       const unsized = r.netUnsized ? `<div class="memory-proc-kind">${r.netUnsized} of ${r.netRequests} requests had no size</div>` : '';
@@ -547,12 +547,12 @@ const MemoryPanel = {
     if (parts.length) lines.push('Startup: ' + parts.join(' · '));
     for (const l of this.startupPartLines(d, startup)) lines.push(l);
     const ev = Array.isArray(d.events) ? d.events : [];
-    lines.push(ev.length ? `${ev.length} event${ev.length === 1 ? '' : 's'} since launch:` : 'No crashes, hangs or helper processes lost since launch.');
+    lines.push(ev.length ? `${ev.length} event${VexPlural.s(ev.length)} since launch:` : 'No crashes, hangs or helper processes lost since launch.');
     for (const e of ev.slice(-20)) lines.push(`  ${this._fmtAgo(Date.now() - e.at)} — ${e.kind}: ${e.detail}`);
     // Earlier launches' crashes, from main's crash log (this launch's are above).
     const before = (Array.isArray(d.crashHistory) ? d.crashHistory : []).filter(e => !d.startedAt || e.at < d.startedAt);
     if (before.length) {
-      lines.push(`${before.length} crash${before.length === 1 ? '' : 'es'} or hang${before.length === 1 ? '' : 's'} in earlier launches this week:`);
+      lines.push(`${before.length} crash${VexPlural.es(before.length)} or hang${VexPlural.s(before.length)} in earlier launches this week:`);
       for (const e of before.slice(-8)) lines.push(`  ${new Date(e.at).toLocaleString()} — ${e.kind}: ${e.detail}${e.version ? ' (v' + e.version + ')' : ''}`);
     }
     for (const l of this.crashTrendLines(d.crashTrend)) lines.push(l);
@@ -570,7 +570,7 @@ const MemoryPanel = {
     // the DevTools console and nowhere else.
     if (typeof VexProblems !== 'undefined') {
       const n = VexProblems.count();
-      lines.push(n ? `${n} quiet problem${n === 1 ? '' : 's'} — things that failed without saying so:` : (VexProblems.olderCount() ? 'Nothing has failed quietly since the last update.' : 'Nothing has failed quietly.'));
+      lines.push(n ? `${n} quiet problem${VexPlural.s(n)} — things that failed without saying so:` : (VexProblems.olderCount() ? 'Nothing has failed quietly since the last update.' : 'Nothing has failed quietly.'));
       for (const l of VexProblems.lines(12)) lines.push('  ' + l);
     }
     return lines;
@@ -723,7 +723,7 @@ const MemoryPanel = {
       await TabManager.sleepTab(t.id, true);
       pinned++;
     }
-    if (pinned) done.push(`${pinned} pinned tab${pinned === 1 ? '' : 's'} idle over 30 min`);
+    if (pinned) done.push(`${pinned} pinned tab${VexPlural.s(pinned)} idle over 30 min`);
     if (typeof SidebarManager !== 'undefined' && SidebarManager.sleepHiddenPanels) {
       const slept = SidebarManager.sleepHiddenPanels();
       if (slept.length) done.push('panels slept: ' + slept.map(n => SidebarManager.panelLabel(n)).join(', '));

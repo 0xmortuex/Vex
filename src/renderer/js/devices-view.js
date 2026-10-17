@@ -82,7 +82,7 @@ const DevicesView = {
     const liveOff = !this.liveOn();
     const targets = view.filter(d => !d.self);
     const banner = offer ? `<div class="dv-continue" role="status">
-        <div class="dv-continue-text">${this._icon('arrow-right', 15)}<span><strong>Continue where you left off</strong> on ${e(offer.device.name)}: ${offer.tabs.length} tab${offer.tabs.length === 1 ? '' : 's'}, used ${e(this._ago(offer.device.lastActive, now))}</span></div>
+        <div class="dv-continue-text">${this._icon('arrow-right', 15)}<span><strong>Continue where you left off</strong> on ${e(offer.device.name)}: ${offer.tabs.length} tab${VexPlural.s(offer.tabs.length)}, used ${e(this._ago(offer.device.lastActive, now))}</span></div>
         <button type="button" class="dv-btn dv-primary" data-act="continue">Open here</button></div>` : '';
     const note = liveOff ? `<p class="dv-note">${this._icon('shield', 14)}<span>Live tabs is off, so other devices see only addresses and titles. Turn it on in Settings › Vex Sync › Choose what to sync to also share each tab's icon, group, pinned state and when you last used it. Private, Tor and routed tabs and sensitive sites are never shared.</span></p>` : '';
     const devices = view.length ? view.map(d => {
@@ -157,7 +157,7 @@ const DevicesView = {
     try { seen = Number(localStorage.getItem(this.OFFER_KEY)) || 0; } catch { seen = 0; }
     if (seen >= offer.device.lastActive) return null;
     try { localStorage.setItem(this.OFFER_KEY, String(offer.device.lastActive)); } catch { /* an offer made twice is harmless */ }
-    window.showToast?.('Continue where you left off on ' + offer.device.name + ' (' + offer.tabs.length + ' tab' + (offer.tabs.length === 1 ? '' : 's') + '): Ctrl+K › Devices', 'info', 12000);
+    window.showToast?.('Continue where you left off on ' + offer.device.name + ' (' + offer.tabs.length + ' tab' + VexPlural.s(offer.tabs.length) + '): Ctrl+K › Devices', 'info', 12000);
     return offer;
   },
 

@@ -140,7 +140,7 @@ const VexUserscripts = {
     if (!a) { this._closeMenu(); return; }
     const badge = btn.querySelector('.us-count');
     if (badge) badge.textContent = String(a.count);
-    btn.title = a.count + ' userscript' + (a.count === 1 ? '' : 's') + ' running on this page — click for the list and the off switch';
+    btn.title = a.count + ' userscript' + VexPlural.s(a.count) + ' running on this page — click for the list and the off switch';
     btn.setAttribute('aria-label', btn.title);
   },
 
@@ -245,7 +245,7 @@ const VexUserscripts = {
       bits.push(s.runAt);
       if (s.grants.length) bits.push(s.grants.join(', '));
       bits.push(s.connects.length ? 'contacts ' + (s.connects.includes('*') && !s.anyHost ? s.connects.filter(c => c !== '*').join(', ') || 'no site' : s.connects.join(', ')) : 'contacts no site');
-      if (s.valueCount) bits.push(s.valueCount + ' saved value' + (s.valueCount === 1 ? '' : 's') + ' (' + Math.max(1, Math.round(s.valueBytes / 1024)) + ' KB)');
+      if (s.valueCount) bits.push(s.valueCount + ' saved value' + VexPlural.s(s.valueCount) + ' (' + Math.max(1, Math.round(s.valueBytes / 1024)) + ' KB)');
       const sites = s.matches.slice(0, 4).join(', ') + (s.matches.length > 4 ? ' +' + (s.matches.length - 4) : '');
       row.innerHTML = '<div class="us-row-main"><div class="us-row-name">' + esc(s.name) + (s.version ? ' <span class="us-ver">v' + esc(s.version) + '</span>' : '') + '</div>'
         + '<div class="us-row-meta">' + esc(s.description || '') + '</div>'
@@ -287,7 +287,7 @@ const VexUserscripts = {
       if (s.updateUrl) act('Check for update', () => this.checkUpdate(s.id));
       if (s.valueCount) {
         act('Clear saved values', async () => {
-          const ok = await vexConfirm({ title: 'Clear saved values?', message: s.name + ' loses the ' + s.valueCount + ' value' + (s.valueCount === 1 ? '' : 's') + ' it saved.', okLabel: 'Clear', danger: true });
+          const ok = await vexConfirm({ title: 'Clear saved values?', message: s.name + ' loses the ' + s.valueCount + ' value' + VexPlural.s(s.valueCount) + ' it saved.', okLabel: 'Clear', danger: true });
           if (ok) await this._api().clearValues(s.id);
         });
       }

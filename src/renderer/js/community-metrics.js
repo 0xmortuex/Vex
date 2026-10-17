@@ -125,7 +125,7 @@ const CommunityMetrics = {
     const unit = m.unit ? ' ' + m.unit : '';
     if (!c) return m.label + ': ' + this.fmt(last.v) + unit;
     const sign = c.diff > 0 ? '+' : '';
-    return m.label + ': ' + this.fmt(last.v) + unit + ', ' + sign + this.fmt(c.diff) + (c.pct == null ? '' : ' (' + sign + c.pct + '%)') + ' in ' + c.days + ' day' + (c.days === 1 ? '' : 's');
+    return m.label + ': ' + this.fmt(last.v) + unit + ', ' + sign + this.fmt(c.diff) + (c.pct == null ? '' : ' (' + sign + c.pct + '%)') + ' in ' + c.days + ' day' + VexPlural.s(c.days);
   },
 
   // ---- a number from a public page ---------------------------------------------------------------------------------

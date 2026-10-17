@@ -61,7 +61,7 @@ const LinkChecker = {
     if (!Array.isArray(links) || !links.length) throw new Error('There are no links on this page to check');
 
     const { overlay, head, body, close } = window.PageExport._sheet('Links on this page', 'vex-links-overlay');
-    body.innerHTML = `<div style="padding:26px 16px;text-align:center;font-size:12.5px;color:var(--text-muted)">Asking ${links.length} link${links.length === 1 ? '' : 's'}, a few at a time — from an empty session, so no site learns who you are…</div>`;
+    body.innerHTML = `<div style="padding:26px 16px;text-align:center;font-size:12.5px;color:var(--text-muted)">Asking ${links.length} link${VexPlural.s(links.length)}, a few at a time — from an empty session, so no site learns who you are…</div>`;
 
     const r = await window.vex.checkLinks(links.map(l => l.url));
     if (!overlay.isConnected) return null;                 // closed while waiting

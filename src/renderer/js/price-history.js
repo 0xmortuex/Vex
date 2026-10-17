@@ -182,7 +182,7 @@ const PriceHistory = {
       draw();
       if (!Object.keys(before).length) return;
       window.VexUndo.offer({
-        message: 'Forgot the price history of ' + Object.keys(before).length + ' product' + (Object.keys(before).length === 1 ? '' : 's'),
+        message: 'Forgot the price history of ' + Object.keys(before).length + ' product' + VexPlural.s(Object.keys(before).length),
         undo: () => { this._save({ ...before, ...this.all() }); if (body.isConnected) draw(); },
       });
     });
@@ -207,7 +207,7 @@ const PriceHistory = {
             <div>Highest <b style="color:var(--text)">${esc(this.format(s.high.cents, here.currency))}</b></div>
           </div>
           ${this.sparkline(here.points)}
-          <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">${s.isLowest && here.points.length > 1 ? 'This is the lowest price you have seen here. ' : ''}Seen on ${here.points.length} day${here.points.length === 1 ? '' : 's'} since ${esc(s.first.day)}; the price changed ${s.changes} time${s.changes === 1 ? '' : 's'}.</div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">${s.isLowest && here.points.length > 1 ? 'This is the lowest price you have seen here. ' : ''}Seen on ${here.points.length} day${VexPlural.s(here.points.length)} since ${esc(s.first.day)}; the price changed ${s.changes} time${VexPlural.s(s.changes)}.</div>
         </div>`;
       } else {
         html += `<div style="padding:14px;font-size:12.5px;color:var(--text-muted);border-bottom:1px solid var(--border)">${pageKey ? 'No price noted for this page. Vex notes the price on product pages that publish it for search engines, from the first time you open them — come back later to see it change.' : 'Open a product page to see its price history here.'}</div>`;
@@ -225,7 +225,7 @@ const PriceHistory = {
         row.innerHTML = `
           <div style="flex:1;min-width:0">
             <div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.name || url)}</div>
-            <div style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } })())} · ${e.points.length} day${e.points.length === 1 ? '' : 's'}</div>
+            <div style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } })())} · ${e.points.length} day${VexPlural.s(e.points.length)}</div>
           </div>
           <div style="text-align:right;font-size:12.5px;color:var(--text)">${esc(this.format(s.now.cents, e.currency))}
             ${diff ? `<div style="font-size:10.5px;color:${diff < 0 ? 'var(--primary)' : 'var(--danger,#e5534b)'}">${diff < 0 ? 'down' : 'up'} ${esc(this.format(Math.abs(diff), e.currency))}</div>` : ''}</div>

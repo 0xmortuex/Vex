@@ -97,7 +97,7 @@ const VexTimeTravel = {
     const h = Math.round(m / 60);
     if (h < 24) return h + ' h ago';
     const d = Math.round(h / 24);
-    return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+    return d + ' day' + VexPlural.s(d) + ' ago';
   },
 
   // One short sentence list about a moment compared with now. `diff` is the
@@ -248,7 +248,7 @@ const VexTimeTravel = {
     const list = await window.vex.journalList({});
     const e = (s) => this._esc(s);
     const settings = '<div class="vex-tt-settings">'
-      + '<span>' + stats.count + ' snapshot' + (stats.count === 1 ? '' : 's') + ' · ' + this._fmtBytes(stats.totalBytes) + ' of ' + this._fmtBytes(stats.maxBytes) + ' · ' + (stats.noteRestore ? 'note versions kept' : 'note versions off (no OS encryption)') + '</span>'
+      + '<span>' + stats.count + ' snapshot' + VexPlural.s(stats.count) + ' · ' + this._fmtBytes(stats.totalBytes) + ' of ' + this._fmtBytes(stats.maxBytes) + ' · ' + (stats.noteRestore ? 'note versions kept' : 'note versions off (no OS encryption)') + '</span>'
       + '<label>Keep for <select id="vex-tt-days" aria-label="Keep the journal for">'
       + [7, 14, 30, 60, 90].map(d => '<option value="' + d + '"' + (d === stats.retentionDays ? ' selected' : '') + '>' + d + ' days</option>').join('') + '</select></label>'
       + '<label class="vex-tt-check"><input type="checkbox" id="vex-tt-on"' + (stats.enabled ? ' checked' : '') + '> Record</label>'
@@ -305,10 +305,10 @@ const VexTimeTravel = {
       + (notesHtml ? '<div class="vex-tt-h">Notes edited since</div>' + notesHtml : '');
     host.querySelector('#vex-tt-reopen').addEventListener('click', async () => {
       try {
-        const ok = await vexConfirm({ title: 'Reopen these tabs?', message: tabsGone + ' tab' + (tabsGone === 1 ? '' : 's') + ' from ' + new Date(got.ts).toLocaleString() + ' will open in new tabs. Nothing that is open now changes.', okLabel: 'Reopen' });
+        const ok = await vexConfirm({ title: 'Reopen these tabs?', message: tabsGone + ' tab' + VexPlural.s(tabsGone) + ' from ' + new Date(got.ts).toLocaleString() + ' will open in new tabs. Nothing that is open now changes.', okLabel: 'Reopen' });
         if (!ok) return;
         const n = this.reopenTabs(snap);
-        window.showToast?.('Reopened ' + n + ' tab' + (n === 1 ? '' : 's'));
+        window.showToast?.('Reopened ' + n + ' tab' + VexPlural.s(n));
         this._close();
       } catch (err) { this._fail(err); }
     });

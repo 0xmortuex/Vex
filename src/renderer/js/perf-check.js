@@ -141,7 +141,7 @@ const PerfCheck = {
     if (g('lcp') === 'poor' || g('lcp') === 'needs work') f.push({ sev: g('lcp') === 'poor' ? 2 : 1, text: 'The main content took ' + this.fmt('lcp', r.metrics.lcp) + ' to appear' + (r.metrics.lcpElement ? ' (' + r.metrics.lcpElement + ')' : '') + '. Under 2.5 s is good.' });
     if (g('ttfb') === 'poor' || g('ttfb') === 'needs work') f.push({ sev: g('ttfb') === 'poor' ? 2 : 1, text: 'The server took ' + this.fmt('ttfb', r.metrics.ttfb) + ' just to start answering — before the page could do anything. Under 0.8 s is good.' });
     if (g('cls') === 'poor' || g('cls') === 'needs work') f.push({ sev: g('cls') === 'poor' ? 2 : 1, text: 'The layout jumped around while loading (shift score ' + this.fmt('cls', r.metrics.cls) + '). That is the page moving under your finger. Under 0.1 is good.' });
-    if (r.blockingScripts && r.blockingScripts.length) f.push({ sev: 1, text: r.blockingScripts.length + ' script' + (r.blockingScripts.length === 1 ? '' : 's') + ' in the page head stop it drawing until they have downloaded and run: ' + r.blockingScripts.slice(0, 4).join(', ') + '.' });
+    if (r.blockingScripts && r.blockingScripts.length) f.push({ sev: 1, text: r.blockingScripts.length + ' script' + VexPlural.s(r.blockingScripts.length) + ' in the page head stop it drawing until they have downloaded and run: ' + r.blockingScripts.slice(0, 4).join(', ') + '.' });
     if (r.oversizedImages && r.oversizedImages.count) {
       const e = r.oversizedImages.examples[0];
       f.push({ sev: 1, text: r.oversizedImages.count + ' picture' + (r.oversizedImages.count === 1 ? ' is' : 's are') + ' sent far bigger than shown' + (e ? ' — e.g. ' + e.src + ' is ' + e.natural + ' px wide, shown at ' + e.shown + ' px' : '') + '.' });

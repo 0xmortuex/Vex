@@ -137,7 +137,7 @@ const TabSnooze = {
       TabManager.closeTab(t.id);
     }
     this._write(this.ARCHIVE_KEY, kept.slice(0, this.MAX_ARCHIVE));
-    const note = old.length + ' tab' + (old.length === 1 ? '' : 's') + ' untouched for ' + (days === 7 ? 'a week' : days + ' days') + ' moved to the archive — nothing was lost';
+    const note = old.length + ' tab' + VexPlural.s(old.length) + ' untouched for ' + (days === 7 ? 'a week' : days + ' days') + ' moved to the archive — nothing was lost';
     window.showToast?.(note);
     document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note } }));
     return old;

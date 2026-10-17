@@ -144,7 +144,7 @@ const TabSnapshots = {
       this._restore.splice(at, 1);
       try {
         const r = await this._withTimeout(wv.executeJavaScript('(' + vexSnapshotApply.toString() + ')(' + JSON.stringify(entry) + ')', false), 3000);
-        if (r && (r.fields || r.scrolled)) window.showToast?.('Restored what you had on "' + (tab.title || k) + '"' + (r.fields ? ' (' + r.fields + ' text box' + (r.fields === 1 ? '' : 'es') + ')' : ''), 'info');
+        if (r && (r.fields || r.scrolled)) window.showToast?.('Restored what you had on "' + (tab.title || k) + '"' + (r.fields ? ' (' + r.fields + ' text box' + VexPlural.es(r.fields) + ')' : ''), 'info');
       } catch (err) { console.warn('[TabSnapshots] could not restore a page:', this._msg(err)); }
     }
   },

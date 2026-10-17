@@ -195,7 +195,7 @@ const MeetingPrep = {
         ${prep.notes.map(n => `<button data-note="${esc(n.id)}" type="button" style="display:block;width:100%;text-align:left;font:inherit;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 8px;margin-top:4px;cursor:pointer;color:var(--text)">
           <span style="display:block;font-size:12px;font-weight:600">${esc(n.title)}</span>
           <span style="display:block;font-size:11px;color:var(--text-muted)">${esc(n.snippet)}</span></button>`).join('')}` : '<div style="margin-top:9px;font-size:11.5px;color:var(--text-muted)">No notes from earlier meetings with this name.</div>'}
-      ${prep.docs.length ? `<div style="margin-top:9px;font-size:11px;color:var(--text-muted)">${prep.docs.length} linked document${prep.docs.length === 1 ? '' : 's'}</div>
+      ${prep.docs.length ? `<div style="margin-top:9px;font-size:11px;color:var(--text-muted)">${prep.docs.length} linked document${VexPlural.s(prep.docs.length)}</div>
         ${prep.docs.map(u => `<div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u)}</div>`).join('')}` : ''}
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
         ${prep.docs.length ? `<button data-open type="button" style="${btn}">Open the documents</button>` : ''}
@@ -205,7 +205,7 @@ const MeetingPrep = {
     const onKey = (e) => { if (e.key === 'Escape' && card.isConnected && !document.querySelector('.vex-dialog-overlay')) close(); };
     card.querySelector('[data-dismiss]').addEventListener('click', close);
     card.querySelector('[data-open]')?.addEventListener('click', () => {
-      try { window.showToast?.('Opened ' + this.openDocs(prep) + ' document' + (prep.docs.length === 1 ? '' : 's')); }
+      try { window.showToast?.('Opened ' + this.openDocs(prep) + ' document' + VexPlural.s(prep.docs.length)); }
       catch (err) { window.showToast?.(err.message, 'error'); }
     });
     card.querySelector('[data-call]')?.addEventListener('click', () => { TabManager.createTab(prep.calls[0], true); close(); });

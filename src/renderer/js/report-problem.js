@@ -107,7 +107,7 @@ const VexReport = (() => {
     const log = lines.length
       ? ['```', ...lines, '```']
       : ['Nothing in Vex\'s problem or crash lists.'];
-    if (left > 0) log.push(`(${left} older line${left === 1 ? '' : 's'} left out to fit GitHub's link length.)`);
+    if (left > 0) log.push(`(${left} older line${VexPlural.s(left)} left out to fit GitHub's link length.)`);
     return [
       '### What happened',
       'Describe what you did, what you expected, and what happened instead.',

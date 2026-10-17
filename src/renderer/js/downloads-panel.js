@@ -354,7 +354,7 @@ const DownloadsPanel = {
         // The shared dry-run list (js/plan-preview.js). The plan is applied as a whole by its id, so the
         // list is read-only here: the choice is to do it or not.
         const plan = await VexPlan.confirm({
-          title: 'Tidy up ' + p.moves.length + ' file' + (p.moves.length === 1 ? '' : 's') + '?',
+          title: 'Tidy up ' + p.moves.length + ' file' + VexPlural.s(p.moves.length) + '?',
           intro: summary + '. Files older than ' + MIN_AGE_DAYS + ' days move into subfolders of ' + p.dir + '. Nothing is deleted, and "Undo last tidy-up" puts every file back.',
           items: p.moves.map((m, n) => ({ id: 'm' + n, label: m.name, detail: '-> ' + m.folder })),
           okLabel: 'Move them', noun: 'move', selectable: false,
@@ -362,13 +362,13 @@ const DownloadsPanel = {
         if (!plan.ok) return;
         const r = await window.vex.downloadsTidyApply(p.id);
         if (!r || !r.ok) { fail('Could not tidy up', r); return; }
-        window.showToast?.('Moved ' + r.moved + ' file' + (r.moved === 1 ? '' : 's') + (r.failed.length ? ', ' + r.failed.length + ' could not be moved' : ''), r.failed.length ? 'error' : undefined);
+        window.showToast?.('Moved ' + r.moved + ' file' + VexPlural.s(r.moved) + (r.failed.length ? ', ' + r.failed.length + ' could not be moved' : ''), r.failed.length ? 'error' : undefined);
         if (typeof this.refreshExistence === 'function') this.refreshExistence();
         // The "Why did that happen?" list (js/vex-ledger.js): the undo outlives this toast and a restart.
         if (r.moved && typeof VexLedger !== 'undefined') {
           VexLedger.note({
             feature: 'downloads-tidy',
-            what: 'Moved ' + r.moved + ' old download' + (r.moved === 1 ? '' : 's') + ' into folders by type',
+            what: 'Moved ' + r.moved + ' old download' + VexPlural.s(r.moved) + ' into folders by type',
             why: 'You asked for a tidy-up of files older than ' + MIN_AGE_DAYS + ' days.',
             undo: { kind: 'downloads-tidy-undo' },
           });
@@ -380,7 +380,7 @@ const DownloadsPanel = {
       if (!ok) return;
       const r = await window.vex.downloadsTidyUndo();
       if (!r || !r.ok) { fail('Could not undo', r); return; }
-      window.showToast?.('Put ' + r.restored + ' file' + (r.restored === 1 ? '' : 's') + ' back' + (r.left.length ? '; ' + r.left.length + ' could not be (' + r.left[0].error + ')' : ''), r.left.length ? 'error' : undefined);
+      window.showToast?.('Put ' + r.restored + ' file' + VexPlural.s(r.restored) + ' back' + (r.left.length ? '; ' + r.left.length + ' could not be (' + r.left[0].error + ')' : ''), r.left.length ? 'error' : undefined);
     });
   },
 
@@ -661,7 +661,7 @@ const DownloadsPanel = {
     const shown = lines.slice(0, 40).join('\n') + (r.count > 40 ? '\n…and ' + (r.count - 40) + ' more' : '');
     await vexConfirm({
       title: String(filePath).split(/[\\/]/).pop(),
-      message: r.count + ' item' + (r.count === 1 ? '' : 's') + ' inside:\n\n' + (shown || 'It is empty.'),
+      message: r.count + ' item' + VexPlural.s(r.count) + ' inside:\n\n' + (shown || 'It is empty.'),
       okLabel: 'Close', cancelLabel: '',
     });
     return r;
@@ -910,7 +910,7 @@ if (typeof VexLedger !== 'undefined') {
     if (newer) throw new Error('A later tidy-up came after this one; undo that one first');
     const r = await window.vex.downloadsTidyUndo();
     if (!r || !r.ok) throw new Error((r && r.error) || 'Could not put the files back');
-    if (r.left && r.left.length) window.showToast?.(r.left.length + ' file' + (r.left.length === 1 ? '' : 's') + ' could not be put back (' + r.left[0].error + ')', 'error');
+    if (r.left && r.left.length) window.showToast?.(r.left.length + ' file' + VexPlural.s(r.left.length) + ' could not be put back (' + r.left[0].error + ')', 'error');
   });
 }
 

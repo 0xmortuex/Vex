@@ -303,7 +303,7 @@ const VexShoppingClip = {
       try {
         const before = this.all();
         if (!before.length) return;
-        if (!(await window.vexConfirm({ title: 'Clear the comparison?', message: before.length + ' saved product' + (before.length === 1 ? '' : 's') + ' and your notes on them will be removed.', okLabel: 'Clear', danger: true }))) return;
+        if (!(await window.vexConfirm({ title: 'Clear the comparison?', message: before.length + ' saved product' + VexPlural.s(before.length) + ' and your notes on them will be removed.', okLabel: 'Clear', danger: true }))) return;
         this.clear();
         draw();
       } catch (err) { fail(err); }
@@ -316,7 +316,7 @@ const VexShoppingClip = {
     const G = window.VexSettingsGroup;
     let n = 0;
     try { n = this.all().length; } catch (err) { body.append(G.note(err.message)); }
-    body.append(G.note(n + ' product' + (n === 1 ? '' : 's') + ' saved. Add one from a product page with Ctrl+K › Add This Product to Comparison.'));
+    body.append(G.note(n + ' product' + VexPlural.s(n) + ' saved. Add one from a product page with Ctrl+K › Add This Product to Comparison.'));
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
     row.append(

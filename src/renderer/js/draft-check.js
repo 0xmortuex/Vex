@@ -234,7 +234,7 @@ const VexDraftCheck = {
       const n = notes.find(x => x.id === sel.value);
       const r = this.check(String(n.content || ''), this.sources(n.id));
       out.textContent = '';
-      out.appendChild(K.el('h3', { text: r.claims.length + ' claim' + (r.claims.length === 1 ? '' : 's') + ' found (a word match, so judge each yourself)' }));
+      out.appendChild(K.el('h3', { text: r.claims.length + ' claim' + VexPlural.s(r.claims.length) + ' found (a word match, so judge each yourself)' }));
       for (const c of r.claims) {
         const row = K.el('div', { style: 'margin:10px 0;padding:8px;border-left:3px solid ' + (c.verdict === 'supported' ? '#22c55e' : (c.verdict === 'partly' ? '#eab308' : '#ef4444')) },
           K.el('div', { text: c.text }), K.el('div', { class: 'vex-platform-note', text: this.LABEL[c.verdict] + (c.best ? ': ' + c.best.source.title + (c.best.source.url ? ' (' + c.best.source.url + ')' : '') : '') }));

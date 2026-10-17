@@ -158,7 +158,7 @@ const TeachMode = {
     }
     if (!this.recording) { el?.remove(); return; }
     const count = document.querySelector('#teach-badge [data-count]');
-    if (count) count.textContent = 'Recording — ' + this.steps.length + ' step' + (this.steps.length === 1 ? '' : 's');
+    if (count) count.textContent = 'Recording — ' + this.steps.length + ' step' + VexPlural.s(this.steps.length);
   },
 
   // Steps arrive on the webview's own channel; a page that navigates mid-task

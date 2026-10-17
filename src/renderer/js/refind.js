@@ -56,7 +56,7 @@ const VexRefind = {
       const n = /^\d+$/.test(m[1]) ? Number(m[1]) : this.NUM[m[1]];
       const unit = /^m/.test(m[2]) ? 60000 : /^h/.test(m[2]) ? 3600000 : 86400000;
       if (!(n > 0) || n > 1000) throw new Error('"' + m[0].trim() + '" is not a span of time I can use');
-      since = now - n * unit; label = 'the last ' + n + ' ' + m[2].replace(/^min$/, 'minute').replace(/^hr$/, 'hour') + (n === 1 ? '' : 's');
+      since = now - n * unit; label = 'the last ' + n + ' ' + m[2].replace(/^min$/, 'minute').replace(/^hr$/, 'hour') + VexPlural.s(n);
     } else if ((m = cut(/\b(?:in |over )?(?:the )?(?:last|past) hour\b:?/))) {
       since = now - 3600000; label = 'the last hour';
     } else if ((m = cut(/\bsince (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b:?/))) {

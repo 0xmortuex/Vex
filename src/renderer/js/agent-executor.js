@@ -334,7 +334,7 @@ const AgentExecutor = {
           const real = (TabManager.groups || []).find(g => g.id === made.id);
           const count = TabManager.tabs.filter(t => t.groupId === made.id).length;
           if (!real || !count) return { ok: false, error: 'The group was not created' };
-          return { ok: true, result: 'Created and verified group "' + real.name + '" with ' + count + ' tab' + (count === 1 ? '' : 's'), undo: { kind: 'group', id: made.id, label: 'the tab group "' + real.name + '"' } };
+          return { ok: true, result: 'Created and verified group "' + real.name + '" with ' + count + ' tab' + VexPlural.s(count), undo: { kind: 'group', id: made.id, label: 'the tab group "' + real.name + '"' } };
         }
 
         case 'switch_tab': {

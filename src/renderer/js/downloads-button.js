@@ -35,7 +35,7 @@ const DownloadsButton = {
     b.style.setProperty('--dl-progress', pct == null ? '0' : String(pct));
     b.classList.toggle('has-progress', pct != null);
     b.title = live.length
-      ? live.length + ' download' + (live.length === 1 ? '' : 's') + ' in progress' + (pct != null ? ' — ' + pct + '%' : '')
+      ? live.length + ' download' + VexPlural.s(live.length) + ' in progress' + (pct != null ? ' — ' + pct + '%' : '')
       : 'Downloads';
     this._paint();
   },
@@ -311,7 +311,7 @@ const DownloadsButton = {
     if (bps > 1024) parts.push(this._size(bps) + '/s');
     if (bps > 1024 && dl.totalBytes > 0) {
       const left = Math.max(0, dl.totalBytes - (dl.receivedBytes || 0)) / bps;
-      const plural = (n, word) => 'about ' + n + ' ' + word + (n === 1 ? '' : 's') + ' left';
+      const plural = (n, word) => 'about ' + n + ' ' + word + VexPlural.s(n) + ' left';
       // Three seconds, not ten: on a fast line a whole 24 MB file is under ten
       // seconds from the first chunk, so "nearly done" was on screen for the
       // entire download and told you nothing.

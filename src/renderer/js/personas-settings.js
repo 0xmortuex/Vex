@@ -83,7 +83,7 @@ const PersonasSettings = (() => {
       a.click();
       // Revoking in the same tick can cancel the download before it starts.
       setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000);
-      toast(`Exported ${data.personas.length} persona${data.personas.length === 1 ? '' : 's'}`, 'success');
+      toast(`Exported ${data.personas.length} persona${VexPlural.s(data.personas.length)}`, 'success');
     });
 
     document.getElementById('btn-import-persona')?.addEventListener('click', () => {
@@ -100,7 +100,7 @@ const PersonasSettings = (() => {
           const text = await file.text();
           const data = JSON.parse(text);
           const count = PersonasManager.importPersonas(data);
-          toast(`Imported ${count} persona${count === 1 ? '' : 's'}`, 'success');
+          toast(`Imported ${count} persona${VexPlural.s(count)}`, 'success');
           renderPanel(container);
         } catch (err) {
           toast(`Import failed: ${err.message}`, 'error');

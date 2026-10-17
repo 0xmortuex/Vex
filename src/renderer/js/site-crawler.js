@@ -227,7 +227,7 @@ const SiteCrawler = {
       stopped: () => stop || !overlay.isConnected,
       onProgress: ({ done, queued, max }) => {
         const el = body.querySelector('[data-progress]');
-        if (el) el.textContent = `Checked ${done} page${done === 1 ? '' : 's'} of this site, ${queued} waiting (up to ${max}) — from an empty session, a few at a time…`;
+        if (el) el.textContent = `Checked ${done} page${VexPlural.s(done)} of this site, ${queued} waiting (up to ${max}) — from an empty session, a few at a time…`;
       },
     });
     if (!overlay.isConnected) return null;                  // closed while crawling
@@ -256,7 +256,7 @@ const SiteCrawler = {
     const open = (url) => { TabManager.createTab(url, true); close(); };
     body.innerHTML = `
       <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted)">
-        ${checked} page${checked === 1 ? '' : 's'} checked${run.stopped ? ' before you stopped it' : ''}${run.capped ? ` · ${run.capped} more not reached (the limit is ${this.MAX_PAGES})` : ''}${run.blockedByRobots ? ` · ${run.blockedByRobots} skipped because robots.txt asks` : ''}${run.delay ? ` · one at a time, as robots.txt asks` : ''}
+        ${checked} page${VexPlural.s(checked)} checked${run.stopped ? ' before you stopped it' : ''}${run.capped ? ` · ${run.capped} more not reached (the limit is ${this.MAX_PAGES})` : ''}${run.blockedByRobots ? ` · ${run.blockedByRobots} skipped because robots.txt asks` : ''}${run.delay ? ` · one at a time, as robots.txt asks` : ''}
       </div>
       <div data-rows style="padding:6px 6px 10px">${found.length ? '' : `<div style="padding:22px 12px;text-align:center;font-size:12.5px;color:var(--text-muted)">Nothing to fix on the pages checked.</div>`}</div>`;
     const list = body.querySelector('[data-rows]');

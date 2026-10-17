@@ -79,9 +79,9 @@ const AwayMode = {
   _dur(ms) {
     const m = Math.round(ms / 60000);
     if (m < 1) return 'less than a minute';
-    if (m < 60) return m + ' minute' + (m === 1 ? '' : 's');
+    if (m < 60) return m + ' minute' + VexPlural.s(m);
     const h = Math.floor(m / 60), r = m % 60;
-    return h + ' hour' + (h === 1 ? '' : 's') + (r ? ' ' + r + ' min' : '');
+    return h + ' hour' + VexPlural.s(h) + (r ? ' ' + r + ' min' : '');
   },
   _name(source) { return typeof PanelCapture !== 'undefined' ? PanelCapture.label(source) : source; },
   _top(map, n = 3) { return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n); },
@@ -101,7 +101,7 @@ const AwayMode = {
       else {
         const per = {};
         for (const i of items) per[i.source] = (per[i.source] || 0) + 1;
-        let t = items.length + ' notification' + (items.length === 1 ? '' : 's') + ' from panels (' + this._top(per).map(([s, n]) => this._name(s) + ' ' + n).join(', ') + ')';
+        let t = items.length + ' notification' + VexPlural.s(items.length) + ' from panels (' + this._top(per).map(([s, n]) => this._name(s) + ' ' + n).join(', ') + ')';
         if (data.vip) t += ', ' + data.vip + ' from people or words you marked VIP';
         lines.push(t + '.');
         const conv = {};
@@ -132,7 +132,7 @@ const AwayMode = {
     if (typeof VexAttention !== 'undefined') for (const d of VexAttention.denied()) if (d.t > since && d.t <= until) held += d.n || 1;
     data.inbox = inbox; data.held = held;
     lines.push(inbox || held
-      ? inbox + ' suggestion' + (inbox === 1 ? '' : 's') + ' waited in the Inbox' + (held ? ' and ' + held + ' more ' + (held === 1 ? 'was' : 'were') + ' held back by the attention rules' : '') + '.'
+      ? inbox + ' suggestion' + VexPlural.s(inbox) + ' waited in the Inbox' + (held ? ' and ' + held + ' more ' + (held === 1 ? 'was' : 'were') + ' held back by the attention rules' : '') + '.'
       : 'Nothing was held back for you.');
     return { since, until, lines: lines.slice(0, 5), data };
   },

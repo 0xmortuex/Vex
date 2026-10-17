@@ -54,7 +54,7 @@ const VexUsageUI = {
       }
       if (!rep.ready) {
         body.appendChild(VexSettingsGroups.note('Vex has been keeping this record for ' + rep.days + ' of ' + VexUsage.WINDOW_DAYS + ' days. '
-          + 'The list of unused features appears in ' + rep.daysLeft + ' more day' + (rep.daysLeft === 1 ? '' : 's') + '; before that it would only be a guess.'));
+          + 'The list of unused features appears in ' + rep.daysLeft + ' more day' + VexPlural.s(rep.daysLeft) + '; before that it would only be a guess.'));
       }
       const section = (title, rows, withHide) => {
         if (!rows.length) return;

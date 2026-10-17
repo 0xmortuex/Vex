@@ -243,7 +243,7 @@ const VexRituals = {
         body.appendChild(VexSettingsGroups.button('Run the automatic steps', async () => {
           failed.clear();
           const problems = await this.runAll(cur);
-          if (problems.length) window.showToast?.('Ritual "' + cur.name + '" finished with ' + problems.length + ' problem' + (problems.length === 1 ? '' : 's') + ': ' + problems.join(', '), 'error', 8000);
+          if (problems.length) window.showToast?.('Ritual "' + cur.name + '" finished with ' + problems.length + ' problem' + VexPlural.s(problems.length) + ': ' + problems.join(', '), 'error', 8000);
           draw();
         }, { primary: true }));
       }

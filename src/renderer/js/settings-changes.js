@@ -203,9 +203,9 @@ const VexChanges = {
       catch (err) { body.appendChild(VexSettingsGroups.note(err.message)); return; }
       if (!c.length && !f.length) { body.appendChild(VexSettingsGroups.note('Everything is at its default.')); return; }
       const all = VexSettingsGroups.button('Revert all (' + (c.length + f.length) + ')', async () => {
-        const ok = await window.vexConfirm({ title: 'Revert every change?', message: 'This puts ' + (c.length + f.length) + ' setting' + (c.length + f.length === 1 ? '' : 's') + ' back to the default.', okLabel: 'Revert all' });
+        const ok = await window.vexConfirm({ title: 'Revert every change?', message: 'This puts ' + (c.length + f.length) + ' setting' + VexPlural.s(c.length + f.length) + ' back to the default.', okLabel: 'Revert all' });
         if (!ok) return;
-        try { const n = await this.revertAll(); window.showToast?.('Reverted ' + n + ' setting' + (n === 1 ? '' : 's')); }
+        try { const n = await this.revertAll(); window.showToast?.('Reverted ' + n + ' setting' + VexPlural.s(n)); }
         catch (err) { window.showToast?.(err.message, 'error'); }
         draw();
       }, { danger: true });

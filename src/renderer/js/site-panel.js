@@ -618,7 +618,7 @@ const SitePanel = {
 
   _dataHtml(c) {
     const n = this._cookies;
-    const words = n == null ? 'Counting…' : n.error ? n.error : `${n.count} cookie${n.count === 1 ? '' : 's'} in this tab’s session`;
+    const words = n == null ? 'Counting…' : n.error ? n.error : `${n.count} cookie${VexPlural.s(n.count)} in this tab’s session`;
     return this._section('data', 'Cookies and site data', `
       <div class="sp-row">
         <span class="sp-row-text"><span class="sp-row-label">${this._esc(words)}</span><span class="sp-row-note">Plus what the site keeps in its own storage.</span>${typeof SafeWebExtras !== 'undefined' ? `<span class="sp-row-note sp-third">${this._esc(SafeWebExtras.thirdPartyLine(this._third))}</span>` : ''}</span>

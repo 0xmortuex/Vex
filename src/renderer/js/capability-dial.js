@@ -130,10 +130,10 @@ const VexCapabilityDial = {
       }
       this._write({ v: 1, level: 'simple', at: Date.now(), hidden: done });
       if (done.length && typeof VexLedger !== 'undefined') {
-        VexLedger.record({ feature: 'capability-dial', what: 'Simple: switched off ' + done.length + ' feature' + (done.length === 1 ? '' : 's') + ' you never used',
+        VexLedger.record({ feature: 'capability-dial', what: 'Simple: switched off ' + done.length + ' feature' + VexPlural.s(done.length) + ' you never used',
           why: 'You chose Simple and these had no recorded use.', undo: { kind: 'capability-dial:restore' } });
       }
-      if (failed.length) throw new Error('Simple is on, but ' + failed.length + ' feature' + (failed.length === 1 ? '' : 's') + ' could not be switched off: ' + failed.join('; '));
+      if (failed.length) throw new Error('Simple is on, but ' + failed.length + ' feature' + VexPlural.s(failed.length) + ' could not be switched off: ' + failed.join('; '));
       return { level, hidden: done };
     }
     // Standard and Power both put back what Simple took away.
@@ -170,7 +170,7 @@ const VexCapabilityDial = {
       if (!on && left) {
         box.appendChild(VexSettingsGroups.note(left + ' feature' + (left === 1 ? ' is' : 's are') + ' still switched off from when the dial was on Simple.'));
         box.appendChild(VexSettingsGroups.button('Put them back', async () => {
-          try { const n = await this.restore(); window.showToast?.(n + ' feature' + (n === 1 ? '' : 's') + ' put back', 'info'); }
+          try { const n = await this.restore(); window.showToast?.(n + ' feature' + VexPlural.s(n) + ' put back', 'info'); }
           catch (err) { window.showToast?.(err.message, 'error'); }
           draw();
         }));

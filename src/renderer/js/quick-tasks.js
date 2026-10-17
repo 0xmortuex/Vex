@@ -63,7 +63,7 @@ const VexTwoMinute = {
         if (!this.enabled()) return null;
         const tasks = this.pick(this.all());
         if (!tasks.length) return null;
-        return { summary: tasks.length + ' quick one' + (tasks.length === 1 ? '' : 's') + ' to knock out', items: tasks.map(t => ({ text: this.strip(this._plain(t)), sub: t.noteTitle })) };
+        return { summary: tasks.length + ' quick one' + VexPlural.s(tasks.length) + ' to knock out', items: tasks.map(t => ({ text: this.strip(this._plain(t)), sub: t.noteTitle })) };
       },
     };
   },

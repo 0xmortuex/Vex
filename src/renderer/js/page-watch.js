@@ -312,7 +312,7 @@ const PageWatch = {
   checkLine(w, now = Date.now()) {
     const n = w.checks || 0;
     if (!n) return w.lastCheckedAt ? 'checked before counting began' : 'not checked yet';
-    const word = n + ' check' + (n === 1 ? '' : 's');
+    const word = n + ' check' + VexPlural.s(n);
     if (!w.lastChangedAt) return word + ', never changed';
     const days = Math.floor((now - w.lastChangedAt) / 86400000);
     return word + ', last change ' + (days < 1 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago');

@@ -219,7 +219,7 @@ const GameChecklist = {
   deliver(app) {
     if (typeof VexAttention === 'undefined') { this.show(app); return 'shown'; }
     const n = this.pending().length;
-    const d = VexAttention.request({ feature: 'game-checklist', urgency: 'useful', id: String(Date.now()), title: 'Before you play' + (app ? ' ' + app : ''), body: n ? n + ' thing' + (n === 1 ? '' : 's') + ' on your list' : 'Something to look at first', action: { label: 'Open', key: 'open' }, label: 'Pre-game checklist' });
+    const d = VexAttention.request({ feature: 'game-checklist', urgency: 'useful', id: String(Date.now()), title: 'Before you play' + (app ? ' ' + app : ''), body: n ? n + ' thing' + VexPlural.s(n) + ' on your list' : 'Something to look at first', action: { label: 'Open', key: 'open' }, label: 'Pre-game checklist' });
     if (d.route === 'toast') { this.show(app); return 'shown'; }
     return d.route;
   },

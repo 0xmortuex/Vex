@@ -134,7 +134,7 @@ const VexDiagBundle = {
     const storage = (Array.isArray(p.storage) ? p.storage : []).slice(0, this.MAX_STORAGE_OWNERS);
     out.push('## Where the stored data is (largest first)');
     if (!storage.length) out.push('- Not measured.');
-    for (const r of storage) out.push('- ' + s(r.owner) + ': ' + Math.round((r.bytes || 0) / 102.4) / 10 + ' KB in ' + (r.keys || 0) + ' key' + (r.keys === 1 ? '' : 's'));
+    for (const r of storage) out.push('- ' + s(r.owner) + ': ' + Math.round((r.bytes || 0) / 102.4) / 10 + ' KB in ' + (r.keys || 0) + ' key' + VexPlural.s(r.keys));
     out.push('');
     return out.join('\n');
   },

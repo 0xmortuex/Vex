@@ -88,7 +88,7 @@ const FormFill = {
       });
       return filled;
     }catch(e){return 0;}})()`;
-    try { wv.executeJavaScript(js).then((n) => { window.showToast?.(n ? ('Filled ' + n + ' field' + (n === 1 ? '' : 's')) : 'No matching form fields found'); }).catch(() => {}); } catch {}
+    try { wv.executeJavaScript(js).then((n) => { window.showToast?.(n ? ('Filled ' + n + ' field' + VexPlural.s(n)) : 'No matching form fields found'); }).catch(() => {}); } catch {}
   },
 
   _chip() { return "padding:7px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12.5px;font-family:'Outfit',sans-serif"; },

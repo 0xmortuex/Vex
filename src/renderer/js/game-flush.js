@@ -61,7 +61,7 @@ const GameFlush = {
       ['typed text', async () => {
         if (this._private() || typeof TabSnapshots === 'undefined' || !TabSnapshots.isOn()) return '';
         const r = await TabSnapshots.tick();
-        return r && r.formsKept ? 'text typed into ' + r.formsKept + ' page box' + (r.formsKept === 1 ? '' : 'es') : (r ? 'scroll positions' : '');
+        return r && r.formsKept ? 'text typed into ' + r.formsKept + ' page box' + VexPlural.es(r.formsKept) : (r ? 'scroll positions' : '');
       }],
       ['storage', async () => {
         if (typeof PersistentStorage === 'undefined' || typeof PersistentStorage._flush !== 'function') return '';

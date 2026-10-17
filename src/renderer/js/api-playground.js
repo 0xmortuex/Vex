@@ -605,7 +605,7 @@ const ApiPlayground = {
         const url = await vexPrompt({ title: 'Import from OpenAPI', message: 'The address of the service\'s JSON document, for example https://api.example.com/openapi.json. Vex reads it once and makes a collection and an environment holding {{baseUrl}}. Nothing is sent to the endpoints.', label: 'Address', placeholder: 'https://.../openapi.json', okLabel: 'Import' });
         if (url == null || !String(url).trim()) return;
         const r = await this.importOpenApi(url, { allowLocal: q('#pg-local').checked });
-        window.showToast?.('Imported ' + r.added + ' request' + (r.added === 1 ? '' : 's') + (r.skipped ? ' (' + r.skipped + ' did not fit)' : '') + '. Choose the environment to fill in {{baseUrl}}.');
+        window.showToast?.('Imported ' + r.added + ' request' + VexPlural.s(r.added) + (r.skipped ? ' (' + r.skipped + ' did not fit)' : '') + '. Choose the environment to fill in {{baseUrl}}.');
         drawLists();
       } catch (err) { window.showToast?.(err.message, 'error'); }
     });
@@ -663,7 +663,7 @@ const ApiPlayground = {
         });
         row.querySelector('[data-del]').addEventListener('click', async () => {
           try {
-            if (!(await vexConfirm({ title: 'Delete collection?', message: 'Delete "' + c.name + '"? Its ' + n + ' request' + (n === 1 ? '' : 's') + ' stay in the list without a collection.', okLabel: 'Delete', danger: true }))) return;
+            if (!(await vexConfirm({ title: 'Delete collection?', message: 'Delete "' + c.name + '"? Its ' + n + ' request' + VexPlural.s(n) + ' stay in the list without a collection.', okLabel: 'Delete', danger: true }))) return;
             this.deleteCollection(c.id); draw(); if (typeof done === 'function') done();
           } catch (err) { fail(err); }
         });

@@ -133,7 +133,7 @@ const VideoLater = {
       const list = this.videos();
       if (!list.length) { body.appendChild(K.info('No saved videos. Open one and use "Save this video for later" in Ctrl+K.')); return; }
       const left = list.reduce((s, i) => s + (i.minutes || 0), 0);
-      body.appendChild(K.info(list.length + ' video' + (list.length === 1 ? '' : 's') + ', about ' + K.span(left * 60000) + ' left in all.'));
+      body.appendChild(K.info(list.length + ' video' + VexPlural.s(list.length) + ', about ' + K.span(left * 60000) + ' left in all.'));
       for (const it of list) {
         const r = K.el('div', 'setting-row');
         r.appendChild(K.el('span', '', it.title + ' (' + this.label(it) + ', ' + (it.minutes || '?') + ' min left)'));

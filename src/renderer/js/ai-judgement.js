@@ -76,7 +76,7 @@ const AiWords = {
   ago(ms) {
     const d = Math.floor((Date.now() - ms) / 86400000);
     if (d < 1) return 'today';
-    if (d < 31) return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+    if (d < 31) return d + ' day' + VexPlural.s(d) + ' ago';
     if (d < 730) return Math.round(d / 30.4) + ' months ago';
     return Math.round(d / 365) + ' years ago';
   },
@@ -635,7 +635,7 @@ const AiRecipes = {
       for (const r of this.recipes()) {
         const when = r.at ? (r.repeat ? r.repeat + ' from ' : '') + new Date(r.at).toLocaleString() : 'no reminder';
         const t = el('span', 'vexsr-host'); t.style.wordBreak = 'normal';
-        t.append(el('div', '', r.name), Object.assign(el('div', 'vexsr-mode', 'Reminder: ' + when + (r.runs ? '. Run ' + r.runs + ' time' + (r.runs === 1 ? '' : 's') : '')), { style: 'white-space:normal' }));
+        t.append(el('div', '', r.name), Object.assign(el('div', 'vexsr-mode', 'Reminder: ' + when + (r.runs ? '. Run ' + r.runs + ' time' + VexPlural.s(r.runs) : '')), { style: 'white-space:normal' }));
         const row = el('div', 'vexsr-rule');
         if (this.isArmed(r)) t.lastChild.textContent += '. Runs by itself (' + (r.backend === 'auto' ? 'Auto' : 'local model') + ', ' + (this.DEST_LABELS[r.dest] || 'history only') + ')';
         row.append(t, act('Open', () => this.open(r.id), { label: 'Open recipe ' + r.name }),

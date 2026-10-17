@@ -191,7 +191,7 @@ const VexStorageLedger = {
       name.textContent = o.title;
       const meta = document.createElement('span');
       meta.className = 'vexsr-mode';
-      meta.textContent = Math.round(o.bytes / 102.4) / 10 + ' KB, ' + o.keys + ' key' + (o.keys === 1 ? '' : 's') + (o.syncKeys ? '' : ', never synced');
+      meta.textContent = Math.round(o.bytes / 102.4) / 10 + ' KB, ' + o.keys + ' key' + VexPlural.s(o.keys) + (o.syncKeys ? '' : ', never synced');
       row.append(name, meta);
       if (o.syncKeys) {
         const label = document.createElement('label');

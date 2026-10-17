@@ -129,7 +129,7 @@ const WatchAlerts = {
     for (const [id, label] of Object.entries(this.SOURCES)) {
       el.appendChild(toggle(label + ': ping me at once', instant[id] === true, (on) => this.setInstant(id, on)));
     }
-    if (this._count) el.appendChild(mk('p', 'setting-info muted', this._count + ' repeated alert' + (this._count === 1 ? '' : 's') + ' folded into earlier ones this session.'));
+    if (this._count) el.appendChild(mk('p', 'setting-info muted', this._count + ' repeated alert' + VexPlural.s(this._count) + ' folded into earlier ones this session.'));
   },
 
   init() {

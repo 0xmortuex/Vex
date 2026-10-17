@@ -143,7 +143,7 @@ const VexTour = {
       if (!items.length) continue;
       steps.push({
         title: cat.name,
-        html: this._esc(cat.blurb) + ` <b>${items.length}</b> thing${items.length === 1 ? '' : 's'} in this area.`,
+        html: this._esc(cat.blurb) + ` <b>${items.length}</b> thing${VexPlural.s(items.length)} in this area.`,
       });
       for (const f of items) {
         const keys = VexFeatures.keysOf(f);
@@ -257,7 +257,7 @@ const VexTour = {
       const ids = chosen();
       const n = ids.reduce((sum, id) => sum + VexFeatures.byCat(id).length, 0);
       startBtn.disabled = !ids.length;
-      startBtn.textContent = ids.length ? `Start — ${n} card${n === 1 ? '' : 's'}` : 'Start';
+      startBtn.textContent = ids.length ? `Start — ${n} card${VexPlural.s(n)}` : 'Start';
     };
     boxes.forEach(b => b.addEventListener('change', sync));
     o.querySelector('[data-all]').addEventListener('click', () => { boxes.forEach(b => { b.checked = true; }); sync(); });

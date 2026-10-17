@@ -109,8 +109,8 @@ const RefreshOnDeploy = {
       if (!wv) continue;
       try { wv.reload(); n++; } catch (err) { this._note('Could not reload ' + t.url, err); }
     }
-    if (typeof VexLedger !== 'undefined' && n) VexLedger.record({ feature: 'refresh-on-deploy', what: 'Reloaded ' + n + ' tab' + (n === 1 ? '' : 's') + ' of ' + key, why: 'You pressed Refresh after its build succeeded' });
-    window.showToast?.(n ? 'Refreshed ' + n + ' tab' + (n === 1 ? '' : 's') : 'That tab is not open any more', n ? 'info' : 'warn');
+    if (typeof VexLedger !== 'undefined' && n) VexLedger.record({ feature: 'refresh-on-deploy', what: 'Reloaded ' + n + ' tab' + VexPlural.s(n) + ' of ' + key, why: 'You pressed Refresh after its build succeeded' });
+    window.showToast?.(n ? 'Refreshed ' + n + ' tab' + VexPlural.s(n) : 'That tab is not open any more', n ? 'info' : 'warn');
     return n;
   },
 

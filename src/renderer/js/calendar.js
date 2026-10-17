@@ -144,7 +144,7 @@ const Calendar = {
           ${days.map(d => {
             const k = this.dayKey(d), items = byDay.get(k) || [];
             const other = d.getMonth() !== month;
-            return `<button data-day="${k}" type="button" role="gridcell" aria-selected="${k === selected}" aria-label="${esc(d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) + (items.length ? ', ' + items.length + ' item' + (items.length === 1 ? '' : 's') : ''))}"
+            return `<button data-day="${k}" type="button" role="gridcell" aria-selected="${k === selected}" aria-label="${esc(d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) + (items.length ? ', ' + items.length + ' item' + VexPlural.s(items.length) : ''))}"
               style="min-height:66px;text-align:left;vertical-align:top;display:flex;flex-direction:column;gap:2px;padding:4px 5px;border-radius:7px;cursor:pointer;font:inherit;
                      border:${k === selected ? '2px solid var(--primary)' : '1px solid var(--border)'};background:${other ? 'transparent' : 'var(--surface)'};opacity:${other ? 0.55 : 1}">
               <span style="font-size:11px;font-weight:${k === today ? 800 : 500};color:${k === today ? 'var(--primary)' : 'var(--text)'}">${d.getDate()}</span>

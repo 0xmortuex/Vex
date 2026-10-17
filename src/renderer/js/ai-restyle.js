@@ -128,7 +128,9 @@ const AIRestyle = {
         const css = this._cleanCss(reply);
         if (!this._looksLikeCss(css)) { msg('The AI did not return usable CSS — try rephrasing.', true); return; }
         this._setAi(host, css);
-        window.showToast?.('Restyled ' + host + ' — reopen this to revert');
+        // The stylesheet is model-written (T3-107): the notice says what wrote it.
+        const by = typeof VexProvenance !== 'undefined' && reply && reply.backend ? ' (written by ' + VexProvenance.label(VexProvenance.fromResult(reply, { read: host })) + ')' : '';
+        window.showToast?.('Restyled ' + host + by + ' — reopen this to revert');
         close();
       } catch (e) {
         msg((e && e.message) || 'The restyle failed.', true);

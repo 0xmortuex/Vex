@@ -206,7 +206,7 @@ const VexSkills = {
     if (typeof vexConfirm !== 'function') throw new Error('Vex could not ask you, so nothing was imported.');
     const esc = (s) => window.escapeHtml(s);
     const html = '<div style="max-height:320px;overflow:auto">' + list.map(s => '<p><b>' + esc(s.name) + '</b> (' + esc(this.OUTPUT_LABEL[s.output]) + (s.sites.length ? ', offered on ' + esc(s.sites.join(', ')) : '') + ')<br><span style="white-space:pre-wrap">' + esc(s.prompt) + '</span></p>').join('') + '</div>';
-    const ok = await vexConfirm({ title: 'Add ' + list.length + ' skill' + (list.length === 1 ? '' : 's') + '?', message: 'These prompts will be added. Read them first: a skill is only text that is sent to your AI when you run it.', html, okLabel: 'Add them', wide: true });
+    const ok = await vexConfirm({ title: 'Add ' + list.length + ' skill' + VexPlural.s(list.length) + '?', message: 'These prompts will be added. Read them first: a skill is only text that is sent to your AI when you run it.', html, okLabel: 'Add them', wide: true });
     if (!ok) return 0;
     for (const s of list) this.skills.push({ id: vexId('sk_'), ...s, imported: true });
     if (!this.save()) throw new Error('The skills could not be saved.');
@@ -602,7 +602,7 @@ const VexSkills = {
         const t = await vexPromptModal('Paste the exported skills', '');
         if (!t) return;
         const n = await this.importFrom(t);
-        if (n) { window.showToast?.('Added ' + n + ' skill' + (n === 1 ? '' : 's')); this.renderPanel(container); }
+        if (n) { window.showToast?.('Added ' + n + ' skill' + VexPlural.s(n)); this.renderPanel(container); }
       } catch (err) { window.showToast?.(err.message, 'error'); }
     });
     container.appendChild(tools);

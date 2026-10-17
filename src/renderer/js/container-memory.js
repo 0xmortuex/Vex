@@ -254,7 +254,7 @@ const VexContainerMemory = {
       add.append(nm, VexSettingsGroups.button('Add', () => { try { this.addPreset({ name: nm.value }); draw(); } catch (err) { window.showToast?.(err.message, 'error'); } }));
       box.appendChild(add);
       let n = 0; try { n = this.known().length; } catch (err) { box.appendChild(VexSettingsGroups.note(err.message)); }
-      box.appendChild(VexSettingsGroups.note(n + ' site' + (n === 1 ? '' : 's') + ' remembered.'));
+      box.appendChild(VexSettingsGroups.note(n + ' site' + VexPlural.s(n) + ' remembered.'));
       box.appendChild(VexSettingsGroups.button('Forget the remembered sites', async () => {
         const ok = await window.vexConfirm({ title: 'Forget remembered sites', message: 'Vex will stop offering a container first for the sites it remembered. Your containers and logins stay.', okLabel: 'Forget', danger: true });
         if (ok) { try { this.forget(); draw(); } catch (err) { window.showToast?.(err.message, 'error'); } }

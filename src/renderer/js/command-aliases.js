@@ -327,7 +327,7 @@ const VexAliases = {
       try {
         if (!(await window.vexConfirm({ title: 'Forget learned shortcut words?', message: 'The shortcuts Vex learned and the counts behind them are removed. The ones you made stay.', okLabel: 'Forget them', danger: true }))) return;
         const n = this.forgetLearned();
-        window.showToast?.('Forgot ' + n + ' learned shortcut' + (n === 1 ? '' : 's'));
+        window.showToast?.('Forgot ' + n + ' learned shortcut' + VexPlural.s(n));
         redraw();
       } catch (err) { fail(err); }
     }, 'danger'));

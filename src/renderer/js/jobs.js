@@ -325,7 +325,7 @@ const VexJobs = {
     if (!jobs.length) return [];
     const owed = jobs.filter(j => j.owed);
     const held = jobs.reduce((n, j) => n + j.held, 0);
-    return [`Background jobs: ${jobs.length} on one timer${held ? ` — ${held} run${held === 1 ? '' : 's'} held back while Vex was hidden or you were gaming` : ''}${owed.length ? `, ${owed.length} waiting to catch up` : ''}`];
+    return [`Background jobs: ${jobs.length} on one timer${held ? ` — ${held} run${VexPlural.s(held)} held back while Vex was hidden or you were gaming` : ''}${owed.length ? `, ${owed.length} waiting to catch up` : ''}`];
   },
 };
 

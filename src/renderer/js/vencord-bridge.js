@@ -89,7 +89,7 @@ const VencordBridge = {
     for (const x of [...nm, ...nr]) { const k = (x.channelName ? '#' + x.channelName.replace(/^#/, '') : 'a channel') + (x.guildName ? ' (' + x.guildName + ')' : ''); by.set(k, (by.get(k) || 0) + 1); }
     const channels = Array.from(by, ([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
     const lines = [];
-    lines.push(nm.length + ' new mention' + (nm.length === 1 ? '' : 's') + ', ' + nr.length + ' new repl' + (nr.length === 1 ? 'y' : 'ies'));
+    lines.push(nm.length + ' new mention' + VexPlural.s(nm.length) + ', ' + nr.length + ' new repl' + (nr.length === 1 ? 'y' : 'ies'));
     for (const c of channels.slice(0, 5)) lines.push(c.n + ' in ' + c.name);
     return { mentions: nm.length, replies: nr.length, channels, lines };
   },

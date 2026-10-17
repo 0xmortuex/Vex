@@ -634,13 +634,13 @@ const Scheduler = {
       },
       summary: a => {
         const n = Scheduler._urlList(a).length;
-        return 'Open ' + n + ' page' + (n === 1 ? '' : 's');
+        return 'Open ' + n + ' page' + VexPlural.s(n);
       },
       async run(task) {
         const urls = Scheduler._urlList(task.action).map(u => Scheduler._webUrl(u));
         const activate = !task.action.background;
         urls.forEach((url, i) => TabManager.createTab(url, activate && i === 0));
-        return 'Opened ' + urls.length + ' page' + (urls.length === 1 ? '' : 's');
+        return 'Opened ' + urls.length + ' page' + VexPlural.s(urls.length);
       },
     },
 
@@ -659,7 +659,7 @@ const Scheduler = {
           try { view.reload(); reloaded++; } catch { /* a sleeping or disposed tab cannot reload */ }
         }
         if (!reloaded) throw new Error('No open tab matched' + (needle ? ' "' + task.action.match + '"' : ''));
-        return 'Reloaded ' + reloaded + ' tab' + (reloaded === 1 ? '' : 's');
+        return 'Reloaded ' + reloaded + ' tab' + VexPlural.s(reloaded);
       },
     },
 
@@ -678,7 +678,7 @@ const Scheduler = {
         const awakeAfter = (TabManager.tabs || []).filter(t => !t.sleeping).length;
         const slept = Math.max(0, awakeBefore - awakeAfter);
         if (slept === 0 && ctx) ctx.noop = true;
-        return 'Put ' + slept + ' tab' + (slept === 1 ? '' : 's') + ' to sleep';
+        return 'Put ' + slept + ' tab' + VexPlural.s(slept) + ' to sleep';
       },
     },
 
@@ -808,7 +808,7 @@ const Scheduler = {
     const d = new Date(next);
     const diff = next - now;
     if (diff < 60000) return 'in less than a minute';
-    if (diff < 3600000) { const n = Math.round(diff / 60000); return 'in ' + n + ' minute' + (n === 1 ? '' : 's'); }
+    if (diff < 3600000) { const n = Math.round(diff / 60000); return 'in ' + n + ' minute' + VexPlural.s(n); }
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);
     const dayDiff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - today) / 86400000);

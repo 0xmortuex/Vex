@@ -126,7 +126,7 @@ const VexAnswerCitations = {
   summaryLine(claims) {
     const ok = claims.filter(c => c.status === 'supported').length;
     if (!claims.length) return '';
-    return ok + ' of ' + claims.length + ' statement' + (claims.length === 1 ? '' : 's') + ' point to words that really are in the source. Grey ones do not, so check them yourself. A match shows the words exist, not that the statement reads them correctly.';
+    return ok + ' of ' + claims.length + ' statement' + VexPlural.s(claims.length) + ' point to words that really are in the source. Grey ones do not, so check them yourself. A match shows the words exist, not that the statement reads them correctly.';
   },
 
   // ---- going to the passage (needs the app) -------------------------------------------------

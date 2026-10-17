@@ -107,7 +107,7 @@ const HighlightResurface = {
     const ok = VexAttention.suggest({
       feature: 'resurface', id: this.dayKey(now),
       title: 'Do you remember? ' + this.snippet(first.title || first.text, 60),
-      body: total + ' thing' + (total === 1 ? '' : 's') + ' you highlighted or wrote, back for a second look.',
+      body: total + ' thing' + VexPlural.s(total) + ' you highlighted or wrote, back for a second look.',
       action: { label: 'Look', key: 'open' },
     });
     // Counted as shown only when it reached the inbox (a muted feature is asked again on no day).

@@ -282,7 +282,7 @@ const VexMunToolkit = {
     };
     for (const e of [country, topic, minutes, seconds]) e.addEventListener('input', fill);
     body.append(K.el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, country, topic, minutes, seconds),
-      G.button('Add these as Snippets (type ;motion-mod then Tab)', K.guard(async () => { const n = await this.addSnippets(st.lang); window.showToast?.(n + ' snippet' + (n === 1 ? '' : 's') + ' added'); })), list);
+      G.button('Add these as Snippets (type ;motion-mod then Tab)', K.guard(async () => { const n = await this.addSnippets(st.lang); window.showToast?.(n + ' snippet' + VexPlural.s(n) + ' added'); })), list);
     fill();
   },
   _tab_templates(body, st) {
@@ -315,7 +315,7 @@ const VexMunToolkit = {
       const result = K.el('textarea', { rows: '5', style: 'width:100%;margin-top:8px', 'aria-label': 'Result', readonly: true });
       const sync = () => { result.value = this.merge(ops, accept); };
       out.appendChild(K.diffHtml(ops));
-      out.appendChild(K.el('div', { class: 'vex-platform-note', text: ch.length ? ch.length + ' change' + (ch.length === 1 ? '' : 's') + '. Untick one to keep the old words.' : 'No difference.' }));
+      out.appendChild(K.el('div', { class: 'vex-platform-note', text: ch.length ? ch.length + ' change' + VexPlural.s(ch.length) + '. Untick one to keep the old words.' : 'No difference.' }));
       ch.forEach((c, i) => {
         const cb = K.el('input', { type: 'checkbox', checked: true, 'aria-label': 'Accept change ' + (i + 1) });
         cb.addEventListener('change', () => { accept[i] = cb.checked; sync(); });

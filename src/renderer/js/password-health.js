@@ -45,9 +45,9 @@ const PasswordHealth = {
 
   _age(days) {
     const y = Math.floor(days / 365);
-    if (y >= 1) return `${y} year${y === 1 ? '' : 's'}`;
+    if (y >= 1) return `${y} year${VexPlural.s(y)}`;
     const mo = Math.floor(days / 30);
-    return `${mo} month${mo === 1 ? '' : 's'}`;
+    return `${mo} month${VexPlural.s(mo)}`;
   },
 
   async _paint(m) {
@@ -85,7 +85,7 @@ const PasswordHealth = {
     const line = (left, right, host) => `<div style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${left}</span><span style="color:var(--text-muted);white-space:nowrap">${right}</span>${host ? `<button type="button" data-open-host="${esc(host)}" title="Open ${esc(host)} to change it" aria-label="Open ${esc(host)}" style="flex:none;padding:3px 6px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;line-height:0">${VexIcons.svg('external', { size: 12 })}</button>` : ''}</div>`;
 
     const breachOn = this.breachCheckOn();
-    let html = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${health.total} saved password${health.total === 1 ? '' : 's'} checked. ${breachOn ? 'The analysis runs locally; only the breach check below asks Have I Been Pwned, and never sees a password.' : 'Nothing here leaves your machine — the analysis runs locally.'}</div>`;
+    let html = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${health.total} saved password${VexPlural.s(health.total)} checked. ${breachOn ? 'The analysis runs locally; only the breach check below asks Have I Been Pwned, and never sees a password.' : 'Nothing here leaves your machine — the analysis runs locally.'}</div>`;
 
     // Reused
     html += card('#e5556a', 'Reused passwords', (health.reused || []).length);
@@ -166,7 +166,7 @@ const PasswordHealth = {
     html += `<div style="display:flex;align-items:center;gap:8px;margin:4px 0 6px"><button id="pwh-breach-run" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">${r && !r.error ? 'Check again' : 'Check now'}</button><span id="pwh-breach-status" role="status" style="font-size:11.5px;color:var(--text-muted)"></span></div>`;
     if (!r) return html;
     if (r.error) return html + `<div role="alert" style="font-size:12px;color:var(--danger)">The breach check failed: ${esc(r.error)}</div>`;
-    if (!r.breached.length) return html + `<div style="font-size:12px;color:var(--text-muted)">None of your ${r.checked} saved password${r.checked === 1 ? '' : 's'} appears in a known breach.</div>`;
+    if (!r.breached.length) return html + `<div style="font-size:12px;color:var(--text-muted)">None of your ${r.checked} saved password${VexPlural.s(r.checked)} appears in a known breach.</div>`;
     html += rowbox(r.breached.map(b => line(esc(b.host) + (b.username ? ` <span style="color:var(--text-muted)">· ${esc(b.username)}</span>` : ''), `seen ${Number(b.count).toLocaleString()}×`, b.host)).join(''));
     return html + `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">These passwords are in lists attackers use. Change each one on its site, then update it in Settings › Passwords.</div>`;
   },

@@ -1204,7 +1204,7 @@ const TabManager = {
   // The count of console errors on a local page, with the last one on hover.
   errorBadge(tab) {
     if (!tab || !tab.consoleErrors) return '';
-    return `<span class="tab-errors" title="${this._escapeHtml(tab.consoleErrors + ' console error' + (tab.consoleErrors === 1 ? '' : 's') + ' — last: ' + (tab.lastConsoleError || ''))}" aria-label="${tab.consoleErrors} console errors">${tab.consoleErrors > 99 ? '99+' : tab.consoleErrors}</span>`;
+    return `<span class="tab-errors" title="${this._escapeHtml(tab.consoleErrors + ' console error' + VexPlural.s(tab.consoleErrors) + ' — last: ' + (tab.lastConsoleError || ''))}" aria-label="${tab.consoleErrors} console errors">${tab.consoleErrors > 99 ? '99+' : tab.consoleErrors}</span>`;
   },
 
   _captureBadge(tab) {
@@ -1572,7 +1572,7 @@ const TabManager = {
     menu.innerHTML = `
       <div class="tab-context-item" data-action="ungroup">${MENU_ICONS.ungroup}Ungroup (back to group)</div>
       <div class="tab-context-sep"></div>
-      <div class="tab-context-item danger" data-action="close-tabs">${MENU_ICONS.close}Close all ${count} tab${count === 1 ? '' : 's'}</div>
+      <div class="tab-context-item danger" data-action="close-tabs">${MENU_ICONS.close}Close all ${count} tab${VexPlural.s(count)}</div>
     `;
     document.body.appendChild(menu);
     this._clampMenuToViewport(menu, x, y);
@@ -1599,7 +1599,7 @@ const TabManager = {
         // member set also removes the stack object. closeTab rebuilds the
         // strip per-call (see its 4c tail), keeping the DOM in sync.
         const n = members.length;
-        this.closeTabsPreviewed(members.map(t => t.id), k => `Closed ${k} tab${k === 1 ? '' : 's'} in “${stack.name}”`, {}, { title: 'Close the ' + n + ' tabs in “' + stack.name + '”?' })
+        this.closeTabsPreviewed(members.map(t => t.id), k => `Closed ${k} tab${VexPlural.s(k)} in “${stack.name}”`, {}, { title: 'Close the ' + n + ' tabs in “' + stack.name + '”?' })
           .catch(err => window.showToast?.(err.message, 'error'));
         this._expandedStackIds.delete(stackId);
         break;
@@ -1648,13 +1648,13 @@ const TabManager = {
       <div class="tab-context-item" data-action="change-color">${MENU_ICONS.color}Change color</div>
       <div class="tab-context-item${canStack ? '' : ' disabled'}" data-action="convert-to-stack" title="${canStack ? '' : 'A stack needs at least 2 tabs'}">${MENU_ICONS.stack}Convert to Stack</div>
       <div class="tab-context-sep"></div>
-      <div class="tab-context-item" data-action="sleep-tabs">${MENU_ICONS.sleep}Sleep ${count} tab${count === 1 ? '' : 's'}</div>
+      <div class="tab-context-item" data-action="sleep-tabs">${MENU_ICONS.sleep}Sleep ${count} tab${VexPlural.s(count)}</div>
       <div class="tab-context-item" data-action="reload-tabs">${MENU_ICONS.reload}Reload them</div>
       <div class="tab-context-item" data-action="mute-tabs">${MENU_ICONS.mute}Mute or unmute them</div>
       <div class="tab-context-item" data-action="save-session">${MENU_ICONS.save}Save as a session</div>
       ${devRow ? `<div class="tab-context-item" data-action="dev-terminal">${MENU_ICONS.reload}${escapeHtml(devRow.label)}</div>` : ''}
       <div class="tab-context-sep"></div>
-      <div class="tab-context-item" data-action="close-tabs">${MENU_ICONS.close}Close ${count} tab${count === 1 ? '' : 's'}</div>
+      <div class="tab-context-item" data-action="close-tabs">${MENU_ICONS.close}Close ${count} tab${VexPlural.s(count)}</div>
       <div class="tab-context-item" data-action="ungroup">${MENU_ICONS.ungroup}Ungroup (keep tabs)</div>
       <div class="tab-context-sep"></div>
       <div class="tab-context-item danger" data-action="delete">${MENU_ICONS.trash}Delete group &amp; all tabs</div>
@@ -1691,7 +1691,7 @@ const TabManager = {
           try { await this.sleepTab(t.id); if (t.sleeping) slept++; }
           catch (err) { window.VexProblems?.note('Tab groups', 'Could not sleep a tab', err); }
         }
-        window.showToast?.(slept ? 'Slept ' + slept + ' tab' + (slept === 1 ? '' : 's') + ' in “' + group.name + '”' : 'Nothing in “' + group.name + '” could sleep — a tab playing sound or kept awake is left alone');
+        window.showToast?.(slept ? 'Slept ' + slept + ' tab' + VexPlural.s(slept) + ' in “' + group.name + '”' : 'Nothing in “' + group.name + '” could sleep — a tab playing sound or kept awake is left alone');
         this.rebuildAllTabs();
         return;
       }
@@ -1702,7 +1702,7 @@ const TabManager = {
           if (!wv || t.sleeping || t._lazy) continue;
           try { wv.reload(); done++; } catch (err) { window.VexProblems?.note('Tab groups', 'Could not reload a tab', err); }
         }
-        window.showToast?.(done ? 'Reloading ' + done + ' tab' + (done === 1 ? '' : 's') : 'Nothing in “' + group.name + '” is loaded to reload');
+        window.showToast?.(done ? 'Reloading ' + done + ' tab' + VexPlural.s(done) : 'Nothing in “' + group.name + '” is loaded to reload');
         return;
       }
       case 'mute-tabs': {
@@ -1718,8 +1718,8 @@ const TabManager = {
           catch (err) { window.VexProblems?.note('Tab groups', 'Could not mute a tab', err); }
         }
         this.persistTabs();
-        window.showToast?.((changed ? (want ? 'Muted ' : 'Unmuted ') + changed + ' tab' + (changed === 1 ? '' : 's') : 'Nothing to mute')
-          + (asleep ? ' — ' + asleep + ' sleeping tab' + (asleep === 1 ? '' : 's') + ' will be silent anyway' : ''));
+        window.showToast?.((changed ? (want ? 'Muted ' : 'Unmuted ') + changed + ' tab' + VexPlural.s(changed) : 'Nothing to mute')
+          + (asleep ? ' — ' + asleep + ' sleeping tab' + VexPlural.s(asleep) + ' will be silent anyway' : ''));
         return;
       }
       case 'dev-terminal': {
@@ -1763,7 +1763,7 @@ const TabManager = {
       }
       // Both close at once; Undo on the toast brings the group back whole.
       case 'close-tabs': {
-        this.closeTabsPreviewed(tabsInGroup.map(t => t.id), k => `Closed ${k} tab${k === 1 ? '' : 's'} in “${group.name}”`, {}, { title: 'Close the ' + tabsInGroup.length + ' tabs in “' + group.name + '”?' })
+        this.closeTabsPreviewed(tabsInGroup.map(t => t.id), k => `Closed ${k} tab${VexPlural.s(k)} in “${group.name}”`, {}, { title: 'Close the ' + tabsInGroup.length + ' tabs in “' + group.name + '”?' })
           .catch(err => window.showToast?.(err.message, 'error'));
         break;
       }
@@ -1780,7 +1780,7 @@ const TabManager = {
         // The group goes with its last tab (closeTab), and Undo puts it back
         // as it was. One with no tabs (never drawn) just goes.
         if (tabsInGroup.length) {
-          this.closeTabsWithUndo(tabsInGroup.map(t => t.id), `Deleted the group “${group.name}” and closed its ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'}`);
+          this.closeTabsWithUndo(tabsInGroup.map(t => t.id), `Deleted the group “${group.name}” and closed its ${tabsInGroup.length} tab${VexPlural.s(tabsInGroup.length)}`);
         }
         if (this.groups.some(g => g.id === groupId)) {
           this.groups = this.groups.filter(g => g.id !== groupId);
@@ -1998,7 +1998,7 @@ const TabManager = {
         // too (SiteVolume.applyTo; found 2026-09-29).
         SiteVolume.applyTo(wv, vol)
           .then(r => window.showToast?.((vol === 100 ? 'Volume 100% — ' + host + ' is no longer kept quieter' : 'Volume ' + vol + '% — kept for ' + host)
-            + (r && r.unreachedFrames ? ' — not inside the ' + r.unreachedFrames + ' embedded frame' + (r.unreachedFrames === 1 ? '' : 's') + ', which Vex cannot reach' : '')))
+            + (r && r.unreachedFrames ? ' — not inside the ' + r.unreachedFrames + ' embedded frame' + VexPlural.s(r.unreachedFrames) + ', which Vex cannot reach' : '')))
           .catch(err => window.showToast?.('Could not set the volume: ' + err.message, 'error'));
       } },
       { sep: true },
@@ -2640,7 +2640,7 @@ const TabManager = {
         // missing dialog rather than swallowing it.
         if (typeof vexPromptModal !== 'function') { window.showToast?.('The input dialog is unavailable', 'error'); return; }
         const h = parseFloat(await vexPromptModal('Keep awake for how many hours?', '3'));
-        if (h > 0) setKeep(Date.now() + h * HOUR, `Tab kept awake for ${h} hour${h === 1 ? '' : 's'}`);
+        if (h > 0) setKeep(Date.now() + h * HOUR, `Tab kept awake for ${h} hour${VexPlural.s(h)}`);
         else if (!Number.isNaN(h)) window.showToast?.('Enter a number of hours greater than 0', 'warn');
         return;
       }
@@ -2870,7 +2870,7 @@ const TabManager = {
       // A question, answered later or never; an unanswered one is a no.
       SleepConsent.gate({
         id: 'guard',
-        title: `Vex is using ${Math.round(totalMB)} MB, over your ${this._memCeiling} MB ceiling. Sleep ${pick.length} idle tab${pick.length === 1 ? '' : 's'} to free about ${Math.round(planned)} MB?`,
+        title: `Vex is using ${Math.round(totalMB)} MB, over your ${this._memCeiling} MB ceiling. Sleep ${pick.length} idle tab${VexPlural.s(pick.length)} to free about ${Math.round(planned)} MB?`,
         detail: 'Asleep they use no memory and reload where they were when you come back to them.',
         run: () => { this._guardSleep(pick, gain, Date.now()).catch(err => console.error('[tabs] memory guard:', err)); },
       });
@@ -2888,7 +2888,7 @@ const TabManager = {
       if (t.pinned) pinnedSlept++;
     }
     if (!slept) return;
-    const words = (n, p, mb) => `High memory — slept ${n} idle tab${n === 1 ? '' : 's'}${p ? ` (${p} pinned, idle over 30 min)` : ''}, about ${Math.round(mb)} MB`;
+    const words = (n, p, mb) => `High memory — slept ${n} idle tab${VexPlural.s(n)}${p ? ` (${p} pinned, idle over 30 min)` : ''}, about ${Math.round(mb)} MB`;
     document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: words(slept, pinnedSlept, freed) } }));   // Memory panel trend
     // The toast: once in a while, with everything slept since the last one.
     const u = this._guardUnsaid || { slept: 0, pinned: 0, mb: 0 };
@@ -3181,7 +3181,7 @@ const TabManager = {
       window.showToast?.('No other tabs to close', 'info');
       return;
     }
-    return this.closeTabsPreviewed(toClose, n => `Closed ${n} other tab${n === 1 ? '' : 's'}`, { focus: keep }, { title: 'Close ' + toClose.length + ' other tabs?', intro: 'The tab you are keeping stays open, and so do pinned tabs. Undo brings them back.' })
+    return this.closeTabsPreviewed(toClose, n => `Closed ${n} other tab${VexPlural.s(n)}`, { focus: keep }, { title: 'Close ' + toClose.length + ' other tabs?', intro: 'The tab you are keeping stays open, and so do pinned tabs. Undo brings them back.' })
       .catch(err => window.showToast?.(err.message, 'error'));
   },
 
@@ -3234,7 +3234,7 @@ const TabManager = {
       return closing.length;
     }
     window.VexUndo.offer({
-      message: message + (lost ? ` (${lost} private or Tor tab${lost === 1 ? '' : 's'} cannot come back)` : ''),
+      message: message + (lost ? ` (${lost} private or Tor tab${VexPlural.s(lost)} cannot come back)` : ''),
       // opts.onUndo: what else the caller takes back (a session that replaced
       // these tabs closes its own again, js/sessions.js).
       undo: () => { this._restoreClosedTabs(snapshot, madeForEmpty); if (opts.onUndo) opts.onUndo(); },
@@ -3423,7 +3423,7 @@ const TabManager = {
       window.showToast?.('No tabs to the right', 'info');
       return;
     }
-    return this.closeTabsPreviewed(toClose, n => `Closed ${n} tab${n === 1 ? '' : 's'} to the right`, { focus: toClose.includes(this.activeTabId) ? anchorId : null }, { title: 'Close ' + toClose.length + ' tabs to the right?' })
+    return this.closeTabsPreviewed(toClose, n => `Closed ${n} tab${VexPlural.s(n)} to the right`, { focus: toClose.includes(this.activeTabId) ? anchorId : null }, { title: 'Close ' + toClose.length + ' tabs to the right?' })
       .catch(err => window.showToast?.(err.message, 'error'));
   },
 
@@ -3433,7 +3433,7 @@ const TabManager = {
   closeDuplicateTabs() {
     const toClose = this.duplicateTabIds();
     if (toClose.length) {
-      this.closeTabsWithUndo(toClose, `Closed ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'}`);
+      this.closeTabsWithUndo(toClose, `Closed ${toClose.length} duplicate tab${VexPlural.s(toClose.length)}`);
       if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind: 'organize' } }));
     } else window.showToast?.('No duplicate tabs', 'info');
     return toClose.length;

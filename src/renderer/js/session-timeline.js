@@ -379,7 +379,7 @@ const VexTimeline = {
           const time = new Date(e.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           const icon = this.KINDS[e.kind].icon;
           let sub = time;
-          if (plan && plan.kind === 'tabs') sub += ' · reopens ' + plan.tabs.length + ' tab' + (plan.tabs.length === 1 ? '' : 's') + (plan.exact ? '' : ' open around then');
+          if (plan && plan.kind === 'tabs') sub += ' · reopens ' + plan.tabs.length + ' tab' + VexPlural.s(plan.tabs.length) + (plan.exact ? '' : ' open around then');
           else if (plan && plan.kind === 'session') sub += ' · reopens ' + (e.count || 'its') + ' tabs';
           else if (e.url) { try { sub += ' · ' + new URL(e.url).hostname.replace(/^www\./, ''); } catch { /* no host */ } }
           row.innerHTML = `<span style="color:var(--text-muted);display:grid;place-items:center">${VexIcons.svg(icon, { size: 14 })}</span>

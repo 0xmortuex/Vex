@@ -15,5 +15,7 @@ export default defineConfig({
     hookTimeout: 30000,
     // One temp root per run, removed when it ends (tests/global-setup.js).
     globalSetup: ['tests/global-setup.js'],
+    // The plural helper every renderer module may use (js/vex-plural.js).
+    setupFiles: ['tests/setup-plural.js'],
   },
 });

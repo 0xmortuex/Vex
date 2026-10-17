@@ -452,7 +452,7 @@ const MasterVolume = {
   // The status line for a level above 100%, in plain words ('' at or below it).
   describe(total, pct) {
     if (!(pct > 100)) return '';
-    const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+    const plural = (n, w) => n + ' ' + w + VexPlural.s(n);
     const parts = [];
     if (total.boosted) parts.push('Boosting ' + plural(total.boosted, 'player') + ' on this page.');
     if (total.contexts) parts.push('The page\'s own audio engine is boosted too.');

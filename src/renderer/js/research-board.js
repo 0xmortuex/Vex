@@ -84,7 +84,7 @@ const ResearchBoard = {
       if (!g) { g = { url: q.url, title: q.title, quotes: [] }; byKey.set(key, g); groups.push(g); }
       g.quotes.push(q);
     }
-    const lines = ['# ' + name, '', '_' + this.items.length + ' quote' + (this.items.length === 1 ? '' : 's') + ' from ' + groups.length + ' source' + (groups.length === 1 ? '' : 's') + '._', ''];
+    const lines = ['# ' + name, '', '_' + this.items.length + ' quote' + VexPlural.s(this.items.length) + ' from ' + groups.length + ' source' + VexPlural.s(groups.length) + '._', ''];
     for (const g of groups) {
       const label = String(g.title || g.url || 'Untitled').replace(/[\[\]]/g, '');
       lines.push('## ' + (g.url ? '[' + label + '](' + g.url + ')' : label), '');
@@ -216,7 +216,7 @@ const ResearchBoard = {
     overlay.querySelector('[data-pull]').addEventListener('click', async () => {
       try {
         const r = await this.pullFromAllTabs();
-        window.showToast?.(r.tabsWithSelection ? r.added + ' added from ' + r.tabsWithSelection + ' tab' + (r.tabsWithSelection === 1 ? '' : 's') : 'No tab has text selected');
+        window.showToast?.(r.tabsWithSelection ? r.added + ' added from ' + r.tabsWithSelection + ' tab' + VexPlural.s(r.tabsWithSelection) : 'No tab has text selected');
         draw();
       } catch (err) { fail(err); }
     });
@@ -269,7 +269,7 @@ const ResearchBoard = {
         <span data-board-count style="font-size:11px;color:var(--text-muted)"></span>
       </div>`;
     const count = g.querySelector('[data-board-count]');
-    const upd = () => { count.textContent = this.items.length + ' quote' + (this.items.length === 1 ? '' : 's') + ' on the board'; };
+    const upd = () => { count.textContent = this.items.length + ' quote' + VexPlural.s(this.items.length) + ' on the board'; };
     upd();
     g.querySelector('[data-board-open]').addEventListener('click', () => { this.open(); });
     root.appendChild(g);

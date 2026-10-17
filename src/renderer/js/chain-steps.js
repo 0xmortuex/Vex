@@ -200,7 +200,7 @@ const VexChainSteps = {
       const row = document.createElement('div');
       row.className = 'setting-toggle-row';
       const sp = document.createElement('span');
-      sp.textContent = ch.name + ' · ' + ch.steps.length + ' step' + (ch.steps.length === 1 ? '' : 's');
+      sp.textContent = ch.name + ' · ' + ch.steps.length + ' step' + VexPlural.s(ch.steps.length);
       const bt = document.createElement('button');
       bt.type = 'button'; bt.className = 'btn-secondary'; bt.textContent = 'Edit';
       bt.addEventListener('click', () => this.open(ch).catch(err => window.showToast?.(err.message, 'error')));

@@ -446,7 +446,7 @@ const VexSources = {
           catch (err) { window.showToast?.(err.message, 'error'); }
         }, { primary: true }),
         VexSettingsGroups.button('Copy all', async () => {
-          try { const r = this.allText(); if (!r.count) throw new Error('There are no sources to copy'); await this.copyText(r.text, 'Copied ' + r.count + ' source' + (r.count === 1 ? '' : 's') + (r.skipped ? ' (' + r.skipped + ' without a title left out)' : '')); }
+          try { const r = this.allText(); if (!r.count) throw new Error('There are no sources to copy'); await this.copyText(r.text, 'Copied ' + r.count + ' source' + VexPlural.s(r.count) + (r.skipped ? ' (' + r.skipped + ' without a title left out)' : '')); }
           catch (err) { window.showToast?.(err.message, 'error'); }
         }, { label: 'Copy every source in the chosen style' }),
       );
@@ -459,11 +459,11 @@ const VexSources = {
         const text = document.createElement('span');
         text.className = 'vexsr-host';
         text.style.wordBreak = 'normal';
-        text.textContent = rec.title + '  (' + [rec.authors[0] ? rec.authors[0].family : '', rec.date.slice(0, 4), rec.items.length ? rec.items.length + ' passage' + (rec.items.length === 1 ? '' : 's') : ''].filter(Boolean).join(', ') + ')';
+        text.textContent = rec.title + '  (' + [rec.authors[0] ? rec.authors[0].family : '', rec.date.slice(0, 4), rec.items.length ? rec.items.length + ' passage' + VexPlural.s(rec.items.length) : ''].filter(Boolean).join(', ') + ')';
         row.appendChild(text);
         const act = (label, fn, opts) => row.appendChild(VexSettingsGroups.button(label, async () => { try { await fn(); } catch (err) { window.showToast?.(err.message, 'error'); } }, opts));
         act('Cite', () => this.copyCitation(rec.id), { label: 'Copy the citation for ' + rec.title });
-        act('Bundle', () => this.copyText(this.bundleText(rec.id), 'Copied the citation with ' + rec.items.length + ' passage' + (rec.items.length === 1 ? '' : 's')), { label: 'Copy the passages and citation for ' + rec.title });
+        act('Bundle', () => this.copyText(this.bundleText(rec.id), 'Copied the citation with ' + rec.items.length + ' passage' + VexPlural.s(rec.items.length)), { label: 'Copy the passages and citation for ' + rec.title });
         act('BibTeX', () => this.copyText(this.cite(rec.id, 'bibtex'), 'Copied as BibTeX'), { label: 'Copy BibTeX for ' + rec.title });
         if (rec.doi) act(rec.looked ? 'Look up again' : 'Look up DOI', async () => { window.showToast?.('Asking Crossref about ' + rec.doi + '...'); await this.lookupDoi(rec.id); window.showToast?.('Filled in from Crossref'); draw(); }, { label: 'Look up the DOI of ' + rec.title + ' on Crossref' });
         if (rec.arxiv) act('Look up arXiv', async () => { window.showToast?.('Asking arXiv about ' + rec.arxiv + '...'); await this.lookupId(rec.id, 'arxiv'); window.showToast?.('Filled in from arXiv', 'success'); draw(); }, { label: 'Look up ' + rec.title + ' at arXiv' });

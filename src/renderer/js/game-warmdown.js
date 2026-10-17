@@ -159,7 +159,7 @@ const GameWarmdown = {
       catch (err) { this._note('Could not sleep a tab before the game', err); }
     }
     if (n && typeof VexLedger !== 'undefined') {
-      VexLedger.note({ feature: 'game-warmdown', what: 'Slept ' + n + ' background tab' + (n === 1 ? '' : 's') + ' because ' + this.app + ' is open', why: 'Game mode is on and a game is about to start; they wake when it is over', undo: { kind: 'warmdown-release' } });
+      VexLedger.note({ feature: 'game-warmdown', what: 'Slept ' + n + ' background tab' + VexPlural.s(n) + ' because ' + this.app + ' is open', why: 'Game mode is on and a game is about to start; they wake when it is over', undo: { kind: 'warmdown-release' } });
     }
     return n;
   },

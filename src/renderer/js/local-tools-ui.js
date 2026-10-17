@@ -262,7 +262,7 @@ const WebhookInspector = {
         }, { when: 'ui', feature: this.FEATURE });
       }
       const left = Math.max(0, Math.round((st.stopsAt - Date.now()) / 60000));
-      body.appendChild(S.note('Listening on http://127.0.0.1:' + st.port + '/ for about ' + left + ' more minute' + (left === 1 ? '' : 's') + '. ' + st.count + ' request' + (st.count === 1 ? '' : 's') + ' received.'));
+      body.appendChild(S.note('Listening on http://127.0.0.1:' + st.port + '/ for about ' + left + ' more minute' + VexPlural.s(left) + '. ' + st.count + ' request' + VexPlural.s(st.count) + ' received.'));
       body.appendChild((() => {
         const bar = el('div'); bar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin:6px 0';
         bar.append(act('Stop', async () => { await LocalToolsBridge.call('webhookStop'); stopJob(); await draw(); }, { danger: true }),

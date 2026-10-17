@@ -168,7 +168,7 @@ const VexTabReason = {
     body.append(G.field('After this many days', days));
     let n = 0;
     try { n = Object.keys(this.all()).length; } catch (err) { body.append(G.note(err.message)); }
-    body.append(G.note(n + ' tab' + (n === 1 ? '' : 's') + ' with a reason noted. Kept on this computer only, and never for private, off-the-record or Tor tabs.'));
+    body.append(G.note(n + ' tab' + VexPlural.s(n) + ' with a reason noted. Kept on this computer only, and never for private, off-the-record or Tor tabs.'));
     body.append(G.button('Forget when I last saw each tab', async () => {
       try {
         if (!(await window.vexConfirm({ title: 'Forget these dates?', message: 'The reasons stay on your tabs; only the record of when you last had each one in front goes.', okLabel: 'Forget', danger: true }))) return;

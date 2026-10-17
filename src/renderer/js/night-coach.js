@@ -174,14 +174,14 @@ const NightCoach = {
   async saveSession() {
     if (typeof VexWorkday === 'undefined') throw new Error('Resume workday is not available');
     const day = VexWorkday.endOfDay();
-    window.showToast?.('Saved ' + day.tabs + ' tab' + (day.tabs === 1 ? '' : 's') + '. "Resume yesterday" in Ctrl+K brings them back.', 'info', 6000);
+    window.showToast?.('Saved ' + day.tabs + ' tab' + VexPlural.s(day.tabs) + '. "Resume yesterday" in Ctrl+K brings them back.', 'info', 6000);
   },
   sendToLater() {
     const list = this.laterCandidates();
     const at = this.nextMorning();
     let n = 0;
     for (const t of list) { TabSnooze.snooze(t.id, at); n++; }
-    window.showToast?.(n ? n + ' tab' + (n === 1 ? '' : 's') + ' will be back at 09:00' : 'No social or video tabs to send', 'info', 5000);
+    window.showToast?.(n ? n + ' tab' + VexPlural.s(n) + ' will be back at 09:00' : 'No social or video tabs to send', 'info', 5000);
     return n;
   },
 
@@ -201,7 +201,7 @@ const NightCoach = {
     } else if (stage === 'later') {
       const n = this.laterCandidates().length;
       if (n) {
-        text = 'Still here at ' + this._hm(now) + '. Send the ' + n + ' social and video tab' + (n === 1 ? '' : 's') + ' to tomorrow morning?';
+        text = 'Still here at ' + this._hm(now) + '. Send the ' + n + ' social and video tab' + VexPlural.s(n) + ' to tomorrow morning?';
         action = { label: 'Send to later', run: () => { try { this.sendToLater(); } catch (err) { fail(err); } } };
       } else text = 'Still here at ' + this._hm(now) + '. It is a good moment to stop.';
     } else if (stage === 'last') {

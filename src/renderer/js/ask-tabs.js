@@ -142,7 +142,7 @@ const VexAskTabs = {
         <input id="at-q" class="set-input" style="flex:1" placeholder="What do my open tabs say about…" spellcheck="false">
         <button type="button" id="at-go" class="btn-primary">Ask</button>
       </div>
-      <div style="padding:0 16px 8px;color:var(--text-muted);font-size:11.5px" id="at-scope">${esc(plan.use.length)} tab${plan.use.length === 1 ? '' : 's'} will be read on this computer by your local model · ${esc(plan.left.length)} left out</div>
+      <div style="padding:0 16px 8px;color:var(--text-muted);font-size:11.5px" id="at-scope">${esc(plan.use.length)} tab${VexPlural.s(plan.use.length)} will be read on this computer by your local model · ${esc(plan.left.length)} left out</div>
       <div id="at-out" style="padding:4px 16px 16px;overflow-y:auto"></div></div>`;
     document.body.appendChild(m);
     if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'ask-tabs' });

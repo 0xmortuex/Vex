@@ -367,7 +367,7 @@ const VexMemoryTools = {
       bar.append(
         this._btn('Save', () => { try { this.saveEntry(key, ta.value); status.textContent = 'Saved'; draw(); } catch (err) { this._fail(err); } }, { primary: true }),
         this._btn('Export this day', () => { try { this.saveEntry(key, ta.value); this.exportMarkdown([key]); } catch (err) { this._fail(err); } }),
-        this._btn('Export all', () => { try { const n = this.exportMarkdown(); window.showToast?.('Exported ' + n + ' day' + (n === 1 ? '' : 's') + ' to Downloads'); } catch (err) { this._fail(err); } }),
+        this._btn('Export all', () => { try { const n = this.exportMarkdown(); window.showToast?.('Exported ' + n + ' day' + VexPlural.s(n) + ' to Downloads'); } catch (err) { this._fail(err); } }),
         this._btn('Write it again', async () => {
           try {
             const j2 = this.journal();
@@ -888,7 +888,7 @@ const VexMemoryTools = {
   },
   gameLine(g) {
     const when = new Date(g.start).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const n = (k, w) => k + ' ' + w + (k === 1 ? '' : 's');
+    const n = (k, w) => k + ' ' + w + VexPlural.s(k);
     return when + ' — ' + (g.app || 'A game') + ', ' + this._duration(g.end - g.start) + ', ' + n(g.slept || 0, 'tab') + ' slept, ' + n(g.closed || 0, 'tab') + ' closed';
   },
   gameLogSince(ms) { return this.gameLog().filter(g => g.end >= ms).sort((a, b) => b.start - a.start); },

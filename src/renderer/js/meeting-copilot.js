@@ -426,7 +426,7 @@ const MeetingCopilot = {
           <span style="flex:1;font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(l.text)}</span>
           <span style="flex:none;display:flex;gap:3px">${['decision', 'action', 'question'].map(k => `<button type="button" data-mark="${k}" aria-label="Mark as ${k}" title="${KIND_LABEL[k]}" style="display:inline-flex;background:none;border:none;cursor:pointer;color:${l.kind === k ? 'var(--primary)' : 'var(--text-muted)'}">${window.VexIcons.svg(KIND_ICON[k], { size: 13 })}</button>`).join('')}</span>
         </div>`).join('');
-      body.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted)">${esc(s.title)} · ${s.lines.length} line${s.lines.length === 1 ? '' : 's'}</div>
+      body.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted)">${esc(s.title)} · ${s.lines.length} line${VexPlural.s(s.lines.length)}</div>
         <div data-lines style="max-height:42vh;overflow:auto">${lines || '<div style="padding:14px;font-size:12px;color:var(--text-muted)">Type a line and press Enter. Alt+1 marks a decision, Alt+2 an action, Alt+3 a question; or start the line with d: a: q:.</div>'}</div>
         <div style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border)">
           <input data-input class="set-input" style="flex:1;min-width:200px" placeholder="A note…  (d: decision · a: action · q: question)" aria-label="Meeting note">
@@ -517,8 +517,8 @@ const MeetingCopilot = {
         const ok = await window.vexConfirm({
           title: 'Save this meeting?',
           message: 'A note is saved' + (session.event ? ' for "' + session.event.summary + '"' : '') + '. '
-            + chosen.length + ' task' + (chosen.length === 1 ? '' : 's') + ' go to your To-do note'
-            + (remind && dated ? ', and ' + dated + ' reminder' + (dated === 1 ? '' : 's') + ' are set' : '') + '.',
+            + chosen.length + ' task' + VexPlural.s(chosen.length) + ' go to your To-do note'
+            + (remind && dated ? ', and ' + dated + ' reminder' + VexPlural.s(dated) + ' are set' : '') + '.',
           okLabel: 'Save',
         });
         if (!ok) return;
@@ -526,8 +526,8 @@ const MeetingCopilot = {
           this.saveNote(session, final);
           const r = await this.createFollowUps(chosen, { reminders: remind });
           this.discard();
-          if (r.failed.length) fail(new Error(r.failed.length + ' task' + (r.failed.length === 1 ? '' : 's') + ' could not be created: ' + r.failed[0].error));
-          window.showToast?.('Saved the meeting note · ' + r.tasks + ' task' + (r.tasks === 1 ? '' : 's') + (r.reminders ? ' · ' + r.reminders + ' reminder' + (r.reminders === 1 ? '' : 's') : ''));
+          if (r.failed.length) fail(new Error(r.failed.length + ' task' + VexPlural.s(r.failed.length) + ' could not be created: ' + r.failed[0].error));
+          window.showToast?.('Saved the meeting note · ' + r.tasks + ' task' + VexPlural.s(r.tasks) + (r.reminders ? ' · ' + r.reminders + ' reminder' + VexPlural.s(r.reminders) : ''));
           close();
         } catch (err) { fail(err); }
       });

@@ -284,11 +284,11 @@ const VexQuickReminder = {
 
   _relative(ms) {
     const mins = Math.round(ms / 60000);
-    if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'}`;
+    if (mins < 60) return `${mins} minute${VexPlural.s(mins)}`;
     const hours = Math.round(mins / 60);
-    if (hours < 48) return `${hours} hour${hours === 1 ? '' : 's'}`;
+    if (hours < 48) return `${hours} hour${VexPlural.s(hours)}`;
     const days = Math.round(hours / 24);
-    return `${days} day${days === 1 ? '' : 's'}`;
+    return `${days} day${VexPlural.s(days)}`;
   },
 
   // ---------------------------------------------------------------- creating

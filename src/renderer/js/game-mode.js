@@ -377,8 +377,8 @@ GameMode.onGameEnd = function () {
   // Scheduled tasks held back during the game catch up on their next check.
   const done = [];
   if (r && r.freedMB) done.push('freed ' + (r.freedMB >= 1024 ? (r.freedMB / 1024).toFixed(1) + ' GB' : r.freedMB + ' MB') + ' of graphics memory');
-  if (r && r.slept) done.push('slept ' + r.slept + ' tab' + (r.slept === 1 ? '' : 's'));
-  if (r && r.panels && r.panels.length) done.push('slept ' + r.panels.length + ' panel' + (r.panels.length === 1 ? '' : 's'));
+  if (r && r.slept) done.push('slept ' + r.slept + ' tab' + VexPlural.s(r.slept));
+  if (r && r.panels && r.panels.length) done.push('slept ' + r.panels.length + ' panel' + VexPlural.s(r.panels.length));
   // Being closed by the OS is worth saying even when Vex slept nothing: the
   // panel was gone and is back, and the reason was the memory, not Vex.
   if (broughtBack.length) done.push('loaded ' + broughtBack.join(' and ') + ' again after Windows closed ' + (broughtBack.length === 1 ? 'it' : 'them') + ' for memory');

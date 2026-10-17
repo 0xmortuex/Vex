@@ -231,7 +231,7 @@ const CommandBar = {
     { id: 'print', label: 'Print…', hint: 'Print this page, or save it as a PDF', shortcut: 'Ctrl+P', icon: 'file', action: () => WebviewManager.printPage() },
     { id: 'viewsource', label: 'View Page Source', hint: 'Show this page’s HTML in a new tab', shortcut: 'Ctrl+U', icon: 'code', action: () => WebviewManager.viewSource() },
     { id: 'duplicatetab', label: 'Duplicate Tab', hint: 'Open a copy of the current tab', icon: 'copy', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.duplicateTab(t); } },
-    { id: 'copyalltabs', label: 'Copy All Tab URLs', hint: 'Copy every open tab’s URL to the clipboard', icon: 'link', action: async () => { try { const urls = (TabManager.tabs || []).map(t => t.url).filter(u => /^https?:/i.test(u)); if (!urls.length) { window.showToast?.('No tabs to copy'); return; } await navigator.clipboard.writeText(urls.join('\n')); window.showToast?.(`Copied ${urls.length} tab URL${urls.length === 1 ? '' : 's'}`); } catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || err), 'error'); } } },
+    { id: 'copyalltabs', label: 'Copy All Tab URLs', hint: 'Copy every open tab’s URL to the clipboard', icon: 'link', action: async () => { try { const urls = (TabManager.tabs || []).map(t => t.url).filter(u => /^https?:/i.test(u)); if (!urls.length) { window.showToast?.('No tabs to copy'); return; } await navigator.clipboard.writeText(urls.join('\n')); window.showToast?.(`Copied ${urls.length} tab URL${VexPlural.s(urls.length)}`); } catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || err), 'error'); } } },
     { id: 'autorefresh', label: 'Auto-refresh This Tab', hint: 'Reload this tab on an interval — dashboards, live scores, build logs', icon: 'refresh', action: () => { try { if (window.AutoReload) AutoReload.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'openasapp', label: 'Open as App', hint: 'Open this site in its own clean, chromeless window — like a desktop app', icon: 'window', action: () => { try { const t = TabManager.getActiveTab(); if (t && /^https?:/i.test(t.url || '')) window.vex.openAsApp(t.url, t.title, t.partition).then((r) => { if (!r || !r.ok) window.showToast?.((r && r.error) || 'Could not open it as an app', 'error'); }, _commandFailed); else window.showToast?.('Open a web page first'); } catch (err) { _commandFailed(err); } } },
     { id: 'copymarkdown', label: 'Copy Page as Markdown', hint: 'Copy this page as a Markdown link [Title](url)', icon: 'note', action: async () => { try { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } const md = `[${(t.title || t.url).replace(/[\[\]]/g, '')}](${t.url})`; await navigator.clipboard.writeText(md); window.showToast?.('Copied as Markdown'); } catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || err), 'error'); } } },
@@ -245,7 +245,7 @@ const CommandBar = {
           items: ids.map(id => { const t = TabManager.tabs.find(x => x.id === id); return { id, label: (t && (t.title || t.url)) || 'Untitled', detail: 'second copy' }; }),
           snapshot: (chosen) => VexPlan.snapshotTabs(TabManager.tabs.filter(t => chosen.includes(t.id))),
         });
-        if (r.ok) TabManager.closeTabsWithUndo(r.chosen, 'Closed ' + r.chosen.length + ' duplicate tab' + (r.chosen.length === 1 ? '' : 's'));
+        if (r.ok) TabManager.closeTabsWithUndo(r.chosen, 'Closed ' + r.chosen.length + ' duplicate tab' + VexPlural.s(r.chosen.length));
       } catch (err) { _commandFailed(err); }
     } },
     { id: 'toolbox', label: 'Toolbox', hint: 'Your built-in tools — regex, JSON, hashes, color, word count, and more', icon: 'toolbox', action: () => { try { if (window.Toolbox) Toolbox.open(); } catch (err) { _commandFailed(err); } } },
@@ -577,7 +577,7 @@ const CommandBar = {
       catch (err) { window.showToast?.((err && err.message) || 'Could not read this page', 'error'); return; }
       if (!tables.length) { window.showToast?.('No data tables on this page'); return; }
       const csv = tables.map((t, i) => (tables.length > 1 ? '# ' + (t.caption || 'Table ' + (i + 1)) + '\r\n' : '') + PageTools.toCsv(t.rows)).join('\r\n\r\n');
-      try { await navigator.clipboard.writeText(csv); window.showToast?.(tables.length + ' table' + (tables.length === 1 ? '' : 's') + ' copied as CSV — paste into a spreadsheet'); }
+      try { await navigator.clipboard.writeText(csv); window.showToast?.(tables.length + ' table' + VexPlural.s(tables.length) + ' copied as CSV — paste into a spreadsheet'); }
       catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || ''), 'error'); }
     } },
     { id: 'tables-note', label: 'Save tables as a note', hint: 'Every table on this page, as Markdown in your Notes', icon: 'clipboard', action: async () => {

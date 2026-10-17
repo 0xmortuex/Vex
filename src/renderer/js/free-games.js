@@ -48,9 +48,9 @@ const FreeGames = {
     if (!game.until) return 'free now';
     const hours = Math.round((game.until - now) / 3600000);
     if (hours <= 0) return 'gone';
-    if (hours < 24) return hours + ' hour' + (hours === 1 ? '' : 's') + ' left';
+    if (hours < 24) return hours + ' hour' + VexPlural.s(hours) + ' left';
     const days = Math.round(hours / 24);
-    return days + ' day' + (days === 1 ? '' : 's') + ' left';
+    return days + ' day' + VexPlural.s(days) + ' left';
   },
 
   // --- the quiet check -----------------------------------------------------
