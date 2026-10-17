@@ -31,6 +31,8 @@ const REASONS = {
   'no-frame': () => ({ message: 'The page that asked for the share is gone.', fix: FIXES.retry }),
   'not-in-a-tab': () => ({ message: 'The request did not come from a Vex tab (a hidden or pop-up frame), so Vex cannot show its picker for it.', fix: null }),
   'frame-detached': () => ({ message: 'The page that asked was closed or replaced before you chose.', fix: FIXES.retry }),
+  'frame-unreadable': () => ({ message: 'Vex could not read the requesting frame to validate the screen share. Retry, and include this reason in your report.', fix: FIXES.retry }),
+  'origin-unavailable': () => ({ message: 'Vex could not validate the requesting frame’s origin. The screen share was stopped before opening the picker.', fix: FIXES.retry }),
   'origin-changed': (h, c) => ({ message: `The page moved to another site${c && c.nowHost ? ' (' + c.nowHost + ')' : ''} before you chose, so the share was dropped.`, fix: FIXES.retry }),
   'no-sources': () => ({ message: 'Windows listed no screens or windows to share. Check Settings > Privacy > Screen capture, or a protected or disconnected display.', fix: null }),
   'capturer-error': (_h, c) => ({ message: 'Windows would not list the screens: ' + String((c && c.error) || 'unknown error').slice(0, 140), fix: FIXES.retry }),
@@ -50,14 +52,40 @@ function explain(code, ctx) {
 }
 
 // Why is the frame no longer the page that asked? (main.js _sameRequester said no.)
-function requesterChange(frame, askedUrl) {
+function frameOrigin(frame) {
+  // about:blank/srcdoc can inherit a real origin which their URL does not
+  // express. Electron's origin is authoritative; never fall back from an
+  // explicitly opaque origin to the containing page's address.
+  if (typeof frame.origin === 'string') return frame.origin === 'null' ? '' : new URL(frame.origin).origin;
+  const origin = new URL(frame.url).origin;
+  return origin === 'null' ? '' : origin;
+}
+function requesterIdentity(frame, contents) {
+  try {
+    if (!frame || !contents || contents.isDestroyed() || contents.mainFrame !== frame || frame.isDestroyed()) return null;
+    const token = frame.frameToken, process = frame.processId;
+    return typeof token === 'string' && token && Number.isInteger(process) && process >= 0 ? { contents, token, process } : null;
+  } catch { return null; }
+}
+function requesterChange(frame, askedUrl, identity) {
   if (!frame) return 'no-frame';
-  try { if (frame.detached) return 'frame-detached'; } catch { return 'frame-detached'; }
-  try { if (new URL(frame.url).origin !== new URL(askedUrl).origin) return 'origin-changed'; } catch { /* vex-allow-empty-catch: unreadable address: treated as gone */ }
-  return 'frame-detached';
+  try {
+    // A stale detached flag must never authorize a different document. Only
+    // the current primary frame with the exact captured renderer token can
+    // override it. Never substitute the current main frame for an old frame.
+    if (identity) {
+      const current = requesterIdentity(frame, identity.contents);
+      if (!current || current.token !== identity.token || current.process !== identity.process) return 'frame-detached';
+    } else if (frame.detached) return 'frame-detached';
+  } catch { return 'frame-unreadable'; }
+  try {
+    const now = frameOrigin(frame), asked = new URL(askedUrl).origin;
+    if (!now || asked === 'null') return 'origin-unavailable';
+    return now === asked ? null : 'origin-changed';
+  } catch { return 'frame-unreadable'; }
 }
 function hostOf(frame) {
-  try { return frame && !frame.detached ? new URL(frame.url).hostname : ''; } catch { return ''; }
+  try { return frame && !frame.detached ? new URL(frameOrigin(frame)).hostname : ''; } catch { return ''; }
 }
 
 // Pages the browser treats as secure for screen capture without https: the machine itself.
@@ -131,4 +159,4 @@ function createShareLog(max = 40) {
   };
 }
 
-module.exports = { DISCORD_HOST, explain, preflight, createShareLog, requesterChange, hostOf, REASONS, FIXES };
+module.exports = { DISCORD_HOST, explain, preflight, createShareLog, requesterIdentity, requesterChange, hostOf, REASONS, FIXES };

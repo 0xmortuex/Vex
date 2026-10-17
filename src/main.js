@@ -997,6 +997,18 @@ const _pendingScreenPicks = new Map();
 // in one day, none explained).
 const _sharePreflight = require('./main/share-preflight');
 const _shareLog = _sharePreflight.createShareLog();
+const _shareTraceLog = [];
+function _traceShareFrame(stage, frame) {
+  // Read each property independently: a disposed frame can throw. No page
+  // URLs, channel names or screen/window titles belong in this trace.
+  const state = { stage, host: _sharePreflight.hostOf(frame), present: !!frame };
+  for (const key of ['detached', 'processId', 'routingId', 'frameTreeNodeId']) {
+    try { state[key] = frame ? frame[key] : null; } catch { state[key] = 'unreadable'; }
+  }
+  _shareTraceLog.push(state);
+  if (_shareTraceLog.length > 8) _shareTraceLog.shift();
+  console.log('[ScreenShare] frame ' + JSON.stringify(state));
+}
 function _shareRefused(hostWindowOwner, contents, code, ctx) {
   let host = '';
   try { host = new URL(contents && !contents.isDestroyed() ? contents.getURL() : '').hostname; } catch { /* vex-allow-empty-catch: no address to name */ }
@@ -1007,14 +1019,6 @@ function _shareRefused(hostWindowOwner, contents, code, ctx) {
     if (win && !win.isDestroyed()) win.webContents.send('screen-picker:refused', { code: entry.code, message: entry.message, fix: entry.fix, pageId: contents && !contents.isDestroyed() ? contents.id : null });
   } catch (err) { console.error('[ScreenShare] could not tell the window why the share was refused:', err.message); }
   return entry;
-}
-// A cause that may break the share but does not refuse it: told to the window like a refusal, flagged as a warning.
-function _shareWarned(hostWindowOwner, contents, entry) {
-  console.log(`[ScreenShare] warning (${entry.code}) for ${entry.host || 'unknown page'}`);
-  try {
-    const win = hostWindowOwner && hostWindowOwner.win;
-    if (win && !win.isDestroyed()) win.webContents.send('screen-picker:refused', { code: entry.code, message: entry.message, fix: entry.fix, warning: true, pageId: contents && !contents.isDestroyed() ? contents.id : null });
-  } catch (err) { console.error('[ScreenShare] could not warn the window:', err.message); }
 }
 // What is known about a tab before any picker (main/share-preflight.js preflight()). Read-only; the same facts
 // serve the check before every picker and Ctrl+K > Check screen sharing.
@@ -1037,11 +1041,8 @@ function _shareFacts(contents) {
 // share is started, with no navigation at all (pushState), so comparing whole URLs refused the pick
 // with 'Requesting page changed'. What matters is whether it is the same site: an address on another
 // origin, or a detached frame, is a different page.
-function _sameRequester(frame, askedUrl) {
-  try {
-    if (!frame || frame.detached) return false;
-    return new URL(frame.url).origin === new URL(askedUrl).origin;
-  } catch { return false; }
+function _sameRequester(frame, askedUrl, identity) {
+  return _sharePreflight.requesterChange(frame, askedUrl, identity) === null;
 }
 function wireDisplayMediaOnSession(ses) {
   if (!ses || ses.__vexDisplayWired || typeof ses.setDisplayMediaRequestHandler !== 'function') return;
@@ -1054,19 +1055,22 @@ function wireDisplayMediaOnSession(ses) {
       _shareLog.record(request.frame ? 'not-in-a-tab' : 'no-frame', {});
       callback(); return;
     }
-    const requestingFrame = request.frame, requestingUrl = requestingFrame.url;
-    // The known causes, checked before the picker every time (T0-014): one that would refuse the share is said
-    // with its fix and the share is dropped; one that only MAY break it (Strong bypass) is said and the picker opens.
+    const requestingFrame = request.frame, requestingUrl = request.securityOrigin;
+    const identity = _sharePreflight.requesterIdentity(requestingFrame, requestingContents);
+    _traceShareFrame('request received', requestingFrame);
+    // Report actual refusals before opening the picker. Possible compatibility
+    // issues (such as ByeDPI) stay in the on-demand screen-sharing diagnostic;
+    // they do not indicate a failed share and must not produce an error toast.
     const pre = _sharePreflight.preflight(_shareFacts(requestingContents));
     if (pre.refusal) { _shareRefused(requestingHost, requestingContents, pre.refusal.code); callback(); return; }
-    for (const w of pre.warnings) _shareWarned(requestingHost, requestingContents, w);
     const { desktopCapturer } = require('electron');
     desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true })
       .then((sources) => {
+        _traceShareFrame('screens listed', requestingFrame);
         if (!sources || !sources.length) { _shareRefused(requestingHost, requestingContents, 'no-sources'); return callback(); }
         const id = 'scr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-        if (requestingContents.isDestroyed() || !_sameRequester(requestingFrame, requestingUrl)) {
-          _shareRefused(requestingHost, requestingContents, _sharePreflight.requesterChange(requestingFrame, requestingUrl), { nowHost: _sharePreflight.hostOf(requestingFrame) });
+        if (requestingContents.isDestroyed() || !_sameRequester(requestingFrame, requestingUrl, identity)) {
+          _shareRefused(requestingHost, requestingContents, requestingContents.isDestroyed() ? 'no-frame' : _sharePreflight.requesterChange(requestingFrame, requestingUrl, identity), { nowHost: _sharePreflight.hostOf(requestingFrame) });
           return callback();
         }
         // The picker UI lives in the Vex window that owns this request. When the
@@ -1090,7 +1094,7 @@ function wireDisplayMediaOnSession(ses) {
           }
         } catch { /* best effort: a picker behind a window still beats no picker */ }
 
-        _pendingScreenPicks.set(id, { callback, sources, host: requestingHost, frame: requestingFrame, url: requestingUrl, restoreRequester, audioRequested: !!request.audioRequested, pageId: requestingContents.id });
+        _pendingScreenPicks.set(id, { callback, sources, host: requestingHost, frame: requestingFrame, url: requestingUrl, identity, restoreRequester, audioRequested: !!request.audioRequested, pageId: requestingContents.id });
         const payload = { id, sources: sources.map((s) => ({
           id: s.id, name: s.name, isScreen: /screen/i.test(s.id),
           thumbnail: (s.thumbnail && !s.thumbnail.isEmpty()) ? s.thumbnail.toDataURL() : '',
@@ -1122,7 +1126,7 @@ ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height
   if (p.host !== secureSessions.owner(_e.sender)) return refuse('other-window', null);
   _pendingScreenPicks.delete(id);
   try { p.restoreRequester?.(); } catch {}
-  if (!_sameRequester(p.frame, p.url)) { try { p.callback(); } catch { /* vex-allow-empty-catch: the permission request may already be answered */ } return refuse(_sharePreflight.requesterChange(p.frame, p.url), p.pageId, { nowHost: _sharePreflight.hostOf(p.frame) }); }
+  if (!_sameRequester(p.frame, p.url, p.identity)) { try { p.callback(); } catch { /* vex-allow-empty-catch: the permission request may already be answered */ } return refuse(_sharePreflight.requesterChange(p.frame, p.url, p.identity), p.pageId, { nowHost: _sharePreflight.hostOf(p.frame) }); }
   if (!sourceId) { _shareQuality.delete(p.pageId); try { p.callback(); } catch { /* vex-allow-empty-catch: the permission request may already be answered */ } return { ok: true, cancelled: true }; }
   const src = p.sources.find((s) => s.id === sourceId);
   if (!src) { _shareQuality.delete(p.pageId); try { p.callback(); } catch { /* vex-allow-empty-catch: the permission request may already be answered */ } return refuse('source-gone', p.pageId); }
@@ -1157,7 +1161,7 @@ ipcMain.handle('screen-share:preflight', async (event, wcId) => {
     sourcesCount = found.length;
   } catch (err) { capturerError = String((err && err.message) || err); }
   const result = _sharePreflight.preflight({ ..._shareFacts(contents), sourcesCount, capturerError });
-  return { ...result, pageId: contents.id, recent: _shareLog.list().slice(0, 10), counts: _shareLog.counts() };
+  return { ...result, pageId: contents.id, recent: _shareLog.list().slice(0, 10), counts: _shareLog.counts(), frameTrace: _shareTraceLog.slice() };
 });
 // === QR code for the current page (qrcode npm package, rendered in main) ===
 ipcMain.handle('qr:make', async (_e, text) => {

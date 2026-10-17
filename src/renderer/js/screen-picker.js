@@ -34,7 +34,9 @@
       const r = await window.vex.screenSharePreflight(tabWebContentsId);
       const lines = r.checks.map((c) => (c.ok ? 'OK  ' : 'NO  ') + c.detail);
       const recent = (r.recent || []).slice(0, 5).map((e) => '- ' + e.message);
-      const body = lines.join('\n') + (recent.length ? '\n\nRefused earlier this session:\n' + recent.join('\n') : '');
+      const trace = (r.frameTrace || []).map(e => `${e.stage}: ${e.host || 'unknown host'}; detached=${e.detached}; process=${e.processId}; frame=${e.routingId}; tree=${e.frameTreeNodeId}`);
+      const body = lines.join('\n') + (recent.length ? '\n\nRefused earlier this session:\n' + recent.join('\n') : '')
+        + (trace.length ? '\n\nRequest frame diagnostic:\n' + trace.join('\n') : '');
       await window.vexAlert({ title: r.refusal ? 'Screen sharing would be refused' : (r.ok ? 'Screen sharing should work here' : 'Screen sharing may fail here'), message: body });
       return r;
     },

@@ -3,7 +3,37 @@ import { describe, it, expect } from 'vitest';
 
 const fs = require('fs');
 const path = require('path');
-const { explain, preflight, createShareLog, requesterChange, hostOf, REASONS } = require('../../src/main/share-preflight.js');
+const { explain, preflight, createShareLog, requesterIdentity, requesterChange, hostOf, REASONS } = require('../../src/main/share-preflight.js');
+
+describe('current main-frame identity', () => {
+  const fixture = () => {
+    const frame = { detached: true, origin: 'https://discord.com', frameToken: 'document-a', processId: 30, isDestroyed: () => false };
+    const contents = { mainFrame: frame, isDestroyed: () => false };
+    return { frame, contents, identity: requesterIdentity(frame, contents) };
+  };
+  it('accepts a stale detached flag only for the exact live primary document', () => {
+    const { frame, identity } = fixture();
+    expect(identity).not.toBeNull();
+    expect(requesterChange(frame, 'https://discord.com/', identity)).toBeNull();
+    expect(requesterChange(frame, 'https://discord.com/')).toBe('frame-detached');
+    expect(requesterChange(frame, 'https://other.test/', identity)).toBe('origin-changed');
+  });
+  it.each(['token', 'process', 'main', 'destroyed', 'closed'])('rejects a changed %s even on the same origin', kind => {
+    const { frame, contents, identity } = fixture();
+    if (kind === 'token') frame.frameToken = 'document-b';
+    if (kind === 'process') frame.processId++;
+    if (kind === 'main') contents.mainFrame = { ...frame };
+    if (kind === 'destroyed') frame.isDestroyed = () => true;
+    if (kind === 'closed') contents.isDestroyed = () => true;
+    expect(requesterChange(frame, 'https://discord.com/', identity)).toBe('frame-detached');
+  });
+  it('does not adopt the containing page for a detached child frame', () => {
+    const { frame, contents } = fixture();
+    contents.mainFrame = { ...frame };
+    expect(requesterIdentity(frame, contents)).toBeNull();
+    expect(requesterChange(frame, 'https://discord.com/')).toBe('frame-detached');
+  });
+});
 
 describe('explain', () => {
   it('names the site and offers the fix for a saved Block', () => {
@@ -61,6 +91,22 @@ describe('preflight', () => {
 });
 
 describe('requesterChange (what the v22.22.1 same-site rule decides)', () => {
+  it('accepts a live inherited-origin frame even with an empty or about:blank URL', () => {
+    for (const url of ['', 'about:blank', 'about:srcdoc']) {
+      const frame = { detached: false, url, origin: 'https://discord.com' };
+      expect(requesterChange(frame, 'https://discord.com/')).toBeNull();
+      expect(hostOf(frame)).toBe('discord.com');
+    }
+  });
+  it('allows same-origin route changes but refuses opaque and cross-origin frames', () => {
+    expect(requesterChange({ url: 'https://discord.com/b' }, 'https://discord.com/a')).toBeNull();
+    expect(requesterChange({ origin: 'null', url: 'https://discord.com/a' }, 'https://discord.com/')).toBe('origin-unavailable');
+    expect(requesterChange({ origin: 'https://evil.test', url: '' }, 'https://discord.com/')).toBe('origin-changed');
+    expect(requesterChange({ detached: true, origin: 'https://discord.com' }, 'https://discord.com/')).toBe('frame-detached');
+  });
+  it('does not misreport an unreadable frame as closed', () => {
+    expect(requesterChange({ get origin() { throw new Error('unreadable'); } }, 'https://discord.com/')).toBe('frame-unreadable');
+  });
   it('tells a detached frame, a frame on another site and a missing frame apart', () => {
     expect(requesterChange(null, 'https://discord.com/a')).toBe('no-frame');
     expect(requesterChange({ detached: true, url: 'https://discord.com/a' }, 'https://discord.com/a')).toBe('frame-detached');
