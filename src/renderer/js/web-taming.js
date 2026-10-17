@@ -656,7 +656,7 @@ const ShotToNote = {
       if (typeof DocExtract === 'undefined' || typeof DocExtract._loadOcr !== 'function') ocrNote = 'Text was not read: no OCR engine in this build.';
       else {
         const lib = await DocExtract._loadOcr();
-        const { data } = await lib.recognize(dataUrl, 'eng');
+        const { data } = await VexJobs.heavyOrThrow('Screenshot OCR', () => lib.recognize(dataUrl, 'eng'), { kind: 'ocr' });
         ocr = ((data && data.text) || '').trim();
         if (!ocr) ocrNote = 'No readable text was found in the picture.';
       }

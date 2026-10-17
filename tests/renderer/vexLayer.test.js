@@ -102,3 +102,57 @@ describe('sweep', () => {
     expect(o._vexCancel).toHaveBeenCalled();
   });
 });
+
+describe('adoption of the shared overlay helpers (T2-014)', () => {
+  const fs = require('fs'), path = require('path');
+  const src = (f) => fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'renderer', 'js', f), 'utf8');
+
+  it('popover(): a menu that closes on an outside press is closed by closeAll, and removed if it ignores the press', () => {
+    const closeOnOutside = document.createElement('div'); closeOnOutside.id = 'm1';
+    document.body.appendChild(closeOnOutside);
+    const outside = vi.fn((e) => { if (!closeOnOutside.contains(e.target)) closeOnOutside.remove(); });
+    document.addEventListener('mousedown', outside, true);
+    L.popover(closeOnOutside, 'm1');
+    const stubborn = document.createElement('div'); stubborn.id = 'm2';
+    document.body.appendChild(stubborn);
+    L.popover(stubborn, 'm2');
+    expect(L.list().map(l => l.id)).toEqual(['m1', 'm2']);
+    expect(L.list().every(l => l.tier === 'menu' && l.dismissible === false)).toBe(true);
+    expect(L.closeAll()).toBe(2);
+    expect(outside).toHaveBeenCalled();
+    expect(closeOnOutside.isConnected).toBe(false);
+    expect(stubborn.isConnected).toBe(false);
+    document.removeEventListener('mousedown', outside, true);
+  });
+  it('a single Escape leaves a popover to itself; a double Escape closes it', () => {
+    const el = document.createElement('div'); document.body.appendChild(el);
+    L.popover(el, 'p');
+    const esc = () => L._onKey(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    esc();
+    expect(el.isConnected).toBe(true);
+    esc();
+    expect(el.isConnected).toBe(false);
+  });
+  it('dialogs, the toast container and context menus register where they are built', () => {
+    expect(src('vex-dialog.js')).toMatch(/VexLayer\.track\(overlay, \{ tier: 'dialog'/);
+    expect(src('app.js')).toMatch(/VexLayer\.track\(container, \{ tier: 'toast'/);
+    const tabs = src('tabs.js');
+    expect(tabs).toMatch(/VexLayer\.track\(menu, \{ tier: 'menu', id: 'context-menu'/);
+    expect(tabs).toMatch(/VexLayer\.track\(overlay, \{ tier: 'menu', id: 'context-menu-backdrop'/);
+  });
+  it('the eleven popovers with their own dismissal register as popovers', () => {
+    for (const [file, id] of [['attention-inbox.js', 'attention-inbox'], ['downloads-button.js', 'downloads-menu'], ['handoff.js', 'handoff-menu'], ['horizontal-tabs.js', 'all-tabs-menu'],
+      ['look-sidebar.js', 'look-sidebar-menu'], ['nav-history-menu.js', 'nav-history-menu'], ['notes-panel.js', 'notes-menu'], ['profiles-ui.js', 'profiles-menu'],
+      ['strip-actions.js', 'strip-actions-menu'], ['tasks.js', 'tasks-menu'], ['toolbar-overflow.js', 'toolbar-overflow-menu']]) {
+      expect(src(file), file).toContain("VexLayer.popover(");
+      expect(src(file), file).toContain("'" + id + "'");
+    }
+  });
+  it('the overlay census counts what is left and refuses to grow', () => {
+    const { census } = require('../../scripts/overlay-census.js');
+    const c = census();
+    const base = require('../../scripts/overlay-census.json');
+    expect(c.remainingJs).toBeLessThanOrEqual(base.remainingJs);
+    expect(c.onLayer).toBeGreaterThanOrEqual(5);
+  });
+});

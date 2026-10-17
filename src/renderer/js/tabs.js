@@ -3608,6 +3608,12 @@ const TabManager = {
     // Insert overlay before menu in DOM order so the menu (z:1000) wins over
     // the overlay (z:999) at hit-test time even before paint reorders.
     document.body.insertBefore(overlay, menu);
+    // The menu and the invisible backdrop that catches the outside click are both known to the layer manager
+    // (js/vex-layer.js): closing either takes the whole menu down, so a stuck backdrop can be closed from Ctrl+K.
+    if (typeof VexLayer !== 'undefined') {
+      VexLayer.track(menu, { tier: 'menu', id: 'context-menu', close: () => close('layer') });
+      VexLayer.track(overlay, { tier: 'menu', id: 'context-menu-backdrop', close: () => close('layer') });
+    }
     if (viaKeyboard) this._menuFromKeyboard(menu);
   },
 

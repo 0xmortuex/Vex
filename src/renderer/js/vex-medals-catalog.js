@@ -253,7 +253,7 @@
     setTimeout(run, 5000);
     // The command bar's usage record changes without an event; a slow look
     // every two minutes picks it up (and does nothing while a game runs).
-    setInterval(() => { if (!V.gaming()) run(); }, 120000);
+    VexJobs.every('Medal checks', 120000, () => { if (!V.gaming()) run(); }, { when: 'background' });
   }
   V.runChecks = run;
 })();

@@ -338,13 +338,15 @@ const DocExtract = {
     const recognize = Tesseract.recognize || (Tesseract.default && Tesseract.default.recognize);
     if (typeof recognize !== 'function') throw new Error('OCR engine unavailable');
 
-    const { data } = await recognize(dataUrl, 'eng', {
+    // OCR loads a processor core for seconds: it goes through the heavy-job queue (VexJobs.heavy), which
+    // holds it for a quiet moment and refuses it in Game mode or when memory is low.
+    const { data } = await VexJobs.heavyOrThrow('Page OCR', () => recognize(dataUrl, 'eng', {
       logger: (msg) => {
         if (msg && msg.status === 'recognizing text' && typeof msg.progress === 'number') {
           window.showToast?.('OCR… ' + Math.round(msg.progress * 100) + '%');
         }
       }
-    });
+    }), { kind: 'ocr' });
     const text = ((data && data.text) || '').trim();
     if (!current()) return;
     if (!text) { window.showToast?.('No readable text on the visible page'); return; }
@@ -356,9 +358,9 @@ const DocExtract = {
   async ocrImage(dataUrl, source = 'OCR (screenshot)') {
     window.showToast?.('Reading the text in the picture — the first time downloads the engine…');
     const lib = await this._loadOcr();
-    const { data } = await lib.recognize(dataUrl, 'eng', {
+    const { data } = await VexJobs.heavyOrThrow('Picture OCR', () => lib.recognize(dataUrl, 'eng', {
       logger: (msg) => { if (msg && msg.status === 'recognizing text' && typeof msg.progress === 'number') window.showToast?.('OCR… ' + Math.round(msg.progress * 100) + '%'); },
-    });
+    }), { kind: 'ocr' });
     const text = ((data && data.text) || '').trim();
     if (!text) { window.showToast?.('No readable text in that picture'); return ''; }
     await this._showResult(text, source);

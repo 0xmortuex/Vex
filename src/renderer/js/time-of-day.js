@@ -131,9 +131,9 @@ const VexTimeOfDay = {
   start() {
     if (this._timer) return;
     this.tick(true);
-    this._timer = setInterval(() => this.tick(false), this.TICK_MS);
+    this._timer = VexJobs.every('Time of day', this.TICK_MS, () => this.tick(false));
   },
-  stop() { clearInterval(this._timer); this._timer = null; this._last = null; },
+  stop() { if (this._timer) this._timer.stop(); this._timer = null; this._last = null; },
 
   // ---- Settings and the command bar ----
   buildSettings(body) {

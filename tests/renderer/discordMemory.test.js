@@ -4,6 +4,8 @@
 // Past a limit Vex swaps in a fresh one — only when that costs nothing.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+// VexJobs.every stand-in for a module that now registers its timers there (T0-020): same timers, same fake clocks.
+globalThis.VexJobs ??= { every: (_name, ms, fn) => { const id = setInterval(fn, ms); return { stop: () => clearInterval(id) }; } };
 const { DiscordMemory } = require('../../src/renderer/js/discord-memory.js');
 const { SleepConsent } = require('../../src/renderer/js/sleep-consent.js');
 globalThis.SleepConsent = SleepConsent;

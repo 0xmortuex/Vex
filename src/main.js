@@ -988,6 +988,31 @@ function _shareRefused(hostWindowOwner, contents, code, ctx) {
   } catch (err) { console.error('[ScreenShare] could not tell the window why the share was refused:', err.message); }
   return entry;
 }
+// A cause that may break the share but does not refuse it: told to the window like a refusal, flagged as a warning.
+function _shareWarned(hostWindowOwner, contents, entry) {
+  console.log(`[ScreenShare] warning (${entry.code}) for ${entry.host || 'unknown page'}`);
+  try {
+    const win = hostWindowOwner && hostWindowOwner.win;
+    if (win && !win.isDestroyed()) win.webContents.send('screen-picker:refused', { code: entry.code, message: entry.message, fix: entry.fix, warning: true, pageId: contents && !contents.isDestroyed() ? contents.id : null });
+  } catch (err) { console.error('[ScreenShare] could not warn the window:', err.message); }
+}
+// What is known about a tab before any picker (main/share-preflight.js preflight()). Read-only; the same facts
+// serve the check before every picker and Ctrl+K > Check screen sharing.
+let _byedpiRunning = () => false;   // set where the Discord bypass is wired (it lives further down)
+function _shareFacts(contents) {
+  let origin = '';
+  try { origin = new URL(contents.getURL()).origin; } catch { /* vex-allow-empty-catch: about:blank and the like: preflight reports it as not secure */ }
+  const ses = contents.session;
+  return {
+    url: contents.getURL(),
+    saved: origin ? savedDecision(decisionsFor(contents), origin, ['display-capture'], sessionDecisionsFor(contents)) : null,
+    paranoid: !!origin && _webSafety.isParanoid(origin),
+    tor: !!(ses && ses.__vexTor),
+    partition: secureSessions.partitionOf(contents) || '',
+    partitionWired: !!(ses && ses.__vexDisplayWired),
+    byedpiRunning: !!_byedpiRunning(),
+  };
+}
 // Is the frame still the page that asked? A single-page app (Discord) rewrites its address while a
 // share is started, with no navigation at all (pushState), so comparing whole URLs refused the pick
 // with 'Requesting page changed'. What matters is whether it is the same site: an address on another
@@ -1010,6 +1035,11 @@ function wireDisplayMediaOnSession(ses) {
       callback(); return;
     }
     const requestingFrame = request.frame, requestingUrl = requestingFrame.url;
+    // The known causes, checked before the picker every time (T0-014): one that would refuse the share is said
+    // with its fix and the share is dropped; one that only MAY break it (Strong bypass) is said and the picker opens.
+    const pre = _sharePreflight.preflight(_shareFacts(requestingContents));
+    if (pre.refusal) { _shareRefused(requestingHost, requestingContents, pre.refusal.code); callback(); return; }
+    for (const w of pre.warnings) _shareWarned(requestingHost, requestingContents, w);
     const { desktopCapturer } = require('electron');
     desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true })
       .then((sources) => {
@@ -1101,20 +1131,12 @@ ipcMain.handle('screen-share:preflight', async (event, wcId) => {
   const contents = Number.isInteger(wcId) ? webContents.fromId(wcId) : null;
   if (!contents || contents.isDestroyed()) throw new Error('That tab is not open any more');
   if (secureSessions.owner(contents) !== secureSessions.owner(event.sender)) throw new Error('That tab belongs to another window');
-  let origin = '';
-  try { origin = new URL(contents.getURL()).origin; } catch { /* vex-allow-empty-catch: about:blank and the like: preflight reports it as not secure */ }
   let sourcesCount = null, capturerError = '';
   try {
     const found = await require('electron').desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 0, height: 0 } });
     sourcesCount = found.length;
   } catch (err) { capturerError = String((err && err.message) || err); }
-  const result = _sharePreflight.preflight({
-    url: contents.getURL(),
-    saved: origin ? savedDecision(decisionsFor(contents), origin, ['display-capture'], sessionDecisionsFor(contents)) : null,
-    paranoid: !!origin && _webSafety.isParanoid(origin),
-    tor: !!(contents.session && contents.session.__vexTor),
-    sourcesCount, capturerError,
-  });
+  const result = _sharePreflight.preflight({ ..._shareFacts(contents), sourcesCount, capturerError });
   return { ...result, pageId: contents.id, recent: _shareLog.list().slice(0, 10), counts: _shareLog.counts() };
 });
 // === QR code for the current page (qrcode npm package, rendered in main) ===
@@ -7041,6 +7063,9 @@ function handleDictateShortcut(event, input) {
 const storagePath = path.join(userDataPath, 'vex-storage');
 const { JsonStore, SecretStore, atomicWrite } = require('./main/file-store');
 const dataStore = new JsonStore(storagePath);
+// The data schema version of the files main reads itself (main/file-store.js stamps it as `v`). A file at an
+// older version is migrated on its next read; one written by a newer Vex is refused, not overwritten.
+for (const key of ['settings', 'history', 'sync-records', 'sync-tiles-joined', 'gui-style']) dataStore.schema(key, { version: 1 });
 const secretStore = new SecretStore(safeStorage);
 // Developer desk (main/dev-desk.js): open the file a stack trace points to, open a
 // terminal and read a branch, only inside folders picked in the folder dialog, only
@@ -7755,6 +7780,7 @@ function createWindow() {
   //              same power as Zapret/GoodbyeDPI without admin. Has tunable
   //              desync presets (preset index) for per-ISP tuning.
   const _byedpi = require('./byedpi.js');
+  _byedpiRunning = () => _byedpi.isRunning();
   let _dpiBypassPort = 0; // light (JS) proxy port
   // Route Discord domains through the bypass on the NORMAL browsing sessions too,
   // so the OAuth authorize page + discord.com links work in regular Vex tabs —
@@ -8405,6 +8431,7 @@ app.whenReady().then(async () => {
       setTimeout(() => app.exit(ok ? 0 : 1), 150);
     };
     wc.on('render-process-gone', (_e, d) => finish(false, 'render-process-gone ' + (d && d.reason)));
+    const bootStarted = Date.now();
     const deadline = Date.now() + 25000;
     const poll = async () => {
       if (done) return;
@@ -8417,12 +8444,20 @@ app.whenReady().then(async () => {
           sb: typeof SidebarManager!=='undefined',
           cb: typeof CommandBar!=='undefined',
           st: (typeof VexSelfTest!=='undefined'&&typeof VexProblems!=='undefined')?VexSelfTest.startFailures().map(function(f){return f.area+(f.detail?' ('+f.detail+')':'');}):null,
+          boot: (typeof VexBoot!=='undefined')?{marks:VexBoot.marks,failed:VexBoot.failed||[]}:null,
+          nodes: document.querySelectorAll('*').length,
           bundle: (function(){var m=document.querySelector('meta[name="vex-window-bundle"]');return m&&document.readyState!=='loading'?{ran:(typeof VexWindowBundle!=='undefined'?VexWindowBundle.length:0),of:+m.content}:null;})()
         };}catch(e){return {err:String(e)};}})()`, true);
         // The packaged window's scripts come in chunks (scripts/window-bundle.js);
         // a chunk that threw while loading took the files after it with it.
         if (s && s.bundle && s.bundle.ran !== s.bundle.of) { finish(false, `window bundle: ${s.bundle.ran} of ${s.bundle.of} chunks finished loading`); return; }
         if (s && s.tm && s.tabs >= 1 && s.wvm && s.wv >= 1 && s.sb && s.cb) {
+          // The modules that load after start-up (js/lazy-boot.js) get a little longer, so a failure to load one is seen.
+          if (s.boot && !s.boot.marks.settled && Date.now() < bootStarted + 35000) { setTimeout(poll, 400); return; }
+          if (s.boot && s.boot.failed.length) { finish(false, 'late modules failed to load: ' + s.boot.failed.join(', ')); return; }
+          // Boot marks and DOM size, for scripts/verify-smoke-boot.js to hold against scripts/startup-budget.json.
+          // (src/diagnostics.js lets only lines that start with "SMOKE:" through.)
+          console.log('SMOKE: BOOT ' + JSON.stringify({ marks: s.boot ? s.boot.marks : null, nodes: s.nodes }));
           // The check after an update (js/post-update-selftest.js): a feature that failed to start fails the boot.
           if (Array.isArray(s.st) && s.st.length && process.env.VEX_SMOKE_ALLOW_START_FAILURES !== '1') { finish(false, s.st.length + ' feature(s) failed to start: ' + s.st.join('; ')); return; }
           if (process.env.VEX_SECURITY_SMOKE === '1' || process.env.VEX_UI_SMOKE === '1' || process.env.VEX_RESTART_PHASE || process.env.VEX_DRM_SMOKE === '1') {

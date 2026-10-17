@@ -310,15 +310,15 @@ const WhySlow = {
   },
 
   start() {
-    if (this._timer) clearInterval(this._timer);
+    if (this._timer) this._timer.stop();
     if (localStorage.getItem('vex.slowWatch') === '0') return false;
-    this._timer = setInterval(() => {
-      this.check().catch(err => console.warn('[WhySlow] the watch failed:', err.message));
-    }, this.WATCH_MS);
+    this._timer = VexJobs.every('Why slow watch', this.WATCH_MS, () => {
+      return this.check().catch(err => console.warn('[WhySlow] the watch failed:', err.message));
+    }, { when: 'background' });
     return true;
   },
 
-  stop() { if (this._timer) { clearInterval(this._timer); this._timer = null; } },
+  stop() { if (this._timer) { this._timer.stop(); this._timer = null; } },
 
   // ---- the screen ---------------------------------------------------------
   async open() {

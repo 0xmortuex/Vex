@@ -582,8 +582,8 @@ const DiscordMemory = {
       window.vex.setDiscordLite(this.lite()).catch(err => window.VexProblems?.note('Discord memory', 'Could not set Lighter Discord', err));
     }
     this._watchHide();
-    clearInterval(this._timer);
-    this._timer = setInterval(() => { this.check().catch(err => window.VexProblems?.note('Discord memory', 'Check failed', err)); }, this.CHECK_MS);
+    if (this._timer) this._timer.stop();
+    this._timer = VexJobs.every('Discord memory check', this.CHECK_MS, () => this.check().catch(err => window.VexProblems?.note('Discord memory', 'Check failed', err)), { when: 'background' });
     return true;
   },
 

@@ -109,7 +109,7 @@ const TabSnooze = {
     if (this._timer) return;
     this.checkDue();
     this._timer = setInterval(() => this.checkDue(), 60000);
-    this._archiveTimer = setInterval(() => this.archiveIdle(), 30 * 60000);
+    this._archiveTimer = VexJobs.every('Archive idle snoozed tabs', 30 * 60000, () => this.archiveIdle(), { when: 'background' });
     setTimeout(() => this.archiveIdle(), 60000);
   },
 

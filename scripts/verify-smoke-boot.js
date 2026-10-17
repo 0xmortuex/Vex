@@ -33,7 +33,17 @@ const onData = (d) => {
   const s = d.toString();
   buf += s;
   const m = buf.match(/SMOKE:\s+(PASS|FAIL)([^\n]*)\n/);
-  if (m) finish(m[1] === 'PASS', (m[2] || '').trim());
+  if (m) {
+    let ok = m[1] === 'PASS', detail = (m[2] || '').trim();
+    // The boot marks and the DOM size of this start, held against scripts/startup-budget.json (T3-066).
+    const b = buf.match(/SMOKE:\s+BOOT\s+(\{[^\r\n]*\})\r?\n/);
+    if (ok && b) {
+      const errors = require('./startup-budget.js').checkBoot(JSON.parse(b[1]));
+      if (errors.length) { ok = false; detail = errors.join('; '); }
+      else detail += ' boot=' + JSON.stringify(JSON.parse(b[1]).marks) + ' nodes=' + JSON.parse(b[1]).nodes;
+    }
+    finish(ok, detail);
+  }
 };
 child.stdout.on('data', onData);
 child.stderr.on('data', onData);

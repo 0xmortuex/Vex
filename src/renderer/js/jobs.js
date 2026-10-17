@@ -256,6 +256,14 @@ const VexJobs = {
     });
   },
 
+  // heavy() for something the person asked for: the value, or an Error that says why it did not run now
+  // (a game is running, memory is low, ...) so the caller shows it instead of nothing happening.
+  async heavyOrThrow(name, fn, opts) {
+    const r = await this.heavy(name, fn, opts);
+    if (!r.ran) throw new Error('Not now: ' + r.reason + '. Try again in a moment.');
+    return r.value;
+  },
+
   heavyQueue() { return this._heavy.map(i => ({ name: i.name, kind: i.kind, feature: i.feature, backlog: i.backlog, waitingMs: Date.now() - i.at })); },
 
   _pumpHeavy() {

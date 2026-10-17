@@ -5,6 +5,8 @@
 // tab or panel, what "end" does to each kind, and that a hold never does
 // anything worse than putting something back to sleep.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+// VexJobs.every stand-in for a module that now registers its timers there (T0-020): same timers, same fake clocks.
+globalThis.VexJobs ??= { every: (_name, ms, fn) => { const id = setInterval(fn, ms); return { stop: () => clearInterval(id) }; } };
 
 // Close buttons and ticks are VexIcons SVGs (sweep 2026-09-29).
 require('../../src/renderer/js/vex-icons.js');

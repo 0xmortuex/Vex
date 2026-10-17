@@ -9,7 +9,7 @@
 //   VexRegistry.define({
 //     id: 'tab-cleanup',            // the same id the feature registers with VexUsage
 //     title: 'Evening tab cleanup', group: 'Tab cleanup',   // as VexUsage.register
-//     maturity: 'stable',           // 'new' | 'beta' | 'stable'  (see stage())
+//     maturity: 'stable',           // 'new' | 'beta' | 'experimental' | 'stable'  (see stage())
 //     storageKeys: ['vex.tabCleanup.mode', ...],  // localStorage keys this feature OWNS: one owner per key
 //     usesKeys: ['vex.notes'],      // keys it reads/writes but another feature owns
 //     settingsKeys: [...], events: [...], jobs: ['Tab cleanup'], commands: ['tab-cleanup'], panels: [...],
@@ -24,7 +24,12 @@
 // that has no manifest is a test failure (tests/renderer/featureRegistry.test.js),
 // and so is a vex.* storage key that nobody owns or two features both own.
 const VexRegistry = {
-  MATURITY: ['new', 'beta', 'stable'],
+  // 'experimental' is a tier of its own: off on EVERY profile (a brand-new one too), never offered, never
+  // counted against the nudge budget, never carried by Vex Sync; only the person switching it on in Settings
+  // starts it. 'new' and 'beta' are off on a profile that already existed and offered once the safety window passes.
+  MATURITY: ['new', 'beta', 'experimental', 'stable'],
+  // How long a staged feature waits, crash-free, before Vex offers to switch it on.
+  SAFETY_WINDOW_MS: 7 * 24 * 3600 * 1000,
   TIERS: ['minimal', 'standard'],
   KINDS: ['storage', 'settings', 'events', 'jobs', 'commands', 'panels'],
   STATE_KEY: 'vex.registry',
@@ -45,7 +50,7 @@ const VexRegistry = {
     if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/.test(id)) throw new Error('A feature id is 1-64 letters, digits, . _ : or -');
     if (this._m.has(id)) throw new Error('Feature "' + id + '" already has a manifest');
     const maturity = spec.maturity == null ? 'stable' : spec.maturity;
-    if (!this.MATURITY.includes(maturity)) throw new Error('Feature "' + id + '": maturity is new, beta or stable, not ' + maturity);
+    if (!this.MATURITY.includes(maturity)) throw new Error('Feature "' + id + '": maturity is new, beta, experimental or stable, not ' + maturity);
     const killSwitch = spec.killSwitch == null ? 'usage' : spec.killSwitch;
     if (killSwitch !== 'usage' && killSwitch !== 'none') throw new Error('Feature "' + id + '": killSwitch is usage or none');
     const list = (name) => {
@@ -139,10 +144,24 @@ const VexRegistry = {
   // "New" / "Beta" beside a feature's name; nothing for a stable one.
   maturityLabel(id) {
     const m = this._need(id);
-    return m.maturity === 'stable' ? '' : (m.maturity === 'new' ? 'New' : 'Beta');
+    return m.maturity === 'stable' ? '' : (m.maturity === 'new' ? 'New' : (m.maturity === 'experimental' ? 'Experimental' : 'Beta'));
   },
-  // Beta and new features are not carried to other devices until they are stable.
+  // Beta, new and experimental features are not carried to other devices until they are stable.
   syncEligible(id) { return this._need(id).maturity === 'stable'; },
+  // Keys Vex Sync must neither push nor pull right now (js/sync-engine.js preferenceKeys): the data of an
+  // experimental feature, and of a staged feature that is still switched off. A pull that carried another
+  // device's "on" would otherwise switch on a feature this profile never chose, past the staging.
+  syncHeld(key) {
+    const id = this._ownerOf(String(key));
+    const m = id ? this._m.get(id) : null;
+    if (!m) return false;
+    if (m.maturity === 'experimental') return true;
+    if (m.maturity === 'stable') return false;
+    const rec = this._load().staged[m.id];
+    if (!rec || rec.off !== true) return false;
+    const u = this._usage();
+    return !(u && u.get(m.id) && u.isEnabled(m.id));
+  },
 
   // One sentence per kind of access, for the permission sheet (feature-details.js).
   permissionLines(id) {
@@ -210,6 +229,7 @@ const VexRegistry = {
       v: 1,
       staged: ok && st.staged && typeof st.staged === 'object' ? st.staged : {},
       offered: ok && st.offered && typeof st.offered === 'object' ? st.offered : {},
+      safeOffered: ok && st.safeOffered && typeof st.safeOffered === 'object' ? st.safeOffered : {},
       // Decided ONCE, by the first stage() this profile ever runs: { at, kind: 'new' | 'existing' }.
       profile: ok && st.profile && typeof st.profile === 'object' && (st.profile.kind === 'new' || st.profile.kind === 'existing') ? st.profile : null,
       // When "try it" offers were made (the last week only), for the weekly limit.
@@ -252,9 +272,13 @@ const VexRegistry = {
       if (m.maturity === 'stable' || st.staged[m.id]) continue;
       const live = u ? u.get(m.id) : null;
       st.staged[m.id] = { at: now, off: false };
-      if (isExisting && m.existingProfileDefault !== 'on' && live && m.killSwitch === 'usage' && u.isEnabled(m.id)) {
+      // Experimental: off on every profile; new or beta: off on an existing one. Either waits for the person.
+      const hold = m.maturity === 'experimental' || (isExisting && m.existingProfileDefault !== 'on');
+      if (hold && live && m.killSwitch === 'usage' && u.isEnabled(m.id)) {
         await u.disable(m.id);
         st.staged[m.id].off = true;
+        // A new or beta feature is offered for switching on once it has waited out the safety window without a crash.
+        if (m.maturity !== 'experimental') st.staged[m.id].enabledAfter = now + this.SAFETY_WINDOW_MS;
         heldOff.push(m.id);
       }
     }
@@ -266,7 +290,51 @@ const VexRegistry = {
   // onOffer() (the attention inbox), otherwise one gated toast.
   pendingOffers() {
     const st = this._load();
-    return Object.keys(st.staged).filter(id => st.staged[id].off && !st.offered[id] && this._m.has(id));
+    return Object.keys(st.staged).filter(id => st.staged[id].off && !st.offered[id] && this._m.has(id) && this._m.get(id).maturity !== 'experimental');
+  },
+  // Staged-off features that have now waited out the safety window with no crash since they were staged, and
+  // were not already offered this way. `crashes` is the crash log (each { at }), at least the last window long.
+  // Pure: nothing is switched on, nothing is shown.
+  safeWindowOffers(crashes, now = Date.now()) {
+    if (!Array.isArray(crashes)) throw new Error('safeWindowOffers needs the crash list');
+    const st = this._load();
+    const u = this._usage();
+    const out = [];
+    for (const id of Object.keys(st.staged)) {
+      const rec = st.staged[id], m = this._m.get(id);
+      if (!m || !rec.off || m.maturity === 'experimental' || st.safeOffered[id]) continue;
+      const after = Number.isFinite(rec.enabledAfter) ? rec.enabledAfter : rec.at + this.SAFETY_WINDOW_MS;
+      if (now < after) continue;
+      if (u && u.get(id) && u.isEnabled(id)) continue;                   // the person already turned it on
+      if (crashes.some(c => c && Number.isFinite(c.at) && c.at >= rec.at)) continue;   // a crash since it was staged: keep waiting
+      out.push(id);
+    }
+    return out;
+  },
+  // The second, calmer offer: "waited N days, no crash since". It is an offer, never a switch-on: the person
+  // presses the button. Counts against the same three-a-week nudge budget as every other offer.
+  offerSafe(crashes, now = Date.now()) {
+    const st = this._load();
+    st.offerLog = st.offerLog.filter(t => now - t < 7 * 24 * 3600 * 1000);
+    let n = 0;
+    for (const id of this.safeWindowOffers(crashes, now)) {
+      if (this.nudgeRoom(now) <= 0) break;
+      const m = this._m.get(id);
+      const text = m.title + ' has waited ' + Math.round(this.SAFETY_WINDOW_MS / 86400000) + ' days with no crash since Vex added it. Turn it on?';
+      const turnOn = () => this.switchOn(id).catch(err => { console.error('[Registry] could not turn on "' + id + '":', err); window.showToast?.('Could not turn on ' + m.title + ': ' + err.message, 'error'); });
+      if (this._offerSinks.length) {
+        for (const sink of this._offerSinks.slice()) sink({ id, title: m.title, text, turnOn });
+      } else {
+        if (typeof VexAttention !== 'undefined' && !VexAttention.gate('try-feature', id)) continue;
+        if (typeof window === 'undefined' || typeof window.showToast !== 'function') continue;
+        window.showToast(text, 'info', 12000, { action: { label: 'Turn on', run: turnOn } });
+      }
+      st.safeOffered[id] = now;
+      st.offerLog.push(now);
+      n++;
+    }
+    this._save();
+    return n;
   },
   _offerSinks: [],
   onOffer(fn) {

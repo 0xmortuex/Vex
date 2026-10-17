@@ -907,6 +907,7 @@ const NotesPanel = {
       ['delete', 'trash', 'Delete note'],
     ].map(([act, icon, label]) => `<button data-act="${act}"${act === 'delete' ? ' class="danger"' : ''}>${this._icon(icon, 13)}<span>${label}</span></button>`).join('');
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'notes-menu');
     menu.style.top = Math.round(r.bottom + 6) + 'px';
     menu.style.left = Math.round(Math.max(8, Math.min(window.innerWidth - menu.offsetWidth - 8, r.right - menu.offsetWidth))) + 'px';
 

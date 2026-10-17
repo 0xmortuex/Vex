@@ -57,6 +57,19 @@ const VexLayer = {
     return this._add(el, { tier, id, dismissible: false, close: typeof close === 'function' ? close : () => el.remove() });
   },
 
+  // A menu or popover that closes itself on a press outside it, which every one of them does (a capture-phase
+  // mousedown or pointerdown on the document). The layer's close is that press, then removal if it is still there.
+  // Registered in the menu tier: seen by sweep(), listed, and closed by "Close all overlays" and a double Escape;
+  // a single Escape stays with the popover (it handles it itself).
+  popover(el, id = '') {
+    return this.track(el, { tier: 'menu', id: id || el.id || 'popover', close: () => {
+      const doc = el.ownerDocument || document;
+      doc.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      if (typeof PointerEvent === 'function') doc.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      if (el.isConnected) el.remove();
+    } });
+  },
+
   _add(el, rec) {
     this._layers.push({ el, id: rec.id || el.id || '', tier: rec.tier, close: rec.close, dismissible: rec.dismissible, seq: ++this._seq });
     return el;

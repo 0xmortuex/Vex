@@ -86,6 +86,7 @@ const ProfilesUI = {
     menu.setAttribute('role', 'dialog');
     menu.setAttribute('aria-label', 'Profiles');
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'profiles-menu');
     this._menu = menu;
     this._btn.setAttribute('aria-expanded', 'true');
     this.renderList();

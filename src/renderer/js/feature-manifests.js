@@ -679,6 +679,10 @@
         sends: ['Only if you turn sending on, set a relay address and agree: a random anonymous id, the Vex version, your ratings, tags and comment, to that address'] } },
 
     // ---- core entries: data no switchable feature owns -----------------------------
+    { id: 'storage-retention', title: 'Remove the oldest entries of features that grow', group: 'Storage', maturity: 'new',
+      storageKeys: ['vex.storage.retention', 'vex.storage.ceilings', 'vex.storage.trimmed'], jobs: ['Storage retention review'],
+      usesKeys: ['vex.journal', 'vex.ledger', 'vex.gameLog', 'vex.timeline.log', 'vex.captureLog', 'vex.readingDigestCache', 'vex.aiMemory'],
+      permissions: { reads: ['how much the journal, ledger, game log, timeline, capture log, digest cache and AI memory keep'], writes: ['those lists, only to remove the oldest entries after a warning (the removed part is kept for Undo)'], sends: [] } },
     { id: 'storage-ceilings', title: 'Storage and Recall limits', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storage.recallLimits'],
       permissions: { reads: ['how much each feature keeps; the Recall index size'], writes: ['the caps and retention of the Recall index; the oldest pages go first'], sends: [] } },
     { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['ai-answered-by'],

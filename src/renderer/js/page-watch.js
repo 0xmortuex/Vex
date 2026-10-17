@@ -664,7 +664,10 @@ const PageWatch = {
     // What changed and whether it matters: js/page-watch-explain.js.
     try {
       const E = typeof PageWatchExplain !== 'undefined' ? PageWatchExplain : require('./page-watch-explain.js').PageWatchExplain;
-      return await E.explain(watch, diff, { generate: (m, p, o) => Ollama.generate(m, p, o), model });
+      // The local model is heavy work: held for a quiet moment, refused in Game mode or when memory is low
+      // (then there is no sentence and the plain summary is told, as when no model is set up).
+      const r = await VexJobs.heavy('Page watch sentence', () => E.explain(watch, diff, { generate: (m, p, o) => Ollama.generate(m, p, o), model }), { kind: 'local-ai', feature: '' });
+      return r.ran ? r.value : '';
     } catch (err) {
       VexProblems?.note('Page watch', 'The local model could not summarise a change to ' + watch.url, err);
       return '';

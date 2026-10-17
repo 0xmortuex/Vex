@@ -9,7 +9,9 @@
 //   * growth over budget in DOM nodes, event listeners or live intervals after
 //     N open/close cycles (the leak canary).
 //
-//   node scripts/check-smoke-matrix.js                 firefox, glass, classic; 3 cycles
+//   node scripts/check-smoke-matrix.js                 firefox, glass, classic; 3 cycles; the Full tier
+//   node scripts/check-smoke-matrix.js --tiers=full,simple,minimal   also Simple mode and Minimal Vex
+//   npm run smoke:matrix:ci                            the sampled run CI executes (firefox, three tiers)
 //   node scripts/check-smoke-matrix.js --list          what would run and what is held back (no Electron)
 //   node scripts/check-smoke-matrix.js --looks=firefox --cycles=20 --only=notes,memory
 //   node scripts/check-smoke-matrix.js --allow='^Clear'  also run held-back items whose name matches
@@ -34,6 +36,9 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const LOOKS = ['firefox', 'glass', 'classic'];
+// The three ways a profile can be set up: everything, Simple mode (power tools tucked away),
+// Minimal Vex (every optional feature switched off). An item that is off in a tier is a note, not a finding.
+const TIERS = ['full', 'simple', 'minimal'];
 
 // Items that act on the outside world or on the person's data when run. Held back by
 // default; the list is a regex over the item's name and command id.
@@ -48,12 +53,13 @@ const BUDGETS = { nodes: 200, listeners: 60, intervals: 0 };
 // ---- pure parts (unit-tested) -------------------------------------------------
 
 function parseArgs(argv) {
-  const o = { looks: LOOKS.slice(), cycles: 3, only: null, allow: null, list: false, json: false, limit: 0, budgets: { ...BUDGETS } };
+  const o = { looks: LOOKS.slice(), tiers: ['full'], cycles: 3, only: null, allow: null, list: false, json: false, limit: 0, budgets: { ...BUDGETS } };
   for (const a of argv) {
     const [k, v] = a.startsWith('--') ? [a.slice(2).split('=')[0], a.includes('=') ? a.slice(a.indexOf('=') + 1) : null] : [a, null];
     if (k === 'list') o.list = true;
     else if (k === 'json') o.json = true;
     else if (k === 'looks') { o.looks = String(v).split(',').filter(Boolean); }
+    else if (k === 'tiers') { o.tiers = String(v).split(',').filter(Boolean); }
     else if (k === 'cycles') o.cycles = Number(v);
     else if (k === 'only') o.only = String(v).split(',').filter(Boolean);
     else if (k === 'allow') o.allow = new RegExp(v, 'i');
@@ -63,6 +69,8 @@ function parseArgs(argv) {
     else throw new Error('unknown argument ' + a);
   }
   for (const l of o.looks) if (!LOOKS.includes(l)) throw new Error(`unknown look "${l}" (have: ${LOOKS.join(', ')})`);
+  for (const t of o.tiers) if (!TIERS.includes(t)) throw new Error(`unknown tier "${t}" (have: ${TIERS.join(', ')})`);
+  if (!o.tiers.length) throw new Error('--tiers needs at least one tier');
   if (!Number.isInteger(o.cycles) || o.cycles < 1 || o.cycles > 100) throw new Error('--cycles is 1 to 100');
   return o;
 }
@@ -125,6 +133,13 @@ const PAGE_SETUP = `(() => {
     layers: () => [...document.body.children].filter(e => !/^(SCRIPT|STYLE|LINK)$/.test(e.tagName)).map(layer),
     intervals: () => live.size,
     visible,
+    // Put the profile in a tier. Minimal Vex is entered/left through its own switch so the usage rows are exercised.
+    async setTier(tier) {
+      if (typeof VexMinimalMode === 'undefined' || typeof VexSimpleMode === 'undefined') throw new Error('VexMinimalMode / VexSimpleMode are not loaded');
+      if (tier === 'minimal') { VexSimpleMode.set('full'); await VexMinimalMode.enter(); }
+      else { if (VexMinimalMode.isOn()) await VexMinimalMode.leave(); VexSimpleMode.set(tier === 'simple' ? 'simple' : 'full'); }
+      return tier;
+    },
     reset() {
       try { if (typeof SidebarManager !== 'undefined') { if (SidebarManager.activePanel) SidebarManager.hideActivePanel(); if (SidebarManager.sidePanel) SidebarManager.closeBeside(); } }
       catch (e) { return 'reset failed: ' + e.message; }
@@ -171,7 +186,7 @@ async function main(argv = process.argv.slice(2)) {
   const { run, skipped } = selectItems(VexFeatures.ITEMS, opts);
 
   if (opts.list) {
-    console.log(`smoke matrix would run ${run.length} item(s) in ${opts.looks.length} look(s) (${opts.looks.join(', ')}), ${opts.cycles} cycle(s) each:`);
+    console.log(`smoke matrix would run ${run.length} item(s) in ${opts.looks.length} look(s) (${opts.looks.join(', ')}) and tier(s) ${opts.tiers.join(', ')}, ${opts.cycles} cycle(s) each:`);
     for (const { item, plan } of run) console.log(`  ${plan.kind.padEnd(8)} ${item.id}  ${plan.panel || plan.target || plan.cmd}`);
     console.log(`\nheld back (${skipped.length}):`);
     for (const s of skipped) console.log(`  ${s.id}: ${s.reason}`);
@@ -223,12 +238,15 @@ async function main(argv = process.argv.slice(2)) {
     const closeAll = async () => { await escape(); await cdpLib.evaluate(cdp, 'window.__smoke.reset()'); await cdpLib.sleep(200); };
 
     let done = 0;
+    for (const tier of opts.tiers) {
+    await cdpLib.evaluate(cdp, `window.__smoke.setTier(${JSON.stringify(tier)})`);
+    await cdpLib.sleep(400);
     for (const look of opts.looks) {
       await cdpLib.evaluate(cdp, `window.VexGuiStyle.set(${JSON.stringify(look)})`);
       await cdpLib.sleep(400);
       await closeAll();
       for (const { item, plan } of run) {
-        const at = `${look}/${item.id}`;
+        const at = opts.tiers.length > 1 ? `${tier}/${look}/${item.id}` : `${look}/${item.id}`;
         const baseline = await cdpLib.evaluate(cdp, 'window.__smoke.layers()');
         const mark = errors.length;
         let result;
@@ -241,6 +259,7 @@ async function main(argv = process.argv.slice(2)) {
         }
         await cdpLib.sleep(250);
         if (result.missing) notes.push({ at, note: `command ${result.what} is not registered in this build` });
+        else if (!result.opened && plan.kind !== 'command' && tier === 'minimal') notes.push({ at, note: `${plan.kind} ${result.what} is not visible in Minimal Vex (the feature is switched off there)` });
         else if (!result.opened && plan.kind !== 'command') findings.push({ at, kind: 'did-not-open', detail: `${plan.kind} ${result.what} is not visible after opening` });
         if (item.sel) {
           const hit = await cdpLib.evaluate(cdp, `window.__smoke.hijack(${JSON.stringify(item.sel)})`);
@@ -260,11 +279,13 @@ async function main(argv = process.argv.slice(2)) {
         done++;
       }
     }
+    }
+    await cdpLib.evaluate(cdp, 'window.__smoke.setTier("full")');
 
-    const summary = { ok: findings.length === 0, looks: opts.looks, cycles: opts.cycles, ran: done, heldBack: skipped.length, seconds: Math.round((Date.now() - started) / 1000), findings, notes };
+    const summary = { ok: findings.length === 0, looks: opts.looks, tiers: opts.tiers, cycles: opts.cycles, ran: done, heldBack: skipped.length, seconds: Math.round((Date.now() - started) / 1000), findings, notes };
     if (opts.json) console.log(JSON.stringify(summary, null, 2));
     else {
-      console.log(`smoke matrix: ${done} item run(s) over ${opts.looks.length} look(s), ${skipped.length} held back, ${summary.seconds}s`);
+      console.log(`smoke matrix: ${done} item run(s) over ${opts.looks.length} look(s) and ${opts.tiers.length} tier(s) (${opts.tiers.join(', ')}), ${skipped.length} held back, ${summary.seconds}s`);
       for (const n of notes) console.log(`  note ${n.at}: ${n.note}`);
       for (const f of findings) console.log(`  FINDING ${f.at} [${f.kind}] ${f.detail}`);
       console.log(findings.length ? `${findings.length} finding(s)` : 'clean');
@@ -276,7 +297,7 @@ async function main(argv = process.argv.slice(2)) {
   }
 }
 
-module.exports = { parseArgs, planItem, selectItems, consoleIsIgnorable, leakBreaches, newLayers, PAGE_SETUP, DENY, SERVICE_PANELS, BUDGETS, LOOKS };
+module.exports = { parseArgs, planItem, selectItems, consoleIsIgnorable, leakBreaches, newLayers, PAGE_SETUP, DENY, SERVICE_PANELS, BUDGETS, LOOKS, TIERS };
 
 if (require.main === module) {
   main().then(code => { process.exitCode = code; }, err => { console.error('smoke matrix: harness failure: ' + err.message); process.exitCode = 2; });

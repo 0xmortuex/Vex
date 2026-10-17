@@ -31,3 +31,31 @@ describe('start-up budget', () => {
     expect(r.errors.filter(e => /twice|does not exist|usage id/.test(e))).toEqual([]);
   });
 });
+
+describe('the real boot against the budget (T3-066)', () => {
+  const budget = { domNodes: 10000, marksMs: { scripts: 1000, ready: 1100, settled: 3000 }, marksCapMs: { scripts: 5000, ready: 6000, settled: 12000 } };
+  it('passes a boot inside the DOM limit and under the ceilings', () => {
+    expect(sb.checkBoot({ marks: { scripts: 4000, ready: 4500, settled: 9000 }, nodes: 11000 }, budget)).toEqual([]);
+  });
+  it('fails a DOM that grew more than 15 percent, and a mark over its ceiling', () => {
+    const e = sb.checkBoot({ marks: { scripts: 4000, ready: 7000, settled: 9000 }, nodes: 11600 }, budget);
+    expect(e.join('\n')).toMatch(/11600 DOM nodes after start-up is more than 15% over the measured 10000 \(limit 11500\)/);
+    expect(e.join('\n')).toMatch(/"ready" boot mark came at 7000 ms, over its ceiling of 6000/);
+  });
+  it('a boot that reports no node count is an error; a boot with no marks only has its DOM judged', () => {
+    expect(sb.checkBoot({ marks: null, nodes: undefined }, budget)[0]).toMatch(/did not report its DOM node count/);
+    expect(sb.checkBoot({ marks: null, nodes: 9000 }, budget)).toEqual([]);
+  });
+  it('the budget file carries the measured figures, and the smoke runner and main.js use them', () => {
+    const fs = require('fs');
+    const file = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'startup-budget.json'), 'utf8'));
+    expect(file.domNodes).toBeGreaterThan(1000);
+    expect(Object.keys(file.marksCapMs).sort()).toEqual(['ready', 'scripts', 'settled']);
+    expect(fs.readFileSync(path.join(ROOT, 'scripts', 'verify-smoke-boot.js'), 'utf8')).toMatch(/checkBoot/);
+    expect(fs.readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8')).toMatch(/SMOKE: BOOT /);
+  });
+  it('more than twenty modules load after start-up, and none is also a blocking tag', () => {
+    expect(sb.lateModules(ROOT).length).toBeGreaterThanOrEqual(21);
+    expect(sb.measure(ROOT).scripts).toBeLessThanOrEqual(680);
+  });
+});

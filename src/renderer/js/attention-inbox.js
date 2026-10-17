@@ -175,6 +175,7 @@ const AttentionInbox = {
       pop.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
     } else { pop.style.top = '48px'; pop.style.right = '12px'; }
     document.body.appendChild(pop);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(pop, 'attention-inbox');
     this._ui = pop;
     this._onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { this.close(); btn?.focus(); } };
     this._onDoc = (e) => { if (!pop.contains(e.target) && !(btn && btn.contains(e.target))) this.close(); };

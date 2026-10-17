@@ -29,8 +29,27 @@ const VexBoot = {
     { src: 'js/release-checklist.js', usage: ['release-check'] },
     { src: 'js/diagnostics-bundle.js', usage: [] },
     { src: 'js/your-data.js', usage: [] },
+    { src: 'js/page-recorder.js', usage: [] },
+    { src: 'js/agent-task-panel.js', usage: [] },
+    { src: 'js/shopping-clip.js', usage: [] },
+    { src: 'js/dev-loop-ui.js', usage: [] },
+    { src: 'js/clipboard-pipeline.js', usage: [] },
+    { src: 'js/vex-mini-games.js', usage: [] },
+    { src: 'js/vex-tab-tetris.js', usage: [] },
+    { src: 'js/vex-medals-profile.js', usage: [] },
+    { src: 'js/privacy-report-card.js', usage: [] },
+    { src: 'js/security-helpers.js', usage: [] },
+    { src: 'js/timeline-actions.js', usage: [] },
+    { src: 'js/extension-audit-view.js', usage: [] },
+    { src: 'js/vex-usage-ui.js', usage: [] },
+    { src: 'js/fun/fun-settings.js', usage: [] },
+    { src: 'js/attention-settings.js', usage: [] },
+    { src: 'js/quiet-hours-ui.js', usage: [] },
+    { src: 'js/tabs-nav-settings.js', usage: [] },
+    { src: 'js/capture-tools.js', usage: [] },
   ],
   marks: {},
+  failed: [],      // late modules that could not load (also in the Problems log)
 
   mark(name) {
     if (typeof performance === 'undefined') return null;
@@ -73,7 +92,8 @@ const VexBoot = {
     const onLoad = () => this.mark('ready');
     if (document.readyState === 'complete') onLoad(); else window.addEventListener('load', onLoad, { once: true });
     const loads = this.LATE_MODULES.map(m => VexLazy.afterIdle(m.src, { usage: m.usage }).then(() => true, () => false));
-    Promise.all(loads).then(() => {
+    Promise.all(loads).then((results) => {
+      this.failed = this.LATE_MODULES.filter((_, i) => !results[i]).map(m => m.src);
       this.mark('settled');
       try { this.record(); }
       catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Start-up', 'Could not keep the boot marks', err); else console.error('[Boot]', err); }

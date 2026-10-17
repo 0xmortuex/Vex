@@ -445,7 +445,9 @@ const SyncEngine = (() => {
   // A feature whose data the person set to "never sync" in Settings > Storage (js/storage-ledger.js)
   // is dropped here: the choice can only hold a key back, it never adds one.
   const preferenceKeys = () => SYNC_KEYS.filter(key => !STORE_KEYS.some(store => key === 'vex.' + store)
-    && (typeof VexStorageLedger === 'undefined' || VexStorageLedger.syncAllowed(key)));
+    && (typeof VexStorageLedger === 'undefined' || VexStorageLedger.syncAllowed(key))
+    // A staged feature (switched off, waiting for the person) and an experimental one are neither pushed nor pulled.
+    && (typeof VexRegistry === 'undefined' || !VexRegistry.syncHeld(key)));
 
   // ===== AUTH =====
 

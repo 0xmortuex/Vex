@@ -194,18 +194,18 @@ const MemoryPanel = {
 
   startAutoRefresh() {
     this.stopAutoRefresh();
-    this.refreshInterval = setInterval(() => {
+    this.refreshInterval = VexJobs.every('Memory panel refresh', 3000, () => {
       // Only refresh if panel is visible
       const panel = document.getElementById('panel-memory');
       if (panel && panel.style.display !== 'none') {
         this.refresh();
       }
-    }, 3000);
+    });
   },
 
   stopAutoRefresh() {
     if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
+      this.refreshInterval.stop();
       this.refreshInterval = null;
     }
   },
@@ -670,7 +670,7 @@ const MemoryPanel = {
     if (this._trendTimer) return;
     document.addEventListener('vex:memory-event', (e) => this.note(e.detail && e.detail.note));
     this.sample().catch(() => {});
-    this._trendTimer = setInterval(() => this.sample().catch(err => console.error('[memory] trend sample failed:', err.message)), this.TREND_MS);
+    this._trendTimer = VexJobs.every('Memory trend sample', this.TREND_MS, () => this.sample().catch(err => console.error('[memory] trend sample failed:', err.message)), { when: 'background' });
   },
 
   async sample() {

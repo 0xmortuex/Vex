@@ -70,6 +70,11 @@ for (const problem of windowBundle.problems) failures.push('window-bundle: ' + p
 const ratchets = require('./ratchets.js').check(root);
 for (const e of ratchets.errors) failures.push('ratchet: ' + e);
 for (const n of ratchets.notes) console.log('ratchet note: ' + n);
+// Overlays not on the layer manager (scripts/overlay-census.js): the count may not grow.
+const overlayCensus = require('./overlay-census.js').census(root);
+const overlayBaseline = JSON.parse(fs.readFileSync(path.join(__dirname, 'overlay-census.json'), 'utf8'));
+if (overlayCensus.remainingJs > overlayBaseline.remainingJs) failures.push('overlays: ' + overlayCensus.remainingJs + ' position:fixed overlays are not on the layer manager, the baseline is ' + overlayBaseline.remainingJs + ' (build new ones with VexLayer.open/track/popover; node scripts/overlay-census.js lists them)');
+else if (overlayCensus.remainingJs < overlayBaseline.remainingJs) console.log('overlay note: ' + overlayCensus.remainingJs + ' remain (baseline ' + overlayBaseline.remainingJs + '); lower it with node scripts/overlay-census.js --write');
 // The start-up budget (scripts/startup-budget.js): blocking scripts may not grow past 15 percent of the budget.
 const startupBudget = require('./startup-budget.js').check(root);
 for (const e of startupBudget.errors) failures.push(e);

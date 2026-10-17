@@ -15,6 +15,10 @@ const { atomicWrite } = require('./file-store');
 // Optionally (see `volatile` below) the history-like keys live in a second
 // file, so the settings file stays small and is not rewritten for them.
 const MARK = '__vexPreferenceStore';
+// The data schema version of the preference files: the value of MARK. A file stamped with a higher one was written
+// by a newer Vex; it is refused as it is (never "recovered" from an older copy, never rewritten) so a downgrade
+// cannot lose the newer data. Raise this when the shape of the files changes, and migrate in decodeText.
+const SCHEMA = 1;
 const SUM = '__vexChecksum';
 const SPLIT = '__vexSplit';
 const GENERATIONS = 3;
@@ -53,6 +57,11 @@ function decodeText(text) {
     const sum = value[SUM];
     delete value[SUM];
     if (typeof sum !== 'string' || sha(JSON.stringify(value)) !== sum) throw new Error('Preference store checksum mismatch');
+  }
+  if (typeof value[MARK] === 'number' && value[MARK] > SCHEMA) {
+    const e = new Error(`The preference file was written by a newer Vex (data version ${value[MARK]}, this Vex knows ${SCHEMA}); it was left as it is`);
+    e.code = 'EVEXNEWER';
+    throw e;
   }
   require('../renderer/js/data-contracts').json(value);
   return value;
@@ -130,6 +139,7 @@ function createPreferenceStore(file, options = {}) {
         writeSync(target, encode(data));
         return { data, from: candidate };
       } catch (error) {
+        if (error.code === 'EVEXNEWER') throw error;
         if (error.code === 'ENOENT' && candidate !== target) continue;
         if (!first) first = error;
         if (candidate === target && error.code === 'ENOENT' && missingIsEmpty) throw error;
@@ -208,8 +218,8 @@ function createPreferenceStore(file, options = {}) {
     const original = fs.readFileSync(file);
     fs.writeFileSync(preSplit, original);
     if (!fs.readFileSync(preSplit).equals(original)) throw new Error('The copy of the settings made before the split differs from the original');
-    const mainPart = { ...pick(cache, false), [MARK]: 1, [SPLIT]: 1 };
-    const volatilePart = { ...pick(cache, true), [MARK]: 1 };
+    const mainPart = { ...pick(cache, false), [MARK]: SCHEMA, [SPLIT]: 1 };
+    const volatilePart = { ...pick(cache, true), [MARK]: SCHEMA };
     try {
       writeSync(volatileFile, encode(volatilePart));
       const back = decodeFile(volatileFile);
@@ -229,7 +239,7 @@ function createPreferenceStore(file, options = {}) {
 
   // Two files -> one, the way it was.
   function rollback() {
-    const merged = { ...cache, [MARK]: 1 };
+    const merged = { ...cache, [MARK]: SCHEMA };
     delete merged[SPLIT];
     writeSync(file, encode(merged));
     const back = decodeFile(file);
@@ -261,7 +271,7 @@ function createPreferenceStore(file, options = {}) {
   }
 
   async function writeMain(data, eraseBackup) {
-    const out = split ? { ...pick(data, false), [MARK]: 1, [SPLIT]: 1 } : data;
+    const out = split ? { ...pick(data, false), [MARK]: SCHEMA, [SPLIT]: 1 } : data;
     if (!eraseBackup) rotateGeneration(file);
     await atomicWrite(file, encode(out), { backup: !eraseBackup });
   }
@@ -271,7 +281,7 @@ function createPreferenceStore(file, options = {}) {
     volatileDirty = false;
     try {
       if (!eraseBackup) rotateGeneration(volatileFile);
-      await atomicWrite(volatileFile, encode({ ...pick(cache, true), [MARK]: 1 }), { backup: !eraseBackup });
+      await atomicWrite(volatileFile, encode({ ...pick(cache, true), [MARK]: SCHEMA }), { backup: !eraseBackup });
     } catch (error) { volatileDirty = true; throw error; }
   }
 
@@ -308,7 +318,7 @@ function createPreferenceStore(file, options = {}) {
       // (found 2026-10-09). Decided here, in the queue, so a write still
       // waiting ahead of this one is what it is compared with.
       if (change(updated) === false) return true;
-      updated[MARK] = 1;
+      updated[MARK] = SCHEMA;
       if (!split) {
         await writeMain(updated, eraseBackup);
         if (eraseBackup) eraseCopies(file);
@@ -362,4 +372,4 @@ function createPreferenceStore(file, options = {}) {
     isSplit() { load(); return split; },
   };
 }
-module.exports = { createPreferenceStore, VOLATILE_KEYS, SPLIT_PREFERENCE, readPreferenceFile: decodeFile };
+module.exports = { createPreferenceStore, VOLATILE_KEYS, SPLIT_PREFERENCE, SCHEMA, readPreferenceFile: decodeFile };

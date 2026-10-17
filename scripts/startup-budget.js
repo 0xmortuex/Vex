@@ -56,10 +56,31 @@ function lateModules(root = ROOT) {
   return out;
 }
 
+// The real boot (scripts/verify-smoke-boot.js reads the "SMOKE: BOOT" line main.js prints): the DOM may not
+// grow more than 15 percent past the measured node count, and each boot mark that is there may not pass its ceiling.
+// marks: { scripts, ready, settled } in ms since navigation start, or null (an old build with no marks).
+function checkBoot({ marks, nodes }, budget) {
+  const b = budget || JSON.parse(fs.readFileSync(BUDGET_FILE, 'utf8'));
+  const errors = [];
+  if (!Number.isFinite(nodes)) errors.push('start-up budget: the boot did not report its DOM node count');
+  else {
+    const limit = Math.floor(b.domNodes * (1 + GROWTH));
+    if (nodes > limit) errors.push('start-up budget: ' + nodes + ' DOM nodes after start-up is more than 15% over the measured ' + b.domNodes + ' (limit ' + limit + '). Build the new surface when it is opened, not at boot.');
+  }
+  if (marks) {
+    for (const name of Object.keys(b.marksCapMs)) {
+      const t = marks[name];
+      if (Number.isFinite(t) && t > b.marksCapMs[name]) errors.push('start-up budget: the "' + name + '" boot mark came at ' + t + ' ms, over its ceiling of ' + b.marksCapMs[name] + ' ms (measured ' + b.marksMs[name] + ' ms)');
+    }
+  }
+  return errors;
+}
+
 function check(root = ROOT, budget) {
   const errors = [];
   const notes = [];
   const b = budget || JSON.parse(fs.readFileSync(BUDGET_FILE, 'utf8'));
+  if (!budget) for (const k of ['domNodes', 'marksMs', 'marksCapMs']) if (b[k] === undefined) errors.push('start-up budget: scripts/startup-budget.json has no ' + k);
   const now = measure(root);
   for (const [name, label] of [['scripts', 'blocking scripts'], ['bytes', 'bytes of blocking scripts']]) {
     const limit = Math.floor(b[name] * (1 + GROWTH));
@@ -80,8 +101,7 @@ function check(root = ROOT, budget) {
 function tighten(root = ROOT) {
   const now = measure(root);
   const old = fs.existsSync(BUDGET_FILE) ? JSON.parse(fs.readFileSync(BUDGET_FILE, 'utf8')) : null;
-  const next = { scripts: old ? Math.min(old.scripts, now.scripts) : now.scripts, bytes: old ? Math.min(old.bytes, now.bytes) : now.bytes };
-  if (old && old.note) next.note = old.note;
+  const next = { ...(old || {}), scripts: old ? Math.min(old.scripts, now.scripts) : now.scripts, bytes: old ? Math.min(old.bytes, now.bytes) : now.bytes };
   fs.writeFileSync(BUDGET_FILE, JSON.stringify(next, null, 2) + '\n');
   return next;
 }
@@ -97,4 +117,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { blockingScripts, measure, lateModules, check, tighten, GROWTH };
+module.exports = { blockingScripts, measure, lateModules, check, checkBoot, tighten, GROWTH };

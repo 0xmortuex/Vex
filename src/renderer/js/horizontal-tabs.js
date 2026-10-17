@@ -471,6 +471,7 @@ const HorizontalTabs = (() => {
     overlay.addEventListener('mousedown', () => closeAllTabsMenu(false), true);
     document.body.appendChild(overlay);
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'all-tabs-menu');
     // Under the button, its right edge on the button's.
     const r = btn.getBoundingClientRect();
     const x = Math.max(8, r.right - menu.offsetWidth), y = r.bottom + 4;
