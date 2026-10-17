@@ -324,7 +324,9 @@ const VexQuickReminder = {
       made = await this._bridge().create(text, null, { ...opts, site });
     } else {
       if (!(when instanceof Date) || Number.isNaN(when.getTime())) throw new Error('That is not a real time.');
-      made = await this._bridge().create(text, when.getTime(), opts);
+      // A repeating reminder keeps its own rhythm; only a one-off time can be moved off a holiday (opt in).
+      const at = (!opts.repeat && !opts.urgent && typeof VexHolidays !== 'undefined') ? VexHolidays.reminderAt(when.getTime(), text) : when.getTime();
+      made = await this._bridge().create(text, at, opts);
     }
     this._remember({ message: text, url: opts.url || '', repeat: opts.repeat || '', urgent: !!opts.urgent, site });
     this._mirror();

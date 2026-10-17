@@ -24,7 +24,8 @@
 const VexHolidays = {
   PREF: 'vex.holidays.enabled',        // 'off' stops it reaching Focus OS and What is due
   FOCUS_PREF: 'vex.holidays.skipFocus', // 'off': Focus OS keeps planning on holidays
-  USER_KEY: 'vex.holidays.user',       // [{ date, name }] from your calendar file or by hand
+  REMINDER_PREF: 'vex.holidays.skipReminders', // 'on': a timed reminder that lands on a holiday moves to the next workday (opt in)
+  USER_KEY: 'vex.holidays.user',      // [{ date, name }] from your calendar file or by hand
   MAX_USER: 300,
   DAY: 24 * 3600 * 1000,
 
@@ -222,6 +223,38 @@ const VexHolidays = {
     throw new Error('No workday found in the next 20 days');
   },
 
+  // ---- Reminders (opt in) ----------------------------------------------------------------
+  // A reminder set for a bayram is moved to the same time on the next workday, only when you switched
+  // "Reminders skip holidays" on. A plain weekend is left alone (you may want a Sunday reminder); only
+  // a whole-day holiday or a user day moves it. Every move is written to the ledger.
+  skipsReminders() { try { return localStorage.getItem(this.REMINDER_PREF) === 'on'; } catch { return false; } },
+  setSkipsReminders(on) {
+    try { localStorage.setItem(this.REMINDER_PREF, on ? 'on' : 'off'); }
+    catch (err) { throw new Error('Could not save that setting: ' + err.message); }
+    return !!on;
+  },
+  // Pure: the time a reminder asked for on `ms` -> { at, moved, holiday }. Ignores the switch.
+  shiftReminder(ms) {
+    const h = this.on(ms);
+    if (!h || h.kind === 'half') return { at: ms, moved: false, holiday: null };
+    const d = new Date(ms);
+    for (let i = 0; i < 20; i++) {
+      d.setDate(d.getDate() + 1);
+      if (!this.isOff(d)) return { at: d.getTime(), moved: true, holiday: h.name };
+    }
+    throw new Error('No workday found in the next 20 days');
+  },
+  // For the places that schedule a timed reminder: the time to use. Unchanged unless the opt-in is on.
+  reminderAt(ms, what) {
+    if (!this.enabled() || !this.skipsReminders() || !Number.isFinite(ms)) return ms;
+    const r = this.shiftReminder(ms);
+    if (!r.moved) return ms;
+    if (typeof VexLedger !== 'undefined') {
+      VexLedger.note({ feature: 'holiday-planner', what: 'Moved a reminder off ' + r.holiday + (what ? ': ' + String(what).slice(0, 80) : ''), why: 'Reminders skip holidays is switched on in Settings, Holidays' });
+    }
+    return r.at;
+  },
+
   // ---- What is due ---------------------------------------------------------------------
   _dueRows(now) {
     return this.upcoming(now, 7).filter(r => r.kind !== 'half').map(r => {
@@ -296,6 +329,12 @@ const VexHolidays = {
     cb.addEventListener('change', () => { try { this.setSkipsFocus(cb.checked); } catch (err) { cb.checked = !cb.checked; window.showToast?.(err.message, 'error'); } });
     row.append(cb, document.createTextNode(' Focus OS plans no blocks on holidays'));
     el.appendChild(row);
+    const rrow = document.createElement('label');
+    rrow.className = 'vexsr-rule';
+    const rcb = document.createElement('input'); rcb.type = 'checkbox'; rcb.checked = this.skipsReminders();
+    rcb.addEventListener('change', () => { try { this.setSkipsReminders(rcb.checked); } catch (err) { rcb.checked = !rcb.checked; window.showToast?.(err.message, 'error'); } });
+    rrow.append(rcb, document.createTextNode(' Reminders skip holidays (a reminder set for a holiday moves to the next workday)'));
+    el.appendChild(rrow);
   },
 
   init() {
