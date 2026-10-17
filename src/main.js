@@ -7156,7 +7156,7 @@ ipcMain.handle('fx:tcmb', () => _fxRates.tcmb());
 // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook, sealed by the OS
 // in comms-webhook.enc and never handed back, and the folder of the Vencord bridge file, read-only.
 const _commsTools = require('./main/comms-tools').createCommsTools({
-  secretStore, webhookFile: path.join(userDataPath, 'comms-webhook.enc'), bridgeConfigFile: path.join(userDataPath, 'comms-bridge.json'), fetch: boundedNetFetch,
+  secretStore, webhookFile: path.join(userDataPath, 'comms-webhook.enc'), bridgeConfigFile: path.join(userDataPath, 'comms-bridge.json'), statusSeqFile: path.join(userDataPath, 'comms-status-seq.json'), fetch: boundedNetFetch,
   confirm: async ({ title, message, okLabel }) => {
     const win = BrowserWindow.getFocusedWindow() || undefined;
     const opts = { type: 'warning', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
@@ -7178,9 +7178,8 @@ ipcMain.handle('comms:bridge-status', () => _commsTools.bridgeStatus());
 ipcMain.handle('comms:bridge-pick', () => _commsTools.bridgePick());
 ipcMain.handle('comms:bridge-read', () => _commsTools.bridgeRead());
 ipcMain.handle('comms:bridge-forget', () => _commsTools.bridgeForget());
-// The status channel (T3-062): Vex writes one fixed request file the owner's own Vencord plugin applies, and reads its answer.
+// The status channel (T3-062): Vex writes one fixed command file (vex-status.json) the owner's own Vencord plugin applies.
 ipcMain.handle('comms:status-write', (_event, req) => _commsTools.statusWrite(req));
-ipcMain.handle('comms:status-ack', () => _commsTools.statusAck());
 // Status pages the person listed (main/status-check.js): the services' own public Statuspage summaries, read-only.
 const _statusCheck = require('./main/status-check').createStatusCheck({ publicFetch: boundedPublicFetch });
 ipcMain.handle('status:check', (_event, list) => _statusCheck.check(list));
