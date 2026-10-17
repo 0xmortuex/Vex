@@ -786,7 +786,9 @@ const AiRecipes = {
       const d = this.diff(recipe.lastText, entry.text);
       entry.added = d.added; entry.removed = d.removed; entry.first = d.first;
       let noteId = '';
-      if (recipe.dest === 'note') noteId = this._toNote(recipe, text, d);
+      // The note keeps the provenance line the chip would show (VexProvenance), since it leaves the window as plain text.
+      const prov = typeof VexProvenance !== 'undefined' ? VexProvenance.label(VexProvenance.fromResult(out, { read: recipe.source ? 'the page you chose' : 'your prompt' })) : '';
+      if (recipe.dest === 'note') noteId = this._toNote(recipe, prov ? text + '\n\n' + prov : text, d);
       entry.note = noteId;
       if (typeof VexLedger !== 'undefined') {
         VexLedger.note({

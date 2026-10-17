@@ -36,7 +36,7 @@ describe('main routes the watchers through the shared client', () => {
   it('rss, the GitHub vault, the release ticker and api:request use it', () => {
     expect(main).toMatch(/_politeNetFetch\(feedUrl/);
     expect(main).toMatch(/createGithubVault\(\{[^}]*fetch: _politeNetFetch/);
-    expect(main).toMatch(/createCastlabsTicker\(\{ fetch: _politeBackgroundFetch/);
+    expect(main).toMatch(/createCastlabsTicker\(\{ fetch: (?:_politeBackgroundFetch|_githubVault\.asFetch\(\))/);
     expect(main).toMatch(/politeAsk && init\.method === 'GET'/);
   });
   it('the cache partition is decided in main, from publicOnly, not by the window', () => {

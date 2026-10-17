@@ -4,6 +4,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const JS = '../../src/renderer/js/';
 const fresh = (p) => { delete require.cache[require.resolve(p)]; return require(p); };
 
+// The layer manager (js/vex-layer.js) is loaded before guest-session.js in index.html.
+globalThis.VexLayer ??= { track: (el) => el };
+
 let G, tabs, created;
 beforeEach(() => {
   localStorage.clear(); vi.resetModules();
