@@ -134,8 +134,8 @@
       permissions: { reads: ['which sites you were signed in to'], writes: ['what it already told you'], sends: [] } },
     { id: 'commit-guard', title: 'Protect Windows from running out of memory', group: 'Game mode', storageKeys: ['vex.game.commitGuard'],
       permissions: { reads: ['the memory Windows has left'], writes: ['puts Vex background work on hold while you play'], sends: [] } },
-    { id: 'release-check', title: 'Release check', group: 'Release check', storageKeys: ['vex.releaseCheck', 'vex.releaseCheck.enabled', 'vex.releaseCheck.auto'], commands: ['release-check'],
-      permissions: { reads: ['the change list of this version', 'which Ctrl+K commands you run'], writes: ['which items you ticked', 'which items Vex saw opened'], sends: [] } },
+    { id: 'release-check', title: 'Release check', group: 'Release check', storageKeys: ['vex.releaseCheck', 'vex.releaseCheck.enabled', 'vex.releaseCheck.auto', 'vex.releaseCheck.repos', 'vex.releaseCheck.preflight'], commands: ['release-check'],
+      permissions: { reads: ['the change list of this version', 'which Ctrl+K commands you run', 'the Actions runs, tags and package.json of the repositories you list (only when you press Run pre-flight)'], writes: ['which items you ticked', 'which items Vex saw opened', 'your pre-flight lines and the last answer for each repository'], sends: ['Read requests to api.github.com through the GitHub vault, only when you press Run pre-flight'] } },
 
     // ---- Wave 2: gates and security ---------------------------------------------------------------
     // All new, so an existing profile has them off until it tries them (staged enablement).
