@@ -165,6 +165,8 @@ const DownloadsPanel = {
     if (dl.state === 'completed' && !(dl.totalBytes > 0)) dl.totalBytes = dl.receivedBytes;
     if (data.path) dl.path = data.path;
     if (data.url && !dl.url) dl.url = data.url;
+    const fileCheck = this._cleanFileCheck(data.fileCheck);
+    if (fileCheck) dl.fileCheck = fileCheck; else delete dl.fileCheck;
     this.activeDownloads.delete(data.id);
     this.save();
     this._replaceRow(dl);
@@ -172,7 +174,12 @@ const DownloadsPanel = {
 
     // Asked for at the start: open it now, through the same check as any
     // other Open. The toast is skipped — the file is already in front of you.
-    if (this.openWhenDone.has(dl.id)) {
+    if (fileCheck && fileCheck.worst === 'high') {
+      // What the file is does not match its name (file-content-check.js): said instead of the usual "finished" card.
+      const text = dl.filename + ': ' + fileCheck.findings[0].text;
+      if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: 'download-file-check', urgency: 'critical', id: dl.id, title: 'Be careful with this download', body: text }, () => window.showToast?.(text, 'error', 12000));
+      else window.showToast?.(text, 'error', 12000);
+    } else if (this.openWhenDone.has(dl.id)) {
       this._openIfWanted(dl).catch(err => window.VexProblems?.note('Downloads', 'Could not open the finished file', err));
     } else if (dl.state === 'completed') {
       window.DownloadToast?.show({
@@ -192,6 +199,22 @@ const DownloadsPanel = {
       window.vex.notify(dl.state === 'completed' ? 'Download finished' : 'Download failed', dl.filename)
         .catch(err => window.VexProblems?.note('Downloads', 'Could not show the desktop notification', err));
     }
+  },
+
+  // The file check of a finished download as the panel keeps it: at most four findings, plain text, bounded.
+  _cleanFileCheck(c) {
+    if (!c || typeof c !== 'object') return null;
+    const findings = (Array.isArray(c.findings) ? c.findings : []).filter(f => f && typeof f.text === 'string' && (f.level === 'high' || f.level === 'medium')).slice(0, 4).map(f => ({ level: f.level, kind: String(f.kind || '').slice(0, 30), text: f.text.slice(0, 320) }));
+    const note = c.checked === false ? String(c.note || 'The file could not be checked').slice(0, 200) : '';
+    if (!findings.length && !note) return null;
+    return { checked: c.checked !== false, worst: findings.some(f => f.level === 'high') ? 'high' : findings.length ? 'medium' : '', findings, note };
+  },
+  _fileCheckHtml(dl) {
+    const c = dl.fileCheck;
+    if (!c) return '';
+    const lines = c.findings.map(f => `<div class="download-warn" role="note" style="margin-top:4px;font-size:11.5px;line-height:1.4;color:${f.level === 'high' ? 'var(--danger,#ef4444)' : 'var(--text)'}"><b>${f.level === 'high' ? 'Warning' : 'Careful'}:</b> ${this._esc(f.text)}</div>`);
+    if (c.note) lines.push(`<div class="download-warn" style="margin-top:4px;font-size:11.5px;color:var(--text-muted)">${this._esc(c.note)}</div>`);
+    return lines.join('');
   },
 
   save() {
@@ -824,6 +847,7 @@ const DownloadsPanel = {
         <div class="download-info">
           <div class="download-filename">${this._esc(dl.filename)}</div>
           <div class="download-meta">${this._metaText(dl)}</div>
+          ${isComplete ? this._fileCheckHtml(dl) : ''}
           ${isActive ? `<div class="download-progress"><div class="download-progress-bar" style="width:${pct}%"></div></div>` : ''}
         </div>
         <div class="download-actions">

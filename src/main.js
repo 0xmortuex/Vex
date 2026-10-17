@@ -3624,6 +3624,8 @@ const _downloadService = require('./main/downloads').createDownloadService({ app
   lastGestureAt: (contents) => _lastGestureAt.get(contents.id), askAutoDownloads: askAutomaticDownloads,
   // A program or script from a site with no standing is asked about first (web-safety.js).
   judgeDownload: (info) => _webSafety.judgeDownload(info), askRiskyDownload,
+  // The saved file's first bytes (and a zip's file list) against its name; skipped while Web safety is off.
+  inspectFile: (file, name) => (_webSafety.snapshot().sensitivity === 'off' ? null : require('./main/file-content-check').inspectFile({ fs, file, name })),
   // Read lazily, the first time a download finishes or is opened.
   knownBefore: () => {
     const list = JSON.parse(_persistLoad()['vex.downloads'] || '[]');

@@ -186,6 +186,8 @@
       permissions: { reads: ['package.json or pyproject.toml of your listed repositories'], writes: ['the radar results'], sends: ['Read requests to api.github.com (also the release notes), registry.npmjs.org, pypi.org and api.osv.dev (package names and versions only)'] } },
     { id: 'deploy-desk', title: 'Deploy desk', group: 'Developer loop', maturity: 'new', storageKeys: ['vex.deployDesk'], usesKeys: ['vex.history'],
       commands: ['deploy-desk'], permissions: { reads: ['how often your history visited the deploy hosts'], writes: ['the pages you pinned'], sends: [] } },
+    { id: 'fake-update-guard', title: 'Fake update guard', group: 'Web safety', maturity: 'new', storageKeys: ['vex.fakeUpdateGuard'],
+      permissions: { reads: ['the text and button addresses of a large notice on a page you open, a few seconds after it loads (never a private, Tor or routed tab)'], writes: ['its own switch'], sends: [] } },
     { id: 'api-playground', title: 'API playground', group: 'Developer helpers', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.playground', 'vex.playgroundSecretValues'], commands: ['apiplayground:open'],
       permissions: { reads: ['the requests, environments and history you saved; sensitive values only in the main process, never handed back to the window'], writes: ['saved requests, environments and a history without headers or bodies; sensitive values into an OS-sealed vault file'], sends: ['The one request you press Send on, from the main process, to the address you wrote (public addresses; localhost only when you tick Allow localhost)'] } },
     { id: 'dev-loop-repos', title: 'Developer loop repositories', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.devLoop.repos'], commands: ['dev-loop'],
@@ -492,7 +494,7 @@
     // Cookie-banner rejecting already existed (ConsentBlock, on by default): stable. The rest are 'new': an existing
     // profile gets them OFF and is offered them. The throwaway session is also off on a new profile until chosen.
     { id: 'download-guard', title: 'Cheat tools and fake updates', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [],
-      permissions: { reads: ['the name and address of a file being downloaded, never its contents'], writes: ['nothing; the file waits in a holding folder until you decide'], sends: [] } },
+      permissions: { reads: ['the name and address of a file being downloaded; once it is saved, its first bytes and, for a zip, its list of file names (never decompressed, run or uploaded)'], writes: ['nothing; the file waits in a holding folder until you decide'], sends: [] } },
     { id: 'cookie-reject', title: 'Reject cookie banners', group: 'Safer browsing helpers', maturity: 'stable', storageKeys: ['vex.consentBlock.sites', 'vex.consentBlock.count'], usesKeys: ['vex.consentBlock'],
       commands: ['safeweb:cookies-site'], permissions: { reads: ['the address of the page, and the page\'s cookie banner'], writes: ['presses the site\'s own Reject button; the sites you left alone and a count of banners'], sends: [] } },
     { id: 'marketplace-signs', title: 'Marketplace red-flag checklist', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.marketSigns', 'vex.marketSigns.hosts'], commands: ['safeweb:marketplace'],

@@ -232,6 +232,7 @@ const VexUsageRegistry = {
       VexGithubHelpers: () => (typeof VexGithubHelpers !== 'undefined' ? VexGithubHelpers : null),
       VexShellTranslate: () => (typeof VexShellTranslate !== 'undefined' ? VexShellTranslate : null),
       VexDecode: () => (typeof VexDecode !== 'undefined' ? VexDecode : null),
+      VexFakeUpdate: () => (typeof VexFakeUpdate !== 'undefined' ? VexFakeUpdate : null),
       VexReferenceSets: () => (typeof VexReferenceSets !== 'undefined' ? VexReferenceSets : null),
       CloudflareShortcuts: () => (typeof CloudflareShortcuts !== 'undefined' ? CloudflareShortcuts : null),
       RobloxResolver: () => (typeof RobloxResolver !== 'undefined' ? RobloxResolver : null),
@@ -495,6 +496,8 @@ const VexUsageRegistry = {
       ['github-helpers', A.api(G.VexGithubHelpers, 'enabled', 'setEnabled')],
       ['snippet-translator', A.api(G.VexShellTranslate, 'enabled', 'setEnabled')],
       ['selection-decoder', A.api(G.VexDecode, 'enabled', 'setEnabled')],
+      // Warns about a fake "update your browser" notice on a page (js/fake-update-guard.js); passive, follows Web safety.
+      ['fake-update-guard', A.api(G.VexFakeUpdate, 'enabled', 'setEnabled')],
       ['reference-sets', A.api(G.VexReferenceSets, 'enabled', 'setEnabled')],
       // Wave 3: shortcuts and tools that run only when asked (js/dev-shortcuts.js, js/local-tools-ui.js, js/ai-judgement.js).
       // Local services and the webhook inspector are off by default; switching them off also takes back what main holds.
