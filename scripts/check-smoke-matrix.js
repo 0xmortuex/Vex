@@ -128,9 +128,10 @@ const PAGE_SETUP = `(() => {
   window.setInterval = (fn, ms, ...a) => { const id = si(fn, ms, ...a); live.add(id); return id; };
   window.clearInterval = (id) => { live.delete(id); return ci(id); };
   const layer = (el) => (el.id ? '#' + el.id : '') + '.' + String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className).trim().split(/\\s+/).slice(0, 2).join('.') + '<' + el.tagName.toLowerCase() + '>';
-  const visible = (el) => { if (!el) return false; const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden'; };
+  const visible = (el) => { if (!el) return false; const t = (el.matches('input[type=checkbox]') && el.closest('label.toggle')) || el; const r = t.getBoundingClientRect(); const s = getComputedStyle(t); return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden'; };
   window.__smoke = {
-    layers: () => [...document.body.children].filter(e => !/^(SCRIPT|STYLE|LINK)$/.test(e.tagName)).map(layer),
+    // A shell that was built on first use and is hidden now (Peek, the AI panel) is not a layer left on screen.
+    layers: () => [...document.body.children].filter(e => !/^(SCRIPT|STYLE|LINK)$/.test(e.tagName) && !e.hidden && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden').map(layer),
     intervals: () => live.size,
     visible,
     // Put the profile in a tier. Minimal Vex is entered/left through its own switch so the usage rows are exercised.
@@ -224,6 +225,11 @@ async function main(argv = process.argv.slice(2)) {
     if ((await cdpLib.evaluate(cdp, PAGE_SETUP)) !== 'installed') throw new Error('the page helpers did not install');
 
     const counters = async () => {
+      // Settings pages build and drop tens of thousands of nodes; one collection straight after a close reads that
+      // as a leak (a reading of +3000 nodes fell back to +64 a cycle once settled). Let the page settle, collect twice.
+      await cdpLib.sleep(500);
+      await cdp.send('HeapProfiler.collectGarbage');
+      await cdpLib.sleep(300);
       await cdp.send('HeapProfiler.collectGarbage');
       const c = await cdp.send('Memory.getDOMCounters');
       return { nodes: c.nodes, listeners: c.jsEventListeners, intervals: await cdpLib.evaluate(cdp, 'window.__smoke.intervals()') };
@@ -235,7 +241,7 @@ async function main(argv = process.argv.slice(2)) {
         await cdpLib.sleep(80);
       }
     };
-    const closeAll = async () => { await escape(); await cdpLib.evaluate(cdp, 'window.__smoke.reset()'); await cdpLib.sleep(200); };
+    const closeAll = async () => { await escape(); await cdpLib.evaluate(cdp, 'window.__smoke.reset()'); await cdpLib.sleep(400); };
 
     let done = 0;
     for (const tier of opts.tiers) {
@@ -268,8 +274,11 @@ async function main(argv = process.argv.slice(2)) {
         await closeAll();
         for (const layer of newLayers(baseline, await cdpLib.evaluate(cdp, 'window.__smoke.layers()'))) findings.push({ at, kind: 'leaked-layer', detail: layer + ' is still in <body> after closing' });
 
-        // Leak canary: the first open/close is the warm-up (lazy init); the rest must not grow.
+        // Leak canary: the first two open/closes are the warm-up (lazy init); the rest must not grow.
         if (opts.cycles > 1) {
+          // Settings keeps building lazy parts on its second open as well (a reading of +8,600 nodes at the second
+          // open settled to +64 a cycle from the third), so the warm-up is two opens, not one.
+          await cdpLib.evaluate(cdp, `window.__smoke.open(${JSON.stringify(plan)})`); await cdpLib.sleep(120); await closeAll();
           const before = await counters();
           for (let i = 1; i < opts.cycles; i++) { await cdpLib.evaluate(cdp, `window.__smoke.open(${JSON.stringify(plan)})`); await cdpLib.sleep(120); await closeAll(); }
           for (const b of leakBreaches(before, await counters(), opts.budgets)) findings.push({ at, kind: 'leak', detail: `${b} over ${opts.cycles - 1} more cycles` });
