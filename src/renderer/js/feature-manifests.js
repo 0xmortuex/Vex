@@ -569,7 +569,7 @@
       permissions: { reads: ["a picture of the page of a tab you leave"], writes: ["pictures in memory only, never on disk"], sends: [] } },
     { id: 'link-hints', title: 'Keyboard hints', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.keyboardHints'], usesKeys: ['vex.linkHints'], commands: ['link-hints', 'tab-hints'],
       permissions: { reads: ["the links and buttons in view, and your tabs, when you ask for hints"], writes: ["clicks or focuses what you pick; opens a link in a background tab with Shift"], sends: [] } },
-    { id: 'split-keys', title: 'Split view keys', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.splitKeys'], commands: ['split-focus-next', 'split-swap-panes', 'split-snap-25', 'split-snap-50', 'split-snap-75'],
+    { id: 'split-keys', title: 'Split view keys', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.splitKeys'], commands: ['split-focus-next', 'split-swap-panes', 'split-snap-25', 'split-snap-50', 'split-snap-75', 'split-fill-area'],
       permissions: { reads: ["the split panes; a link you Alt+click"], writes: ["moves the divider or the panes; opens an Alt+clicked link in the other pane"], sends: [] } },
     { id: 'preconnect', title: 'Connect ahead to links', group: 'Links and windows', maturity: 'new', storageKeys: ['vex.preconnect'],
       permissions: { reads: ["the link under the pointer, and the address of the page"], writes: ["the switch and the allow list"], sends: ["A connection set-up (no request) to the site of a link on the same site as the page, or an allow-listed site, from a saved-session tab only"] } },

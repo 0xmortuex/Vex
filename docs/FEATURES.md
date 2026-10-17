@@ -68,7 +68,7 @@ How Vex holds the pages you have open.
   - Open: Ctrl+K: "Hints: click with the keyboard", "Hints: go to a tab"; Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Split view keys** (`split-keys`): Adds keyboard control to split view: move to the next pane, swap panes, and snap the divider to 25/75, 50/50 or 75/25. Find them in Ctrl+K under "Split view". On an existing profile it starts off; turn it on in Settings > Tab tools.
-  - Open: Ctrl+K: "Split view: next pane", "Split view: swap panes", "Split view: 25 / 75", "Split view: 50 / 50", "Split view: 75 / 25"; Settings > Tab tools.
+  - Open: Ctrl+K: "Split view: next pane", "Split view: swap panes", "Split view: 25 / 75", "Split view: 50 / 50", "Split view: 75 / 25", "Split view: fill the area"; Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Links from other programs in a small window** (`mini-window`): Opens a link handed to Vex by another program in a small window instead of a full tab, and can close that window after a set number of minutes. On an existing profile it starts off; turn it on in Settings > Links and windows.
   - Open: Settings > Links and windows.
