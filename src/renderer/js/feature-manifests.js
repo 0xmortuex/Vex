@@ -466,7 +466,7 @@
     // ---- Wave 3: trust and housekeeping (js/ai-spend-cap.js, summary-cache.js, tos-highlight.js, settings-changes.js,
     //      whats-new-me.js, revisit-watch.js, workspace-archive.js, download-desk-ui.js). All 'new': off for an existing profile. ----
     // The cap is a safety net (like the sensitivity gate): Minimal Vex must never lift it, so it has no switch to flip.
-    { id: 'ai-spend-cap', title: 'Daily cap on cloud AI calls', group: 'AI spend cap', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiSpend'],
+    { id: 'ai-spend-cap', title: 'Daily cap on cloud AI calls', group: 'AI spend cap', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiSpend', 'vex.aiQuality', 'vex.aiSpendRouting'],
       permissions: { reads: ['how many cloud AI calls were made today'], writes: ['the count and the cap you chose'], sends: [] } },
     { id: 'summary-cache', title: 'Summary cache', group: 'Summary cache', maturity: 'new', storageKeys: ['vex.summaryCache', 'vex.summaryCache.enabled'], budget: { storageKB: 600 },
       permissions: { reads: ['the text of a page you ask to have summarised, to tell whether it changed'], writes: ['the finished summaries, on this computer, up to 40 for 30 days'], sends: [] } },
@@ -681,7 +681,7 @@
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'storage-ceilings', title: 'Storage and Recall limits', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storage.recallLimits'],
       permissions: { reads: ['how much each feature keeps; the Recall index size'], writes: ['the caps and retention of the Recall index; the oldest pages go first'], sends: [] } },
-    { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['ai-answered-by'],
+    { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiLadder'], commands: ['ai-answered-by'],
       permissions: { reads: ['your AI mode and which backend answered'], writes: ['the same AI mode switches Settings already has'], sends: [] } },
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],
