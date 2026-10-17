@@ -18,17 +18,31 @@
 //   Switching INTO a workspace after 3 hours or more away offers it (a useful
 //   notice through the attention gate)
 //
-// Not built here, and why: new comments on GitHub and relevant new mail need an
-// account or token and a rule for "relevant" that only you can give. The list
-// reads page watches only; GitHub release/run watches keep their own notices.
-// Reads only; sends nothing.
+// Two more sources, each OFF until you switch it on (Settings > What changed since you looked), and
+// only for pages you already watch:
+//   comments   a watched GitHub issue or pull request page: the number of comments now against the
+//              number when you last looked. One read-only GitHub call per page through the sealed
+//              GitHub access (GitHubVault, js/github-vault.js), at most 5 pages, only when the
+//              brief section or the list is built.
+//   mail       unread mail that arrived since you last looked from an address on the SAME SITE as
+//              a page you watch in that workspace (a shop's tracking page and the shop's mail).
+//              It asks each mail account you added for its newest 30 headers, exactly the call the
+//              Mail panel makes; no message body is opened, nothing is marked read or kept.
+// "Relevant" is therefore never a guess: it is the site of a page you chose to watch. GitHub
+// release/run watches keep their own notices. Reads only; sends nothing but those GitHub calls.
 
 const VexChanged = {
   PREF: 'vex.changed.enabled',
   SEEN: 'vex.changed.seen',          // { [workspaceId]: ms you last had it in front }
   MIN_AWAY_MS: 3 * 3600 * 1000,
   FEATURE: 'workspace-changes',
+  SOURCES: 'vex.changed.sources',    // { comments: bool, mail: bool }, both off until chosen
+  COMMENTS: 'vex.changed.comments',  // { [watchId]: the comment count when you last looked }
+  MAX_COMMENT_PAGES: 5,
+  MAX_MAIL_ACCOUNTS: 3,
+  MAIL_HEADERS: 30,
   _ws: null,
+  _latest: {},                        // { [wsId]: { [watchId]: count } } read this run, kept at "looked"
 
   enabled() { return VexPlanKit.flag(this.PREF); },
   setEnabled(on) { return VexPlanKit.setFlag(this.PREF, on); },
@@ -57,6 +71,78 @@ const VexChanged = {
     return PageWatchDiff.summarize(d).headline;
   },
 
+  // ---- comments and mail (both opt-in) -----------------------------------------------------------
+  sources() {
+    const o = VexPlanKit.readJson(this.SOURCES, {});
+    return { comments: !!(o && o.comments === true), mail: !!(o && o.mail === true) };
+  },
+  setSource(name, on) {
+    if (name !== 'comments' && name !== 'mail') throw new Error('Unknown source ' + name);
+    VexPlanKit.writeJson(this.SOURCES, { ...this.sources(), [name]: !!on });
+  },
+  // github.com/o/r/issues/12 or /pull/12 -> { owner, repo, number }, else null.
+  githubThread(url) {
+    let u;
+    try { u = new URL(String(url || '')); } catch { return null; }
+    if (u.hostname !== 'github.com') return null;
+    const m = /^\/([\w.-]+)\/([\w.-]+)\/(?:issues|pull)\/(\d+)(?:\/|$)/.exec(u.pathname);
+    return m ? { owner: m[1], repo: m[2], number: Number(m[3]) } : null;
+  },
+  // Watches of this workspace that are GitHub threads.
+  _threads(wsId, saved = false) {
+    if (typeof PageWatch === 'undefined') throw new Error('Page watch is not loaded');
+    const urls = this._tabUrls(wsId, saved);
+    return PageWatch.list().filter(w => w && !w.paused && this.matches(w.url, urls) && this.githubThread(w.url)).slice(0, this.MAX_COMMENT_PAGES);
+  },
+  // -> [{ watch, added, total }]: threads with more comments than when you last looked. The first sight of a thread
+  // is its baseline, not news.
+  async commentNews(wsId, saved = false) {
+    if (!this.sources().comments) return [];
+    if (typeof GitHubVault === 'undefined') throw new Error('GitHub access is not loaded, so comments cannot be counted');
+    const seen = VexPlanKit.readJson(this.COMMENTS, {});
+    const out = [];
+    const now = {};
+    for (const w of this._threads(wsId, saved)) {
+      const t = this.githubThread(w.url);
+      const j = await GitHubVault.json('/repos/' + t.owner + '/' + t.repo + '/issues/' + t.number);
+      const total = Number(j && j.comments);
+      if (!Number.isFinite(total)) throw new Error('GitHub did not say how many comments ' + t.owner + '/' + t.repo + '#' + t.number + ' has');
+      now[w.id] = total;
+      if (w.id in seen) { if (total > seen[w.id]) out.push({ watch: w, added: total - seen[w.id], total }); }
+      else { seen[w.id] = total; VexPlanKit.writeJson(this.COMMENTS, seen); }
+    }
+    this._latest[wsId] = now;
+    return out;
+  },
+  _domainOf(address) { const m = /@([^@\s>]+)$/.exec(String(address || '').trim()); return m ? m[1].toLowerCase() : ''; },
+  sameSite(a, b) {
+    const x = String(a || '').toLowerCase().replace(/^www\./, ''), y = String(b || '').toLowerCase().replace(/^www\./, '');
+    return !!x && !!y && (x === y || x.endsWith('.' + y) || y.endsWith('.' + x));
+  },
+  // -> [{ from, subject, at }]: unread mail since `since` from the site of a page watched in this workspace.
+  async mailNews(wsId, since, saved = false) {
+    if (!this.sources().mail || !since) return [];
+    const v = typeof window !== 'undefined' ? window.vex : null;
+    if (!v || !v.mail) throw new Error('Mail is not available in this build');
+    if (typeof PageWatch === 'undefined') throw new Error('Page watch is not loaded');
+    const urls = this._tabUrls(wsId, saved);
+    const hosts = [...new Set(PageWatch.list().filter(w => w && !w.paused && this.matches(w.url, urls)).map(w => { try { return new URL(w.url).hostname; } catch { return ''; } }).filter(Boolean))];
+    if (!hosts.length) return [];
+    const acc = await v.mail.accounts();
+    if (!acc || !acc.ok) throw new Error((acc && acc.error) || 'Mail did not answer');
+    const out = [];
+    for (const a of (acc.value || []).slice(0, this.MAX_MAIL_ACCOUNTS)) {
+      const r = await v.mail.inbox(a.id, this.MAIL_HEADERS);
+      if (!r || !r.ok) throw new Error((r && r.error) || 'Mail did not answer');
+      for (const m of r.value.messages || []) {
+        if (m.seen || !(m.date > since)) continue;
+        const dom = this._domainOf(m.from && m.from.address);
+        if (hosts.some(h => this.sameSite(dom, h))) out.push({ from: (m.from && (m.from.name || m.from.address)) || '', subject: m.subject || '', at: m.date });
+      }
+    }
+    return out.sort((x, y) => y.at - x.at).slice(0, 5);
+  },
+
   // ---- the stores -----------------------------------------------------------------------------
   seen() {
     const o = VexPlanKit.readJson(this.SEEN, {});
@@ -67,6 +153,9 @@ const VexChanged = {
     const o = this.seen();
     o[wsId] = now;
     VexPlanKit.writeJson(this.SEEN, o);
+    // The comment counts read for this workspace are what you have now looked at.
+    const counts = this._latest[wsId];
+    if (counts && Object.keys(counts).length) VexPlanKit.writeJson(this.COMMENTS, { ...VexPlanKit.readJson(this.COMMENTS, {}), ...counts });
   },
   // saved: read the workspace's saved tab list even when it is the active one. A switch changes activeId
   // before the new tabs are on screen, so the open tabs would still be the old workspace's.
@@ -108,11 +197,18 @@ const VexChanged = {
         const ws = WorkspaceManager.getActive();
         if (!ws) return null;
         const items = this.forWorkspace(ws.id);
-        if (!items.length) return null;
-        return {
-          summary: items.length + (items.length === 1 ? ' watched page' : ' watched pages') + ' changed in ' + ws.name + '.',
-          lines: items.slice(0, 5).map(i => ({ text: VexPlanKit.line(i.watch.title || i.watch.url, 80), detail: i.summary + ' · ' + new Date(i.at).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' }), url: /^https?:/i.test(i.watch.url) ? i.watch.url : '' })),
-        };
+        const since = this.seen()[ws.id] || 0;
+        const comments = await this.commentNews(ws.id);
+        const mail = await this.mailNews(ws.id, since);
+        if (!items.length && !comments.length && !mail.length) return null;
+        const parts = [];
+        if (items.length) parts.push(items.length + (items.length === 1 ? ' watched page' : ' watched pages') + ' changed');
+        if (comments.length) parts.push(comments.reduce((n, c) => n + c.added, 0) + ' new comments');
+        if (mail.length) parts.push(mail.length + ' new mail from watched sites');
+        const lines = items.slice(0, 5).map(i => ({ text: VexPlanKit.line(i.watch.title || i.watch.url, 80), detail: i.summary + ' · ' + new Date(i.at).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' }), url: /^https?:/i.test(i.watch.url) ? i.watch.url : '' }));
+        for (const c of comments) lines.push({ text: VexPlanKit.line(c.watch.title || c.watch.url, 80), detail: c.added + (c.added === 1 ? ' new comment' : ' new comments'), url: c.watch.url });
+        for (const m of mail) lines.push({ text: VexPlanKit.line(m.subject || '(no subject)', 80), detail: 'Mail from ' + VexPlanKit.line(m.from, 40), url: '' });
+        return { summary: parts.join(', ') + ' in ' + ws.name + '.', lines: lines.slice(0, 8) };
       },
     };
   },
@@ -142,6 +238,24 @@ const VexChanged = {
       body.appendChild(VexSettingsGroups.button('Mark ' + g.ws.name + ' as looked', () => { try { this.stamp(g.ws.id); list.remove(); h.remove(); } catch (err) { window.showToast?.(err.message, 'error'); } }));
     }
     if (res.errors.length) body.appendChild(VexSettingsGroups.note('Could not read: ' + res.errors.join('; ')));
+    this._openExtras(body).catch(err => body.appendChild(VexSettingsGroups.note('Could not read comments or mail: ' + err.message)));
+  },
+  // New comments and mail for the workspace in front, when those sources are on.
+  async _openExtras(body) {
+    const src = this.sources();
+    if ((!src.comments && !src.mail) || typeof WorkspaceManager === 'undefined') return;
+    const ws = WorkspaceManager.getActive();
+    if (!ws) return;
+    const comments = await this.commentNews(ws.id);
+    const mail = await this.mailNews(ws.id, this.seen()[ws.id] || 0);
+    if (!comments.length && !mail.length) return;
+    const h = document.createElement('div');
+    h.className = 'vex-platform-note'; h.style.fontWeight = '650'; h.textContent = ws.name + ' - comments and mail';
+    body.appendChild(h);
+    const list = document.createElement('div'); list.className = 'vexsr-list';
+    for (const c of comments) list.appendChild(VexPlanKit.listRow(c.added + (c.added === 1 ? ' new comment' : ' new comments'), VexPlanKit.line(c.watch.title || c.watch.url, 80)).row);
+    for (const m of mail) list.appendChild(VexPlanKit.listRow('Mail from ' + VexPlanKit.line(m.from, 40), VexPlanKit.line(m.subject || '(no subject)', 80)).row);
+    body.appendChild(list);
   },
 
   // ---- watching the active workspace ------------------------------------------------------------------------
@@ -188,6 +302,10 @@ const VexChanged = {
   group(el) {
     el.appendChild(VexSettingsGroups.note('Lists the pages you watch (Page watch) that changed in a workspace since you last had it in front, with what changed. Offered when you switch to a workspace after 3 hours or more away. Ctrl+K › What changed.'));
     el.appendChild(VexSettingsGroups.button('Show what changed', () => this.open(), { primary: true }));
+    if (typeof VexSettingsGroup === 'undefined') throw new Error('Settings groups are not loaded');
+    const S = VexSettingsGroup;
+    el.appendChild(S.toggle('Also count new comments on GitHub issues and pull requests I watch', this.sources().comments, (on) => this.setSource('comments', on), 'One read-only GitHub call per watched page, through GitHub access, when the list or the brief is built.'));
+    el.appendChild(S.toggle('Also list new mail from the sites I watch', this.sources().mail, (on) => this.setSource('mail', on), 'Asks the mail accounts you added for their newest headers (what the Mail panel does) and keeps unread ones from the same site as a watched page. No message is opened.'));
   },
 };
 
