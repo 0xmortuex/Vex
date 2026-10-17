@@ -455,7 +455,14 @@ const SettingsUI = {
         navChip.innerHTML = this._svg(look.icon, 13) + '<span>' + look.name + '</span>';
         navChip.dataset.tier = tier;
         navChip.dataset.navKey = key;
-        navChip.addEventListener('click', () => { SettingsUI._wanted = { key, until: Date.now() + 3000 }; target.scrollIntoView({ behavior: 'smooth', block: 'start' }); SettingsUI._countChip(key, look.name); });
+        // The first section of a category can be switched off (a feature that is off hides its group):
+        // scrolling to something that is not shown goes nowhere, so the first one in view is the target.
+        navChip.addEventListener('click', () => {
+          SettingsUI._wanted = { key, until: Date.now() + 3000 };
+          const shown = target.getClientRects().length ? target : Array.from(root.children).find(el => el.dataset && el.dataset.navKey === key && !el.classList.contains('set-nav-chip') && el.getClientRects().length);
+          (shown || target).scrollIntoView({ behavior: 'smooth', block: 'start' });
+          SettingsUI._countChip(key, look.name);
+        });
         nav.appendChild(navChip);
         if (grp) grp.chip = navChip;
       }

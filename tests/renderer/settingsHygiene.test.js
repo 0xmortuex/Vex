@@ -147,3 +147,9 @@ describe('groups that other helpers add', () => {
     }
   });
 });
+
+describe('category chips', () => {
+  it('scroll to the first section that is shown, not to a switched-off one (check:ui settings-nav-mark)', () => {
+    expect(ui).toMatch(/target\.getClientRects\(\)\.length \? target : Array\.from\(root\.children\)/);
+  });
+});
