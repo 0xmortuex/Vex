@@ -89,7 +89,9 @@ const VexGuide = {
       // be missing when the rest is in its own name), and a feature that only
       // mentions their words in passing is not an answer.
       .filter(r => (r.missed === 0 && (r.strongHits > 0 || want.length > 1)) || (r.missed <= 1 && r.strongHits >= 1))
-      .sort((a, b) => b.strongHits - a.strongHits || a.missed - b.missed || a.spare - b.spare || b.score - a.score)
+      // Equal fits: the long-standing feature before a newer one (a newer feature arrives switched off on
+      // a profile that already existed, so pointing at it first would point at something not there yet).
+      .sort((a, b) => b.strongHits - a.strongHits || a.missed - b.missed || (a.entry.newer ? 1 : 0) - (b.entry.newer ? 1 : 0) || a.spare - b.spare || b.score - a.score)
       .slice(0, limit);
   },
 

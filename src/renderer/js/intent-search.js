@@ -145,15 +145,16 @@ const VexIntent = {
     if (!terms.length) return [];
     const targets = [];
     for (const s of data.settings || []) targets.push({ kind: 'setting', id: s.id, label: s.label, name: s.label, phrases: s.words, extra: '' });
-    for (const f of data.features || []) targets.push({ kind: 'feature', id: f.id, label: f.label, name: f.label, phrases: f.phrases || '', extra: f.what || '' });
+    for (const f of data.features || []) targets.push({ kind: 'feature', id: f.id, label: f.label, name: f.label, phrases: f.phrases || '', extra: f.what || '', newer: !!f.newer });
     for (const c of data.commands || []) targets.push({ kind: 'command', id: c.id, label: c.label, name: c.label, phrases: '', extra: c.hint || '' });
     const KIND_BONUS = { setting: 0.3, feature: 0.2, command: 0 };
     const out = [];
     for (const t of targets) {
       const s = this.score(t, terms);
-      if (s > 0) out.push({ kind: t.kind, id: t.id, label: t.label, score: s + KIND_BONUS[t.kind] });
+      if (s > 0) out.push({ kind: t.kind, id: t.id, label: t.label, score: s + KIND_BONUS[t.kind], newer: t.newer === true });
     }
-    out.sort((a, b) => b.score - a.score || (a.label < b.label ? -1 : 1));
+    // A tie goes to the long-standing place: a newer feature arrives switched off on a profile that already existed.
+    out.sort((a, b) => b.score - a.score || (a.newer ? 1 : 0) - (b.newer ? 1 : 0) || (a.label < b.label ? -1 : 1));
     return out.slice(0, limit);
   },
 
@@ -164,7 +165,7 @@ const VexIntent = {
       for (const [heading, words] of Object.entries(SettingsUI.KEYWORDS)) settings.push({ id: heading, label: heading.replace(/\b\w/g, c => c.toUpperCase()), words });
     }
     const features = [];
-    if (typeof VexFeatures !== 'undefined') for (const f of VexFeatures.ITEMS) features.push({ id: f.id, label: VexFeatures.nameOf(f), phrases: f.phrases || '', what: f.what || '' });
+    if (typeof VexFeatures !== 'undefined') for (const f of VexFeatures.ITEMS) features.push({ id: f.id, label: VexFeatures.nameOf(f), phrases: f.phrases || '', what: f.what || '', newer: f.newer === true });
     const commands = [];
     if (typeof CommandBar !== 'undefined' && Array.isArray(CommandBar.commands)) for (const c of CommandBar.commands) if (c && c.id && c.label) commands.push({ id: c.id, label: c.label, hint: c.hint || '' });
     return { settings, features, commands };
