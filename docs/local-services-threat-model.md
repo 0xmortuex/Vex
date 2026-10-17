@@ -13,8 +13,9 @@ confirmed in a box that main (not a web page, not the window) shows.
 ### What it does
 
 Starts and stops dev servers the owner listed: `pnpm run <script>`, `npm run <script>`,
-`wrangler dev`, `python <script.py> [words]`, `node <script.js> [words]`, `uv run <words>`.
-Nothing else. There is no template that takes a program name or a free command line.
+`wrangler dev`, `python <script.py> [words]`, `node <script.js> [words]`, `uv run <words>`,
+and (Wave 6) a QEMU virtual machine recipe. No template takes a program name or a free command line.
+The owner's own allowlist (below) is the only place a program outside the templates can be started.
 
 ### How a service gets added
 
@@ -63,9 +64,29 @@ yourself.
   That is the purpose of a dev-server launcher, and the owner confirms the exact line.
 - A dev server the owner starts is a normal program with the owner's rights.
 
+### Wave 6: the owner's own allowlist and QEMU recipes
+
+- **Allowlist entry** = name, ONE program, fixed arguments, working folder. The program is picked in a system file dialog
+  that **main** opens (`localsvc:pick-program`; a one-use five-minute token, like the folder); the folder comes from the
+  folder dialog; the arguments are typed once (at most 16, each 1-200 characters, no quote mark, no line break). The window
+  sends only the two tokens, the name and the argument list (`localsvc:add-custom`); it can never name a program or a path.
+- The program must be a `.exe` (Windows) that exists; a shell or script host is refused by name (cmd, powershell, pwsh,
+  wscript, cscript, mshta, rundll32, regsvr32, msiexec, wmic, forfiles, bitsadmin, certutil, bash, wsl, sh, conhost, schtasks).
+  For a script use the node or python templates, which run the script file inside the folder.
+- Adding shows the exact command in a **main** confirm; the first Start of each session shows it again. `spawn(file, argv[], { shell: false })`.
+  Every build re-checks the program and the arguments, so a hand-edited `local-services.json` is judged again before it runs.
+- Stop is the same verified stop as for the templates.
+- **QEMU recipe** (`qemu-vm`): main builds `-name -m -smp -accel -display -monitor none -drive file=<disk>,format=<by extension>,if=virtio`,
+  optional `-cdrom <iso> -boot d`, and `-nic none` or `-nic user,model=virtio-net-pci`. Fields are checked: disk and ISO are files
+  inside the granted folder (no comma, so no extra drive option can be smuggled in), memory 256-65536 MB, 1-32 processors,
+  acceleration whpx|tcg, display gtk|sdl, network none|user. There is no field for `-monitor`, `-serial`, `-chardev`, `-kernel`,
+  `hostfwd`, VNC or a raw option. `qemu-system-x86_64` is looked up on PATH and in `%ProgramFiles%\qemu`.
+- Residual risk: the owner can allowlist any non-shell program with any arguments; that is the point of the feature, and he
+  sees and confirms the exact line. Anything running as him could also edit the list file; the per-session confirm shows what would run.
+
 ### Not built (deferred)
 
-Starting from a file edited outside the browser; a command typed free-form; auto-start with a
+Starting from a file edited outside the browser; auto-start with a
 workspace; a stop for processes Vex did not start (never); an automatic restart on crash.
 
 ## Webhook inspector

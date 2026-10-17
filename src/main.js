@@ -7222,6 +7222,12 @@ const _localServices = require('./main/local-services').createLocalServices({
     const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
     return { canceled: r.canceled, path: r.filePaths && r.filePaths[0] };
   },
+  pickProgramDialog: async () => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { title: 'Program to start', buttonLabel: 'Use this program', properties: ['openFile'], filters: [{ name: 'Programs', extensions: ['exe'] }] };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    return { canceled: r.canceled, path: r.filePaths && r.filePaths[0] };
+  },
   load: async () => {
     try { return JSON.parse(await fs.promises.readFile(path.join(userDataPath, 'local-services.json'), 'utf8')); }
     catch (err) { if (err && err.code === 'ENOENT') return null; throw new Error('The local services list could not be read: ' + err.message, { cause: err }); }
@@ -7234,6 +7240,8 @@ ipcMain.handle('localsvc:status', () => _localSvcReply(() => _localServices.stat
 ipcMain.handle('localsvc:arm', (_e, on) => _localSvcReply(() => _localServices.arm(on === true)));
 ipcMain.handle('localsvc:pick-folder', () => _localSvcReply(() => _localServices.pickFolder()));
 ipcMain.handle('localsvc:add', (_e, req) => _localSvcReply(() => _localServices.add(req)));
+ipcMain.handle('localsvc:pick-program', () => _localSvcReply(() => _localServices.pickProgram()));
+ipcMain.handle('localsvc:add-custom', (_e, req) => _localSvcReply(() => _localServices.addCustom(req)));
 ipcMain.handle('localsvc:remove', (_e, id) => _localSvcReply(() => _localServices.remove(id)));
 ipcMain.handle('localsvc:start', (_e, id) => _localSvcReply(() => _localServices.start(id)));
 ipcMain.handle('localsvc:stop', (_e, id) => _localSvcReply(() => _localServices.stop(id)));

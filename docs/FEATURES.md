@@ -677,7 +677,7 @@ For building things, not just browsing them.
 - **Repo skim** (`repo-skim`): Gives a quick read on a GitHub repository: what it is, when it was last touched, its licence and a few red flags. Reach it from Ctrl+K with "Skim a repository". On an existing profile it starts off; turn it on in Settings > Repo skim.
   - Open: Ctrl+K: "Skim a repository".
   - Default: New: starts off on an existing profile until you switch it on.
-- **Local services** (`local-services`): Lists the dev servers you added (a folder plus one of a few fixed commands) and lets you start and stop them from Vex. Reach it from Ctrl+K with "Local services". On an existing profile it starts off; turn it on in Settings > Local services.
+- **Local services** (`local-services`): Lists the dev servers you added (a folder plus one of a few fixed commands, a QEMU virtual machine recipe, or a program of your own that you pick with fixed arguments) and lets you start and stop them from Vex. Reach it from Ctrl+K with "Local services". On an existing profile it starts off; turn it on in Settings > Local services.
   - Open: Ctrl+K: "Local services".
   - Default: New: starts off on an existing profile until you switch it on.
 - **Webhook inspector** (`webhook-inspector`): Listens on a port of 127.0.0.1 that you choose and lists every request that arrives, so you can see what a webhook really sends. Reach it from Ctrl+K with "Webhook inspector". On an existing profile it starts off; turn it on in Settings > Webhook inspector.

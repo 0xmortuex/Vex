@@ -586,9 +586,11 @@ define('status:check', [value => Array.isArray(value) && value.length >= 1 && va
 // Local-service launcher (main/local-services.js) and webhook inspector (main/webhook-inspector.js).
 // No channel takes a program name or a path: the folder comes from the dialog main shows, and the
 // command from the fixed templates; main checks every word again.
-define('localsvc:status localsvc:pick-folder webhook:stop webhook:status webhook:clear', []);
+define('localsvc:status localsvc:pick-folder localsvc:pick-program webhook:stop webhook:status webhook:clear', []);
 define('localsvc:arm', [boolean]);
 define('localsvc:add', [shape({ name: string(60), token: string(64), template: string(40), params: optional(object), port: optional(value => Number.isSafeInteger(value) && value >= 0 && value <= 65535) })]);
+// The owner's own allowlist entry: tokens from the two dialogs main opened and the words he typed. No program name, no path.
+define('localsvc:add-custom', [shape({ name: string(60), token: string(64), programToken: string(64), args: optional(value => Array.isArray(value) && value.length <= 16 && value.every(a => typeof a === 'string' && a.length <= 200)), port: optional(value => Number.isSafeInteger(value) && value >= 0 && value <= 65535) })]);
 define('localsvc:remove localsvc:start localsvc:stop localsvc:logs', [string(80)]);
 define('webhook:start', [shape({ port: integer, minutes: integer })]);
 define('webhook:list', [optional(value => Number.isSafeInteger(value) && value >= 0)]);

@@ -443,6 +443,8 @@ contextBridge.exposeInMainWorld('vex', {
   localsvcArm: (on) => ipcRenderer.invoke('localsvc:arm', on),
   localsvcPickFolder: () => ipcRenderer.invoke('localsvc:pick-folder'),
   localsvcAdd: (req) => ipcRenderer.invoke('localsvc:add', req),
+  localsvcPickProgram: () => ipcRenderer.invoke('localsvc:pick-program'),
+  localsvcAddCustom: (req) => ipcRenderer.invoke('localsvc:add-custom', req),
   localsvcRemove: (id) => ipcRenderer.invoke('localsvc:remove', id),
   localsvcStart: (id) => ipcRenderer.invoke('localsvc:start', id),
   localsvcStop: (id) => ipcRenderer.invoke('localsvc:stop', id),

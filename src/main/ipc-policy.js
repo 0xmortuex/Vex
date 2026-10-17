@@ -70,7 +70,7 @@ const UI_ONLY_CHANNELS = new Set([
   // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
   'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send', 'comms:bridge-status', 'comms:bridge-pick', 'comms:bridge-read', 'comms:bridge-forget', 'comms:status-write',
   // The local-service launcher and the webhook inspector: starting programs and opening a port are Vex's own window only.
-  'localsvc:status', 'localsvc:arm', 'localsvc:pick-folder', 'localsvc:add', 'localsvc:remove', 'localsvc:start', 'localsvc:stop', 'localsvc:logs',
+  'localsvc:status', 'localsvc:arm', 'localsvc:pick-folder', 'localsvc:add', 'localsvc:pick-program', 'localsvc:add-custom', 'localsvc:remove', 'localsvc:start', 'localsvc:stop', 'localsvc:logs',
   'webhook:start', 'webhook:stop', 'webhook:status', 'webhook:list', 'webhook:get', 'webhook:clear',
   // Sending a version review to the person's own relay (main/feedback-relay.js): Vex's own window only.
   'feedback:send',

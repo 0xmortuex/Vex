@@ -60,7 +60,9 @@ const LocalServices = {
   status() { return LocalToolsBridge.call('localsvcStatus'); },
 
   // The words the add form takes for each template field.
-  FIELD_HELP: { script: 'Script name, e.g. dev', file: 'Script in the folder, e.g. manage.py', args: 'Words after it, e.g. runserver 8000' },
+  FIELD_HELP: { script: 'Script name, e.g. dev', file: 'Script in the folder, e.g. manage.py', args: 'Words after it, e.g. runserver 8000',
+    vmname: 'Machine name, e.g. Test VM', disk: 'Disk image in the folder, e.g. disk.qcow2', iso: 'ISO in the folder (optional)', memory: 'Memory in MB (default 2048)',
+    cpus: 'Processors (default 2)', accel: 'Acceleration: whpx or tcg (default whpx)', display: 'Display: gtk or sdl (default gtk)', net: 'Network: none or user (default none)' },
 
   async open() {
     if (!this.enabled()) throw new Error('Local services are switched off (Settings > More developer tools)');
@@ -69,7 +71,7 @@ const LocalServices = {
     if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
     const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
     const act = (text, fn, opts) => S.button(text, async () => { try { await fn(); } catch (err) { localToolsFail(text, err); } }, opts);
-    const grant = { token: '', folder: '' };
+    const grant = { token: '', folder: '', programToken: '', program: '' };
     let logsFor = '', logText = '';
     const draw = async () => {
       let st;
@@ -137,13 +139,33 @@ const LocalServices = {
           if (!r.canceled) window.showToast?.('Added ' + name.value);
           await draw();
         }, { primary: true })));
+
+      // ---- your own program (the allowlist) ----
+      body.appendChild(S.note('Add your own program. You choose the program in a system dialog and type its arguments once (one per line). Vex never uses a shell, refuses cmd, PowerShell and other script hosts, shows you the exact command in a box of its own, and shows it again at the first start of each session.'));
+      const cname = el('input', 'set-input'); cname.type = 'text'; cname.placeholder = 'Name, e.g. Game server'; cname.setAttribute('aria-label', 'Name of your own program');
+      const cargs = el('textarea', 'set-input'); cargs.rows = 3; cargs.spellcheck = false; cargs.placeholder = 'Arguments, one per line (no quote marks)'; cargs.setAttribute('aria-label', 'Arguments, one per line');
+      const cport = el('input', 'set-input'); cport.type = 'number'; cport.min = '1024'; cport.max = '65535'; cport.placeholder = 'Port it listens on (optional)'; cport.setAttribute('aria-label', 'Port it listens on');
+      const cprog = el('span', 'vexsr-mode', grant.program || 'No program chosen');
+      const cfolder = el('span', 'vexsr-mode', grant.folder || 'No folder chosen');
+      body.append(row(cname), cargs, row(cport),
+        row(act('Choose program', async () => { const r = await LocalToolsBridge.call('localsvcPickProgram'); if (r.canceled) return; grant.programToken = r.token; grant.program = r.program; cprog.textContent = r.program; }), cprog),
+        row(act('Choose folder', async () => { const r = await LocalToolsBridge.call('localsvcPickFolder'); if (r.canceled) return; grant.token = r.token; grant.folder = r.folder; cfolder.textContent = r.folder; folder.textContent = r.folder; }), cfolder),
+        row(act('Add my program', async () => {
+          if (!grant.token) throw new Error('Choose the folder first');
+          if (!grant.programToken) throw new Error('Choose the program first');
+          const args = cargs.value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+          const r = await LocalToolsBridge.call('localsvcAddCustom', { name: cname.value, token: grant.token, programToken: grant.programToken, args, ...(cport.value ? { port: Number(cport.value) } : {}) });
+          grant.token = ''; grant.folder = ''; grant.programToken = ''; grant.program = '';
+          if (!r.canceled) window.showToast?.('Added ' + cname.value);
+          await draw();
+        }, { primary: true })));
     };
     await draw();
   },
 
   group(el) {
     const S = VexSettingsGroups;
-    el.appendChild(S.note('Local services: start and stop the dev servers you list (pnpm, npm, wrangler, python, node, uv), in a folder you choose. OFF until you switch it on here; Vex asks in its own box before it can start anything, and never starts one by itself. See docs/local-services-threat-model.md.'));
+    el.appendChild(S.note('Local services: start and stop the dev servers you list (pnpm, npm, wrangler, python, node, uv, a QEMU virtual machine, or a program of your own that you pick and give fixed arguments), in a folder you choose. OFF until you switch it on here; Vex asks in its own box before it can start anything, and never starts one by itself. See docs/local-services-threat-model.md.'));
     el.appendChild(this._box('Local services (off by default)', this));
     el.appendChild(S.button('Open local services', () => this.open().catch(err => localToolsFail('Local services', err))));
   },
