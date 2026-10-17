@@ -176,6 +176,22 @@ function drawable(text, ascii, what) {
   return t;
 }
 
+// The font to draw typed text with. Standard Helvetica when every letter is one it can draw (nothing is embedded); a
+// system TrueType font embedded as a subset when it is not (Turkish s-cedilla, g-breve, dotless i ...: main/pdf-fonts.js,
+// through @pdf-lib/fontkit). The "Replace letters" choice (ascii) skips it and uses the plain Latin letters. When no
+// system font can draw the text the error says so and names that choice. -> { font, unicode }
+// fonts: { fsImpl, platform, env } for tests; the window cannot pass it (the IPC request has no such field).
+async function chooseFont(doc, texts, ascii, what, fonts) {
+  const { StandardFonts } = lib();
+  if (ascii || !unsupportedChars(texts.join('\n')).length) return { font: await doc.embedFont(StandardFonts.Helvetica), unicode: false };
+  try {
+    const r = await require('./pdf-fonts').fontFor(doc, texts, { what, ...(fonts || {}) });
+    return { font: r.font, unicode: true };
+  } catch (err) {
+    throw new Error(err.message + '. Or tick "Replace letters the PDF font cannot draw" to use the plain Latin letters.', { cause: err });
+  }
+}
+
 const FIELD_TYPES = { PDFTextField: 'text', PDFCheckBox: 'checkbox', PDFDropdown: 'dropdown', PDFRadioGroup: 'radio', PDFOptionList: 'list', PDFButton: 'button', PDFSignature: 'signature' };
 
 // Page sizes (points) and the form fields of one PDF. -> { pages: [{ w, h }], fields: [{ name, type, value, options }] }
@@ -198,20 +214,19 @@ async function inspect(bytes, name) {
 }
 
 // values: { fieldName: string | boolean }. flatten: bake the answers in so they can no longer be edited.
-async function fillForm(bytes, { values, flatten, ascii } = {}, name) {
-  const { StandardFonts } = lib();
+async function fillForm(bytes, { values, flatten, ascii, fonts } = {}, name) {
   const doc = await load(bytes, name);
   const form = doc.getForm();
   const names = Object.keys(values || {});
   if (!names.length) throw new Error('Type an answer into at least one field');
   if (names.length > MARK.fields) throw new Error('That is more than ' + MARK.fields + ' fields');
-  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const { font, unicode } = await chooseFont(doc, names.map(k => values[k]).filter(v => typeof v === 'string'), ascii, 'An answer', fonts);
   for (const key of names) {
     let field;
     try { field = form.getField(key); } catch { throw new Error('This PDF has no form field called "' + key + '"'); }
     const type = FIELD_TYPES[field.constructor.name] || 'other';
     const v = values[key];
-    if (type === 'text') field.setText(drawable(String(v), ascii, 'The answer for "' + key + '"').slice(0, MARK.fieldValue));
+    if (type === 'text') field.setText((unicode ? String(v) : drawable(String(v), ascii, 'The answer for "' + key + '"')).slice(0, MARK.fieldValue));
     else if (type === 'checkbox') { if (v) field.check(); else field.uncheck(); }
     else if (type === 'dropdown' || type === 'radio' || type === 'list') field.select(String(v));
     else throw new Error('"' + key + '" is a ' + type + ' field; it cannot be filled here');
@@ -240,8 +255,8 @@ function checkItem(it, pageCount, i) {
 
 // items: [{ kind: 'text'|'highlight'|'rect'|'signature', page (1-based), x, y, w, h (fractions of the page, from its top left), text, size, color }]
 // signature: the PNG bytes of a drawn or typed signature, placed by a 'signature' item. NOT a digital signature.
-async function annotate(bytes, { items, signature, ascii } = {}, name) {
-  const { StandardFonts, rgb } = lib();
+async function annotate(bytes, { items, signature, ascii, fonts } = {}, name) {
+  const { rgb } = lib();
   const doc = await load(bytes, name);
   const list = Array.isArray(items) ? items : [];
   if (!list.length) throw new Error('Add at least one mark first');
@@ -255,7 +270,7 @@ async function annotate(bytes, { items, signature, ascii } = {}, name) {
     if (!(signature[0] === 0x89 && signature[1] === 0x50 && signature[2] === 0x4E && signature[3] === 0x47)) throw new Error('The signature has to be a PNG picture');
     image = await doc.embedPng(signature);
   }
-  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const { font, unicode } = await chooseFont(doc, list.filter(it => it.kind === 'text').map(it => it.text), ascii, 'A mark', fonts);
   let signed = 0;
   list.forEach((it, i) => {
     const page = pages[it.page - 1];
@@ -266,7 +281,7 @@ async function annotate(bytes, { items, signature, ascii } = {}, name) {
     const color = rgb(...(COLORS[it.color || (it.kind === 'highlight' ? 'yellow' : 'black')]));
     if (it.kind === 'text') {
       const size = it.size || 12;
-      const text = drawable(it.text, ascii, 'Mark ' + (i + 1));
+      const text = unicode ? String(it.text) : drawable(it.text, ascii, 'Mark ' + (i + 1));
       page.drawText(text, { x: px, y: top - size, size, font, color, lineHeight: size * 1.25, ...(it.w ? { maxWidth: it.w * box.width } : {}) });
     } else if (it.kind === 'highlight') {
       page.drawRectangle({ x: px, y: top - it.h * box.height, width: it.w * box.width, height: it.h * box.height, color, opacity: 0.35 });

@@ -10,6 +10,10 @@ const lib = require('pdf-lib');
 const { validate } = require('../../src/main/ipc-schemas.js');
 const { UI_ONLY_CHANNELS } = require('../../src/main/ipc-policy.js');
 
+// No system font to find: the machine the test runs on may or may not have one, and the tests below that expect a plain
+// refusal must not depend on it.
+const NO_FONT = { fsImpl: { existsSync: () => false }, platform: 'linux' };
+
 // A 1x1 transparent PNG.
 const PNG = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
 
@@ -55,7 +59,7 @@ describe('fill a form', () => {
     const src = await withForm();
     await expect(T.fillForm(src, { values: {} }, 'f.pdf')).rejects.toThrow(/at least one field/);
     await expect(T.fillForm(src, { values: { nope: 'x' } }, 'f.pdf')).rejects.toThrow(/no form field called "nope"/);
-    await expect(T.fillForm(src, { values: { full_name: 'Ay\u015Fe' } }, 'f.pdf')).rejects.toThrow(/cannot draw/);
+    await expect(T.fillForm(src, { values: { full_name: 'Ay\u015Fe' }, fonts: NO_FONT }, 'f.pdf')).rejects.toThrow(/cannot draw/);
   });
   it('replaces the Turkish letters only when asked', async () => {
     const src = await withForm();
@@ -92,7 +96,7 @@ describe('annotate and sign', () => {
     await expect(T.annotate(src, { items: [{ kind: 'text', page: 3, x: 0, y: 0, text: 'x' }] }, 'a.pdf')).rejects.toThrow(/page 3/);
     await expect(T.annotate(src, { items: [{ kind: 'text', page: 1, x: 2, y: 0, text: 'x' }] }, 'a.pdf')).rejects.toThrow(/outside the page/);
     await expect(T.annotate(src, { items: [{ kind: 'highlight', page: 1, x: 0.6, y: 0, w: 0.6, h: 0.1 }] }, 'a.pdf')).rejects.toThrow(/too wide/);
-    await expect(T.annotate(src, { items: [{ kind: 'text', page: 1, x: 0, y: 0, text: '\u011F' }] }, 'a.pdf')).rejects.toThrow(/cannot draw/);
+    await expect(T.annotate(src, { items: [{ kind: 'text', page: 1, x: 0, y: 0, text: '\u011F' }], fonts: NO_FONT }, 'a.pdf')).rejects.toThrow(/cannot draw/);
   });
   it('refuses a turned page rather than placing marks sideways', async () => {
     const d = await lib.PDFDocument.create(); d.addPage([300, 400]).setRotation(lib.degrees(90));
