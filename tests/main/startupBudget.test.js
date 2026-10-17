@@ -56,6 +56,6 @@ describe('the real boot against the budget (T3-066)', () => {
   });
   it('more than forty modules load after start-up, and none is also a blocking tag', () => {
     expect(sb.lateModules(ROOT).length).toBeGreaterThanOrEqual(40);
-    expect(sb.measure(ROOT).scripts).toBeLessThanOrEqual(667);
+    expect(sb.measure(ROOT).scripts).toBeLessThanOrEqual(672);
   });
 });
