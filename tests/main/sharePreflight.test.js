@@ -99,3 +99,39 @@ describe('main.js leaves no refusal unexplained', () => {
     expect(block).toMatch(/refuse\('start-failed'/);
   });
 });
+
+describe('ByeDPI and the session partition (T0-014)', () => {
+  const base = { url: 'https://discord.com/channels/1', saved: null, paranoid: false, tor: false, partition: 'persist:discord', partitionWired: true, byedpiRunning: false };
+  it('a Strong bypass carrying a Discord page is a warning with a fix, not a refusal', () => {
+    const r = preflight({ ...base, byedpiRunning: true });
+    expect(r.refusal).toBeNull();
+    expect(r.ok).toBe(false);
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings[0]).toMatchObject({ code: 'byedpi-on', fix: { id: 'open-bypass-settings' } });
+    expect(r.checks.find(c => c.id === 'byedpi').ok).toBe(false);
+  });
+  it('ByeDPI running does not matter for a page it is not carrying', () => {
+    const r = preflight({ ...base, url: 'https://meet.example.com/', partition: 'persist:main', byedpiRunning: true });
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual([]);
+  });
+  it('a Discord page in a normal tab is carried too', () => {
+    expect(preflight({ ...base, partition: 'persist:main', byedpiRunning: true }).warnings).toHaveLength(1);
+  });
+  it('a session without the picker attached refuses, with the partition named', () => {
+    const r = preflight({ ...base, partitionWired: false });
+    expect(r.refusal.code).toBe('partition-unwired');
+    expect(r.checks.find(c => c.id === 'partition').ok).toBe(false);
+  });
+  it('localhost over http counts as secure; other http pages do not', () => {
+    expect(preflight({ ...base, url: 'http://localhost:3000/' }).refusal).toBeNull();
+    expect(preflight({ ...base, url: 'http://example.com/' }).refusal.code).toBe('insecure-page');
+  });
+  it('main.js runs the preflight before every picker, not only from Ctrl+K', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'main.js'), 'utf8');
+    const handler = src.slice(src.indexOf('ses.setDisplayMediaRequestHandler('), src.indexOf('desktopCapturer.getSources({ types: [\'screen\', \'window\'], thumbnailSize: { width: 320'));
+    expect(handler).toMatch(/_sharePreflight\.preflight\(_shareFacts\(requestingContents\)\)/);
+    expect(handler).toMatch(/pre\.refusal/);
+    expect(src).toMatch(/_byedpiRunning = \(\) => _byedpi\.isRunning\(\)/);
+  });
+});

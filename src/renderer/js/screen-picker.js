@@ -17,13 +17,14 @@
           .catch((err) => window.showToast?.('Could not change the permission: ' + ((err && err.message) || err), 'error'));
       } };
     }
+    if (fix.id === 'open-bypass-settings' && typeof SettingsUI !== 'undefined') return { label: fix.label, title: 'Switch the Discord bypass to Off, Light or Zapret', run: () => SettingsUI.openSection('discord-bypass-setting') };
     if (fix.id === 'open-site-settings' && typeof SitePanel !== 'undefined') return { label: fix.label, title: fix.label, run: () => SitePanel.open() };
     return null;
   }
   function showRefusal(reason) {
     const action = fixAction(reason);
-    window.showToast?.(reason.message, 'error', 10000, action ? { action } : undefined);
-    window.VexProblems?.note('Screen share', 'The share was refused (' + reason.code + ')', reason.message);
+    window.showToast?.(reason.message, reason.warning ? 'warning' : 'error', 10000, action ? { action } : undefined);
+    window.VexProblems?.note('Screen share', reason.warning ? 'The share may fail (' + reason.code + ')' : 'The share was refused (' + reason.code + ')', reason.message);
   }
   if (typeof window.vex.onScreenShareRefused === 'function') window.vex.onScreenShareRefused(showRefusal);
 
@@ -34,7 +35,7 @@
       const lines = r.checks.map((c) => (c.ok ? 'OK  ' : 'NO  ') + c.detail);
       const recent = (r.recent || []).slice(0, 5).map((e) => '- ' + e.message);
       const body = lines.join('\n') + (recent.length ? '\n\nRefused earlier this session:\n' + recent.join('\n') : '');
-      await window.vexAlert({ title: r.ok ? 'Screen sharing should work here' : 'Screen sharing would be refused', message: body });
+      await window.vexAlert({ title: r.refusal ? 'Screen sharing would be refused' : (r.ok ? 'Screen sharing should work here' : 'Screen sharing may fail here'), message: body });
       return r;
     },
   };

@@ -17,6 +17,7 @@ const FIXES = {
   allow: { id: 'allow-screen-share', label: 'Allow screen sharing here' },
   site: { id: 'open-site-settings', label: 'Open site settings' },
   retry: { id: 'try-again', label: 'Try again' },
+  bypass: { id: 'open-bypass-settings', label: 'Open the bypass setting' },
 };
 
 // code -> how it is said. `host` is the site's name; may be empty.
@@ -25,6 +26,8 @@ const REASONS = {
   'paranoid-mode': (h) => ({ message: `${h || 'This site'} is in paranoid mode, which never allows screen sharing.`, fix: FIXES.site }),
   'tor-tab': () => ({ message: 'A Tor tab is never given screen sharing.', fix: null }),
   'insecure-page': () => ({ message: 'Screen sharing only works on a secure (https) page.', fix: null }),
+  'byedpi-on': (h) => ({ message: `${h || 'This page'} goes through the Strong bypass (ByeDPI). It rewrites the secure connection and can drop a screen share; Off, Light or Zapret do not.`, fix: FIXES.bypass }),
+  'partition-unwired': () => ({ message: 'The browsing session of this tab has no screen-sharing picker attached, so a share would silently do nothing.', fix: null }),
   'no-frame': () => ({ message: 'The page that asked for the share is gone.', fix: FIXES.retry }),
   'not-in-a-tab': () => ({ message: 'The request did not come from a Vex tab (a hidden or pop-up frame), so Vex cannot show its picker for it.', fix: null }),
   'frame-detached': () => ({ message: 'The page that asked was closed or replaced before you chose.', fix: FIXES.retry }),
@@ -57,19 +60,30 @@ function hostOf(frame) {
   try { return frame && !frame.detached ? new URL(frame.url).hostname : ''; } catch { return ''; }
 }
 
+// Pages the browser treats as secure for screen capture without https: the machine itself.
+const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]']);
+// Hosts that go through the Discord bypass proxy when ByeDPI is on (the panel's own session and Discord pages in normal tabs).
+const DISCORD_HOST = /(^|\.)(discord\.com|discord\.gg|discordapp\.com|discordapp\.net|discord\.media)$/i;
+
 // The facts main.js gathers for a tab (all plain values):
 //   url              the page's address
 //   saved            'allow' | 'deny' | null (the saved display-capture answer)
 //   paranoid         the site is in paranoid mode
 //   tor              the tab goes through Tor
+//   partition        the tab's session partition (e.g. 'persist:discord'), or ''
+//   partitionWired   whether that session has the screen-share picker attached (undefined: not asked)
+//   byedpiRunning    the ByeDPI proxy is running (undefined: not asked)
 //   sourcesCount     how many screens/windows Windows listed, or null if not asked
 //   capturerError    the message if listing failed, else ''
-// Returns { ok, checks: [{ id, ok, detail }], refusal: {code, message, fix} | null }.
+// Returns { ok, checks: [{ id, ok, detail }], refusal, warnings }.
+//   refusal   the first cause that WOULD refuse the share (secure page, Tor, paranoid, blocked, no session picker, no sources);
+//   warnings  causes that MAY break it but do not refuse it (Strong bypass on): said, never blocking.
 function preflight(facts) {
   const f = facts || {};
   let host = '', secure = false;
-  try { const u = new URL(f.url); host = u.hostname; secure = u.protocol === 'https:'; } catch { /* vex-allow-empty-catch: no usable address */ }
+  try { const u = new URL(f.url); host = u.hostname; secure = u.protocol === 'https:' || ((u.protocol === 'http:') && LOCAL.has(host)); } catch { /* vex-allow-empty-catch: no usable address */ }
   const checks = [];
+  const warnings = [];
   let refusal = null;
   const step = (id, ok, okText, code, ctx) => {
     const failing = !ok;
@@ -80,10 +94,19 @@ function preflight(facts) {
   step('tor', !f.tor, 'Not a Tor tab.', 'tor-tab');
   step('paranoid', !f.paranoid, 'The site is not in paranoid mode.', 'paranoid-mode');
   step('permission', f.saved !== 'deny', f.saved === 'allow' ? 'Screen sharing is allowed for this site.' : 'No block saved for this site; it will ask.', 'permission-denied');
+  if (f.partitionWired !== undefined && f.partitionWired !== null) {
+    step('partition', f.partitionWired === true, `The tab's session${f.partition ? ' (' + f.partition + ')' : ''} has the screen-share picker attached.`, 'partition-unwired');
+  }
+  if (f.byedpiRunning !== undefined && f.byedpiRunning !== null) {
+    const through = f.byedpiRunning === true && (f.partition === 'persist:discord' || DISCORD_HOST.test(host));
+    const w = explain('byedpi-on', { host });
+    checks.push({ id: 'byedpi', ok: !through, detail: through ? w.message : 'The Strong bypass (ByeDPI) is not carrying this page.' });
+    if (through) warnings.push(w);
+  }
   if (f.sourcesCount !== null && f.sourcesCount !== undefined) {
     step('sources', f.sourcesCount > 0 && !f.capturerError, `Windows lists ${f.sourcesCount} screen${f.sourcesCount === 1 ? '' : 's'} and windows to share.`, f.capturerError ? 'capturer-error' : 'no-sources', { error: f.capturerError });
   }
-  return { ok: !refusal, checks, refusal };
+  return { ok: !refusal && !warnings.length, checks, refusal, warnings };
 }
 
 // The last refusals, newest last, host and reason only (no page address, no
@@ -108,4 +131,4 @@ function createShareLog(max = 40) {
   };
 }
 
-module.exports = { explain, preflight, createShareLog, requesterChange, hostOf, REASONS, FIXES };
+module.exports = { DISCORD_HOST, explain, preflight, createShareLog, requesterChange, hostOf, REASONS, FIXES };

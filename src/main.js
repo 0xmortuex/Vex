@@ -988,6 +988,31 @@ function _shareRefused(hostWindowOwner, contents, code, ctx) {
   } catch (err) { console.error('[ScreenShare] could not tell the window why the share was refused:', err.message); }
   return entry;
 }
+// A cause that may break the share but does not refuse it: told to the window like a refusal, flagged as a warning.
+function _shareWarned(hostWindowOwner, contents, entry) {
+  console.log(`[ScreenShare] warning (${entry.code}) for ${entry.host || 'unknown page'}`);
+  try {
+    const win = hostWindowOwner && hostWindowOwner.win;
+    if (win && !win.isDestroyed()) win.webContents.send('screen-picker:refused', { code: entry.code, message: entry.message, fix: entry.fix, warning: true, pageId: contents && !contents.isDestroyed() ? contents.id : null });
+  } catch (err) { console.error('[ScreenShare] could not warn the window:', err.message); }
+}
+// What is known about a tab before any picker (main/share-preflight.js preflight()). Read-only; the same facts
+// serve the check before every picker and Ctrl+K > Check screen sharing.
+let _byedpiRunning = () => false;   // set where the Discord bypass is wired (it lives further down)
+function _shareFacts(contents) {
+  let origin = '';
+  try { origin = new URL(contents.getURL()).origin; } catch { /* vex-allow-empty-catch: about:blank and the like: preflight reports it as not secure */ }
+  const ses = contents.session;
+  return {
+    url: contents.getURL(),
+    saved: origin ? savedDecision(decisionsFor(contents), origin, ['display-capture'], sessionDecisionsFor(contents)) : null,
+    paranoid: !!origin && _webSafety.isParanoid(origin),
+    tor: !!(ses && ses.__vexTor),
+    partition: secureSessions.partitionOf(contents) || '',
+    partitionWired: !!(ses && ses.__vexDisplayWired),
+    byedpiRunning: !!_byedpiRunning(),
+  };
+}
 // Is the frame still the page that asked? A single-page app (Discord) rewrites its address while a
 // share is started, with no navigation at all (pushState), so comparing whole URLs refused the pick
 // with 'Requesting page changed'. What matters is whether it is the same site: an address on another
@@ -1010,6 +1035,11 @@ function wireDisplayMediaOnSession(ses) {
       callback(); return;
     }
     const requestingFrame = request.frame, requestingUrl = requestingFrame.url;
+    // The known causes, checked before the picker every time (T0-014): one that would refuse the share is said
+    // with its fix and the share is dropped; one that only MAY break it (Strong bypass) is said and the picker opens.
+    const pre = _sharePreflight.preflight(_shareFacts(requestingContents));
+    if (pre.refusal) { _shareRefused(requestingHost, requestingContents, pre.refusal.code); callback(); return; }
+    for (const w of pre.warnings) _shareWarned(requestingHost, requestingContents, w);
     const { desktopCapturer } = require('electron');
     desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true })
       .then((sources) => {
@@ -1101,20 +1131,12 @@ ipcMain.handle('screen-share:preflight', async (event, wcId) => {
   const contents = Number.isInteger(wcId) ? webContents.fromId(wcId) : null;
   if (!contents || contents.isDestroyed()) throw new Error('That tab is not open any more');
   if (secureSessions.owner(contents) !== secureSessions.owner(event.sender)) throw new Error('That tab belongs to another window');
-  let origin = '';
-  try { origin = new URL(contents.getURL()).origin; } catch { /* vex-allow-empty-catch: about:blank and the like: preflight reports it as not secure */ }
   let sourcesCount = null, capturerError = '';
   try {
     const found = await require('electron').desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 0, height: 0 } });
     sourcesCount = found.length;
   } catch (err) { capturerError = String((err && err.message) || err); }
-  const result = _sharePreflight.preflight({
-    url: contents.getURL(),
-    saved: origin ? savedDecision(decisionsFor(contents), origin, ['display-capture'], sessionDecisionsFor(contents)) : null,
-    paranoid: !!origin && _webSafety.isParanoid(origin),
-    tor: !!(contents.session && contents.session.__vexTor),
-    sourcesCount, capturerError,
-  });
+  const result = _sharePreflight.preflight({ ..._shareFacts(contents), sourcesCount, capturerError });
   return { ...result, pageId: contents.id, recent: _shareLog.list().slice(0, 10), counts: _shareLog.counts() };
 });
 // === QR code for the current page (qrcode npm package, rendered in main) ===
@@ -7758,6 +7780,7 @@ function createWindow() {
   //              same power as Zapret/GoodbyeDPI without admin. Has tunable
   //              desync presets (preset index) for per-ISP tuning.
   const _byedpi = require('./byedpi.js');
+  _byedpiRunning = () => _byedpi.isRunning();
   let _dpiBypassPort = 0; // light (JS) proxy port
   // Route Discord domains through the bypass on the NORMAL browsing sessions too,
   // so the OAuth authorize page + discord.com links work in regular Vex tabs —
