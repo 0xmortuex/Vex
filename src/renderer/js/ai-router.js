@@ -356,7 +356,7 @@ const AIRouter = (() => {
           throw new Error(`${err.message} (Not retried on the cloud: this request holds something that is only sent to the cloud when you say so.)`);
         }
         if (typeof VexAISpend !== 'undefined' && VexAISpend.reached()) {
-          throw new Error(`${err.message} (Not retried on the cloud: ${VexAISpend.reachedWhich() === 'month' ? "this month's cloud budget of " + VexAISpend.monthCap() + ' calls' : "today's cloud limit of " + VexAISpend.cap() + ' calls'} is used up.)`);
+          throw new Error(`${err.message} (Not retried on the cloud: ${VexAISpend.reachedWhich() === 'money' ? VexAISpend.limitText() : VexAISpend.reachedWhich() === 'month' ? "this month's cloud budget of " + VexAISpend.monthCap() + ' calls' : "today's cloud limit of " + VexAISpend.cap() + ' calls'} is used up.)`);
         }
       }
       console.warn(`[AIRouter] falling back to ${fallback} for ${feature}`);
@@ -426,6 +426,8 @@ const AIRouter = (() => {
       answer = await callCloud(feature, request);
     }
     catch (err) { if (spendSlot) VexAISpend.release(spendSlot); throw err; }
+    // The estimate of what that answer cost (js/ai-spend-money.js); it reports its own problems.
+    if (typeof VexAIMoney !== 'undefined') VexAIMoney.record(feature, request, answer);
     return answer;
   }
 
