@@ -681,7 +681,7 @@
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'storage-ceilings', title: 'Storage and Recall limits', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storage.recallLimits'],
       permissions: { reads: ['how much each feature keeps; the Recall index size'], writes: ['the caps and retention of the Recall index; the oldest pages go first'], sends: [] } },
-    { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['ai-answered-by'],
+    { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiRoute'], commands: ['ai-answered-by'],
       permissions: { reads: ['your AI mode and which backend answered'], writes: ['the same AI mode switches Settings already has'], sends: [] } },
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

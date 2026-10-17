@@ -64,7 +64,7 @@ const PREFERENCE_KEYS = [
   'vex.passkeySuppressedHosts', 'vex.a11y', 'vex.recall.enabled',
   'vex.autoArchiveDays', 'vex.locationMode', 'vex.userName', 'vex.githubUsername',
   'vex.weatherLoc', 'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
-  'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.localAIModel', 'vex.aiRouting',
+  'vex.aiRoute', 'vex.localAIModel', 'vex.aiRouting',
   'vex.preferOnDeviceAI', 'vex.webllmModel', 'vex.panelOverrides', 'vex.sidebarOrder',
   'vex.whatsNewCard',
   'vex.readingDigest.newTab',

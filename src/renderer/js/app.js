@@ -750,7 +750,7 @@ function vexOwnTextFocused(doc) {
     'vex.autoArchiveDays', 'vex.locationMode', 'vex.manualLocation',
     'vex.userName', 'vex.githubUsername', 'vex.weatherLoc',
     'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
-    'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.localAIModel', 'vex.aiRouting',
+    'vex.aiRoute', 'vex.localAIModel', 'vex.aiRouting',
     'vex.preferOnDeviceAI', 'vex.webllmModel',
     'vex.panelOverrides', 'vex.sidebarOrder', 'vex.userShortcuts', 'vex.layout',
     // Written by Settings controls but missing from this list until v2.36.5.

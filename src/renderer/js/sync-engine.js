@@ -68,7 +68,7 @@ const SyncEngine = (() => {
     'vex.autoSleepPrefs',
     // Phase 14: AI routing prefs (but NOT localAIModel — each device has
     // its own installed Ollama models)
-    'vex.aiRouting', 'vex.preferLocalAI', 'vex.forceCloudAI',
+    'vex.aiRouting', 'vex.aiRoute',
     // Phase 15: custom personas + globally active persona id
     // (per-tab selections live under vex.activePersonaByTab.* and are NOT
     // synced — tab ids are device-local)
@@ -149,7 +149,7 @@ const SyncEngine = (() => {
     { id: 'notes', label: 'Notes', keys: ['vex.notes'] },
     { id: 'shortcuts', label: 'Shortcut tiles and tools', keys: ['vex.shortcuts', 'vex.startTiles', 'vex.tools'] },
     { id: 'reminders', label: 'Reminders and scheduled tasks', keys: ['vex.reminders', 'vex.schedules'] },
-    { id: 'ai', label: 'AI settings, personas and memory', keys: ['vex.agentMode', 'vex.aiIndexingEnabled', 'vex.aiRouting', 'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.personas', 'vex.activePersona', 'vex.aiMemory'] },
+    { id: 'ai', label: 'AI settings, personas and memory', keys: ['vex.agentMode', 'vex.aiIndexingEnabled', 'vex.aiRouting', 'vex.aiRoute', 'vex.personas', 'vex.activePersona', 'vex.aiMemory'] },
     { id: 'look', label: 'Themes, look and fonts', keys: ['vex.theme', 'vex.themeAuto', 'vex.customThemes', 'vex.tabLayout',
       'vex.guiStyle', 'vex.guiColors', 'vex.skinPattern', 'vex.skinShape', 'vex.skinGlow', 'vex.skinStrength', 'vex.font', 'vex.fontMono'] },
     // Saved passwords and authenticator (2FA) accounts. Off until the person

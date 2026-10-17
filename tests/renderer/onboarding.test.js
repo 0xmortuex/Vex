@@ -79,7 +79,7 @@ describe('Onboarding relaunch + step-done detection', () => {
     expect(Onboarding._isStepDone('aicloud')).toBe(true);
     expect(Onboarding._isStepDone('ollama')).toBe(false);
     expect(Onboarding._isStepDone('ondevice')).toBe(false);
-    localStorage.setItem('vex.preferLocalAI', 'true');
+    localStorage.setItem('vex.aiRoute', JSON.stringify('local'));
     expect(Onboarding._isStepDone('ollama')).toBe(true);
     localStorage.setItem('vex.preferOnDeviceAI', 'true');
     expect(Onboarding._isStepDone('ondevice')).toBe(true);

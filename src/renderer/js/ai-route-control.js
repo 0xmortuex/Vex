@@ -1,14 +1,15 @@
 // === One place that says where AI runs, and which one answered (T2-081) =========
 //
 // The entry counted six overlapping keys. Read against the code:
-//   vex.preferLocalAI / vex.forceCloudAI   the real mode (AIRouter.setPreferLocal / setForceCloud,
+//   vex.preferLocalAI / vex.forceCloudAI   the real mode (now merged into vex.aiRoute) (AIRouter.setPreferLocal / setForceCloud,
 //                                          the three radios in Settings > AI Backend)
 //   vex.preferOnDeviceAI                   on-device (browser) chat, a separate switch (js/webllm.js)
 //   vex.aiRouting                          the per-feature table (a pin per feature)
 //   vex.localAIModel / vex.webllmModel     which MODEL runs; not a routing choice
 //   vex.aiMode                             NOT routing: the AI panel's docked/expanded layout
-// So the single control already exists as the radios, and nothing here adds a seventh key or
-// moves a saved value. What was missing is the plain naming (Fast cloud / Private local / Auto),
+// The two real routing booleans are now ONE key, vex.aiRoute ('auto' | 'local' | 'cloud'), merged by a
+// one-time migration in ai-router.js (AIRouter.migrateRouteKey; Always cloud wins when both were saved,
+// as the router already did). What was missing is the plain naming (Fast cloud / Private local / Auto),
 // one line that says what is in force once everything is read together, a warning when two saved
 // choices disagree, and the reason an answer came from the backend it did. This adds those.
 //
