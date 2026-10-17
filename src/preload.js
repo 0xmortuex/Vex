@@ -435,6 +435,8 @@ contextBridge.exposeInMainWorld('vex', {
   commsBridgePick: () => ipcRenderer.invoke('comms:bridge-pick'),
   commsBridgeRead: () => ipcRenderer.invoke('comms:bridge-read'),
   commsBridgeForget: () => ipcRenderer.invoke('comms:bridge-forget'),
+  commsStatusWrite: (req) => ipcRenderer.invoke('comms:status-write', req),
+  commsStatusAck: () => ipcRenderer.invoke('comms:status-ack'),
   // The services' own public status pages, for the ones the person listed (main/status-check.js).
   statusCheck: (list) => ipcRenderer.invoke('status:check', list),
   // Local-service launcher and webhook inspector (main/local-services.js, main/webhook-inspector.js).

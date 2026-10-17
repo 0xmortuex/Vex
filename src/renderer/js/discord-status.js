@@ -1,9 +1,18 @@
 // === Discord status follows Game and Focus mode (T3-062) ==========================
 //
 // Playing or focusing and still showing "Online" in Discord means pings you cannot
-// answer. The idea was to set the status for you. THE OWNER DECIDED OTHERWISE, and
-// this keeps to it: Vex NEVER changes your Discord status, by any route (not through
-// the page, not through a plugin, not through a token). What it does:
+// answer. By default (the first owner decision) Vex NEVER changes your Discord status.
+// Since Wave 6 the owner has approved ONE opt-in route, "Let my Vencord plugin set it",
+// OFF until you switch it on, and it is the only route:
+//   - Vex never holds, reads or sends a Discord token, and does not touch the Discord page.
+//   - Vex writes ONE small request file (vex-status-request.json, docs/vencord-bridge.md
+//     section "Status channel") into the bridge folder you picked; YOUR OWN Vencord plugin applies it
+//     to YOUR client, remembers what you had, and writes vex-status-ack.json.
+//   - The first change shows its exact words in a confirm (here, and again in main); an end time
+//     goes with every request so the plugin puts your old status back by itself; one ledger line
+//     per change, with Undo; when Game mode or Focus ends Vex asks the plugin to restore.
+//   - A client mod is against Discord's terms. Settings says so; you accept it for your account.
+// With that switch off, what it does is:
 //
 //   1. When Game mode or a Focus block starts, it puts ONE suggestion in the Attention
 //      Inbox (never a toast over your game): "Set Discord to Do Not Disturb?" with the
@@ -28,6 +37,14 @@ const DiscordStatus = {
     back: { status: 'Online', text: '' },
   },
   MAX_TEXT: 100,
+  KINDS: { 'Online': 'online', 'Idle': 'idle', 'Do Not Disturb': 'dnd', 'Invisible': 'invisible' },
+  DEFAULT_EMOJI: { game: 'video_game', focus: 'zzz', back: '' },
+  EMOJI_RE: /^[A-Za-z0-9_]{0,32}$/,
+  HOLD_DEFAULT_MS: 8 * 3600000,    // how long a status may be held when the mode has no end time
+  ACK_WAIT: { tries: 6, everyMs: 1000 },
+  _sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
+  _applied: false,    // a status of ours is set now; the plugin holds the old one
+  _chain: Promise.resolve(),
 
   _now() { return Date.now(); },
   _mode: '',          // the mode that was on at the last look
@@ -35,18 +52,32 @@ const DiscordStatus = {
 
   // ---- state -----------------------------------------------------------------------------
   state() {
-    const s = CommsStore.record(this.KEY, { on: true, suggest: true, line: true, texts: {}, manual: null }, 'Discord status settings');
+    const s = CommsStore.record(this.KEY, { on: true, suggest: true, line: true, apply: false, previewed: false, emojis: {}, texts: {}, manual: null }, 'Discord status settings');
     const texts = {};
     for (const k of ['game', 'focus', 'back']) {
       const t = s.texts && s.texts[k];
       texts[k] = { status: t && this.STATUSES.includes(t.status) ? t.status : this.DEFAULTS[k].status, text: t && typeof t.text === 'string' ? CommsStore.line(t.text, this.MAX_TEXT) : this.DEFAULTS[k].text };
     }
     const manual = s.manual && typeof s.manual.text === 'string' && Number.isFinite(s.manual.until) ? { text: CommsStore.line(s.manual.text, this.MAX_TEXT), until: s.manual.until } : null;
-    return { on: s.on !== false, suggest: s.suggest !== false, line: s.line !== false, texts, manual };
+    const emojis = {};
+    for (const k of ['game', 'focus', 'back']) emojis[k] = typeof (s.emojis && s.emojis[k]) === 'string' && this.EMOJI_RE.test(s.emojis[k]) ? s.emojis[k] : this.DEFAULT_EMOJI[k];
+    return { on: s.on !== false, suggest: s.suggest !== false, line: s.line !== false, apply: s.apply === true, previewed: s.previewed === true, emojis, texts, manual };
+  },
+  apply() { const s = this.state(); return s.on && s.apply; },
+  // Opt-in: let the owner's own Vencord plugin set the status. Needs the bridge folder (Vencord bridge, Settings).
+  setApply(on) { const s = this.state(); s.apply = !!on; this._save(s); },
+  setEmoji(mode, name) {
+    if (!(mode in this.DEFAULTS)) throw new Error('The emoji is for game, focus or back');
+    const n = String(name == null ? '' : name).trim();
+    if (!this.EMOJI_RE.test(n)) throw new Error('The emoji is a plain name such as "video_game" (letters, digits, underscore)');
+    const s = this.state(); s.emojis[mode] = n; this._save(s);
   },
   _save(s) { CommsStore.write(this.KEY, s); CommsStore.emit('vex:discord-status'); },
   enabled() { return this.state().on; },
-  setEnabled(on) { const s = this.state(); s.on = !!on; this._save(s); if (!on) { this._mode = ''; this._suggested = false; } },
+  setEnabled(on) {
+    const s = this.state(); s.on = !!on; this._save(s);
+    if (!on) { this._mode = ''; this._suggested = false; if (this._applied) this._run(() => this.restore('Discord status was switched off')); }
+  },
   setSuggest(on) { const s = this.state(); s.suggest = !!on; this._save(s); },
   setLine(on) { const s = this.state(); s.line = !!on; this._save(s); },
   setText(mode, { status, text }) {
@@ -111,6 +142,11 @@ const DiscordStatus = {
     const mode = now ? now.mode : '';
     this._mode = mode;
     if (mode === was) return '';
+    if (s.apply) {
+      // The owner's plugin does it; the copy-it-yourself suggestion is not made as well.
+      this._run(() => mode ? this.applyMode(mode, now.until) : this.restore('The mode ended'));
+      return mode ? 'start' : (this._applied ? 'end' : '');
+    }
     if (mode) {
       this._suggested = false;
       if (!s.suggest) return '';
@@ -121,6 +157,75 @@ const DiscordStatus = {
     // The mode ended: the way back, but only if the start was suggested (otherwise there is nothing to undo).
     if (s.suggest && this._suggested) { this._suggested = false; this._offer('back', 0); return 'end'; }
     return '';
+  },
+  // ---- the plugin route (opt-in, T3-062) ---------------------------------------------------------------
+  // Runs the steps one after the other and reports a failure; never throws into the attention event.
+  _run(fn) {
+    this._chain = this._chain.then(fn).catch((err) => {
+      console.error('[DiscordStatus]', err);
+      if (window.VexProblems) window.VexProblems.note('Discord status', 'The Vencord plugin route failed: ' + err.message, err);
+      else throw err;
+    });
+    return this._chain;
+  },
+  _api() {
+    const v = typeof window !== 'undefined' && window.vex;
+    if (!v || typeof v.commsStatusWrite !== 'function' || typeof v.commsStatusAck !== 'function') throw new Error('The status channel is not available in this build');
+    return v;
+  },
+  // What would be sent for a mode: -> { action, status, text, emoji, expiresAt }
+  request(mode, until = 0) {
+    if (!(mode in this.DEFAULTS) || mode === 'back') throw new Error('A status is set for game or focus');
+    const a = this.advice(mode, until);
+    const now = this._now();
+    return { action: 'set', status: this.KINDS[a.status], text: a.text, emoji: this.state().emojis[mode], expiresAt: until > now ? until + 5 * 60000 : now + this.HOLD_DEFAULT_MS, label: a.label };
+  },
+  // Wait (bounded) for the plugin's answer to request number `seq`. -> the answer, or null when it did not answer.
+  async _awaitAck(seq) {
+    const api = this._api();
+    for (let i = 0; i < this.ACK_WAIT.tries; i++) {
+      const r = await api.commsStatusAck();
+      if (r && r.found && r.ack.seq === seq) return r.ack;
+      await this._sleep(this.ACK_WAIT.everyMs);
+    }
+    return null;
+  },
+  async _preview(req) {
+    const s = this.state();
+    if (s.previewed) return;
+    if (typeof window.vexConfirm !== 'function') throw new Error('The confirm box is not loaded');
+    const yes = await window.vexConfirm({
+      title: 'Let your Vencord plugin set your Discord status?',
+      message: 'The first change would be: ' + req.status + (req.text ? ', "' + req.text + '"' : '') + (req.emoji ? ' (emoji ' + req.emoji + ')' : '') + '. Your own plugin applies it and keeps what you had; Vex puts it back when the mode ends. A client mod is against Discord\'s terms.',
+      okLabel: 'Allow', cancelLabel: 'Not now',
+    });
+    if (!yes) { this.setApply(false); throw new Error('Not allowed: the plugin route is switched off again'); }
+    s.previewed = true; this._save(s);
+  },
+  async applyMode(mode, until = 0) {
+    if (!this.apply()) throw new Error('Letting the plugin set the status is switched off');
+    const req = this.request(mode, until);
+    await this._preview(req);
+    const w = await this._api().commsStatusWrite({ action: 'set', status: req.status, text: req.text, emoji: req.emoji, expiresAt: req.expiresAt });
+    this._applied = true;
+    const ack = await this._awaitAck(w.seq);
+    if (ack && !ack.applied) { this._applied = false; throw new Error('Your plugin did not set it' + (ack.error ? ': ' + ack.error : '')); }
+    const kind = ack ? 'Set' : 'Asked your plugin to set';
+    if (typeof VexLedger !== 'undefined') {
+      VexLedger.note({ feature: 'discord-status', what: kind + ' your Discord status to ' + req.status + (req.text ? ': "' + req.text + '"' : ''), why: (mode === 'game' ? 'Game mode' : 'A Focus block') + ' started' + (ack ? '' : ' (the plugin has not answered yet)'), undo: { kind: 'discord-status-restore' } });
+    }
+    if (!ack) throw new Error('Your plugin has not answered. Is it running, and is it watching the bridge folder?');
+    return { applied: true, previous: ack.previous };
+  },
+  async restore(why = 'Put back') {
+    if (!this._applied) return { restored: false };
+    const w = await this._api().commsStatusWrite({ action: 'restore' });
+    this._applied = false;
+    const ack = await this._awaitAck(w.seq);
+    if (ack && !ack.applied) throw new Error('Your plugin did not put your status back' + (ack.error ? ': ' + ack.error : ''));
+    if (typeof VexLedger !== 'undefined') VexLedger.note({ feature: 'discord-status', what: ack ? 'Put your Discord status back' : 'Asked your plugin to put your Discord status back', why: why + (ack ? '' : ' (the plugin has not answered yet)') });
+    if (!ack) throw new Error('Your plugin has not answered the restore. Its end time puts your status back by itself.');
+    return { restored: true, previous: ack.previous };
   },
   _offer(mode, until) {
     if (typeof VexAttention === 'undefined') throw new Error('The attention budget is not loaded');
@@ -149,6 +254,13 @@ if (typeof window !== 'undefined') {
     document.addEventListener('vex:attention-state', (e) => {
       try { DiscordStatus.follow(e && e.detail); }
       catch (err) { console.error('[DiscordStatus]', err); window.VexProblems?.note('Discord status', 'Could not follow Game or Focus mode', err); }
+    });
+  }
+  if (typeof VexLedger !== 'undefined' && typeof VexLedger.registerUndo === 'function') {
+    VexLedger.registerUndo('discord-status-restore', async () => {
+      if (!DiscordStatus._applied) return 'Your Discord status was already put back';
+      const r = await DiscordStatus.restore('You pressed Undo');
+      return r.restored ? 'Asked your plugin to put your Discord status back' : 'Nothing to put back';
     });
   }
   if (typeof AttentionInbox !== 'undefined' && typeof AttentionInbox.handle === 'function') {

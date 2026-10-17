@@ -584,7 +584,7 @@ Apps and tools that live beside the page instead of in a tab.
 - **Discord noise tools** (`discord-noise`): Lets you set hide and mute rules for Vex's own list of kept Discord notifications, and suggests noisy conversations to quiet. Open it with Ctrl+K: Discord noise tools. On an existing profile it starts off; turn it on in Settings > Community and chat tools.
   - Open: Ctrl+K: "Discord noise tools"; Settings > Community and chat tools.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Discord status suggestions** (`discord-status`): When Game mode or a Focus block starts, puts one suggestion in the Attention Inbox to set Discord to Do Not Disturb, with status text you can copy. It suggests going back to Online when the mode ends. On an existing profile it starts off; turn it on in Settings > Community and chat tools.
+- **Discord status suggestions** (`discord-status`): When Game mode or a Focus block starts, puts one suggestion in the Attention Inbox to set Discord to Do Not Disturb, with status text you can copy. It suggests going back to Online when the mode ends. An opt-in switch lets your own Vencord plugin set the status for you and put it back. On an existing profile it starts off; turn it on in Settings > Community and chat tools.
   - Open: Settings > Community and chat tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Vencord bridge** (`vencord-bridge`): Reads one small file written by your own Vencord plugin to show Discord mentions, replies and channel catch-ups. Open it with Ctrl+K: Discord mentions (bridge). On an existing profile it starts off; turn it on in Settings > Community and chat tools.

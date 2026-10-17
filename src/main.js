@@ -7178,6 +7178,9 @@ ipcMain.handle('comms:bridge-status', () => _commsTools.bridgeStatus());
 ipcMain.handle('comms:bridge-pick', () => _commsTools.bridgePick());
 ipcMain.handle('comms:bridge-read', () => _commsTools.bridgeRead());
 ipcMain.handle('comms:bridge-forget', () => _commsTools.bridgeForget());
+// The status channel (T3-062): Vex writes one fixed request file the owner's own Vencord plugin applies, and reads its answer.
+ipcMain.handle('comms:status-write', (_event, req) => _commsTools.statusWrite(req));
+ipcMain.handle('comms:status-ack', () => _commsTools.statusAck());
 // Status pages the person listed (main/status-check.js): the services' own public Statuspage summaries, read-only.
 const _statusCheck = require('./main/status-check').createStatusCheck({ publicFetch: boundedPublicFetch });
 ipcMain.handle('status:check', (_event, list) => _statusCheck.check(list));

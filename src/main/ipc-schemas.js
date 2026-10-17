@@ -575,6 +575,8 @@ define('fx:tcmb', []);
 // Community and chat tools (main/comms-tools.js). The webhook address goes in once and never comes back;
 // a post is one text of at most 2000 characters. The bridge channels take no arguments: main reads one fixed file.
 define('comms:webhook-status comms:webhook-clear comms:bridge-status comms:bridge-pick comms:bridge-read comms:bridge-forget', []);
+define('comms:status-ack', []);
+define('comms:status-write', [shape({ action: oneOf(['set', 'restore']), status: optional(oneOf(['online', 'idle', 'dnd', 'invisible'])), text: optional(string(100)), emoji: optional(string(32)), expiresAt: optional(value => Number.isFinite(value) && value > 0) })]);
 define('comms:webhook-set', [string(300)]);
 define('comms:webhook-send', [shape({ content: string(2000), allowEveryone: optional(boolean) })]);
 // The status pages to read (main/status-check.js): up to 12 addresses, each judged there.

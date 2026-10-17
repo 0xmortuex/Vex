@@ -108,3 +108,55 @@ the count of dropped entries on screen ("skipped"). Unknown fields are ignored.
 3. Optional later fields (not in `vex-bridge/1`): join/leave counts per server (would enable a
    join-spike alert in the moderator kit) and an outgoing-promise list (T3-006 follow-up ledger).
    Adding them means `vex-bridge/2` and a change in `sanitizeBridge`.
+
+## Status channel `vex-status/1` (T3-062, opt-in, the other direction)
+
+Off by default (Settings, Community and chat tools, Discord status, "Let my Vencord plugin set the status").
+Vex never holds, reads or sends a Discord token. It only writes a request file; the owner's own plugin does
+the work inside the owner's own client. Using a client mod is against Discord's terms; the owner accepts
+that for his own account (Settings says so).
+
+Two files, in the same folder as `vex-bridge.json`, fixed names, written atomically (tmp file then rename):
+
+1. `vex-status-request.json`, written by Vex (main process, `comms:status-write`), at most one request pending:
+
+```json
+{ "schema": "vex-status/1", "seq": 1760000000123, "requestedAt": 1760000000123,
+  "action": "set", "status": "dnd", "text": "In a game, back later", "emoji": "video_game",
+  "expiresAt": 1760028800000 }
+```
+```json
+{ "schema": "vex-status/1", "seq": 1760000099999, "requestedAt": 1760000099999, "action": "restore" }
+```
+
+| Field | Notes |
+|---|---|
+| `seq` | Strictly increasing number. The plugin answers with the same `seq`; it ignores a `seq` it has already handled. |
+| `action` | `set` or `restore`. |
+| `status` | `online`, `idle`, `dnd` or `invisible` (only for `set`). |
+| `text` | At most 100 characters, one line, may be empty (only for `set`). |
+| `emoji` | A plain emoji NAME (letters, digits, underscore, at most 32), may be empty (only for `set`). |
+| `expiresAt` | Milliseconds. Required for `set`, at most 24 hours ahead. The plugin must put the previous status back at this time by itself, so a Vex crash never leaves a status stuck. |
+
+2. `vex-status-ack.json`, written by the plugin (at most 16 KB), read by Vex (`comms:status-ack`):
+
+```json
+{ "schema": "vex-status/1", "seq": 1760000000123, "action": "set", "applied": true, "error": "",
+  "previous": { "status": "online", "text": "", "emoji": "" } }
+```
+
+Plugin rules:
+
+- On `set`: if it is not already holding a snapshot, remember the current status, custom text and emoji (`previous`), then apply.
+  A second `set` while holding replaces the status but keeps the FIRST snapshot.
+- On `restore` (or at `expiresAt`): put the snapshot back and drop it. With no snapshot, answer `applied: false` with an `error`.
+- Answer every request, including failures (`applied: false`, `error` a short sentence). Never answer a request twice.
+- Change nothing else in Discord. Only the three fields above exist; there is no way to send a message.
+
+Vex side guarantees: the request is built in main from validated fields (the window cannot add anything); the first `set` after
+Vex starts is confirmed by a main-process dialog that shows the exact words; Vex asks for `restore` when Game mode or Focus ends,
+when the feature is switched off, and on ledger Undo; every change is one ledger line. Vex waits at most 6 seconds for an answer and
+reports it if none came.
+
+Not built here (it lives in the owner's Vencord repository): the plugin that reads the request and calls the client's own
+status setter, and writes the answer.

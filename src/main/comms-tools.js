@@ -37,6 +37,16 @@ const MAX_CONTENT = 2000;
 const BRIDGE_FILE = 'vex-bridge.json';
 const BRIDGE_SCHEMA = 'vex-bridge/1';
 const MAX_BRIDGE_BYTES = 1024 * 1024;
+// The status channel (T3-062): the OTHER direction of the bridge. Vex writes ONE small request file, the owner's own
+// Vencord plugin applies it to the owner's own client and writes ONE small answer file. Vex never holds a Discord token.
+const STATUS_REQUEST_FILE = 'vex-status-request.json';
+const STATUS_ACK_FILE = 'vex-status-ack.json';
+const STATUS_SCHEMA = 'vex-status/1';
+const MAX_STATUS_ACK_BYTES = 16 * 1024;
+const STATUS_ACTIONS = ['set', 'restore'];
+const STATUS_KINDS = ['online', 'idle', 'dnd', 'invisible'];
+const STATUS_TEXT_MAX = 100;
+const STATUS_MAX_HOLD_MS = 24 * 3600 * 1000;
 const LIMITS = { mentions: 200, replies: 200, channels: 20, perChannel: 100, text: 2000, name: 100 };
 const DISCORD_URL = /^https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/channels\/(?:@me|\d{5,25})\/\d{5,25}(?:\/\d{5,25})?$/;
 
@@ -109,6 +119,38 @@ function sanitizeBridge(raw) {
     skipped += Math.max(0, raw.channels.length - LIMITS.channels);
   }
   return { schema: BRIDGE_SCHEMA, generatedAt: when(raw.generatedAt), account: clean(raw.account && raw.account.name, LIMITS.name), mentions, replies, channels, skipped };
+}
+
+// What the request file holds, built and checked HERE from the window's words: nothing else can be written.
+function buildStatusRequest({ action, status, text, emoji, expiresAt, seq, requestedAt }) {
+  if (!STATUS_ACTIONS.includes(action)) throw new Error('A status request is "set" or "restore"');
+  const req = { schema: STATUS_SCHEMA, seq, requestedAt, action };
+  if (action === 'set') {
+    if (!STATUS_KINDS.includes(status)) throw new Error('A Discord status is ' + STATUS_KINDS.join(', '));
+    const t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    if (t.length > STATUS_TEXT_MAX) throw new Error('A status text is at most ' + STATUS_TEXT_MAX + ' characters');
+    const e = String(emoji == null ? '' : emoji).trim();
+    if (!/^[A-Za-z0-9_]{0,32}$/.test(e)) throw new Error('The emoji is a plain name such as "video_game" (letters, digits, underscore)');
+    // The plugin puts the old status back by itself at this time, so a crash of Vex never leaves a status stuck.
+    if (!Number.isFinite(expiresAt) || expiresAt <= requestedAt || expiresAt > requestedAt + STATUS_MAX_HOLD_MS) throw new Error('A status change needs an end time within ' + (STATUS_MAX_HOLD_MS / 3600000) + ' hours');
+    req.status = status; req.text = t; req.emoji = e; req.expiresAt = Math.round(expiresAt);
+  }
+  return req;
+}
+
+// The answer file, cleaned: never trusted.
+function sanitizeStatusAck(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('The status answer is not a JSON object');
+  if (raw.schema !== STATUS_SCHEMA) throw new Error('The status answer is not "' + STATUS_SCHEMA + '"');
+  if (!Number.isFinite(raw.seq)) throw new Error('The status answer has no number to match it to a request');
+  const prev = raw.previous && typeof raw.previous === 'object' ? raw.previous : null;
+  return {
+    seq: raw.seq,
+    applied: raw.applied === true,
+    action: STATUS_ACTIONS.includes(raw.action) ? raw.action : '',
+    error: typeof raw.error === 'string' ? clean(raw.error, 200) : '',
+    previous: prev ? { status: STATUS_KINDS.includes(prev.status) ? prev.status : '', text: clean(prev.text, STATUS_TEXT_MAX), emoji: /^[A-Za-z0-9_]{0,32}$/.test(String(prev.emoji || '')) ? String(prev.emoji || '') : '' } : null,
+  };
 }
 
 function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, fs = nodeFs, fetch, pickFolder, confirm, now = () => Date.now() } = {}) {
@@ -222,7 +264,52 @@ function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, fs = nod
     return { ok: true, mtime: Math.round(st.mtimeMs), data: sanitizeBridge(raw) };
   }
 
-  return { webhookStatus, webhookSet, webhookClear, webhookSend, bridgeStatus, bridgePick, bridgeForget, bridgeRead };
+  // ---- the status channel (T3-062) ---------------------------------------------------------------
+  // Writes exactly one fixed file name in the chosen folder, atomically, and refuses to write through a link or a
+  // folder. The FIRST change after Vex starts is confirmed here, by main, showing the exact words, so a script in a
+  // window cannot answer for the owner. A restore needs no confirm: it only puts back what the owner had.
+  let statusConfirmed = false;
+  let statusSeq = 0;
+  async function statusWriteAsync(req = {}) {
+    const { cfg } = target();
+    const seq = Math.max(now(), statusSeq + 1);
+    const body = buildStatusRequest({ ...req, seq, requestedAt: now() });
+    if (body.action === 'set' && !statusConfirmed) {
+      const yes = await confirm({
+        title: 'Let your Vencord plugin change your Discord status?',
+        message: 'Status: ' + body.status + '\nText: ' + (body.text || '(none)') + (body.emoji ? '\nEmoji: ' + body.emoji : '') + '\n\nVex writes this to ' + STATUS_REQUEST_FILE + ' in the folder you chose. Your own plugin applies it and keeps what you had, so Vex can put it back. Vex never holds your Discord token. A client mod is against Discord\'s terms; you accept that for your own account.',
+        okLabel: 'Allow',
+      });
+      if (!yes) throw new Error('The status change was cancelled');
+      statusConfirmed = true;
+    }
+    const file = nodePath.join(cfg.folder, STATUS_REQUEST_FILE);
+    const tmp = file + '.tmp';
+    for (const f of [file, tmp]) {
+      let st = null;
+      try { st = fs.lstatSync(f); } catch (err) { if (!err || err.code !== 'ENOENT') throw err; }
+      if (st && !st.isFile()) throw new Error(nodePath.basename(f) + ' is a link or a folder, and is not written');
+    }
+    fs.writeFileSync(tmp, JSON.stringify(body));
+    fs.renameSync(tmp, file);
+    statusSeq = seq;
+    return { ok: true, seq, action: body.action };
+  }
+  // { found:false } until the plugin has answered. A wrong file is an error, not a silent "not yet".
+  function statusAck() {
+    const { cfg } = target();
+    const file = nodePath.join(cfg.folder, STATUS_ACK_FILE);
+    let st;
+    try { st = fs.lstatSync(file); } catch (err) { if (err && err.code === 'ENOENT') return { ok: true, found: false }; throw err; }
+    if (!st.isFile()) throw new Error(STATUS_ACK_FILE + ' is a link or a folder, and is not read');
+    if (st.size > MAX_STATUS_ACK_BYTES) throw new Error(STATUS_ACK_FILE + ' is larger than ' + (MAX_STATUS_ACK_BYTES / 1024) + ' KB, so it is not read');
+    let raw;
+    try { raw = JSON.parse(fs.readFileSync(file, 'utf8')); }
+    catch (err) { throw new Error(STATUS_ACK_FILE + ' is not valid JSON: ' + err.message, { cause: err }); }
+    return { ok: true, found: true, ack: sanitizeStatusAck(raw) };
+  }
+
+  return { webhookStatus, webhookSet, webhookClear, webhookSend, bridgeStatus, bridgePick, bridgeForget, bridgeRead, statusWrite: statusWriteAsync, statusAck };
 }
 
-module.exports = { createCommsTools, sanitizeBridge, buildPayload, checkWebhook, webhookLabel, WEBHOOK_RE, BRIDGE_FILE, BRIDGE_SCHEMA, MAX_CONTENT, MAX_BRIDGE_BYTES, LIMITS };
+module.exports = { createCommsTools, sanitizeBridge, buildPayload, checkWebhook, webhookLabel, WEBHOOK_RE, BRIDGE_FILE, BRIDGE_SCHEMA, STATUS_REQUEST_FILE, STATUS_ACK_FILE, STATUS_SCHEMA, buildStatusRequest, sanitizeStatusAck, MAX_CONTENT, MAX_BRIDGE_BYTES, LIMITS };
