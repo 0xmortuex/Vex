@@ -135,14 +135,21 @@ const SiteVolume = {
 //
 //   speed      a change of playbackRate on a page is kept for the site (1x forgets it)
 //   captions   a subtitle or caption track the page's own <video> shows is kept as on for the
-//              site and turned on again (players that draw their own captions are not reached)
+//              site and turned on again. A player that draws its own captions has no track to switch:
+//              YouTube's has a small public player API (isSubtitlesOn, toggleSubtitlesOn), which is
+//              the only thing called there (nothing in the page is clicked), once per video. Other
+//              players that draw their own captions are not reached (CAPTION_PLAYERS lists the ones that are).
 //   place      for a video of five minutes or more: where you stopped, per address, 100 kept;
 //              within 30 s of the end it is forgotten
 //   level      "Even out loudness on this site": a slow gain that pulls a quiet site up and a
 //              loud one down to one level, remembered for the site. Only for sound Web Audio may
 //              read: never a protected (DRM) player, never sound from another site, and the tap
 //              only happens once the audio context is running, so nothing can go silent. A
-//              player already tapped by Master Volume or Night mode shares its graph.
+//              player already tapped by Master Volume or Night mode shares its graph. With Night mode
+//              on for the player the level is measured where Night mode leaves the sound (after its
+//              compressor and make-up gain), so the two do not fight over the same loudness; it is
+//              measured before the Master Volume gain, so that slider stays the person's: the leveller
+//              sets how loud the sound is and Master Volume scales it.
 //
 // Nothing is kept for a private window, and nothing for a tab in a session of its own (container,
 // Tor, proxy). The places are read from the page every 15 s while it is in front. Nothing leaves
@@ -154,6 +161,7 @@ const SitePlayback = {
   MIN_PLACE_S: 30,
   MAX_RESUME: 100,
   SAMPLE_MS: 15000,
+  CAPTION_PLAYERS: ['YouTube'],
 
   enabled() {
     if (typeof VexTabPolicy !== 'undefined' && VexTabPolicy.isPrivateWindow) return false;
@@ -277,6 +285,16 @@ const SitePlayback = {
       };
       // A protected player is never touched: tapping it with Web Audio silences it.
       const protectedPlayer = (m) => { try { return !!m.mediaKeys; } catch (e) { return true; } };
+      // YouTube draws its own captions. Its player object has a public switch for them; only that is called.
+      const ytPlayer = () => {
+        try {
+          const h = location.hostname;
+          if (h !== 'youtube.com' && !h.endsWith('.youtube.com')) return null;
+          const p = document.getElementById('movie_player');
+          return p && typeof p.isSubtitlesOn === 'function' && typeof p.toggleSubtitlesOn === 'function' ? p : null;
+        } catch (e) { return null; }
+      };
+      const ytOn = () => { try { const p = ytPlayer(); return !!(p && p.isSubtitlesOn()); } catch (e) { return false; } };
       const levelUp = (m) => {
         if (P.leveled.has(m)) return;
         const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -289,7 +307,11 @@ const SitePlayback = {
         }
         const n = shared(m);
         const an = A.ctx.createAnalyser(); an.fftSize = 2048;
-        n.source.connect(an);
+        // Measured where Night mode leaves the sound when it is on for this player, else at the source; always
+        // before the Master Volume gain (n.out), so that slider keeps scaling the leveled sound.
+        const tapPoint = () => { const nt = window.__vexNight && window.__vexNight.on && window.__vexNight.nodes && window.__vexNight.nodes.get(m); return nt && nt.through && nt.makeup ? nt.makeup : n.source; };
+        let from = tapPoint();
+        from.connect(an);
         const lg = A.ctx.createGain();
         try { n.out.disconnect(A.ctx.destination); } catch (e) {}
         n.out.connect(lg); lg.connect(A.ctx.destination);
@@ -299,6 +321,8 @@ const SitePlayback = {
         rec.timer = setInterval(() => {
           if (!P.want.level) { lg.gain.setTargetAtTime(1, A.ctx.currentTime, 0.5); return; }
           if (m.paused || m.ended) return;
+          const now = tapPoint();
+          if (now !== from) { try { from.disconnect(an); } catch (e) {} now.connect(an); from = now; rec.rms = 0; rec.pk = 0; }
           an.getFloatTimeDomainData(buf);
           let s = 0, pk = 0;
           for (let i = 0; i < buf.length; i++) { const x = buf[i]; s += x * x; const a = x < 0 ? -x : x; if (a > pk) pk = a; }
@@ -317,6 +341,8 @@ const SitePlayback = {
         if (P.want.captions) {
           const tracks = Array.from(m.textTracks || []).filter(t => t.kind === 'subtitles' || t.kind === 'captions');
           if (tracks.length && !tracks.some(t => t.mode === 'showing')) tracks[0].mode = 'showing';
+          const yt = tracks.length ? null : ytPlayer();
+          if (yt && P.ytKey !== location.href) { P.ytKey = location.href; try { if (!yt.isSubtitlesOn()) yt.toggleSubtitlesOn(); } catch (e) {} }
         }
         if (P.want.resumeAt && !P.resumed.has(m) && m.readyState >= 1 && m.duration > 300 && m.currentTime < 5) {
           P.resumed.add(m);
@@ -327,7 +353,7 @@ const SitePlayback = {
       const sample = () => {
         const m = main();
         if (!m) return;
-        const showing = Array.from(m.textTracks || []).some(t => (t.kind === 'subtitles' || t.kind === 'captions') && t.mode === 'showing');
+        const showing = Array.from(m.textTracks || []).some(t => (t.kind === 'subtitles' || t.kind === 'captions') && t.mode === 'showing') || ytOn();
         P.state = { rate: m.playbackRate, captions: showing };
       };
       const watch = (m) => {
@@ -354,7 +380,11 @@ const SitePlayback = {
       if (!m) return null;
       const P = window.__vexPlay;
       const own = P && P.state ? P.state : {};
-      const showing = Array.from(m.textTracks || []).some(t => (t.kind === 'subtitles' || t.kind === 'captions') && t.mode === 'showing');
+      let showing = Array.from(m.textTracks || []).some(t => (t.kind === 'subtitles' || t.kind === 'captions') && t.mode === 'showing');
+      try {
+        const h = location.hostname, yt = (h === 'youtube.com' || h.endsWith('.youtube.com')) ? document.getElementById('movie_player') : null;
+        if (!showing && yt && typeof yt.isSubtitlesOn === 'function') showing = !!yt.isSubtitlesOn();
+      } catch (e) {}
       return { rate: typeof own.rate === 'number' ? own.rate : m.playbackRate, captions: typeof own.captions === 'boolean' ? own.captions : showing, t: m.currentTime, d: m.duration, ended: m.ended, href: location.href };
     })()`;
   },
