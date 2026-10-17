@@ -115,6 +115,16 @@ const GameHelpers = {
           this._button(row, 'Remove', async () => { GameChecklist.removeItem(it.id); again(); });
           body.appendChild(row);
         }
+        this._toggle(body, 'Say if the game was patched lately and if the servers are up', 'Adds a line to the card: whether the patch notes page of the game (patch radar) changed in the last three days, and what the status pages you listed under Is it me or the game say now. Public pages only; nothing of yours is sent.', () => GameChecklist.newsOn(), (on) => GameChecklist.setNews(on));
+        this._toggle(body, 'Study minutes earn game minutes', 'Adds a line to the card: your study time today (study ledger) turned into game minutes, against the minutes you played today. A number only; it never blocks or locks anything.', () => GameChecklist.earn().on, (on) => GameChecklist.setEarn({ on }));
+        const ratioRow = document.createElement('div');
+        this._button(ratioRow, 'Game minutes per study minute: ' + GameChecklist.earn().ratio, async () => {
+          const v = await window.vexPrompt({ title: 'Study for game time', label: 'Game minutes earned per study minute', message: 'For example 1 (one for one) or 0.5 (two study minutes for one game minute).', value: String(GameChecklist.earn().ratio), okLabel: 'Save' });
+          if (v == null) return;
+          GameChecklist.setEarn({ ratio: v });
+          again();
+        });
+        body.appendChild(ratioRow);
         const row = document.createElement('div');
         this._button(row, 'Add an item…', async () => {
           const text = await window.vexPrompt({ title: 'Before you play', label: 'What should be done first?', message: 'For example: homework, take out the bins, reply to Mum', okLabel: 'Next' });

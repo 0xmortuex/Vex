@@ -14,11 +14,27 @@
 // ignoring it) is always the whole of the choice. A card shown while the game is
 // already running waits in the Attention Inbox instead (Game mode quiets Vex).
 //
-// Items can repeat daily ("homework" is done again tomorrow). Nothing here is
-// sent anywhere; the list is a setting on this computer.
+// Items can repeat daily ("homework" is done again tomorrow). The list is a
+// setting on this computer and goes nowhere.
+//
+// Two more things are opt-in, each with its own switch (both off):
+//
+//   "Patched yesterday, servers OK"   the card says whether the game's patch notes
+//       page (patch radar) changed in the last three days, and what the status pages
+//       you listed under "Is it me or the game?" say right now. The status read is
+//       the same public, read-only one that feature makes; nothing of yours is sent
+//       and no game server is contacted. The card never waits for it.
+//   "Study earns game minutes"   your study time today (the study ledger) is turned
+//       into game minutes at the ratio you set, set against the minutes you played
+//       today (counted from the game state Vex already has). It is a number on the
+//       card. It locks nothing and blocks nothing: "Play anyway" stays the whole choice.
 const GameChecklist = {
   ON_KEY: 'vex.game.checklist',            // 'on' when you turned it on; anything else is off
   ITEMS_KEY: 'vex.game.checklist.items',   // [{ id, text, done, repeat:'daily'|'', doneOn:'YYYY-MM-DD' }]
+  NEWS_KEY: 'vex.game.checklist.news',     // 'on': the patch + server line on the card
+  EARN_KEY: 'vex.game.checklist.earn',     // { on, ratio, played: { 'YYYY-MM-DD': minutes } }
+  PATCH_DAYS: 3,
+  RATIO_MAX: 10,
   MAX_ITEMS: 20,
   MAX_TEXT: 120,
   GAP_MS: 30 * 60 * 1000,                  // the card does not come back within half an hour
@@ -74,6 +90,86 @@ const GameChecklist = {
   },
   pending() { return this.items().filter(i => !i.done); },
 
+  // ---- study minutes earn game minutes (opt-in) ----------------------------------------------
+  earn() {
+    let raw = null;
+    try { raw = localStorage.getItem(this.EARN_KEY); } catch (err) { throw new Error('The study-for-game-time setting could not be read: ' + err.message, { cause: err }); }
+    if (raw == null) return { on: false, ratio: 1, played: {} };
+    let v;
+    try { v = JSON.parse(raw); } catch (err) { throw new Error('The saved study-for-game-time setting is not readable: ' + err.message, { cause: err }); }
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('The saved study-for-game-time setting is not readable');
+    const ratio = Number(v.ratio);
+    const played = v.played && typeof v.played === 'object' && !Array.isArray(v.played) ? v.played : {};
+    return { on: v.on === true, ratio: ratio > 0 && ratio <= this.RATIO_MAX ? ratio : 1, played };
+  },
+  setEarn({ on, ratio } = {}) {
+    const e = this.earn();
+    if (on !== undefined) e.on = !!on;
+    if (ratio !== undefined) {
+      const r = Number(ratio);
+      if (!(r > 0 && r <= this.RATIO_MAX)) throw new Error('Game minutes per study minute: a number above 0, up to ' + this.RATIO_MAX);
+      e.ratio = Math.round(r * 100) / 100;
+    }
+    localStorage.setItem(this.EARN_KEY, JSON.stringify(e));
+    return e;
+  },
+  // A game ran from `start` to `end` (ms): add the minutes to the day it started on.
+  _addPlayed(start, end) {
+    const min = Math.round((end - start) / 60000);
+    if (min < 1) return 0;
+    const e = this.earn();
+    const d = new Date(start);
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    e.played[key] = (Number(e.played[key]) || 0) + min;
+    const keep = Object.keys(e.played).sort().slice(-14);
+    e.played = Object.fromEntries(keep.map(k => [k, e.played[k]]));
+    localStorage.setItem(this.EARN_KEY, JSON.stringify(e));
+    return min;
+  },
+  // → { ok, text }, or null when the setting is off.
+  earnedLine(now = Date.now()) {
+    const e = this.earn();
+    if (!e.on) return null;
+    if (typeof VexStudyLedger === 'undefined' || typeof VexStudyLedger.minutesBetween !== 'function') return { ok: false, text: 'Study minutes cannot be counted in this window' };
+    if (!VexStudyLedger.enabled()) return { ok: false, text: 'Study minutes are not being counted: switch on the study ledger to earn game time' };
+    const d = new Date(now);
+    const from = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const studied = VexStudyLedger.minutesBetween(from, from + 86400000);
+    const earned = Math.floor(studied * e.ratio);
+    const played = Number(e.played[this._today()]) || 0;
+    const left = earned - played;
+    return { ok: left >= 0, studied, earned, played, left, text: studied + ' min of study earned ' + earned + ' min of game time today; you have played ' + played + ' min' + (left >= 0 ? ', ' + left + ' min left' : ', ' + (-left) + ' min over') };
+  },
+
+  // ---- patched yesterday, servers OK (opt-in) ---------------------------------------------------
+  newsOn() { try { return localStorage.getItem(this.NEWS_KEY) === 'on'; } catch { return false; } },
+  setNews(on) { localStorage.setItem(this.NEWS_KEY, on ? 'on' : 'off'); return !!on; },
+  // The newest patch-notes change for a listed game within PATCH_DAYS, or null.
+  patchLine(gameId, now = Date.now()) {
+    if (!gameId || typeof PatchRadar === 'undefined' || typeof PatchRadar.pages !== 'function') return null;
+    const pages = PatchRadar.pages(gameId).filter(p => p.changedAt > 0);
+    if (!pages.length) return null;
+    const newest = pages.reduce((a, b) => (b.changedAt > a.changedAt ? b : a));
+    const day = (t) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+    const ago = Math.round((day(now) - day(newest.changedAt)) / 86400000);
+    if (ago < 0 || ago >= this.PATCH_DAYS) return null;
+    const when = ago === 0 ? 'today' : ago === 1 ? 'yesterday' : ago + ' days ago';
+    return { id: 'patch', ok: true, text: 'Patch notes changed ' + when + (newest.latest ? ': ' + String(newest.latest).slice(0, 80) : '') };
+  },
+  // The services you listed under "Is it me or the game?", read now.
+  async serverLine() {
+    if (typeof VexServiceCheck === 'undefined' || !VexServiceCheck.enabled()) return null;
+    if (!VexServiceCheck.pages().length) return null;
+    let results;
+    try { results = await VexServiceCheck.fetchStatus(); }
+    catch (err) { this._note('The status pages could not be read for the checklist', err); return { id: 'servers', ok: false, text: 'Server status could not be read: ' + err.message }; }
+    const bad = VexServiceCheck.incidents(results);
+    if (bad.length) return { id: 'servers', ok: false, text: bad.map(r => (r.name || r.host) + ': ' + (r.description || r.indicator)).join('; ') };
+    const unread = results.filter(r => !r.ok).length;
+    if (unread === results.length) return { id: 'servers', ok: false, text: 'No status page could be read' };
+    return { id: 'servers', ok: true, text: 'Servers OK' + (unread ? ' (' + unread + ' page' + (unread === 1 ? '' : 's') + ' unreadable)' : '') };
+  },
+
   // ---- what Vex can see itself ------------------------------------------------------------
   // → [{ id, ok, text }]. A check that cannot be made is left out, not reported as fine.
   checks() {
@@ -93,17 +189,29 @@ const GameChecklist = {
   // ---- when to show --------------------------------------------------------------------------
   // The newest game:state: a launcher opening, or a listed game starting.
   onState(s) {
-    if (!s || !this.enabled()) return false;
+    if (!s) return false;
+    // Minutes played, for "study earns game minutes": counted only while that is on.
+    if (s.game && !this._playStart) this._playStart = Date.now();
+    else if (!s.game && this._playStart) {
+      const started = this._playStart;
+      this._playStart = 0;
+      if (this.earn().on) this._addPlayed(started, Date.now());
+    }
+    if (!this.enabled()) return false;
     const key = s.game ? (s.listed ? 'game:' + (s.id || s.app) : '') : (s.launcher ? 'launcher:' + (s.launcherApp || '') : '');
     if (!key) { if (!s.game) this._seen = ''; return false; }
     if (key === this._seen) return false;
     this._seen = key;
     if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) return false;
     if (Date.now() - this._shownAt < this.GAP_MS) return false;
+    const gameId = s.game && s.listed ? String(s.id || '') : '';
     const pending = this.pending();
     const bad = this.checks().filter(c => !c.ok);
-    if (!pending.length && !bad.length) return false;
+    const news = this.newsOn() && !!this.patchLine(gameId);
+    const earn = this.earn().on;
+    if (!pending.length && !bad.length && !news && !earn) return false;
     this._shownAt = Date.now();
+    this._gameId = gameId;
     this.deliver(s.game ? (s.app || 'your game') : (s.launcherApp || 'a launcher'));
     return true;
   },
@@ -166,6 +274,19 @@ const GameChecklist = {
     }
     if (!items.length) add(root, 'div', 'gc-check', 'Your list is empty. Add things to it in Settings › Game mode.');
     for (const c of this.checks()) add(root, 'div', 'gc-check', (c.ok ? 'Fine: ' : 'Look at: ') + c.text);
+    // Study minutes against game minutes, and the patch and server line: each only when switched on.
+    const line = (c) => add(root, 'div', 'gc-check', (c.ok ? 'Fine: ' : 'Look at: ') + c.text);
+    try {
+      const earned = this.earnedLine();
+      if (earned) line(earned);
+    } catch (err) { this._note('The study and game time line could not be made', err); add(root, 'div', 'gc-check', 'Look at: ' + err.message); }
+    if (this.newsOn()) {
+      const patch = this.patchLine(this._gameId);
+      if (patch) line(patch);
+      const wait = add(root, 'div', 'gc-check', 'Reading the status pages...');
+      this.serverLine().then((c) => { if (c) { wait.textContent = (c.ok ? 'Fine: ' : 'Look at: ') + c.text; } else wait.remove(); })
+        .catch((err) => { this._note('The server line failed', err); wait.textContent = 'Look at: ' + err.message; });
+    }
     const btns = add(root, 'div', 'gc-btns');
     // "Play anyway" never depends on the list: it only puts the card away.
     const go = add(btns, 'button', 'gc-primary', 'Play anyway');

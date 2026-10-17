@@ -151,6 +151,12 @@ const VexStudyLedger = {
     const rows = [...by.entries()].map(([subject, minutes]) => ({ subject, minutes, planned: d.targets[subject] || 0 })).sort((a, b) => b.minutes - a.minutes || a.subject.localeCompare(b.subject));
     return { weekStart: from, rows, total: rows.reduce((n, r) => n + r.minutes, 0), learned: d.learned[this.weekKey(now)] || '' };
   },
+  // Minutes studied whose session started in [from, to) (ms). Used by the pre-game checklist.
+  minutesBetween(from, to) {
+    let n = 0;
+    for (const s of this._read().sessions) if (s.start >= from && s.start < to) n += s.minutes;
+    return n;
+  },
   fmt(min) { const h = Math.floor(min / 60), m = min % 60; return h ? h + ' h' + (m ? ' ' + m + ' min' : '') : m + ' min'; },
 
   // The weekly review section (js/weekly-review.js addSection).

@@ -164,8 +164,8 @@
       permissions: { reads: ['the names of the launchers on your list'], writes: ['holds background work, and sleeps background tabs when Game mode is on'], sends: [] } },
     { id: 'game-pitstop', title: 'After-game pit-stop card', group: 'Game mode', maturity: 'new', storageKeys: ['vex.game.pitstop', 'vex.game.pitstop.last'], commands: ['gamepitstop:last'],
       permissions: { reads: ['what Vex held back during the game: notices, jobs, sync, slept tabs'], writes: ['the last card'], sends: [] } },
-    { id: 'game-checklist', title: 'Pre-game checklist', group: 'Game mode', maturity: 'new', storageKeys: ['vex.game.checklist', 'vex.game.checklist.items'], tiers: { minimal: false, standard: false },
-      permissions: { reads: ['your checklist, an unsaved note and the running downloads'], writes: ['your checklist'], sends: [] } },
+    { id: 'game-checklist', title: 'Pre-game checklist', group: 'Game mode', maturity: 'new', storageKeys: ['vex.game.checklist', 'vex.game.checklist.items', 'vex.game.checklist.news', 'vex.game.checklist.earn'], usesKeys: ['vex.studyLedger', 'vex.patchRadar', 'vex.serviceCheck.pages'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['your checklist, an unsaved note and the running downloads', 'with their own switches: the patch notes pages you watch, your study minutes, and the status pages you listed'], writes: ['your checklist, and the minutes you played today'], sends: ['with its own switch: a read-only request to the public status pages you listed (nothing of yours in it)'] } },
     { id: 'ai-sensitivity', title: 'Sensitivity gate before cloud AI', group: 'AI', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['the text of a request to the cloud AI, before it is sent'], writes: ['a ledger line for each request it holds back or lets through after you said yes'], sends: [] } },
     // ---- Wave 1: the developer loop (js/github-vault.js, js/dev-loop.js, js/dev-loop-ui.js) -------
