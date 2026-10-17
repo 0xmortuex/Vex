@@ -18,11 +18,31 @@
 // Windows or to the game's connection, and nothing about the game is read: only that
 // Game mode (which knows by process name) says one started and ended.
 //
-// Deferred: capping the resolution of a background stream. A page's video player can
-// only be steered by that site's own code, and nothing here may script third-party
-// players during a game; pausing the tab is what the memory guard already does.
+// Background video quality cap (Wave 6, the owner approved it; a second OFF-by-default switch):
+//   A tab that is not in front and plays a video on a site with a quality API is asked, by that site's
+//   OWN player API, to stay at a low quality, and is put back to automatic quality the moment it comes to the front,
+//   when the game ends, when the switch goes off, or on the ledger's Undo. Sites handled today (the list in
+//   VexNetCourtesy.VIDEO_SITES, shown in Settings): YouTube (www.youtube.com, m.youtube.com, youtube.com).
+//   It runs one short script in that page only; it reads whether the player is playing, and changes nothing else.
+//   It never touches a site that is not on the list, nor a paused video, nor a tab that was not in the background
+//   for 30 seconds. While a game runs the tabs are capped at once, the one in front included (Vex is behind the game).
+//   Limits, said plainly: the player's quality range call is the site's own and may change; restoring returns to
+//   AUTOMATIC quality, so a quality you picked by hand on that video is not remembered; an ad or a stream that
+//   ignores the call is not changed. This part has been written against the documented player methods and has
+//   NOT been run against a live page.
 const VexNetCourtesy = {
-  KEYS: { on: 'vex.netCourtesy.enabled', last: 'vex.netCourtesy.last' },
+  KEYS: { on: 'vex.netCourtesy.enabled', last: 'vex.netCourtesy.last', cap: 'vex.netCourtesy.videoCap' },
+  CAP_DELAY_MS: 30000,
+  // The sites whose player has a quality call Vex may use. cap/restore run in the page and return { ok, reason? }.
+  VIDEO_SITES: [{
+    id: 'youtube', name: 'YouTube',
+    match: (u) => u.protocol === 'https:' && /^(?:www\.|m\.)?youtube\.com$/i.test(u.hostname) && /^\/(?:watch|shorts|live)\b/.test(u.pathname),
+    cap: "(function(){var p=document.getElementById('movie_player');if(!p||typeof p.setPlaybackQualityRange!=='function')return{ok:false,reason:'no-player'};if(!p.getPlayerState||p.getPlayerState()!==1)return{ok:false,reason:'not-playing'};window.__vexVideoCap={prior:p.getPlaybackQuality?p.getPlaybackQuality():''};p.setPlaybackQualityRange('tiny','small');return{ok:true};})()",
+    restore: "(function(){if(!window.__vexVideoCap)return{ok:false,reason:'not-capped'};var p=document.getElementById('movie_player');delete window.__vexVideoCap;if(!p||typeof p.setPlaybackQualityRange!=='function')return{ok:false,reason:'no-player'};p.setPlaybackQualityRange('tiny','highres');return{ok:true};})()",
+  }],
+  capped: new Map(),          // tab id -> site id
+  _capTimers: new Map(),      // tab id -> timer
+  _capWired: false,
   FEATURE: 'net-courtesy',
   live: new Map(),            // download id -> { paused }
   run: null,                  // { start, app, paused: Set<id>, tabBytes0 }
@@ -30,7 +50,91 @@ const VexNetCourtesy = {
   _now() { return Date.now(); },
 
   enabled() { return VexMediaKit.flag(this.KEYS.on, false); },
-  setEnabled(on) { VexMediaKit.setFlag(this.KEYS.on, !!on); },
+  setEnabled(on) {
+    VexMediaKit.setFlag(this.KEYS.on, !!on);
+    if (!on) this.restoreAllCapped().catch((err) => VexMediaKit.problem('Network courtesy', 'Could not put the video quality back', err));
+  },
+
+  // ---- background video quality cap -------------------------------------------------------------------
+  capEnabled() { return this.enabled() && VexMediaKit.flag(this.KEYS.cap, false); },
+  setCapEnabled(on) {
+    VexMediaKit.setFlag(this.KEYS.cap, !!on);
+    if (!on) this.restoreAllCapped().catch((err) => VexMediaKit.problem('Network courtesy', 'Could not put the video quality back', err));
+  },
+  siteFor(url) {
+    let u;
+    try { u = new URL(String(url || '')); } catch { return null; }   // vex-allow-empty-catch: an address that is not a URL (a blank tab) is simply not a handled site
+    return this.VIDEO_SITES.find((s) => s.match(u)) || null;
+  },
+  _webview(tabId) {
+    if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews) throw new Error('Tabs are not available');
+    const wv = WebviewManager.webviews.get(tabId);
+    return wv && wv.isConnected && typeof wv.executeJavaScript === 'function' ? wv : null;
+  },
+  _tab(tabId) { return typeof TabManager !== 'undefined' ? TabManager.tabs.find((t) => t.id === tabId) : null; },
+  // Ask one tab's player to stay low. -> true when it was changed.
+  async capTab(tabId) {
+    if (!this.capEnabled() || this.capped.has(tabId)) return false;
+    const tab = this._tab(tabId);
+    const site = tab ? this.siteFor(tab.url) : null;
+    const wv = site ? this._webview(tabId) : null;
+    if (!site || !wv) return false;
+    const r = await wv.executeJavaScript(site.cap);
+    if (!r || !r.ok) return false;                           // nothing playing, or no player: nothing was changed
+    this.capped.set(tabId, site.id);
+    if (typeof VexLedger !== 'undefined') {
+      VexLedger.note({ feature: this.FEATURE, what: 'Lowered the video quality of a background ' + site.name + ' tab', why: 'Network courtesy: the background video cap is on; it goes back to automatic when the tab is in front', undo: { kind: 'video-cap-restore', tabIds: [tabId] } });
+    }
+    return true;
+  },
+  async restoreTab(tabId) {
+    const id = this.capped.get(tabId);
+    if (!id) return false;
+    this.capped.delete(tabId);
+    const site = this.VIDEO_SITES.find((s) => s.id === id);
+    const wv = this._webview(tabId);
+    if (!site || !wv) return false;                          // the tab is gone or asleep: its page is new when it wakes
+    const r = await wv.executeJavaScript(site.restore);
+    return !!(r && r.ok);
+  },
+  async restoreAllCapped() {
+    for (const t of this._capTimers.values()) clearTimeout(t);
+    this._capTimers.clear();
+    let n = 0;
+    for (const id of [...this.capped.keys()]) if (await this.restoreTab(id)) n++;
+    return n;
+  },
+  // Cap the tabs that are not in front (all of them while a game runs). -> how many were changed.
+  async capBackground({ includeActive = false } = {}) {
+    if (!this.capEnabled() || typeof TabManager === 'undefined') return 0;
+    let n = 0;
+    for (const t of TabManager.tabs) {
+      if (!includeActive && t.id === TabManager.activeTabId) continue;
+      if (await this.capTab(t.id)) n++;
+    }
+    return n;
+  },
+  // A tab came to the front: it is restored at once; every other handled tab is capped after a while in the background.
+  _onActivated(tabId) {
+    this._clearTimer(tabId);
+    this.restoreTab(tabId).catch((err) => VexMediaKit.problem('Network courtesy', 'Could not put the video quality back', err));
+    if (!this.capEnabled() || typeof TabManager === 'undefined') return;
+    for (const t of TabManager.tabs) {
+      if (t.id === tabId || this.capped.has(t.id) || this._capTimers.has(t.id) || !this.siteFor(t.url)) continue;
+      this._capTimers.set(t.id, setTimeout(() => {
+        this._capTimers.delete(t.id);
+        if (TabManager.activeTabId === t.id) return;
+        this.capTab(t.id).catch((err) => VexMediaKit.problem('Network courtesy', 'Could not lower the video quality', err));
+      }, this.CAP_DELAY_MS));
+    }
+  },
+  _clearTimer(tabId) { const t = this._capTimers.get(tabId); if (t) { clearTimeout(t); this._capTimers.delete(tabId); } },
+  _wireCap() {
+    if (this._capWired) return;
+    this._capWired = true;
+    window.addEventListener('vex:tab-activated', (e) => { if (e.detail && e.detail.tabId != null) this._onActivated(e.detail.tabId); });
+    document.addEventListener('vex:tab-closed', (e) => { const id = e.detail && e.detail.tabId; this._clearTimer(id); this.capped.delete(id); });
+  },
 
   // ---- pure ------------------------------------------------------------------------------
   mb(bytes) {
@@ -95,6 +199,7 @@ const VexNetCourtesy = {
     const run = { start: this._now(), app: String(app || '').replace(/\.exe$/i, ''), paused: new Set(), tabBytes0: 0 };
     this.run = run;
     run.tabBytes0 = await this._tabBytes();
+    if (this.capEnabled()) this.capBackground({ includeActive: true }).catch((err) => VexMediaKit.problem('Network courtesy', 'Could not lower the video quality', err));
     let n = 0;
     for (const id of [...this.live.keys()]) if (await this._pause(id)) n++;
     if (n && typeof VexLedger !== 'undefined') {
@@ -111,6 +216,8 @@ const VexNetCourtesy = {
     const run = this.run;
     if (!run) return null;
     this.run = null;
+    // The videos go back to automatic quality before anything else; a failure is reported, not allowed to hide the summary.
+    await this.restoreAllCapped().catch((err) => VexMediaKit.problem('Network courtesy', 'Could not put the video quality back', err));
     const paused = [...run.paused];
     const { resumed, failed } = await this._resumeAll(paused);
     for (const id of paused) { const e = this.live.get(id); if (e) e.paused = false; }
@@ -132,6 +239,8 @@ const VexNetCourtesy = {
     body.textContent = '';
     body.appendChild(K.info('While a game runs: downloads in progress are paused and resumed when it ends, and Vex tells you how much network it used. Page watches, feeds, news, sync and the status check already wait during a game. No firewall or Windows network setting is changed.'));
     body.appendChild(K.switchRow('Network courtesy mode', this.enabled(), (on) => this.setEnabled(on)));
+    body.appendChild(K.info('Optional: keep the video of a tab that is not in front at a low quality (' + this.VIDEO_SITES.map((s) => s.name).join(', ') + ' only, and only a video that is playing). It goes back to automatic quality when you open the tab, when a game ends or when you switch this off. While a game runs, every such tab is lowered at once. Needs Network courtesy mode.'));
+    body.appendChild(K.switchRow('Lower the quality of background videos', VexMediaKit.flag(this.KEYS.cap, false), (on) => this.setCapEnabled(on)));
     let last = null;
     try { last = K.read(this.KEYS.last, null); } catch (err) { body.appendChild(K.info(err.message)); }
     if (last && last.text) body.appendChild(K.info('Last game: ' + last.text));
@@ -140,11 +249,15 @@ const VexNetCourtesy = {
     if (this._wired) return false;
     this._wired = true;
     this._track();
+    this._wireCap();
     document.addEventListener('vex:game-mode', (e) => {
       const d = e.detail || {};
       (d.active ? this.begin(d.app) : this.end()).catch((err) => VexMediaKit.problem('Network courtesy', 'Could not follow the game', err));
     });
     if (typeof VexLedger !== 'undefined') {
+      VexLedger.registerUndo('video-cap-restore', async (token) => {
+        for (const id of Array.isArray(token.tabIds) ? token.tabIds : []) await this.restoreTab(id);
+      });
       VexLedger.registerUndo('net-courtesy-resume', async (token) => {
         const r = await this._resumeAll(Array.isArray(token.ids) ? token.ids : []);
         if (r.failed) throw new Error(r.failed + ' download' + (r.failed === 1 ? '' : 's') + ' could not be resumed');

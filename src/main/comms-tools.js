@@ -37,6 +37,15 @@ const MAX_CONTENT = 2000;
 const BRIDGE_FILE = 'vex-bridge.json';
 const BRIDGE_SCHEMA = 'vex-bridge/1';
 const MAX_BRIDGE_BYTES = 1024 * 1024;
+// The status channel (T3-062): the OTHER direction of the bridge. Vex writes ONE small command file, vex-status.json,
+// into the bridge folder; the owner's own Vencord plugin (setting allowStatus, off by default) applies it to his own client.
+// Vex never holds a Discord token. The format is the plugin's contract (docs/vencord-bridge.md).
+const STATUS_FILE = 'vex-status.json';
+const STATUS_SCHEMA = 'vex-status/1';
+const STATUS_ACTIONS = ['set', 'clear'];
+const STATUS_TEXT_MAX = 128;
+const STATUS_MAX_HOLD_MS = 7 * 24 * 3600 * 1000;
+const STATUS_EMOJI = /^\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|\p{Emoji_Modifier})*$/u;
 const LIMITS = { mentions: 200, replies: 200, channels: 20, perChannel: 100, text: 2000, name: 100 };
 const DISCORD_URL = /^https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/channels\/(?:@me|\d{5,25})\/\d{5,25}(?:\/\d{5,25})?$/;
 
@@ -111,9 +120,27 @@ function sanitizeBridge(raw) {
   return { schema: BRIDGE_SCHEMA, generatedAt: when(raw.generatedAt), account: clean(raw.account && raw.account.name, LIMITS.name), mentions, replies, channels, skipped };
 }
 
-function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, fs = nodeFs, fetch, pickFolder, confirm, now = () => Date.now() } = {}) {
+// What the command file holds, built and checked HERE from the window's words: nothing else can be written.
+function buildStatusCommand({ action, text, emojiName, expiresAt, seq, issuedAt }) {
+  if (!STATUS_ACTIONS.includes(action)) throw new Error('A status command is "set" or "clear"');
+  const cmd = { schema: STATUS_SCHEMA, seq, issuedAt, action };
+  if (action === 'set') {
+    const t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    if (Array.from(t).length > STATUS_TEXT_MAX) throw new Error('A status text is at most ' + STATUS_TEXT_MAX + ' characters');
+    if (Array.from(t).some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) throw new Error('A status text is one line without control characters');
+    const e = String(emojiName == null ? '' : emojiName).trim();
+    if (e && (e.length > 32 || !STATUS_EMOJI.test(e))) throw new Error('The emoji is one unicode emoji');
+    if (!t && !e) throw new Error('A status needs a text or an emoji');
+    // The plugin (and Discord) end the status at this time, so a crash of Vex never leaves it stuck.
+    if (!Number.isFinite(expiresAt) || expiresAt <= issuedAt || expiresAt > issuedAt + STATUS_MAX_HOLD_MS) throw new Error('A status change needs an end time within ' + (STATUS_MAX_HOLD_MS / 86400000) + ' days');
+    cmd.text = t; cmd.emojiName = e; cmd.expiresAt = Math.round(expiresAt);
+  }
+  return cmd;
+}
+
+function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, statusSeqFile, fs = nodeFs, fetch, pickFolder, confirm, now = () => Date.now() } = {}) {
   if (!secretStore || typeof secretStore.read !== 'function' || typeof secretStore.write !== 'function' || typeof secretStore.clear !== 'function') throw new Error('createCommsTools needs a secret store');
-  if (!webhookFile || !bridgeConfigFile) throw new Error('createCommsTools needs its two files');
+  if (!webhookFile || !bridgeConfigFile || !statusSeqFile) throw new Error('createCommsTools needs its three files');
   if (typeof fetch !== 'function') throw new Error('createCommsTools needs a fetch');
   if (typeof pickFolder !== 'function') throw new Error('createCommsTools needs a folder picker');
   if (typeof confirm !== 'function') throw new Error('createCommsTools needs a confirm box');
@@ -222,7 +249,49 @@ function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, fs = nod
     return { ok: true, mtime: Math.round(st.mtimeMs), data: sanitizeBridge(raw) };
   }
 
-  return { webhookStatus, webhookSet, webhookClear, webhookSend, bridgeStatus, bridgePick, bridgeForget, bridgeRead };
+  // ---- the status channel (T3-062) ---------------------------------------------------------------
+  // Writes exactly one fixed file name in the chosen bridge folder, atomically (temp file, then rename), and refuses to
+  // write through a link or a folder. The FIRST set after Vex starts is confirmed here, by main, showing the exact words,
+  // so a script in a window cannot answer for the owner. A clear needs no confirm: it only puts back what the owner had.
+  // seq only ever grows, also across restarts (statusSeqFile), because the plugin ignores a seq it has already handled.
+  let statusConfirmed = false;
+  function nextSeq() {
+    let last = 0;
+    try { last = Number(JSON.parse(fs.readFileSync(statusSeqFile, 'utf8')).seq) || 0; }
+    catch (err) { if (!err || err.code !== 'ENOENT') throw new Error('The status counter is not readable: ' + err.message, { cause: err }); }
+    const seq = Math.max(last + 1, Math.floor(now() / 1000));
+    fs.writeFileSync(statusSeqFile, JSON.stringify({ seq }));
+    return seq;
+  }
+  async function statusWrite(req = {}) {
+    const { cfg } = target();
+    const issuedAt = now();
+    // Checked before anything is asked or counted.
+    buildStatusCommand({ ...req, seq: 1, issuedAt });
+    if (req.action === 'set' && !statusConfirmed) {
+      const body = buildStatusCommand({ ...req, seq: 1, issuedAt });
+      const yes = await confirm({
+        title: 'Let your Vencord plugin change your Discord status?',
+        message: 'Text: ' + (body.text || '(none)') + (body.emojiName ? '\nEmoji: ' + body.emojiName : '') + '\n\nVex writes this to ' + STATUS_FILE + ' in the folder you chose. Your own plugin applies it (only if you switched "allowStatus" on in the plugin) and puts your old status back when it ends. Vex never holds your Discord token. A client mod is against Discord\'s terms; you accept that for your own account.',
+        okLabel: 'Allow',
+      });
+      if (!yes) throw new Error('The status change was cancelled');
+      statusConfirmed = true;
+    }
+    const body = buildStatusCommand({ ...req, seq: nextSeq(), issuedAt });
+    const file = nodePath.join(cfg.folder, STATUS_FILE);
+    const tmp = file + '.tmp';
+    for (const f of [file, tmp]) {
+      let st = null;
+      try { st = fs.lstatSync(f); } catch (err) { if (!err || err.code !== 'ENOENT') throw err; }
+      if (st && !st.isFile()) throw new Error(nodePath.basename(f) + ' is a link or a folder, and is not written');
+    }
+    fs.writeFileSync(tmp, JSON.stringify(body));
+    fs.renameSync(tmp, file);
+    return { ok: true, seq: body.seq, action: body.action };
+  }
+
+  return { webhookStatus, webhookSet, webhookClear, webhookSend, bridgeStatus, bridgePick, bridgeForget, bridgeRead, statusWrite };
 }
 
-module.exports = { createCommsTools, sanitizeBridge, buildPayload, checkWebhook, webhookLabel, WEBHOOK_RE, BRIDGE_FILE, BRIDGE_SCHEMA, MAX_CONTENT, MAX_BRIDGE_BYTES, LIMITS };
+module.exports = { createCommsTools, sanitizeBridge, buildPayload, checkWebhook, webhookLabel, WEBHOOK_RE, BRIDGE_FILE, BRIDGE_SCHEMA, STATUS_FILE, STATUS_SCHEMA, STATUS_EMOJI, buildStatusCommand, MAX_CONTENT, MAX_BRIDGE_BYTES, LIMITS };

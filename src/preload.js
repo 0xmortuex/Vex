@@ -452,6 +452,7 @@ contextBridge.exposeInMainWorld('vex', {
   commsBridgePick: () => ipcRenderer.invoke('comms:bridge-pick'),
   commsBridgeRead: () => ipcRenderer.invoke('comms:bridge-read'),
   commsBridgeForget: () => ipcRenderer.invoke('comms:bridge-forget'),
+  commsStatusWrite: (req) => ipcRenderer.invoke('comms:status-write', req),
   // The services' own public status pages, for the ones the person listed (main/status-check.js).
   statusCheck: (list) => ipcRenderer.invoke('status:check', list),
   // Local-service launcher and webhook inspector (main/local-services.js, main/webhook-inspector.js).
@@ -459,6 +460,8 @@ contextBridge.exposeInMainWorld('vex', {
   localsvcArm: (on) => ipcRenderer.invoke('localsvc:arm', on),
   localsvcPickFolder: () => ipcRenderer.invoke('localsvc:pick-folder'),
   localsvcAdd: (req) => ipcRenderer.invoke('localsvc:add', req),
+  localsvcPickProgram: () => ipcRenderer.invoke('localsvc:pick-program'),
+  localsvcAddCustom: (req) => ipcRenderer.invoke('localsvc:add-custom', req),
   localsvcRemove: (id) => ipcRenderer.invoke('localsvc:remove', id),
   localsvcStart: (id) => ipcRenderer.invoke('localsvc:start', id),
   localsvcStop: (id) => ipcRenderer.invoke('localsvc:stop', id),
@@ -583,6 +586,7 @@ contextBridge.exposeInMainWorld('vex', {
   // Which downloaded files lost the "from the internet" mark (read-only), and the Windows Security shortcut.
   downloadsMotwCheck:    () => ipcRenderer.invoke('downloads:motw-check'),
   downloadsOpenDefender: (filePath) => ipcRenderer.invoke('downloads:open-defender', filePath),
+  downloadsDefenderScan: (req) => ipcRenderer.invoke('downloads:defender-scan', req),
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),

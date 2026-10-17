@@ -71,6 +71,10 @@ const VexSecurityHelpers = {
 
     this._info(body, 'Downloads. Files named like game cheats, executors, injectors or cracks, and fake "update" installers, are held and explained before they are kept (Web safety decides how often: Settings > Web safety).');
     if (typeof VexDefenderShortcut !== 'undefined') this._toggle(body, 'Scan with Windows Security button on downloads', 'A shield button on a finished program or archive. It opens Windows Security and shows the file; Vex starts no scan.', () => VexDefenderShortcut.enabled(), (on) => VexDefenderShortcut.setEnabled(on));
+    if (typeof VexDefenderShortcut !== 'undefined') {
+      this._toggle(body, 'Scan now with Microsoft Defender (off until you switch it on)', 'A second button on the same downloads runs Defender\'s own scanner (MpCmdRun.exe) on that one file, after a box that shows the exact command. Nothing is uploaded; Defender may quarantine a file it flags.', () => VexDefenderShortcut.scanEnabled(), (on) => VexDefenderShortcut.setScanEnabled(on));
+      this._button(body, 'Scan a file with Defender...', () => VexDefenderShortcut.scan('pick'));
+    }
     if (typeof VexMotwCheck !== 'undefined') {
       this._toggle(body, 'Check the "downloaded from the internet" mark', 'Vex keeps the mark when it moves a download. This lists any download that has lost it. It changes no file.', () => VexMotwCheck.enabled(), (on) => VexMotwCheck.setEnabled(on));
       this._button(body, 'Check the marks on my downloads now', () => VexMotwCheck.show());

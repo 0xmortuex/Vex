@@ -77,3 +77,4 @@ body.fullscreen.chrome-autohide.chrome-reveal .top-tab-bar { transform: none; po
 #vex-read-progress { position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 40; pointer-events: none; background: transparent; }
 #vex-read-progress[hidden] { display: none; }
 #vex-read-progress > div { height: 100%; width: 0; background: var(--vex-accent, var(--primary, #4f8cff)); transition: width 0.4s ease; }
+.find-btn.find-word { text-decoration: underline; text-underline-offset: 2px; }

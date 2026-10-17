@@ -22,7 +22,7 @@ function memStore() {
 let dir, store, calls, respond, picked, asked, answer;
 function make(over = {}) {
   return T.createCommsTools({
-    secretStore: store, webhookFile: 'hook.enc', bridgeConfigFile: path.join(dir, 'comms-bridge.json'),
+    secretStore: store, webhookFile: 'hook.enc', bridgeConfigFile: path.join(dir, 'comms-bridge.json'), statusSeqFile: path.join(dir, 'comms-status-seq.json'),
     fetch: async (url, init) => { calls.push({ url, init }); return respond(url, init); },
     pickFolder: async () => picked, confirm: async (q) => { asked.push(q); return answer; }, now: () => 1_700_000_000_000, ...over,
   });

@@ -188,7 +188,7 @@ Blocking, isolation, Tor, and the things that follow you.
 - **QR code checker** (`qr-verdict`): Reads a QR code from a picture you pick, paste or drop and shows what it holds and a verdict on the address before you open anything. Run it from Ctrl+K, Check a QR code. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.
   - Open: Ctrl+K: "Check a QR code"; Settings > Safer browsing helpers.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Scan with Windows Security button** (`defender-shortcut`): Adds a shield button to a finished download that can run code. It opens Windows Security and shows the file in its folder. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.
+- **Scan with Windows Security button** (`defender-shortcut`): Adds a shield button to a finished download that can run code. It opens Windows Security and shows the file in its folder. An opt-in "Scan now" runs the Microsoft Defender scanner on one file after you confirm the exact command. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.
   - Open: Settings > Safer browsing helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Check the mark on downloads** (`motw-check`): Lists which files Vex downloaded no longer carry Windows' downloaded from the internet mark. Run it from Ctrl+K, Check the marks on my downloads. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.
@@ -546,7 +546,7 @@ Video, audio, screen sharing, streaming services.
 - **Per-panel processor guard** (`panel-guard`): While a game runs, Vex watches how much processor its own side panels use. It puts the heaviest hidden one to sleep if it stays over a limit. On an existing profile it starts off; turn it on in Settings > Games and media.
   - Open: Settings > Games and media.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Network courtesy mode** (`net-courtesy`): While a game runs, Vex pauses its own downloads and tells you afterwards how much network Vex used. When the game ends it resumes the ones it paused. On an existing profile it starts off; turn it on in Settings > Games and media.
+- **Network courtesy mode** (`net-courtesy`): While a game runs, Vex pauses its own downloads and tells you afterwards how much network Vex used. When the game ends it resumes the ones it paused. An opt-in switch also keeps playing YouTube videos in background tabs at a low quality. On an existing profile it starts off; turn it on in Settings > Games and media.
   - Open: Settings > Games and media.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Video watch-later** (`video-later`): Saves the video playing in the front tab into Read Later with its length, channel and how far you got. Use Ctrl+K: Save this video for later, Update progress, or Videos to watch. On an existing profile it starts off; turn it on in Settings > Games and media.
@@ -593,7 +593,7 @@ Apps and tools that live beside the page instead of in a tab.
 - **Discord noise tools** (`discord-noise`): Lets you set hide and mute rules for Vex's own list of kept Discord notifications, and suggests noisy conversations to quiet. Open it with Ctrl+K: Discord noise tools. On an existing profile it starts off; turn it on in Settings > Community and chat tools.
   - Open: Ctrl+K: "Discord noise tools"; Settings > Community and chat tools.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Discord status suggestions** (`discord-status`): When Game mode or a Focus block starts, puts one suggestion in the Attention Inbox to set Discord to Do Not Disturb, with status text you can copy. It suggests going back to Online when the mode ends. On an existing profile it starts off; turn it on in Settings > Community and chat tools.
+- **Discord status suggestions** (`discord-status`): When Game mode or a Focus block starts, puts one suggestion in the Attention Inbox to set Discord to Do Not Disturb, with status text you can copy. It suggests going back to Online when the mode ends. An opt-in switch lets your own Vencord plugin set the status for you and put it back. On an existing profile it starts off; turn it on in Settings > Community and chat tools.
   - Open: Settings > Community and chat tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Vencord bridge** (`vencord-bridge`): Reads one small file written by your own Vencord plugin to show Discord mentions, replies and channel catch-ups. Open it with Ctrl+K: Discord mentions (bridge). On an existing profile it starts off; turn it on in Settings > Community and chat tools.
@@ -654,7 +654,7 @@ For building things, not just browsing them.
   - Open: Settings > Brief actions.
 - **Release radar** (`workflow-release-radar`): Watches the projects you follow and tells you when a new release comes out. Settings > Workflow and chains.
   - Open: Settings > Workflow.
-- **Release check** (`release-check`): Turns this version’s CHANGELOG into a checklist you tick through by hand, and notes which commands you actually opened.
+- **Release check** (`release-check`): Turns this version’s CHANGELOG into a checklist you tick through by hand, and notes which commands you actually opened. An opt-in switch keeps this version’s new features off until you tick their lines.
   - Open: Ctrl+K: "Release check"; Settings > Release check.
 - **GitHub access** (`github-vault`): Keeps a read-only GitHub token sealed in the main process, so the developer features can read GitHub without the token touching a page, a backup or sync. Settings > GitHub access. On an existing profile it starts off; turn it on in Settings > GitHub access.
   - Open: Settings > GitHub access.
@@ -689,7 +689,7 @@ For building things, not just browsing them.
 - **Repo skim** (`repo-skim`): Gives a quick read on a GitHub repository: what it is, when it was last touched, its licence and a few red flags. Reach it from Ctrl+K with "Skim a repository". On an existing profile it starts off; turn it on in Settings > Repo skim.
   - Open: Ctrl+K: "Skim a repository".
   - Default: New: starts off on an existing profile until you switch it on.
-- **Local services** (`local-services`): Lists the dev servers you added (a folder plus one of a few fixed commands) and lets you start and stop them from Vex. Reach it from Ctrl+K with "Local services". On an existing profile it starts off; turn it on in Settings > Local services.
+- **Local services** (`local-services`): Lists the dev servers you added (a folder plus one of a few fixed commands, a QEMU virtual machine recipe, or a program of your own that you pick with fixed arguments) and lets you start and stop them from Vex. Reach it from Ctrl+K with "Local services". On an existing profile it starts off; turn it on in Settings > Local services.
   - Open: Ctrl+K: "Local services".
   - Default: New: starts off on an existing profile until you switch it on.
 - **Webhook inspector** (`webhook-inspector`): Listens on a port of 127.0.0.1 that you choose and lists every request that arrives, so you can see what a webhook really sends. Reach it from Ctrl+K with "Webhook inspector". On an existing profile it starts off; turn it on in Settings > Webhook inspector.

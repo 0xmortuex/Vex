@@ -337,8 +337,9 @@ describe('the fixed set', () => {
   it('has no template that takes a program or a free command line', () => {
     const { svc } = make();
     for (const [id, t] of Object.entries(svc.TEMPLATES)) {
-      expect(['pnpm', 'npm', 'wrangler', 'python', 'node', 'uv'], id).toContain(t.exe);
-      expect(t.fields.every(f => ['script', 'file', 'args'].includes(f)), id).toBe(true);
+      expect(['pnpm', 'npm', 'wrangler', 'python', 'node', 'uv', 'qemu-system-x86_64'], id).toContain(t.exe);
+      // The QEMU recipe (Wave 6) has its own fixed, checked fields; see localServicesWave6.test.js.
+      expect(t.fields.every(f => ['script', 'file', 'args', 'vmname', 'disk', 'iso', 'memory', 'cpus', 'accel', 'display', 'net'].includes(f)), id).toBe(true);
     }
   });
 });

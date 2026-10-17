@@ -686,8 +686,14 @@ const CommsToolsUI = {
     body.appendChild(this._row(open('Open collected links (' + LinkHarvester.links().length + ')', () => this.openLinks())));
 
     this._heading(body, 'Discord status suggestions');
-    body.appendChild(this._note('Vex never changes your Discord status. When Game mode or Focus starts it suggests what to set, and copies the words. The status line can show on your New Tab page.'));
+    body.appendChild(this._note('By default Vex never changes your Discord status: when Game mode or Focus starts it suggests what to set, and copies the words. The status line can show on your New Tab page.'));
     T('Suggest a status for Game and Focus', () => DiscordStatus.enabled(), (v) => DiscordStatus.setEnabled(v));
+    body.appendChild(this._note('Optional: let YOUR OWN Vencord plugin set it. Vex never holds your Discord token; it writes one small file (vex-status.json) into the Vencord bridge folder and your plugin applies it as your CUSTOM status (text and emoji; Online, Idle and Do Not Disturb stay yours), then puts your old status back when the mode ends and at the end time. You must ALSO switch on "allowStatus" in the settings of the Vencord plugin itself, or nothing happens (the plugin does not report back). The first change asks you to confirm the exact words. Each change is in the ledger with Undo. Using a client mod is against Discord\'s terms; that is your choice for your own account. Needs the plugin and the bridge folder (see docs/vencord-bridge.md).'));
+    T('Let my Vencord plugin set the status', () => DiscordStatus.state().apply, (v) => DiscordStatus.setApply(v));
+    body.appendChild(this._row(this._btn('Show what would be sent for Game mode', () => this._guard(() => {
+      const r = DiscordStatus.request('game', 0);
+      window.showToast?.('Game mode would set: ' + r.label.replace(/^Set Discord to /, ''));
+    }))));
     T('Suggest it when a mode starts and ends', () => DiscordStatus.state().suggest, (v) => DiscordStatus.setSuggest(v));
     T('Keep a status line for the New Tab page', () => DiscordStatus.state().line, (v) => DiscordStatus.setLine(v));
     for (const mode of ['game', 'focus', 'back']) {

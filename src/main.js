@@ -7283,7 +7283,7 @@ ipcMain.handle('fx:tcmb', () => _fxRates.tcmb());
 // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook, sealed by the OS
 // in comms-webhook.enc and never handed back, and the folder of the Vencord bridge file, read-only.
 const _commsTools = require('./main/comms-tools').createCommsTools({
-  secretStore, webhookFile: path.join(userDataPath, 'comms-webhook.enc'), bridgeConfigFile: path.join(userDataPath, 'comms-bridge.json'), fetch: boundedNetFetch,
+  secretStore, webhookFile: path.join(userDataPath, 'comms-webhook.enc'), bridgeConfigFile: path.join(userDataPath, 'comms-bridge.json'), statusSeqFile: path.join(userDataPath, 'comms-status-seq.json'), fetch: boundedNetFetch,
   confirm: async ({ title, message, okLabel }) => {
     const win = BrowserWindow.getFocusedWindow() || undefined;
     const opts = { type: 'warning', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
@@ -7305,6 +7305,8 @@ ipcMain.handle('comms:bridge-status', () => _commsTools.bridgeStatus());
 ipcMain.handle('comms:bridge-pick', () => _commsTools.bridgePick());
 ipcMain.handle('comms:bridge-read', () => _commsTools.bridgeRead());
 ipcMain.handle('comms:bridge-forget', () => _commsTools.bridgeForget());
+// The status channel (T3-062): Vex writes one fixed command file (vex-status.json) the owner's own Vencord plugin applies.
+ipcMain.handle('comms:status-write', (_event, req) => _commsTools.statusWrite(req));
 // Status pages the person listed (main/status-check.js): the services' own public Statuspage summaries, read-only.
 const _statusCheck = require('./main/status-check').createStatusCheck({ publicFetch: boundedPublicFetch });
 ipcMain.handle('status:check', (_event, list) => _statusCheck.check(list));
@@ -7347,6 +7349,12 @@ const _localServices = require('./main/local-services').createLocalServices({
     const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
     return { canceled: r.canceled, path: r.filePaths && r.filePaths[0] };
   },
+  pickProgramDialog: async () => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { title: 'Program to start', buttonLabel: 'Use this program', properties: ['openFile'], filters: [{ name: 'Programs', extensions: ['exe'] }] };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    return { canceled: r.canceled, path: r.filePaths && r.filePaths[0] };
+  },
   load: async () => {
     try { return JSON.parse(await fs.promises.readFile(path.join(userDataPath, 'local-services.json'), 'utf8')); }
     catch (err) { if (err && err.code === 'ENOENT') return null; throw new Error('The local services list could not be read: ' + err.message, { cause: err }); }
@@ -7359,6 +7367,8 @@ ipcMain.handle('localsvc:status', () => _localSvcReply(() => _localServices.stat
 ipcMain.handle('localsvc:arm', (_e, on) => _localSvcReply(() => _localServices.arm(on === true)));
 ipcMain.handle('localsvc:pick-folder', () => _localSvcReply(() => _localServices.pickFolder()));
 ipcMain.handle('localsvc:add', (_e, req) => _localSvcReply(() => _localServices.add(req)));
+ipcMain.handle('localsvc:pick-program', () => _localSvcReply(() => _localServices.pickProgram()));
+ipcMain.handle('localsvc:add-custom', (_e, req) => _localSvcReply(() => _localServices.addCustom(req)));
 ipcMain.handle('localsvc:remove', (_e, id) => _localSvcReply(() => _localServices.remove(id)));
 ipcMain.handle('localsvc:start', (_e, id) => _localSvcReply(() => _localServices.start(id)));
 ipcMain.handle('localsvc:stop', (_e, id) => _localSvcReply(() => _localServices.stop(id)));
@@ -9291,6 +9301,29 @@ ipcMain.handle('downloads:motw-check', () => _tidyCall(() => {
 const _defender = require('./main/defender-shortcut').createDefenderShortcut({ shell, isDownloadedFile: (p) => _downloadService.isDownloadedFile(p) });
 ipcMain.handle('downloads:open-defender', async (_e, filePath) => {
   try { return { ok: true, ...(await _defender.open(filePath)) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+// "Scan now" (T3-110, Wave 6): MpCmdRun.exe -Scan -ScanType 3 -File <path>, spawn shell:false, after a confirm raised
+// here that shows the exact command. The program is found in main; the file is a download of Vex's or one picked in a
+// dialog opened here, never a path a window names (main/defender-scan.js).
+const _defenderScan = require('./main/defender-scan').createDefenderScan({
+  spawn: require('child_process').spawn,
+  isDownloadedFile: (p) => typeof p === 'string' && _downloadService.isDownloadedFile(p),
+  confirm: async ({ title, message, okLabel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'question', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
+  pickFile: async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    const opts = { title: 'Choose a file to scan with Microsoft Defender', buttonLabel: 'Choose', properties: ['openFile'] };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    return r.canceled || !r.filePaths || !r.filePaths[0] ? null : r.filePaths[0];
+  },
+});
+ipcMain.handle('downloads:defender-scan', async (_e, req) => {
+  try { return await _defenderScan.scan(req); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('downloads:open-folder', async () => {

@@ -95,6 +95,9 @@ define('downloads:mods-apply', [string(64)]);
 // file Vex downloaded itself. Neither builds an address or a command from what is sent.
 define('downloads:motw-check', []);
 define('downloads:open-defender', [optional(string(4096))]);
+// "Scan now" (src/main/defender-scan.js): a download's path (honoured only for a file Vex downloaded) or "pick", where main
+// opens the dialog. No program name, no argument and no folder can be sent.
+define('downloads:defender-scan', [shape({ source: oneOf(['download', 'pick']), path: optional(string(4096)) })]);
 define('web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);
@@ -614,6 +617,7 @@ define('fx:tcmb', []);
 // Community and chat tools (main/comms-tools.js). The webhook address goes in once and never comes back;
 // a post is one text of at most 2000 characters. The bridge channels take no arguments: main reads one fixed file.
 define('comms:webhook-status comms:webhook-clear comms:bridge-status comms:bridge-pick comms:bridge-read comms:bridge-forget', []);
+define('comms:status-write', [shape({ action: oneOf(['set', 'clear']), text: optional(string(512)), emojiName: optional(string(32)), expiresAt: optional(value => Number.isFinite(value) && value > 0) })]);
 define('comms:webhook-set', [string(300)]);
 define('comms:webhook-send', [shape({ content: string(2000), allowEveryone: optional(boolean) })]);
 // The status pages to read (main/status-check.js): up to 12 addresses, each judged there.
@@ -621,9 +625,11 @@ define('status:check', [value => Array.isArray(value) && value.length >= 1 && va
 // Local-service launcher (main/local-services.js) and webhook inspector (main/webhook-inspector.js).
 // No channel takes a program name or a path: the folder comes from the dialog main shows, and the
 // command from the fixed templates; main checks every word again.
-define('localsvc:status localsvc:pick-folder webhook:stop webhook:status webhook:clear', []);
+define('localsvc:status localsvc:pick-folder localsvc:pick-program webhook:stop webhook:status webhook:clear', []);
 define('localsvc:arm', [boolean]);
 define('localsvc:add', [shape({ name: string(60), token: string(64), template: string(40), params: optional(object), port: optional(value => Number.isSafeInteger(value) && value >= 0 && value <= 65535) })]);
+// The owner's own allowlist entry: tokens from the two dialogs main opened and the words he typed. No program name, no path.
+define('localsvc:add-custom', [shape({ name: string(60), token: string(64), programToken: string(64), args: optional(value => Array.isArray(value) && value.length <= 16 && value.every(a => typeof a === 'string' && a.length <= 200)), port: optional(value => Number.isSafeInteger(value) && value >= 0 && value <= 65535) })]);
 define('localsvc:remove localsvc:start localsvc:stop localsvc:logs', [string(80)]);
 define('webhook:start', [shape({ port: value => Number.isInteger(value) && value >= 0 && value <= 65535, minutes: integer })]);
 define('webhook:list', [optional(value => Number.isSafeInteger(value) && value >= 0)]);
