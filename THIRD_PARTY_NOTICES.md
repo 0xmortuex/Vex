@@ -44,6 +44,10 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 - **jsQR** (`src/renderer/vendor/jsQR.js`) — QR code reader used by the Authenticator to read 2FA QR codes. Apache License 2.0. Copyright 2017 Cosmo Wolfe. https://github.com/cozmo/jsQR. The file is the published `dist/jsQR.js` build and has no version header. Apache-2.0 text below.
 - **Runtime copies of shipped packages** (`src/renderer/vendor/runtime/`) — at build time Vex copies the browser builds of `@mlc-ai/web-llm`, `tesseract.js`, `tesseract.js-core`, `@huggingface/transformers` and `onnxruntime-web` into this folder (with their licence files) so the app can load them in its pages. Their npm packages are build-time only and are not otherwise packed; they and the packages their builds draw on are listed in [Packages inside the runtime copies](#packages-inside-the-runtime-copies), and their licence texts are below.
 
+## Word lists in the Vex source
+
+- **English common-word list** (`src/renderer/js/reading-aids-lists.js`) — the 3,000 commonest words of 40 books that are in the public domain, from [Project Gutenberg](https://www.gutenberg.org/) (book ids are written in the file's header), counted by `scripts/build-wordlists.js`, plus about 40 modern everyday words written for the list. The list holds single words and counts, not text; the books are in the public domain, so there is no licence to carry. Turkish has no list of this size because no public-domain corpus of everyday Turkish could be found; Turkish keeps its short starter list.
+
 ## npm packages shipped with Vex
 
 101 packages. Licence names are as each package declares them in its `package.json`.
