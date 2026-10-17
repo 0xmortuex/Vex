@@ -213,18 +213,21 @@ const WebhookInspector = {
       if (!st.running) {
         stopJob();
         const port = el('input', 'set-input'); port.type = 'number'; port.min = '1024'; port.max = '65535'; port.value = '8788'; port.setAttribute('aria-label', 'Port');
+        const rnd = el('label', ''); const rndBox = document.createElement('input'); rndBox.type = 'checkbox'; rndBox.setAttribute('aria-label', 'Let the system pick a free port');
+        rnd.append(rndBox, ' A random free port');
+        rndBox.addEventListener('change', () => { port.disabled = rndBox.checked; });
         const mins = el('select', 'set-input'); mins.setAttribute('aria-label', 'Stop after');
         for (const m of [5, 10, 30, 60]) mins.appendChild(Object.assign(el('option', '', m + ' minutes'), { value: String(m) }));
         mins.value = '10';
         body.append(S.note('Not listening. Choose a port and for how long. Requests are kept in memory only (1 MB each, the latest 100) and are gone when it stops.'),
           el('div', 'vexsr-rule'), act('Start', async () => {
-            const p = Number(port.value), m = Number(mins.value);
-            if (!(await vexConfirm({ title: 'Start the webhook inspector?', message: 'Vex will listen on 127.0.0.1 port ' + p + ' (this computer only) for ' + m + ' minutes and list what it receives. It forwards nothing.', okLabel: 'Start' }))) return;
+            const p = rndBox.checked ? 0 : Number(port.value), m = Number(mins.value);
+            if (!(await vexConfirm({ title: 'Start the webhook inspector?', message: 'Vex will listen on 127.0.0.1 ' + (p ? 'port ' + p : 'on a free port the system picks (shown once it is running)') + ' (this computer only) for ' + m + ' minutes and list what it receives. It forwards nothing.', okLabel: 'Start' }))) return;
             await LocalToolsBridge.call('webhookStart', { port: p, minutes: m });
             picked = null;
             await draw();
           }, { primary: true }));
-        body.children[1].append(port, mins);
+        body.children[1].append(port, rnd, mins);
         return;
       }
       // Looks every two seconds; the window is redrawn only when something arrived or it stopped.

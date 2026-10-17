@@ -588,7 +588,7 @@ define('localsvc:status localsvc:pick-folder webhook:stop webhook:status webhook
 define('localsvc:arm', [boolean]);
 define('localsvc:add', [shape({ name: string(60), token: string(64), template: string(40), params: optional(object), port: optional(value => Number.isSafeInteger(value) && value >= 0 && value <= 65535) })]);
 define('localsvc:remove localsvc:start localsvc:stop localsvc:logs', [string(80)]);
-define('webhook:start', [shape({ port: integer, minutes: integer })]);
+define('webhook:start', [shape({ port: value => Number.isInteger(value) && value >= 0 && value <= 65535, minutes: integer })]);
 define('webhook:list', [optional(value => Number.isSafeInteger(value) && value >= 0)]);
 define('webhook:get', [integer]);
 // The optional version-review relay (main/feedback-relay.js): the relay address and the review; main validates both again.
