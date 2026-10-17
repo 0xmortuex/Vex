@@ -7071,9 +7071,6 @@ ipcMain.handle('devdesk:revoke-root', (_event, dir) => _devDesk.revokeRoot(dir))
 ipcMain.handle('devdesk:open-file', (_event, req) => _devDesk.openFile(req));
 ipcMain.handle('devdesk:open-terminal', (_event, dir) => _devDesk.openTerminal(dir));
 ipcMain.handle('devdesk:branch', (_event, dir) => _devDesk.branch(dir));
-// Electron/castLabs ticker (main/castlabs-ticker.js): one bounded GET of a public tag list.
-const _castlabs = require('./main/castlabs-ticker').createCastlabsTicker({ fetch: boundedNetFetch });
-ipcMain.handle('castlabs:behind', (_event, force) => _castlabs.check({ force: force === true }));
 // Plugin dev loop (main/dev-extension.js): an unpacked extension folder picked in the
 // folder dialog is loaded from where it is and reloaded when a file in it changes.
 const _devExt = require('./main/dev-extension').createDevExtension({
@@ -7132,6 +7129,10 @@ ipcMain.handle('github:token-set', (_event, token) => _githubVault.set(token));
 ipcMain.handle('github:token-clear', () => _githubVault.clear());
 ipcMain.handle('github:token-test', () => _githubVault.test());
 ipcMain.handle('github:get', (_event, apiPath, opts) => _githubVault.get(apiPath, opts || {}));
+// Electron/castLabs ticker (main/castlabs-ticker.js): one bounded GET of a public tag list, read through the
+// GitHub vault so it gets the token's 5,000 requests an hour when there is one (the token stays in the vault).
+const _castlabs = require('./main/castlabs-ticker').createCastlabsTicker({ fetch: _githubVault.asFetch() });
+ipcMain.handle('castlabs:behind', (_event, force) => _castlabs.check({ force: force === true }));
 // The shared polite client (main/polite-fetch.js): per-host rate limit, Retry-After backoff, an ETag cache and
 // "metered connection" awareness for the watchers' background requests. The package feeds use it; others can.
 const _politeNetFetch = require('./main/polite-fetch').createPoliteFetch({

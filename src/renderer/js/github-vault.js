@@ -60,6 +60,24 @@ const GitHubVault = {
     return JSON.parse(r.text);
   },
 
+  // True when a GitHub read can go through the vault: the switch is on and this build has the bridge.
+  available() {
+    const v = typeof window !== 'undefined' ? window.vex : null;
+    return this.enabled() && !!v && typeof v.githubGet === 'function';
+  },
+
+  // A fetch-shaped read for the features that used to call api.github.com straight from the window (the PR desk,
+  // the watcher, the GitHub panel, the dashboard). An api.github.com address is read by the main process with
+  // the token when there is one (5,000 requests an hour instead of 60); the token never reaches this window.
+  // Anything else, or a build/switch without the vault, is the plain network helper, exactly as before.
+  // -> { ok, status, authed, json(), text() }
+  async fetch(url, init) {
+    const m = /^https:\/\/api\.github\.com(\/.*)$/.exec(String(url));
+    if (!m || !this.available()) return (window.VexNet?.fetch || fetch)(url, init);
+    const r = await this.get(m[1]);
+    return { ok: r.ok, status: r.status, authed: r.authed, json: async () => JSON.parse(r.text), text: async () => r.text };
+  },
+
   quotaText(q = this._quota) {
     if (!q) return '';
     const when = q.resetAt ? ', resets ' + new Date(q.resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';

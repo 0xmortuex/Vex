@@ -158,3 +158,25 @@ describe('a job log', () => {
     }
   });
 });
+
+describe('Wave 5: the endpoints the desk, panel, watch, dashboard and ticker read', () => {
+  it('allows the user, search, pull, check and tag reads and nothing broader', () => {
+    for (const p of ['/users/0xmortuex', '/users/0xmortuex/repos?sort=updated&per_page=10', '/search/issues?per_page=10&sort=updated&q=author%3A0xmortuex%20is%3Apr%20is%3Aopen', '/repos/o/r/pulls/12', '/repos/o/r/pulls?state=all&per_page=30', '/repos/o/r/commits/' + 'a'.repeat(40) + '/check-runs?per_page=30', '/repos/o/r/commits/abcdef1/status', '/repos/castlabs/electron-releases/tags?per_page=100', '/repos/o/r/releases/tags/v1.2.3']) {
+      expect(() => apiUrl(p), p).not.toThrow();
+    }
+    for (const p of ['/search/code?q=x', '/repos/o/r/issues', '/users/x/keys', '/repos/o/r/commits?q=a', '/search/issues?q=a%22b', '/search/issues?q=' + 'a'.repeat(300)]) {
+      expect(() => apiUrl(p), p).toThrow();
+    }
+  });
+  it('asFetch reads a vault-listed address with the token and never shows the token', async () => {
+    make({ 'api.github.com/repos/castlabs/electron-releases/tags': { body: '[{"name":"v1"}]', headers: QUOTA } });
+    await vault.set(TOKEN);
+    const f = vault.asFetch();
+    const res = await f('https://api.github.com/repos/castlabs/electron-releases/tags?per_page=100');
+    expect(res.ok).toBe(true);
+    expect(Buffer.from(await res.arrayBuffer()).toString()).toContain('v1');
+    expect(fetchStub.calls[0].init.headers.Authorization).toBe('Bearer ' + TOKEN);
+    await expect(f('https://evil.example/x')).rejects.toThrow(/api\.github\.com/);
+    await expect(f('https://api.github.com/user/keys')).rejects.toThrow(/not one Vex reads/);
+  });
+});

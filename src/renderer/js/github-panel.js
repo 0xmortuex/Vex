@@ -122,8 +122,8 @@ const GitHubPanel = {
     try {
       const user = encodeURIComponent(this.username);
       const [profileRes, reposRes] = await Promise.all([
-        (window.VexNet?.fetch || fetch)(`https://api.github.com/users/${user}`),
-        (window.VexNet?.fetch || fetch)(`https://api.github.com/users/${user}/repos?sort=updated&per_page=10`)
+        (typeof GitHubVault !== 'undefined' ? GitHubVault.fetch.bind(GitHubVault) : (window.VexNet?.fetch || fetch))(`https://api.github.com/users/${user}`),
+        (typeof GitHubVault !== 'undefined' ? GitHubVault.fetch.bind(GitHubVault) : (window.VexNet?.fetch || fetch))(`https://api.github.com/users/${user}/repos?sort=updated&per_page=10`)
       ]);
 
       if (profileRes.ok && reposRes.ok) {
@@ -163,7 +163,7 @@ const GitHubPanel = {
   // Vex has no GitHub sign-in). → { items, error }
   async _work() {
     try {
-      const r = await (window.VexNet?.fetch || fetch)('https://api.github.com/search/issues?q=' + encodeURIComponent('author:' + this.username + ' is:open') + '&sort=updated&per_page=15');
+      const r = await (typeof GitHubVault !== 'undefined' ? GitHubVault.fetch.bind(GitHubVault) : (window.VexNet?.fetch || fetch))('https://api.github.com/search/issues?q=' + encodeURIComponent('author:' + this.username + ' is:open') + '&sort=updated&per_page=15');
       if (!r.ok) return { items: null, error: 'GitHub answered ' + r.status };
       const j = await r.json();
       return { items: (j.items || []).map(i => ({ pr: !!i.pull_request, title: i.title, url: i.html_url, repo: String(i.repository_url || '').split('/').slice(-2).join('/'), updated: i.updated_at })), error: null };
@@ -177,7 +177,7 @@ const GitHubPanel = {
     const recent = [...repos].sort((a, b) => new Date(b.pushed_at || b.updated_at) - new Date(a.pushed_at || a.updated_at)).slice(0, 5);
     await Promise.all(recent.map(async (repo) => {
       try {
-        const r = await (window.VexNet?.fetch || fetch)('https://api.github.com/repos/' + repo.full_name + '/actions/runs?per_page=1');
+        const r = await (typeof GitHubVault !== 'undefined' ? GitHubVault.fetch.bind(GitHubVault) : (window.VexNet?.fetch || fetch))('https://api.github.com/repos/' + repo.full_name + '/actions/runs?per_page=1');
         if (!r.ok) return;
         const run = ((await r.json()).workflow_runs || [])[0];
         if (run) out[repo.full_name] = run.status === 'completed' ? run.conclusion : 'running';

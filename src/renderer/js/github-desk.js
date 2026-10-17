@@ -20,7 +20,7 @@ const GitHubDesk = {
   username() { try { return (localStorage.getItem('vex.githubUsername') || '').trim(); } catch { return ''; } },
 
   async _json(path) {
-    const f = this._fetch || (window.VexNet && window.VexNet.fetch) || fetch;
+    const f = this._fetch || (typeof GitHubVault !== 'undefined' ? (u, i) => GitHubVault.fetch(u, i) : (window.VexNet && window.VexNet.fetch) || fetch);
     const r = await f(path.startsWith('http') ? path : this.API + path, { headers: { Accept: 'application/vnd.github+json' } });
     if (r.status === 403 || r.status === 429) throw new Error('GitHub asked Vex to slow down; try again in a while');
     if (r.status === 404) throw new Error('GitHub cannot show that (private repositories are not visible to Vex)');

@@ -87,3 +87,21 @@ describe('testing and revoking', () => {
     expect(G.quotaText()).toBe('');
   });
 });
+
+describe('Wave 5: GitHubVault.fetch routes api.github.com reads through the vault', () => {
+  it('sends an api.github.com address to main (no token in the window) and returns a fetch-shaped answer', async () => {
+    const r = await G.fetch('https://api.github.com/users/o/repos?per_page=10');
+    expect(bridge.githubGet).toHaveBeenCalledWith('/users/o/repos?per_page=10', undefined);
+    expect(r.ok).toBe(true);
+    expect(await r.json()).toEqual({ a: 1 });
+  });
+  it('leaves other hosts, and a switched-off vault, to the plain network helper', async () => {
+    window.VexNet = { fetch: vi.fn(async () => ({ ok: true, status: 200 })) };
+    await G.fetch('https://example.com/x');
+    expect(window.VexNet.fetch).toHaveBeenCalledTimes(1);
+    G.setEnabled(false);
+    await G.fetch('https://api.github.com/users/o');
+    expect(window.VexNet.fetch).toHaveBeenCalledTimes(2);
+    expect(bridge.githubGet).not.toHaveBeenCalled();
+  });
+});

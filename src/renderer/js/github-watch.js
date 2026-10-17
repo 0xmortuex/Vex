@@ -52,7 +52,7 @@ const GitHubWatch = {
   },
 
   async _get(path) {
-    const r = await (window.VexNet?.fetch || fetch)(this.API + path, { headers: { Accept: 'application/vnd.github+json' } });
+    const r = await (typeof GitHubVault !== 'undefined' ? (u, i) => GitHubVault.fetch(u, i) : (window.VexNet?.fetch || fetch))(this.API + path, { headers: { Accept: 'application/vnd.github+json' } });
     if (r.status === 404) throw new Error('GitHub cannot show it — private repositories are not visible to Vex');
     if (r.status === 403 || r.status === 429) throw new Error('GitHub asked Vex to slow down; it will try again later');
     if (!r.ok) throw new Error('GitHub answered ' + r.status);

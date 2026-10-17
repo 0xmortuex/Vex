@@ -669,7 +669,7 @@ const VexMemoryTools = {
     const base = { credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store', timeoutMs: this.CHECK_TIMEOUT_MS, maxBytes: 262144 };
     if (w.type === 'github') {
       let r;
-      try { r = await fetcher('https://api.github.com/repos/' + w.target + '/actions/runs?per_page=1', { ...base, headers: { Accept: 'application/vnd.github+json' } }); }
+      try { r = await (typeof GitHubVault !== 'undefined' ? GitHubVault.fetch.bind(GitHubVault) : fetcher)('https://api.github.com/repos/' + w.target + '/actions/runs?per_page=1', { ...base, headers: { Accept: 'application/vnd.github+json' } }); }
       catch (err) { return { state: 'down', detail: 'GitHub could not be reached: ' + ((err && err.message) || 'unknown') }; }
       if (r.status === 404) return { state: 'warn', detail: 'No such public repository' };
       if (r.status === 403 || r.status === 429) return { state: 'warn', detail: 'GitHub asked Vex to slow down' };
