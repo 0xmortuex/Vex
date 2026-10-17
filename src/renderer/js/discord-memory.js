@@ -47,6 +47,7 @@ const DiscordMemory = {
   //   offered  when the automatic refresh was offered, once, in the Attention Inbox
   //   lastAuto when it last refreshed by itself
   //   abPending the Vencord extension folder an A/B measurement turned off and must turn back on
+  //   pluginPending the Vencord plugins a one-plugin-at-a-time memory test turned off and must turn back on (names)
   // Nothing here changes SleepConsent, and the global visibility spoof is unchanged unless rest is on.
   CARE_KEY: 'vex.discordCare',
   CARE_FEATURE: 'discord-memory-care',
@@ -66,7 +67,8 @@ const DiscordMemory = {
     }
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('The saved Discord memory care choices have an unknown shape');
     return { on: v.on !== false, auto: v.auto === true, rest: v.rest === true, offered: Number(v.offered) || 0,
-      lastAuto: Number(v.lastAuto) || 0, abPending: typeof v.abPending === 'string' ? v.abPending : '' };
+      lastAuto: Number(v.lastAuto) || 0, abPending: typeof v.abPending === 'string' ? v.abPending : '',
+      pluginPending: Array.isArray(v.pluginPending) ? v.pluginPending.filter(n => typeof n === 'string' && n.length <= 64).slice(0, 50) : [] };
   },
   _saveCare(patch) {
     const c = Object.assign(this.care(), patch);
@@ -194,7 +196,7 @@ const DiscordMemory = {
   async collect() {
     const d = { problems: [], mode: this.mode(), pid: null, wsMB: null, privMB: null, sharedWith: 0, cpu: null,
       heap: null, domNodes: null, plugins: null, spoofed: null, keepAwake: null, throttled: null,
-      lite: this.lite(), extensions: null, limit: null, vencord: null, profiler: null, care: null, restFn: null };
+      lite: this.lite(), extensions: null, limit: null, vencord: null, profiler: null, care: null, restFn: null, pluginRam: null };
     const sb = this._sidebar();
     const wv = this.webview();
     if (!wv) { d.problems.push('Discord is not loaded (asleep, or not opened yet), so there is nothing to measure'); return d; }
@@ -268,6 +270,9 @@ const DiscordMemory = {
     }
     try { d.vencord = await this.vencordState(); } catch (err) { d.problems.push('Whether Vencord is on could not be read: ' + err.message); }
     try { d.care = this.care(); } catch (err) { d.problems.push('The care choices could not be read: ' + err.message); }
+    if (typeof DiscordPluginRam !== 'undefined') {
+      try { d.pluginRam = await DiscordPluginRam.reportData(); } catch (err) { d.problems.push('The plugin memory results could not be read: ' + err.message); }
+    }
     let why = null;
     try { why = await this.reasonToWait(Date.now(), { ignoreGap: false }); } catch (err) { d.problems.push('Why no notice came could not be worked out: ' + err.message); }
     d.limit = { savedMB: this.limitMB(), effectiveMB: this.effectiveLimitMB(), consent: this.consent(), blockedBy: why,
@@ -326,6 +331,7 @@ const DiscordMemory = {
       if (d.limit.quiet) out.push('  You pressed Later / Not now less than four hours ago.');
       if (d.limit.toldMB) out.push('  It already asked at ' + size(d.limit.toldMB) + ' and asks again only after another ' + this.GROWTH_MB + ' MB of growth.');
     }
+    if (d.pluginRam && typeof DiscordPluginRam !== 'undefined') out.push('', DiscordPluginRam.sectionText({ fast: d.pluginRam.fast, slow: d.pluginRam.slow }, d.pluginRam.profiler));
     const recs = this.recommendations(d);
     if (recs.length) { out.push('', 'What to try, most likely saving first (how much each saves is NOT measured; Measure below shows it for your Discord):'); recs.forEach((r, i) => out.push('  ' + (i + 1) + '. ' + r)); }
     for (const p of d.problems) out.push('', 'Could not read: ' + p);
@@ -799,6 +805,8 @@ const DiscordMemory = {
         else window.VexProblems?.note('Discord memory', 'Vencord could not be turned back on after a cut-off measurement: ' + ((r && r.error) || 'unknown'));
       }, (err) => window.VexProblems?.note('Discord memory', 'Vencord could not be turned back on', err));
     }
+    // A one-plugin-at-a-time memory test that was cut off left a plugin off in Vencord's settings: put it back.
+    if (typeof DiscordPluginRam !== 'undefined') DiscordPluginRam.watchPending();
     if (window.vex && typeof window.vex.extensionsList === 'function') this.vencordState().catch(err => window.VexProblems?.note('Discord memory', 'Vencord state unknown', err));
   },
 
@@ -871,8 +879,8 @@ const DiscordMemory = {
       <p class="setting-info muted" style="margin:2px 0 10px">Off until you turn it on (the notice offers it once). It reloads the hidden Discord panel at most once every six hours, only when it has been hidden ten minutes, is not in a call, a screen share or using the microphone or camera, and showed no unread count or mention in the last half hour. Discord reconnects and stays signed in; every refresh is written to "Why did that happen?". It does not depend on the sleep choice above.</p>
       <div class="setting-toggle-row"><span>Discord rest mode — while hidden and not in a call, Discord is told it is hidden so it can idle</span><label class="toggle"><input type="checkbox" data-care-rest aria-label="Discord rest mode"><span class="toggle-slider"></span></label></div>
       <p class="setting-info muted" style="margin:2px 0 10px">Off by default. Builds on "Rest Discord when hidden and not in a call" below. Trade-off: Discord drops its always-visible disguise while it rests, so notifications and unread badges can lag, and it may reconnect when you open it. Calls are never affected: a call, opening Discord, or a notification waking it puts everything back.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px"><button type="button" class="btn-secondary" data-measure>Measure over 10 minutes</button><button type="button" class="btn-secondary" data-measure-ab>Measure with Vencord, then without</button><button type="button" class="btn-secondary" data-why-big>Why is Discord big?</button></div>
-      <p class="setting-info muted" style="margin:2px 0 10px">Measuring samples Discord’s memory every 30 seconds while it is hidden and shows the trend; nothing is sent. "With Vencord, then without" reloads Discord twice and turns the Vencord extension off for ten minutes (it is turned back on by itself, even if you close the window).</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px"><button type="button" class="btn-secondary" data-measure>Measure over 10 minutes</button><button type="button" class="btn-secondary" data-measure-ab>Measure with Vencord, then without</button><button type="button" class="btn-secondary" data-why-big>Why is Discord big?</button><button type="button" class="btn-secondary" data-plugin-ram>Measure plugin memory</button><button type="button" class="btn-secondary" data-plugin-ram-one>One at a time...</button></div>
+      <p class="setting-info muted" style="margin:2px 0 10px">Measuring samples Discord’s memory every 30 seconds while it is hidden and shows the trend; nothing is sent. "With Vencord, then without" reloads Discord twice and turns the Vencord extension off for ten minutes (it is turned back on by itself, even if you close the window). "Measure plugin memory" asks Chromium which Vencord plugin allocated how much during a window you choose (about a minute, read-only); "One at a time..." turns the plugins you pick off one by one, reloads Discord each time and reads the memory (about 5 minutes per plugin, asks first, puts every plugin back). Results go into "Why is Discord big?".</p>
       <div class="setting-toggle-row"><span>Lighter Discord — avatars, emoji, stickers and server icons stay still (anything people post still loads)</span><label class="toggle"><input type="checkbox" data-lite aria-label="Lighter Discord"><span class="toggle-slider"></span></label></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px"><button type="button" class="btn-secondary" data-plugins>Turn off the heaviest Vencord plugins</button></div>
       <p class="setting-info muted" style="margin:2px 0 0">MessageLoggerEnhanced, MessageLogger, ShowHiddenChannels, PlatformIndicators and WhoReacted — the biggest memory users in the plugin review. Discord reloads after.</p>
@@ -910,6 +918,14 @@ const DiscordMemory = {
     host.querySelector('[data-measure]').addEventListener('click', () => {
       if (typeof DiscordMeasure === 'undefined') { window.showToast?.('The measuring tool is not loaded', 'error'); return; }
       DiscordMeasure.open({ ab: false }).catch(err => window.showToast?.(err.message, 'error'));
+    });
+    host.querySelector('[data-plugin-ram]').addEventListener('click', () => {
+      if (typeof DiscordPluginRam === 'undefined') { window.showToast?.('The plugin memory tool is not loaded', 'error'); return; }
+      DiscordPluginRam.openFast().catch(err => window.showToast?.(err.message, 'error'));
+    });
+    host.querySelector('[data-plugin-ram-one]').addEventListener('click', () => {
+      if (typeof DiscordMeasure === 'undefined') { window.showToast?.('The measuring tool is not loaded', 'error'); return; }
+      DiscordMeasure.open({ plugins: true }).catch(err => window.showToast?.(err.message, 'error'));
     });
     host.querySelector('[data-measure-ab]').addEventListener('click', () => {
       if (typeof DiscordMeasure === 'undefined') { window.showToast?.('The measuring tool is not loaded', 'error'); return; }

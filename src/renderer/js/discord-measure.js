@@ -7,6 +7,8 @@
 //   Measure over 10 minutes        samples the Discord process's working set and its JS heap every 30 seconds
 //                                  WHILE DISCORD IS HIDDEN (a sample taken while it is open, or in a call, is
 //                                  skipped), then shows the trend. Changes nothing. Ends by itself.
+//   Measure plugin memory, one     (discord-plugin-ram.js) turns ONE plugin off at a time in Vencord's own settings, reloads the
+//   at a time                      hidden panel and reads the heap and process memory, with two baselines; every plugin is put back.
 //   Measure with Vencord, then     reloads Discord (hidden, signed in) and samples 10 minutes with Vencord, then,
 //   without                        after a second question, turns the Vencord extension off, reloads Discord and
 //                                  samples 10 minutes again, then turns Vencord back on. Both are FRESH pages
@@ -182,12 +184,12 @@ const DiscordMeasure = {
     }
   },
 
-  async open({ ab = false } = {}) {
+  async open({ ab = false, plugins = false } = {}) {
     if (typeof VexSettingsGroups === 'undefined') throw new Error('The measuring window is not loaded');
     if (this._run && !this._run.finished) throw new Error('A measurement is already running');
     if (!DiscordMemory.webview()) throw new Error('Discord is not loaded (asleep, or not opened yet), so there is nothing to measure');
-    const { overlay, body } = VexSettingsGroups.dialog({ id: 'vex-discord-measure', title: ab ? 'Measure Discord with and without Vencord' : 'Measure Discord for 10 minutes',
-      sub: 'Memory only, on this computer. Samples every 30 seconds while Discord is hidden. Closing this window stops it' + (ab ? ' and turns Vencord back on.' : '.') });
+    const { overlay, body } = VexSettingsGroups.dialog({ id: 'vex-discord-measure', title: plugins ? 'Measure plugin memory, one plugin at a time' : (ab ? 'Measure Discord with and without Vencord' : 'Measure Discord for 10 minutes'),
+      sub: plugins ? 'Memory only, on this computer. Closing this window stops it and turns every plugin back on.' : 'Memory only, on this computer. Samples every 30 seconds while Discord is hidden. Closing this window stops it' + (ab ? ' and turns Vencord back on.' : '.') });
     const status = VexSettingsGroups.note('Starting...');
     const pre = document.createElement('pre');
     pre.className = 'vex-platform-note';
@@ -206,7 +208,10 @@ const DiscordMeasure = {
     const watcher = new MutationObserver(() => { if (!overlay.isConnected) { run.cancelled = true; watcher.disconnect(); } });
     watcher.observe(document.body, { childList: true });
     try {
-      if (ab) {
+      if (plugins) {
+        if (typeof DiscordPluginRam === 'undefined') throw new Error('The plugin memory tool is not loaded');
+        await DiscordPluginRam.runFromDialog(run, body, this);
+      } else if (ab) {
         const ok = await this._runAB(run);
         if (ok) run.say('Done. Vencord is back on.');
       } else {
