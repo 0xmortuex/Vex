@@ -204,7 +204,7 @@
     { id: 'reading-triage', title: 'Reading triage by goals', maturity: 'new', storageKeys: ['vex.readingTriage'], usesKeys: ['vex.readLater'], commands: ['reading-triage'],
       permissions: { reads: ['your read-later list and the goals you typed'], writes: ['your goals'], sends: ['The titles and sites of up to 15 items to your local model, only when you ask for reasons'] } },
     { id: 'seen-before', title: 'Have I seen this before?', maturity: 'new', storageKeys: ['vex.seenBefore'], usesKeys: ['vex.history', 'vex.notes', 'vex.annotations', 'vex.readLater'], commands: ['seen-before'],
-      permissions: { reads: ['the page in front, your history, notes, highlights and read-later list'], writes: ['its own switch'], sends: [] } },
+      permissions: { reads: ['the page in front, your history, notes, highlights and read-later list; after about 40 seconds on a page when the optional prompt is on'], writes: ['its own switch', 'one quiet suggestion in the Attention Inbox when a page matches something you kept'], sends: ['The page title and first words to your own local embedding model (Ollama), only when you press Also search by meaning; never to the cloud'] } },
     { id: 'ai-recipes', title: 'Scheduled AI recipes', maturity: 'new', storageKeys: ['vex.aiRecipes'], usesKeys: ['vex.skills', 'vex.reminders'], commands: ['ai-recipes'],
       permissions: { reads: ['your AI skills'], writes: ['your recipes and one reminder per recipe'], sends: ['Nothing by itself: the skill runs through your AI backend only when you press Run'] } },
     { id: 'watch-judgement', title: 'Watch with judgement', maturity: 'new', storageKeys: ['vex.watchJudge'], usesKeys: ['vex.pageWatches', 'vex.ledger'], commands: ['watch-judgement'],
