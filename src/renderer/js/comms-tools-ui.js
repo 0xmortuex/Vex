@@ -580,6 +580,7 @@ const CommsToolsUI = {
     this._heading(body, 'Unread to task');
     body.appendChild(this._note('Right-click selected text > "Make a task from this", or "Make a task" on a kept notification. The task goes into your To-do note with its source and a day.'));
     T('Use unread to task', () => UnreadTask.enabled(), (v) => UnreadTask.setEnabled(v));
+    T('Also add each task to my Queue (needs a route on the queue bot: docs/queue-bot-add-endpoint.md)', () => UnreadTask.queueOn(), (v) => UnreadTask.setQueue(v));
     const dueSel = this._el('select', 'select'); dueSel.setAttribute('aria-label', 'Default day for a new task');
     for (const [v, t] of UnreadTask.DUES) { const o = this._el('option', '', t); o.value = v; dueSel.appendChild(o); }
     dueSel.value = UnreadTask.defaultDue();

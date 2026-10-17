@@ -437,7 +437,7 @@ Notes, sessions, monitoring, automation.
   - Open: Ctrl+K: "Follow-ups: I owe, waiting on"; Settings > Follow-ups.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Two-minute drawer** (`two-minute`): Shows up to three of your quick chores tagged #2min with a 2:00 countdown. Tag a task in the capture box or a note line, then open Ctrl+K: Two-minute drawer. On an existing profile it starts off; turn it on in Settings > Two-minute drawer.
-  - Open: Ctrl+K: "Two-minute drawer"; Settings > Two-minute drawer.
+  - Open: Ctrl+K: "Two minutes"; Settings > Two-minute drawer.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Deadlines with countdown** (`deadline-ledger`): Lists deadlines such as exams, assignments and releases with days left and, if you count the work, how much to do per day. Open it with Ctrl+K: Deadlines with countdown. On an existing profile it starts off; turn it on in Settings > Deadlines.
   - Open: Ctrl+K: "Deadlines with countdown"; Settings > Deadlines.

@@ -625,7 +625,7 @@
     { id: 'tz-helper', title: 'Timezone helper', group: 'Community and chat tools', maturity: 'new', storageKeys: ['vex.tzHelper'], commands: ['timezone-helper'],
       permissions: quiet({ reads: ['the time you typed and your zone list'], writes: ['your list of zones'] }) },
     { id: 'unread-task', title: 'Unread to task', group: 'Community and chat tools', maturity: 'new', storageKeys: ['vex.unreadTask'], events: ['vex:unread-task'], commands: ['task-from-selection'],
-      permissions: quiet({ reads: ['text you selected, or a kept notification, when you ask'], writes: ['a task line in your To-do note, only when you press it'] }) },
+      permissions: { reads: ['text you selected, or a kept notification, when you ask', 'the queue address and secret from your local sidebar-config.json, only when you switched on adding to the Queue'], writes: ['a task line in your To-do note, only when you press it'], sends: ['The task line to your own queue bot, only when you switched on adding to the Queue'] } },
     { id: 'meeting-links', title: 'Meeting links and join strip', group: 'Community and chat tools', maturity: 'new', storageKeys: ['vex.meetingLinks'], events: ['vex:meeting-links'],
       jobs: ['Meeting join strip'], commands: ['meeting-links'], budget: { jobMsPerMin: 5 },
       permissions: { reads: ['your calendars, kept notifications and (only when you press "Look in my recent mail") the newest mail'], writes: ['links you keep'], sends: [] } },
