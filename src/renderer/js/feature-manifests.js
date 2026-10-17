@@ -115,7 +115,7 @@
     { id: 'table-extract', title: 'Copy tables and lists', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.tableExtract.enabled'], commands: ['table-extract'],
       permissions: { reads: ['the table or list you click on a page'], writes: ['the clipboard or a note, when you ask'], sends: [] } },
     { id: 'video-tools', title: 'Video transcript, chapters and loop', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.videoTools.enabled'], commands: ['video-tools'],
-      permissions: { reads: ['the captions, chapters and position of the video on the page'], writes: ['a note, when you ask'], sends: [] } },
+      permissions: { reads: ['the captions, chapters and position of the video on the page', 'pictures of the video area, only when you press Grab slides'], writes: ['a note, when you ask'], sends: ['Caption text of one chapter at a time to your local model only, when you press Brief by chapter; never to the cloud'] } },
     { id: 'newsletter-lane', title: 'Newsletter lane', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.newsletters', 'vex.newsletters.prefs'], jobs: ['Newsletter lane'], commands: ['newsletter-lane'],
       permissions: { reads: ['the senders and subjects of your newest mail, read-only, while the lane is open or weekly if you chose it'], writes: ['which senders you marked, Read Later and a digest note'], sends: [] } },
     { id: 'resurface', title: 'Bring back old highlights and notes', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.resurface', 'vex.resurface.prefs'], usesKeys: ['vex.annotations', 'vex.notes'], jobs: ['Resurface highlights'], commands: ['resurface'],
