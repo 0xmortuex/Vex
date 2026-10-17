@@ -222,6 +222,11 @@ const AgentTools = {
     const body = String(content || '').trim();
     const name = String(title || '').trim();
     if (!body && !name) throw new Error('A note needs a title or some content');
+    // With "Keep captures in Read later" on (js/inbox.js) a note from a web page becomes an excerpt on that page's row.
+    if (sourceUrl && typeof VexInbox !== 'undefined') {
+      const kept = VexInbox.route({ url: sourceUrl, title: name, excerpt: body || name, from: 'note' });
+      if (kept) return { id: kept.id, title: name, content: body, tags: ['read-later'], sourceUrl: String(sourceUrl), routed: 'read-later' };
+    }
     const now = new Date().toISOString();
     const note = { id: 'note_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), title: name.slice(0, 200), content: body, pinned: false, tags: ['agent'], sourceUrl: String(sourceUrl || ''), sourceTitle: '', createdAt: now, updatedAt: now };
     let notes = [];

@@ -71,6 +71,28 @@ const ReadLater = {
     this.measure(item.id);                       // how long it is, in the background
   },
 
+  // A piece of text kept from a page (a clip, a highlight, a table, a video note) when "Keep captures
+  // in Read later" is on (js/inbox.js): it lands on the page's own row here, as an excerpt, instead of
+  // in a note nobody opens. A page not yet saved gets a row; nothing is fetched. -> the row.
+  addCapture({ url, title, excerpt, from }) {
+    if (!/^https?:\/\//i.test(String(url || ''))) throw new Error('A capture kept in Read later needs a web address');
+    const text = String(excerpt == null ? '' : excerpt).trim().slice(0, 600);
+    if (!text) throw new Error('There is nothing to keep');
+    const piece = { text, from: String(from || 'clip').slice(0, 24), at: Date.now() };
+    let item = this.items.find(i => i.url === url && !i.read);
+    if (item) {
+      if ((item.excerpts || []).some(x => x.text === text)) return item;
+      item.excerpts = [...(item.excerpts || []), piece].slice(-10);
+    } else {
+      const active = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
+      const own = !!active && active.url === url && !TabManager.windowMayAsk(active.partition);
+      item = { id: vexId('rl'), url, title: title || url, at: Date.now(), read: false, excerpts: [piece], ...(own ? { ownSession: true } : {}) };
+      this.items.unshift(item);
+    }
+    this.save();
+    return item;
+  },
+
   // Read the page quietly and keep how long it takes to read, so the list can
   // say "6 min" — a queue you cannot judge is a queue you do not start.
   async measure(id) {
@@ -194,7 +216,7 @@ const ReadLater = {
       r.addEventListener('mouseleave', () => r.style.background = '');
       let host = it.url; try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch {}
       r.innerHTML = `<img src="${it.ownSession || (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(it.url, { partition: it.partition })) ? '' : `https://${encodeURIComponent(host)}/favicon.ico`}" style="width:16px;height:16px;border-radius:4px" data-image-fallback="hide">
-        <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</div><div style="font-size:10.5px;color:var(--text-muted)">${esc(host)} · saved ${esc(this.describeAge(it.at))}${it.minutes ? ' · ' + it.minutes + ' min read' : ''}</div></div>
+        <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</div><div style="font-size:10.5px;color:var(--text-muted)">${esc(host)} · saved ${esc(this.describeAge(it.at))}${it.minutes ? ' · ' + it.minutes + ' min read' : ''}${it.excerpts && it.excerpts.length ? ' · ' + it.excerpts.length + ' kept excerpt' + (it.excerpts.length === 1 ? '' : 's') : ''}</div></div>
         <button data-x style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;font-size:13px" title="Remove" aria-label="Remove">${VexIcons.svg('x', { size: 13 })}</button>`;
       r.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) return; opts.open(it); });
       r.querySelector('[data-x]').addEventListener('click', (e) => { e.stopPropagation(); opts.remove(it); });

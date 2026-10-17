@@ -22,6 +22,7 @@
 const VexInbox = {
   PREF: 'vex.inbox.enabled',     // 'off' hides the command and the brief section
   SEEN: 'vex.inbox.seen',        // when the inbox was last opened (ms)
+  ROUTE: 'vex.inbox.route',      // 'readlater': clips, highlights and the like are kept on the page's Read later row
   RECENT_DAYS: 30,
   LIMIT: 200,
   SOURCES: {
@@ -48,6 +49,23 @@ const VexInbox = {
     try { localStorage.setItem(this.PREF, on ? 'on' : 'off'); }
     catch (err) { throw new Error('Could not save that setting: ' + err.message); }
     return !!on;
+  },
+
+  // T1-009: the capture features wrote to Notes, a panel nobody opens. With this on, a capture that
+  // comes from a web page (a clip, a highlight, a table, a video note) is kept as an excerpt on that
+  // page's Read later row instead; the inbox counts it once. Off until chosen.
+  routeOn() { try { return localStorage.getItem(this.ROUTE) === 'readlater'; } catch (err) { window.VexProblems?.note('Inbox', 'The routing choice could not be read', err); return false; } },
+  setRoute(on) {
+    try { localStorage.setItem(this.ROUTE, on ? 'readlater' : 'notes'); }
+    catch (err) { throw new Error('Could not save that setting: ' + err.message); }
+    return !!on;
+  },
+  // Keeps a capture where the inbox looks. -> the Read later row, or null when routing is off, the
+  // capture has no web page, or Read later is not loaded (the caller then writes to Notes as before).
+  route({ url, title, excerpt, from }) {
+    if (!this.enabled() || !this.routeOn() || !/^https?:\/\//i.test(String(url || ''))) return null;
+    if (typeof ReadLater === 'undefined' || typeof ReadLater.addCapture !== 'function') return null;
+    return ReadLater.addCapture({ url, title, excerpt, from });
   },
 
   _json(key, fallback) {
@@ -106,9 +124,12 @@ const VexInbox = {
     });
     await guard('highlights', async () => {
       const store = await src.highlights();
+      // A highlight also kept as an excerpt on a Read later row is one thing, not two.
+      const kept = new Set();
+      try { for (const i of await src.readLater()) for (const x of (i && i.excerpts) || []) kept.add(String(x.text).trim()); } catch (err) { window.VexProblems?.note('Inbox', 'Could not compare highlights with Read later', err); }
       for (const list of Object.values(store && typeof store === 'object' ? store : {})) {
         for (const h of Array.isArray(list) ? list : []) {
-          if (!h || !h.text || !(h.at >= since)) continue;
+          if (!h || !h.text || !(h.at >= since) || kept.has(String(h.text).trim().slice(0, 600))) continue;
           items.push({ id: 'hl:' + (h.id || h.at), source: 'highlight', text: this._line(h.text), sub: this._line(h.title || h.url, 90), at: h.at, url: h.url || '' });
         }
       }
@@ -241,6 +262,7 @@ const VexInbox = {
   group(el) {
     el.appendChild(VexSettingsGroups.note('One list over your notes, saved pages, highlights, sticky notes and quick captures, with one count of what is new. It reads them where they are and moves nothing.'));
     el.appendChild(VexSettingsGroups.button('Open the inbox', () => this.open(), { primary: true }));
+    el.appendChild(VexSettingsGroup.toggle('Keep clips and highlights from a page in Read later (not in Notes)', this.routeOn(), (on) => { this.setRoute(on); }));
   },
 };
 
