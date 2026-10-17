@@ -282,6 +282,20 @@ define('startup:list startup:signatures applock:stores', []);
 define('applock:make-record', [string(128)]);
 define('applock:lock-on-minimize', [boolean]);
 define('applock:reset', [string(64)]);
+// The encrypted profile lock (main/profile-lock-ipc.js, main/profile-unlock.js). Secrets are passed once and never kept.
+define('profilecrypt:status', []);
+define('profilecrypt:enable profilecrypt:new-recovery', [string(128)]);
+define('profilecrypt:disable profilecrypt:unlock', [oneOf(['passphrase', 'recovery']), string(256)]);
+define('profilecrypt:change', [string(128), string(128)]);
+define('profilecrypt:quit', []);
+// Local transcription of the person's own speech for the meeting copilot (main/transcribe.js): the window never names a path
+// or a program; a segment is a small WAV as base64 text.
+define('transcribe:config', []);
+define('transcribe:pick transcribe:clear', [oneOf(['engine', 'model', 'script'])]);
+define('transcribe:set', [shape({ language: optional(value => typeof value === 'string' && /^(?:auto|[a-z]{2,3})$/.test(value)), keepAudio: optional(boolean) })]);
+define('transcribe:begin', [optional(string(120))]);
+define('transcribe:chunk', [string(64), string(6 * 1024 * 1024)]);
+define('transcribe:end', [string(64)]);
 define('photoprep:open', []);
 define('photoprep:save', [value => value instanceof Uint8Array && value.length > 0 && value.length <= 40 * 1024 * 1024, string(120)]);
 // urgency / feature / id: the Attention Budget (src/main/notify.js). No urgency is "asked".

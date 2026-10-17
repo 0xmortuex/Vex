@@ -47,7 +47,12 @@ function createHealthCheck({ fs, userDataPath, getPersisted, now = () => new Dat
   // Is this file a JSON object a Vex store would read?
   function jsonProblem(file) {
     let text;
-    try { text = fs.readFileSync(file, 'utf8'); }
+    try {
+      const bytes = fs.readFileSync(file);
+      // An encrypted file (main/profile-crypt.js) is not JSON on purpose; it is checked when it is opened.
+      if (require('./profile-crypt').isEnvelope(bytes)) return null;
+      text = bytes.toString('utf8');
+    }
     catch (e) { return { missing: e.code === 'ENOENT', error: e.code || e.message }; }
     try {
       const v = JSON.parse(text);

@@ -61,7 +61,17 @@ function newerThanThisVex(what, found, known) {
 // A file that fails is kept aside (.corrupt-*) and the .bak takes its place; a file with no sum (older Vex) is
 // accepted and gets one on its next save.
 class JsonStore {
-  constructor(directory, { log = console } = {}) { this.directory = directory; this.pending = new Map(); this.schemas = new Map(); this.log = log; }
+  // `codec` (main/profile-crypt.js) encrypts the keys named in `codecKeys` when the profile is
+  // encrypted; the other keys, and every key when there is no codec, are plain files as before.
+  constructor(directory, { log = console, codec = null, codecKeys = null } = {}) {
+    this.directory = directory; this.pending = new Map(); this.schemas = new Map(); this.log = log;
+    this.codec = codec; this.codecKeys = codecKeys ? new Set(codecKeys) : null;
+  }
+  _codecFor(key) { return this.codec && (!this.codecKeys || this.codecKeys.has(key)) ? this.codec : null; }
+  // The codec passes a plain file through, so this reads both an encrypted and a not-yet-encrypted file.
+  // A locked profile raises here: a key that cannot be opened is not a damaged file to fall back from.
+  _text(key, bytes) { const c = this._codecFor(key); return (c ? c.decode(bytes) : bytes).toString('utf8'); }
+  _out(key, text) { const c = this._codecFor(key); return c ? c.encode(Buffer.from(text, 'utf8')) : text; }
   file(key) {
     if (typeof key !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(key)) throw new Error('Invalid storage key');
     return path.join(this.directory, key + '.json');
@@ -106,32 +116,34 @@ class JsonStore {
   async _read(key) {
     const file = this.file(key);
     let raw;
-    try { raw = await fs.promises.readFile(file, 'utf8'); }
+    try { raw = await fs.promises.readFile(file); }
     catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+    // A locked profile must say so: a key that cannot be opened is not a damaged file to fall back from.
+    const text = this._text(key, raw);
     let opened;
-    try { opened = this._open(key, JSON.parse(raw)); } catch (error) {
+    try { opened = this._open(key, JSON.parse(text)); } catch (error) {
       // A newer format or data version is not damage: no older copy takes its place.
       if (error.message === 'Unsupported storage version') throw error;
       try {
-        const backup = this._open(key, JSON.parse(await fs.promises.readFile(file + '.bak', 'utf8')));
+        const backup = this._open(key, JSON.parse(this._text(key, await fs.promises.readFile(file + '.bak'))));
         const mig = await this._migrate(key, file, backup.data, backup.v);
         keepCorruptCopy(file);
         this.log.error(`[Storage] ${file} could not be read (${error.message}); recovered from ${file}.bak. The damaged file was kept as ${file}.corrupt-*.`);
-        await atomicWrite(file, this._envelope(key, mig.data), { backup: false });
+        await atomicWrite(file, this._out(key, this._envelope(key, mig.data)), { backup: false });
         return mig.data;
       } catch (recoverError) {
-        if (recoverError.code === 'EVEXNEWER') throw recoverError;
+        if (recoverError.code === 'EVEXNEWER' || recoverError.name === 'ProfileLockError') throw recoverError;
         throw error;
       }
     }
     if (opened.legacy) {
       // Migration/write errors must not silently revert to an older backup.
       const mig = await this._migrate(key, file, opened.data, undefined);
-      await atomicWrite(file, this._envelope(key, mig.data));
+      await atomicWrite(file, this._out(key, this._envelope(key, mig.data)));
       return mig.data;
     }
     const mig = await this._migrate(key, file, opened.data, opened.v);
-    if (mig.changed) await atomicWrite(file, this._envelope(key, mig.data));
+    if (mig.changed) await atomicWrite(file, this._out(key, this._envelope(key, mig.data)));
     return mig.data;
   }
   enqueue(key, operation) {
@@ -151,14 +163,14 @@ class JsonStore {
       // was saved on every loading event and a sync pull saved every store,
       // each a full rewrite with a forced flush (found 2026-10-09).
       if (before !== null && before === JSON.stringify(data)) return data;
-      await atomicWrite(this.file(key), this._envelope(key, data));
+      await atomicWrite(this.file(key), this._out(key, this._envelope(key, data)));
       return data;
     });
   }
   async write(key, data) { await this.update(key, () => data); return true; }
   clear(key, data = null) {
     return this.enqueue(key, async () => {
-      await atomicWrite(this.file(key), this._envelope(key, data), { backup: false });
+      await atomicWrite(this.file(key), this._out(key, this._envelope(key, data)), { backup: false });
       await fs.promises.rm(this.file(key) + '.bak', { force: true });
       return true;
     });
@@ -172,6 +184,16 @@ class JsonStore {
     });
   }
   async flush() { await Promise.all([...this.pending.values()]); }
+  // Runs `fn` while none of `keys` is being read or written and none can start: each key's queue
+  // is held open until `fn` is done. For changing the files under the store (main/profile-crypt.js).
+  async exclusive(keys, fn) {
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const held = keys.map((key) => new Promise((resolve, reject) => {
+      try { this.enqueue(key, () => { resolve(); return gate; }); } catch (e) { reject(e); }
+    }));
+    try { await Promise.all(held); return await fn(); } finally { release(); }
+  }
 }
 
 class SecretStore {

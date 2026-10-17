@@ -1301,6 +1301,20 @@ ipcMain.handle('app:processes', () => {
 // the settings up as the old one left them, unless the update cover already
 // did (main/update-backups.js: the one backup around updates, in userData/backups).
 const _updateBackups = require('./main/update-backups').createUpdateBackups({ fs, dir: path.join(userDataPath, 'backups') });
+// Encrypted profile lock (T3-123, main/profile-crypt.js). Off unless the person switched it on in
+// Settings; then the preference file and some data-store keys are encrypted and this asks for the
+// passphrase in a small window before anything is read (main/profile-unlock.js). An encryption that
+// was cut off is undone here, with no key. A lock that cannot be read ends in an error box.
+const _profileCrypt = require('./main/profile-crypt').createProfileCrypt({ userDataPath });
+let _profileCryptStartup = null;
+try {
+  if (_profileCrypt.recover().recovered) console.warn('[ProfileLock] an encryption that did not finish was undone; the profile is plain text again');
+} catch (err) { _profileCryptStartup = err; }
+const _profileGate = require('./main/profile-unlock').createUnlockGate({
+  app, BrowserWindow, ipcMain, dialog, profileCrypt: _profileCrypt, startupError: _profileCryptStartup,
+  htmlFile: path.join(__dirname, 'renderer', 'profile-unlock.html'), preloadFile: path.join(__dirname, 'preload-profile-unlock.js'),
+});
+const _profileReady = _profileGate.ready;
 try {
   // The copies the old second system kept (settings-backups), once, into backups.
   const moved = _updateBackups.migrateLegacy(path.join(userDataPath, 'settings-backups'));
@@ -1312,7 +1326,8 @@ const _bootGuard = require('./main/safe-mode').createBootGuard({
   fs,
   argv: process.argv,
   version: app.getVersion(),
-  backupFirstStart: (o) => _updateBackups.saveAtFirstStart({ ...o, persistFile: path.join(userDataPath, 'vex-persist.json'), volatileFile: path.join(userDataPath, 'vex-persist-volatile.json') }),
+  // Not while the profile is encrypted: the backup would be a plaintext copy of it.
+  backupFirstStart: (o) => (_profileCrypt.status().enabled ? null : _updateBackups.saveAtFirstStart({ ...o, persistFile: path.join(userDataPath, 'vex-persist.json'), volatileFile: path.join(userDataPath, 'vex-persist-volatile.json') })),
   log: (m) => console.log(m),
 });
 const _boot = _bootGuard.begin();
@@ -6292,7 +6307,7 @@ app.on('web-contents-created', (_event, contents) => {
 });
 
 // Load installed extensions once the app is ready
-app.whenReady().then(() => {
+app.whenReady().then(() => _profileReady).then(() => {
   loadAllExtensionsOnStartup().catch(err => console.error('[Extensions] startup load failed:', err.message))
     // Then the update checks (main/extension-updates.js): not in safe mode,
     // which exists to start without extensions doing anything.
@@ -7121,7 +7136,9 @@ function handleDictateShortcut(event, input) {
 }
 const storagePath = path.join(userDataPath, 'vex-storage');
 const { JsonStore, SecretStore, atomicWrite } = require('./main/file-store');
-const dataStore = new JsonStore(storagePath);
+// The keys encrypted when the profile lock is on (main/profile-lock-ipc.js STORAGE_KEYS): the others are
+// plain files that other code reads directly.
+const dataStore = new JsonStore(storagePath, { codec: _profileCrypt.codec, codecKeys: require('./main/profile-lock-ipc').STORAGE_KEYS });
 // The data schema version of the files main reads itself (main/file-store.js stamps it as `v`). A file at an
 // older version is migrated on its next read; one written by a newer Vex is refused, not overwritten.
 for (const key of ['settings', 'history', 'sync-records', 'sync-tiles-joined', 'gui-style']) dataStore.schema(key, { version: 1 });
@@ -7419,23 +7436,25 @@ const persistFile = path.join(userDataPath, 'vex-persist.json');
 const preferences = require('./main/storage').createPreferenceStore(persistFile, {
   volatileFile: path.join(userDataPath, 'vex-persist-volatile.json'),
   splitEnabled: (data) => data['vex.volatileSplit'] === '1' || process.env.VEX_VOLATILE_SPLIT === '1',
+  codec: _profileCrypt.codec,
 });
 const _persistLoad = preferences.load;
 // History is kept once, in vex.history: visits still only in the old second
 // copy (vex-storage/history.json) join it before the interface reads it, and
 // the file goes (main/history-fold.js). A failure keeps the file, says why,
 // and is tried again next start.
-const _historyFolded = require('./main/history-fold').foldHistoryFile({ dataStore, preferences })
+const _historyFolded = _profileReady.then(() => require('./main/history-fold').foldHistoryFile({ dataStore, preferences }))
   .then(r => { if (r.removed) console.log('[History] folded history.json into vex.history: ' + r.added + ' visit(s) added'); })
   .catch(err => console.error('[History] history.json could not be folded into vex.history; it is kept for the next start:', err));
 ipcMain.handle('persist-get-all', async () => { await _historyFolded; return _persistLoad(); });
 // Locked when Vex was closed: locked from the first moment, not from when the
 // window has loaded and says so, so there is no gap to open DevTools in. The
 // window starts locked in the same case (js/vex-lock.js, init).
-try {
+// An encrypted profile is read only after it has been unlocked (main/profile-unlock.js).
+_profileReady.then(() => {
   const saved = _persistLoad();
   if (saved['vex.locked'] === '1' && require('./main/lock-pin').parseRecord(saved['vex.lockPin'])) _vexLocked = true;
-} catch (err) { console.error('[Lock] could not read whether Vex was locked:', err.message); }
+}).catch((err) => { console.error('[Lock] could not read whether Vex was locked:', err.message); });
 
 // === Geolocation preference exposed to webview preloads ===
 // The preload polyfill (preload-webview.js) runs in guest processes and can't
@@ -7613,6 +7632,18 @@ require('./main/secure-stores').registerAppLock({
     fs.rmSync(path.join(userDataPath, 'lock-tries.json'), { force: true });
   },
 });
+
+// Settings' side of the encrypted profile lock (T3-123): status, switch on, switch back, new passphrase / recovery code.
+require('./main/profile-lock-ipc').registerProfileLock({
+  ipcMain, profileCrypt: _profileCrypt, preferences, dataStore, userDataPath, mainWindowOf: () => mainWindow,
+});
+
+// Local transcription of the owner's own speech for the meeting copilot (main/transcribe.js): the engine and the
+// model are files the person picked; nothing is sent anywhere.
+{
+  const { createTranscriber, registerTranscribe } = require('./main/transcribe');
+  registerTranscribe({ ipcMain, mainWindowOf: () => mainWindow, transcriber: createTranscriber({ store: dataStore, dialog, userDataPath }) });
+}
 
 // Gmail IMAP/SMTP sidebar panel was reverted — see commit history for Phases 1-3.
 // One-time cleanup: remove any leftover encrypted app-password from disk so it
@@ -8407,6 +8438,8 @@ app.whenReady().then(() => {
 
 // Custom protocol handler for vex://
 app.whenReady().then(async () => {
+  // An encrypted profile is asked for first: nothing below can read the settings before that.
+  await _profileReady;
   // The user's own game hotkeys, from the settings file (main/game-hotkeys.js).
   // Registered after the preference store exists, and only what registers is kept.
   try {
@@ -8512,6 +8545,7 @@ app.whenReady().then(async () => {
   secureSessions.onSessionCreated(_coverWithAllRoute);
   await applyStoredRoutings();
   createWindow();
+  _profileGate.finish();
   // Downloads Vex was closed in the middle of carry on, if the person turned that on
   // (main/download-resume.js). After the window had time to load, so the Downloads panel
   // hears of them.

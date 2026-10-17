@@ -7,9 +7,12 @@
 //            fetched again here.
 //   DURING   a notes panel that stamps every line with the time, and marks a
 //            line as a decision, an action or a question with one key. It
-//            types and stores text. It NEVER records sound or the screen: no
-//            microphone, no capture, no camera is asked for anywhere in this
-//            file (a test reads the source to keep it that way).
+//            types and stores text. Nothing in THIS file opens any input device
+//            or captures the screen (a test reads the source to keep it that
+//            way). A transcript of the person's own voice can be added to the
+//            session, only when they start it in js/meeting-transcribe.js
+//            (opt-in, local engine, consent each time); this file only stores
+//            the text that module hands over, in session.transcript.
 //   AFTER    your OWN local model (Ollama) turns the timestamped lines into a
 //            summary, decisions and action items. Nothing leaves this PC, and
 //            nothing is created until you tick the items and confirm: the
@@ -29,6 +32,7 @@ const MeetingCopilot = {
   MAX_LINE_CHARS: 1000,
   MAX_PROMPT_CHARS: 12000,
   MAX_ITEMS: 40,
+  MAX_TRANSCRIPT: 1500,
 
   // --- one line -------------------------------------------------------------
   // "d: ship Friday" / "decision: ..." -> decision; "a:" / "action:" / "todo:"
@@ -130,6 +134,25 @@ const MeetingCopilot = {
     return line;
   },
 
+  // Text from the person's own voice (js/meeting-transcribe.js), kept apart from the typed lines:
+  // { at, speaker, text }. Mutates the session. `speaker` is a label such as "during Ana's turn".
+  addTranscript(session, raw, { at = Date.now(), speaker = '' } = {}) {
+    if (!session || !Array.isArray(session.lines)) throw new Error('There is no meeting session');
+    const text = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim().slice(0, this.MAX_LINE_CHARS * 4);
+    if (!text) throw new Error('There is no text to add');
+    if (!Array.isArray(session.transcript)) session.transcript = [];
+    if (session.transcript.length >= this.MAX_TRANSCRIPT) throw new Error('This meeting has the most transcript parts a session keeps (' + this.MAX_TRANSCRIPT + ')');
+    const part = { at, speaker: String(speaker || '').slice(0, 80), text };
+    session.transcript.push(part);
+    return part;
+  },
+
+  // The typed lines and the spoken parts in time order, spoken ones as plain notes marked (spoken).
+  allLines(session) {
+    const spoken = (Array.isArray(session.transcript) ? session.transcript : []).map(t => ({ at: t.at, kind: 'note', spoken: true, speaker: t.speaker || '', text: t.text }));
+    return spoken.length ? [...session.lines, ...spoken].sort((a, b) => a.at - b.at) : session.lines;
+  },
+
   // "+12:05" from the start of the meeting.
   offset(session, line) {
     const s = Math.max(0, Math.floor((line.at - session.startedAt) / 1000));
@@ -151,8 +174,8 @@ const MeetingCopilot = {
   buildPrompt(session, { maxChars = this.MAX_PROMPT_CHARS } = {}) {
     const when = new Date(session.startedAt);
     const head = 'Meeting: ' + session.title + '\nDate: ' + this._iso(when) + '\nNotes, each with minutes from the start:\n';
-    const render = (l) => '[' + this.offset(session, l) + '] ' + (l.kind === 'note' ? '' : '(' + l.kind + ') ') + l.text;
-    const keep = session.lines.map((l, i) => ({ l, i, on: true }));
+    const render = (l) => '[' + this.offset(session, l) + '] ' + (l.spoken ? '(spoken' + (l.speaker ? ' ' + l.speaker : '') + ') ' : l.kind === 'note' ? '' : '(' + l.kind + ') ') + l.text;
+    const keep = this.allLines(session).map((l, i) => ({ l, i, on: true }));
     const size = () => head.length + keep.filter(k => k.on).reduce((n, k) => n + render(k.l).length + 1, 0);
     let truncated = false;
     for (const k of keep) {                                     // oldest plain lines go first
@@ -226,6 +249,9 @@ const MeetingCopilot = {
     if (result.actions.length) L.push('', '## Action items', ...result.actions.map(a => '- [ ] ' + a.text + (a.owner && !a.text.includes('@' + a.owner) ? ' (' + a.owner + ')' : '') + (a.due && !a.text.includes(a.due) ? ' @' + a.due : '')));
     if (result.questions.length) L.push('', '## Open questions', ...result.questions.map(q => '- ' + q));
     if (session.lines.length) L.push('', '## Notes, with times', ...session.lines.map(l => '- ' + this.offset(session, l) + (l.kind === 'note' ? '' : ' **' + l.kind + '**') + ' ' + l.text));
+    if (Array.isArray(session.transcript) && session.transcript.length) {
+      L.push('', '## Transcript of my voice (made on this PC)', ...session.transcript.map(t => '- ' + this.offset(session, t) + (t.speaker ? ' _' + t.speaker + '_' : '') + ' ' + t.text));
+    }
     return L.join('\n');
   },
 
@@ -324,6 +350,7 @@ const MeetingCopilot = {
   _store(session) { localStorage.setItem(this.SESSION_KEY, JSON.stringify(session)); },
   begin(opts) { const existing = this.current(); if (existing && !existing.endedAt) return existing; const s = this.newSession(opts); this._store(s); return s; },
   note(raw, opts) { const s = this.current(); if (!s) throw new Error('Start the meeting notes first'); const l = this.addLine(s, raw, opts); this._store(s); return l; },
+  transcript(raw, opts) { const s = this.current(); if (!s) throw new Error('No meeting is running'); const t = this.addTranscript(s, raw, opts); this._store(s); return t; },
   mark(index, kind) { const s = this.current(); if (!s) throw new Error('No meeting is running'); const l = this.setKind(s, index, kind); this._store(s); return l; },
   discard() { localStorage.removeItem(this.SESSION_KEY); },
 
@@ -333,7 +360,7 @@ const MeetingCopilot = {
     try { s = this.current(); } catch { return null; }
     if (!s) return null;
     const count = (k) => s.lines.filter(l => l.kind === k).length;
-    return { id: s.id, title: s.title, startedAt: s.startedAt, ended: !!s.endedAt, lines: s.lines.length, decisions: count('decision'), actions: count('action'), questions: count('question') };
+    return { id: s.id, title: s.title, startedAt: s.startedAt, ended: !!s.endedAt, lines: s.lines.length, spoken: Array.isArray(s.transcript) ? s.transcript.length : 0, decisions: count('decision'), actions: count('action'), questions: count('question') };
   },
 
   // --- BEFORE ---------------------------------------------------------------
@@ -379,7 +406,7 @@ const MeetingCopilot = {
           ${prep ? '<button data-start-event type="button" class="btn-primary">Start notes for this meeting</button>' : ''}
           <button data-start type="button" class="btn-secondary">Start notes without a meeting</button>
         </div>
-        <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">The notes are typed text only. Vex does not listen to or record the meeting.</div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">${window.VexMeetingTranscribe && window.VexMeetingTranscribe.enabled() ? 'The notes are typed text. Only if you press &quot;Listen to my voice&quot; and agree, your own microphone is turned into text on this PC. Vex never records the call or the screen.' : 'The notes are typed text only. Vex does not listen to or record the meeting.'}</div>
       </div>`;
       body.querySelector('[data-start-event]')?.addEventListener('click', () => { try { this.begin({ event: prep.event }); drawLive(); } catch (err) { fail(err); } });
       body.querySelector('[data-start]')?.addEventListener('click', async () => {
@@ -405,6 +432,7 @@ const MeetingCopilot = {
           <input data-input class="set-input" style="flex:1;min-width:200px" placeholder="A note…  (d: decision · a: action · q: question)" aria-label="Meeting note">
           <button data-add type="button" style="${btn}">Add</button>
         </div>
+        <div data-transcribe></div>
         <div style="padding:0 14px 12px;display:flex;gap:8px;flex-wrap:wrap">
           <button data-end type="button" class="btn-primary">End and summarise</button>
           <button data-save-plain type="button" class="btn-secondary">End and save without a summary</button>
@@ -433,6 +461,8 @@ const MeetingCopilot = {
       const finish = async (withModel) => {
         let session;
         try {
+          // The input is closed and the last spoken part is in the session before the notes are read.
+          if (window.VexMeetingTranscribe) await window.VexMeetingTranscribe.stopIfListening();
           session = this.current();
           if (!session.lines.length) throw new Error('There are no notes to save');
           session.endedAt = Date.now();
@@ -447,6 +477,7 @@ const MeetingCopilot = {
         if (!result) result = this.plain(session);
         drawReview(session, result);
       };
+      if (window.VexMeetingTranscribe) window.VexMeetingTranscribe.mount(body.querySelector('[data-transcribe]'));
       body.querySelector('[data-end]').addEventListener('click', () => finish(true));
       body.querySelector('[data-save-plain]').addEventListener('click', () => finish(false));
       input.focus();
