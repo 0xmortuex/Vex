@@ -548,6 +548,7 @@ define('github:get', [string(400), optional(shape({ authed: optional(boolean) })
 define('devfeeds:latest', [oneOf(['npm', 'pypi']), string(120)]);
 define('devfeeds:advisories', [oneOf(['npm', 'pypi']), string(120), string(60)]);
 define('devfeeds:ping', [string(300)]);
+define('devfeeds:notes', [oneOf(['npm', 'pypi']), string(120), string(60), string(60)]);
 // Developer desk (main/dev-desk.js), plugin dev loop (main/dev-extension.js) and the Electron
 // ticker (main/castlabs-ticker.js). Folders come only from main's folder dialog; a path to open
 // is checked against the granted folders in main.

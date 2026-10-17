@@ -5,6 +5,8 @@
 //   latest(ecosystem, name)            the newest published version of a package
 //                                      (registry.npmjs.org, pypi.org)
 //   advisories(ecosystem, name, ver)   known advisories for that version (api.osv.dev)
+//   notes(eco, name, from, to)         the GitHub release notes between two versions, BREAKING lines picked out
+//                                      (only the github.com repository the registry names)
 //   ping(url)                          one GET to an endpoint the owner listed
 //                                      (a Cloudflare worker, a bot), for the health board
 //
@@ -37,7 +39,49 @@ function checkEndpointUrl(href) {
   return u;
 }
 
-function createDevFeeds({ fetch, publicFetch } = {}) {
+// ---- release notes between two versions (T1-031) -----------------------------------------------
+// The release notes of a package live on its GitHub releases page. The registry says which repository that is;
+// only github.com repositories are followed, so the one other host that is ever asked is api.github.com.
+function githubRepoOf(url) {
+  const short = /^github:([A-Za-z0-9_.-]{1,100})\/([A-Za-z0-9_.-]{1,100})(?:#.*)?$/i.exec(String(url == null ? '' : url));
+  if (short) return short[1] + '/' + short[2];
+  const m =/github\.com[/:]([A-Za-z0-9_.-]{1,100})\/([A-Za-z0-9_.-]{1,100}?)(?:\.git)?(?:[/#?].*)?$/i.exec(String(url == null ? '' : url));
+  if (!m || m[1] === '.' || m[1] === '..' || m[2] === '.' || m[2] === '..') return '';
+  return m[1] + '/' + m[2];
+}
+
+// "v1.2.3", "pkg@1.2.3", "release-1.2" -> [1, 2, 3] or null
+function versionOf(tag) {
+  const m = /(\d+)\.(\d+)(?:\.(\d+))?/.exec(String(tag == null ? '' : tag));
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3] || 0)] : null;
+}
+const cmpV = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+
+// Lines of a release note that announce a breaking change. A line is one when it says BREAKING, "breaking change",
+// or begins a "migration" / "removed" heading-like note.
+function breakingLines(body) {
+  return String(body == null ? '' : body).split(/\r?\n/)
+    .filter(l => /\bBREAKING\b|breaking[ -]change|\bno longer (?:supports?|works?)\b|\bremoved support\b|\bdrops? support\b/i.test(l))
+    .map(l => l.replace(/^[\s>*#-]+/, '').trim().slice(0, 240)).filter(Boolean).slice(0, 8);
+}
+
+// The releases newer than `from` and not newer than `to`, newest first, each with its breaking lines.
+function selectNotes(releases, from, to, limit = 30) {
+  const lo = versionOf(from), hi = versionOf(to);
+  if (!lo || !hi) throw new Error('Both versions need to look like 1.2.3');
+  const out = [];
+  for (const r of Array.isArray(releases) ? releases : []) {
+    if (!r || r.draft || r.prerelease) continue;
+    const v = versionOf(r.tag_name);
+    if (!v || cmpV(v, lo) <= 0 || cmpV(v, hi) > 0) continue;
+    const body = String(r.body || '').slice(0, 4000);
+    const lines = breakingLines(body);
+    out.push({ tag: String(r.tag_name).slice(0, 80), version: v.join('.'), name: String(r.name || r.tag_name || '').slice(0, 120), url: String(r.html_url || '').slice(0, 300), body, breaking: lines.length > 0, breakingLines: lines });
+  }
+  return out.sort((a, b) => cmpV(versionOf(b.version), versionOf(a.version))).slice(0, limit);
+}
+
+function createDevFeeds({ fetch, publicFetch, github } = {}) {
   if (typeof fetch !== 'function') throw new Error('createDevFeeds needs a fetch');
   if (typeof publicFetch !== 'function') throw new Error('createDevFeeds needs a public-only fetch');
 
@@ -64,6 +108,49 @@ function createDevFeeds({ fetch, publicFetch } = {}) {
       return { name: n, version: v };
     }
     throw new Error('Unknown ecosystem: ' + ecosystem);
+  }
+
+  // The repository a package says it lives in -> 'owner/repo' on github.com, or throws why not.
+  async function repoOf(ecosystem, n) {
+    if (ecosystem === 'npm') {
+      const res = await fetch('https://registry.npmjs.org/' + n.replace('/', '%2F') + '/latest', { headers: { Accept: 'application/json' }, redirect: 'error', credentials: 'omit', timeoutMs: 15000, maxBytes: 512 * 1024, egress: egress('Dependency radar'), polite: { background: true, ttlMs: 300000 } });
+      if (!res.ok) throw new Error('npm answered ' + res.status);
+      const j = await res.json();
+      const r = j && j.repository;
+      return githubRepoOf(typeof r === 'string' ? r : r && r.url);
+    }
+    if (ecosystem === 'pypi') {
+      const res = await fetch('https://pypi.org/pypi/' + encodeURIComponent(n) + '/json', { headers: { Accept: 'application/json' }, redirect: 'error', credentials: 'omit', timeoutMs: 15000, maxBytes: 4 * 1024 * 1024, egress: egress('Dependency radar'), polite: { background: true, ttlMs: 300000 } });
+      if (!res.ok) throw new Error('PyPI answered ' + res.status);
+      const urls = (await res.json() || {}).info || {};
+      for (const u of [...Object.values(urls.project_urls || {}), urls.home_page]) { const r = githubRepoOf(u); if (r) return r; }
+      return '';
+    }
+    throw new Error('Unknown ecosystem: ' + ecosystem);
+  }
+
+  // Release notes between `from` (exclusive) and `to` (inclusive). -> { name, repo, releases: [...], note }
+  async function notes(ecosystem, name, from, to) {
+    const n = String(name == null ? '' : name);
+    if (!NAME_RE.test(n)) throw new Error('That is not a package name');
+    for (const v of [from, to]) if (!/^[0-9A-Za-z.+_-]{1,60}$/.test(String(v))) throw new Error('That is not a version');
+    const repo = await repoOf(ecosystem, n);
+    if (!repo) return { name: n, repo: '', releases: [], note: n + ' does not name a public GitHub repository, so there are no release notes to read' };
+    const path = '/repos/' + repo + '/releases?per_page=100';
+    let list;
+    if (typeof github === 'function') {
+      const r = await github(path);
+      if (r.status === 404) return { name: n, repo, releases: [], note: repo + ' has no public releases page' };
+      if (!r.ok) throw new Error('GitHub answered ' + r.status + ' for the releases of ' + repo);
+      list = JSON.parse(r.text);
+    } else {
+      const res = await fetch('https://api.github.com' + path, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Vex' }, redirect: 'error', credentials: 'omit', timeoutMs: 15000, maxBytes: 2 * 1024 * 1024, egress: egress('Dependency radar'), polite: { background: true, ttlMs: 300000 } });
+      if (res.status === 404) return { name: n, repo, releases: [], note: repo + ' has no public releases page' };
+      if (!res.ok) throw new Error('GitHub answered ' + res.status + ' for the releases of ' + repo);
+      list = await res.json();
+    }
+    const releases = selectNotes(list, from, to);
+    return { name: n, repo, releases, note: releases.length ? '' : 'No release notes were published between ' + from + ' and ' + to + ' (the project may only tag versions)' };
   }
 
   async function advisories(ecosystem, name, version) {
@@ -93,7 +180,7 @@ function createDevFeeds({ fetch, publicFetch } = {}) {
     return { ok: res.ok, status: res.status, ms: Date.now() - t0, error: '', text };
   }
 
-  return { latest, advisories, ping, checkEndpointUrl };
+  return { latest, advisories, ping, notes, checkEndpointUrl };
 }
 
-module.exports = { createDevFeeds, checkEndpointUrl, NAME_RE };
+module.exports = { createDevFeeds, checkEndpointUrl, NAME_RE, githubRepoOf, versionOf, breakingLines, selectNotes };

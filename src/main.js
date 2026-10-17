@@ -7141,10 +7141,11 @@ const _politeNetFetch = require('./main/polite-fetch').createPoliteFetch({
   metered: () => _extUpdates.isMeteredWindows(),
   log: (line) => console.warn(line),
 });
-const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: _politeNetFetch, publicFetch: boundedPublicFetch });
+const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: _politeNetFetch, publicFetch: boundedPublicFetch, github: (p) => _githubVault.get(p) });
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
 ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
+ipcMain.handle('devfeeds:notes', (_event, ecosystem, name, from, to) => _devFeeds.notes(ecosystem, name, from, to));
 // DOI lookup for the sources list (main/doi-resolve.js): one Crossref request, only when the person presses the button.
 const _doiResolver = require('./main/doi-resolve').createDoiResolver({ fetch: boundedNetFetch });
 ipcMain.handle('sources:resolve-doi', async (_event, doi) => {
