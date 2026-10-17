@@ -183,3 +183,71 @@ describe('the shipped manifests on an old-release profile', () => {
     expect(Object.values(sw).every(Boolean)).toBe(true);
   });
 });
+
+// Wave 6 (integration-9): the 'experimental' tier is off on EVERY profile, a brand-new one too, and is never offered.
+// No shipped manifest is experimental yet, so this is checked on a fixture; the shipped Wave 6 manifests are named below.
+describe('the experimental tier', () => {
+  beforeEach(() => {
+    R.define({ id: 'exp-g', title: 'Exp G', maturity: 'experimental' });
+    VexUsage.add('exp-g');
+  });
+
+  it('is held off on a brand-new profile while new and beta features keep their defaults', async () => {
+    expect(R.hasProfileEvidence()).toBe(false);
+    expect(await R.stage()).toEqual(['exp-g']);
+    expect(switches['exp-g']).toBe(false);
+    for (const id of ['old-one', 'new-a', 'new-b', 'beta-c', 'passive-d']) expect(switches[id], id).toBe(true);
+  });
+
+  it('is held off on an existing profile too, with the new and beta ones', async () => {
+    localStorage.setItem('vex.tabs', '[]');
+    expect((await R.stage()).sort()).toEqual(['beta-c', 'exp-g', 'new-a', 'new-b']);
+    expect(switches['exp-g']).toBe(false);
+  });
+
+  it('is never offered for switching on', async () => {
+    localStorage.setItem('vex.tabs', '[]');
+    await R.stage();
+    expect(R.pendingOffers()).not.toContain('exp-g');
+    expect(R.pendingOffers().map(x => x.id || x)).not.toContain('exp-g');
+  });
+});
+
+describe('the Wave 6 manifests on an old-release profile', () => {
+  const WAVE6 = ['discord-memory-care', 'profile-lock', 'meeting-transcribe'];
+  let RR, sw;
+  beforeEach(() => {
+    localStorage.clear();
+    RR = fresh('feature-registry.js').VexRegistry;
+    RR._reset();
+    globalThis.VexRegistry = RR;
+    fresh('feature-manifests.js');
+    globalThis.VexUsage = { report: () => ({ since: Date.now() }) };
+    const ids = new Set(fresh('vex-usage-registry.js').VexUsageRegistry.table().map(r => r[0]));
+    sw = {};
+    for (const id of ids) sw[id] = true;
+    globalThis.VexUsage = {
+      report: () => ({ since: Date.now() }),
+      get: (id) => (id in sw ? { id } : null),
+      isEnabled: (id) => sw[id],
+      disable: async (id) => { sw[id] = false; },
+      enable: async (id) => { sw[id] = true; },
+    };
+  });
+
+  it('are new, have a switch, and end OFF on an existing profile', async () => {
+    for (const id of WAVE6) {
+      expect(RR.get(id), id).toBeTruthy();
+      expect(RR.get(id).maturity, id).toBe('new');
+      expect(id in sw, id + ' has a usage row').toBe(true);
+    }
+    localStorage.setItem('vex.tabs', '[]');
+    const held = await RR.stage();
+    for (const id of WAVE6) { expect(held, id).toContain(id); expect(sw[id], id).toBe(false); }
+  });
+
+  it('keep their defaults (the Discord care master on) on a brand-new profile', async () => {
+    expect(await RR.stage()).toEqual([]);
+    for (const id of WAVE6) expect(sw[id], id).toBe(true);
+  });
+});
