@@ -198,7 +198,7 @@ const VexVaultHygiene = {
       const v = this.build({ health: d.health, logins: d.logins, totp: d.totp || [] });
       if (v.rotate.length) add('Passwords', 'attention', v.rotate.length + ' worth changing: ' + v.rotate.map(r => r.host).join(', ') + '.');
       else add('Passwords', 'ok', 'Nothing stands out.');
-      for (const m of v.emailChain.filter(x => x.risk === 'high').slice(0, 3)) add('Recovery email', 'attention', m.mailbox + ' recovers ' + m.dependents + ' other site' + (m.dependents === 1 ? '' : 's') + ', and ' + m.problems.join(', ') + '.');
+      for (const m of v.emailChain.filter(x => x.risk === 'high').slice(0, 3)) add('Recovery email', 'attention', m.mailbox + ' recovers ' + m.dependents + ' other site' + VexPlural.s(m.dependents) + ', and ' + m.problems.join(', ') + '.');
     } catch (err) { add('Passwords', 'note', 'Could not be checked: ' + err.message); }
     try {
       if (!window.vex || typeof window.vex.hygienePermSummary !== 'function') throw new Error('permission hygiene is not available here');
@@ -215,7 +215,7 @@ const VexVaultHygiene = {
       const progs = risky.length - disguised;
       const old = Math.max(0, (r.total || 0) - (r.recent || 0));
       if (disguised) add('Downloads', 'attention', disguised + ' file' + (disguised === 1 ? ' has' : 's have') + ' a name that hides a program behind a picture or document ending.');
-      if (progs) add('Downloads', 'note', progs + ' program or script' + (progs === 1 ? '' : 's') + ' downloaded in the last ' + r.days + ' days. Vex does not check signatures here; open one in the Downloads panel to see who signed it.');
+      if (progs) add('Downloads', 'note', progs + ' program or script' + VexPlural.s(progs) + ' downloaded in the last ' + r.days + ' days. Vex does not check signatures here; open one in the Downloads panel to see who signed it.');
       if (old > 20) add('Downloads', 'note', old + ' files older than ' + r.days + ' days are still in your Downloads folder.');
       if (!disguised && !progs && old <= 20) add('Downloads', 'ok', 'Nothing unusual in the names of your recent downloads.');
     } catch (err) { add('Downloads', 'note', 'Could not be checked: ' + err.message); }
@@ -290,7 +290,7 @@ const VexVaultHygiene = {
     h('If your email is taken over');
     if (!v.emailChain.length) p('No saved login uses an email address as its name, so there is no chain to follow.', true);
     for (const m of v.emailChain) {
-      const who = m.mailbox + ' is the login name of ' + m.dependents + ' other site' + (m.dependents === 1 ? '' : 's') + ', so it is where their password resets go';
+      const who = m.mailbox + ' is the login name of ' + m.dependents + ' other site' + VexPlural.s(m.dependents) + ', so it is where their password resets go';
       if (m.risk === 'high') p(who + '; ' + m.problems.join(', ') + '.');
       else if (m.risk === 'ok') p(who + '. Its own login looks fine.', true);
       else p(who + '. Its own login is not saved in Vex, so its strength cannot be checked here.', true);

@@ -357,7 +357,7 @@ const VexTravel = {
       pairs.push({ n: newId, m: r.message.slice(0, 80), a: r.at, u: r.url || '', g: r.urgent ? 1 : 0 });
     }
     if (pairs.length && typeof VexLedger !== 'undefined') {
-      VexLedger.note({ feature: 'travel-mode', what: 'Moved ' + pairs.length + ' reminder' + (pairs.length === 1 ? '' : 's') + ' to the time in ' + toTz, why: 'You pressed Shift in the trip workspace',
+      VexLedger.note({ feature: 'travel-mode', what: 'Moved ' + pairs.length + ' reminder' + VexPlural.s(pairs.length) + ' to the time in ' + toTz, why: 'You pressed Shift in the trip workspace',
         undo: { kind: 'travel-shift-undo', pairs: pairs.slice(0, 12) } });
     }
     return { moved: pairs.length, failed };
@@ -402,7 +402,7 @@ const VexTravel = {
       body.appendChild(VexSettingsGroups.button('Move the ticked reminders', async () => {
         const chosen = boxes.filter(([cb]) => cb.checked).map(([, r]) => r);
         if (!chosen.length) { window.showToast?.('Tick at least one'); return; }
-        const ok = await window.vexConfirm({ title: 'Move ' + chosen.length + ' reminder' + (chosen.length === 1 ? '' : 's') + '?', message: 'Each gets a new time in the time zone ' + st.trip.tz + ' and the old one is removed. Ctrl+K "Why did that happen?" can put them back.', okLabel: 'Move' });
+        const ok = await window.vexConfirm({ title: 'Move ' + chosen.length + ' reminder' + VexPlural.s(chosen.length) + '?', message: 'Each gets a new time in the time zone ' + st.trip.tz + ' and the old one is removed. Ctrl+K "Why did that happen?" can put them back.', okLabel: 'Move' });
         if (!ok) return;
         try {
           const r = await this.applyShift(chosen, st.trip.tz);

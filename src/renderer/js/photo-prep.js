@@ -355,7 +355,7 @@ const VexPhotoPrep = {
       try {
         const { doc } = this.addDoc(label.value, date.value);
         const n = await this.scheduleDoc(doc.id);
-        window.showToast?.(n + ' reminder' + (n === 1 ? '' : 's') + ' set', 'success');
+        window.showToast?.(n + ' reminder' + VexPlural.s(n) + ' set', 'success');
         label.value = ''; date.value = '';
       } catch (err) { fail(err); }
       add.disabled = false;

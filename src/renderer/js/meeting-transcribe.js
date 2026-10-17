@@ -201,7 +201,7 @@ const VexMeetingTranscribe = {
 
   _status(run, extra) {
     if (!run.banner) return;
-    const parts = [run.segments + ' part' + (run.segments === 1 ? '' : 's')];
+    const parts = [run.segments + ' part' + VexPlural.s(run.segments)];
     if (run.skipped) parts.push(run.skipped + ' skipped');
     if (run.failed) parts.push(run.failed + ' failed');
     run.banner.say('Listening to your microphone · ' + parts.join(' · ') + (extra ? ' · ' + extra : ''));
@@ -249,7 +249,7 @@ const VexMeetingTranscribe = {
     this._run = null;
     const ended = await this._api('transcribeEnd')(run.token);
     const summary = { segments: run.segments, skipped: run.skipped, failed: run.failed, kept: ended && ended.kept ? ended.kept : null };
-    window.showToast?.('Stopped listening · ' + summary.segments + ' part' + (summary.segments === 1 ? '' : 's') + (summary.skipped || summary.failed ? ' (' + (summary.skipped + summary.failed) + ' not transcribed)' : '') + (summary.kept ? ' · audio kept in ' + summary.kept : ''));
+    window.showToast?.('Stopped listening · ' + summary.segments + ' part' + VexPlural.s(summary.segments) + (summary.skipped || summary.failed ? ' (' + (summary.skipped + summary.failed) + ' not transcribed)' : '') + (summary.kept ? ' · audio kept in ' + summary.kept : ''));
     return summary;
   },
 

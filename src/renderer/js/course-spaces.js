@@ -215,7 +215,7 @@ const VexCourseSpaces = {
     for (const c of fresh) { t.seen.push(c.key); if (!t.items['clip:' + c.key]) { t.items['clip:' + c.key] = { c: cur.id }; keys.push(c.key); } }
     t.seen = t.seen.slice(-500);
     this._saveTags(t);
-    if (keys.length && typeof VexLedger !== 'undefined') VexLedger.note({ feature: 'course-spaces', what: 'Tagged ' + keys.length + ' clip' + (keys.length === 1 ? '' : 's') + ' as ' + cur.name, why: 'Clip pre-tagging is on and ' + cur.name + ' is the current course', undo: { kind: 'course-untag-clips', keys: keys.slice(0, 50) } });
+    if (keys.length && typeof VexLedger !== 'undefined') VexLedger.note({ feature: 'course-spaces', what: 'Tagged ' + keys.length + ' clip' + VexPlural.s(keys.length) + ' as ' + cur.name, why: 'Clip pre-tagging is on and ' + cur.name + ' is the current course', undo: { kind: 'course-untag-clips', keys: keys.slice(0, 50) } });
     return keys.length;
   },
 

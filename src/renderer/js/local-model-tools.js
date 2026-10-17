@@ -216,7 +216,7 @@ const ModelFit = {
       const run = S.button('Run my tasks', async () => {
         const chosen = boxes.filter(b => b.cb.checked).map(b => b.m);
         try {
-          const ok = await vexConfirm({ title: 'Run ' + st.tasks.length + ' task' + (st.tasks.length === 1 ? '' : 's') + ' on ' + chosen.length + ' model' + (chosen.length === 1 ? '' : 's') + '?', message: 'The graphics card and processor stay busy until it ends, and each model is unloaded afterwards unless it was already loaded. Expect a minute or more per model.', okLabel: 'Run' });
+          const ok = await vexConfirm({ title: 'Run ' + st.tasks.length + ' task' + VexPlural.s(st.tasks.length) + ' on ' + chosen.length + ' model' + VexPlural.s(chosen.length) + '?', message: 'The graphics card and processor stay busy until it ends, and each model is unloaded afterwards unless it was already loaded. Expect a minute or more per model.', okLabel: 'Run' });
           if (!ok) return;
           run.disabled = true;
           last = await this.runOnRequest(chosen, (i, n, model, task) => { out.textContent = 'Asking ' + model + ': ' + task + ' (' + i + ' of ' + n + ')'; });

@@ -167,7 +167,7 @@ const GameChecklist = {
     if (bad.length) return { id: 'servers', ok: false, text: bad.map(r => (r.name || r.host) + ': ' + (r.description || r.indicator)).join('; ') };
     const unread = results.filter(r => !r.ok).length;
     if (unread === results.length) return { id: 'servers', ok: false, text: 'No status page could be read' };
-    return { id: 'servers', ok: true, text: 'Servers OK' + (unread ? ' (' + unread + ' page' + (unread === 1 ? '' : 's') + ' unreadable)' : '') };
+    return { id: 'servers', ok: true, text: 'Servers OK' + (unread ? ' (' + unread + ' page' + VexPlural.s(unread) + ' unreadable)' : '') };
   },
 
   // ---- what Vex can see itself ------------------------------------------------------------

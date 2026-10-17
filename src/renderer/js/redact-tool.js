@@ -128,7 +128,7 @@ const VexPictureRedact = {
     if (text.indexOf('\u0000') >= 0) throw new Error('That does not look like a text file');
     const hits = this.findInText(text);
     const S = VexSettingsGroups;
-    const { body } = S.dialog({ id: 'vex-redact-doc', title: 'Redact a text document', sub: f.name + ': ' + hits.length + ' piece' + (hits.length === 1 ? '' : 's') + ' that look sensitive. Tick what to cover; the original file is not changed.' });
+    const { body } = S.dialog({ id: 'vex-redact-doc', title: 'Redact a text document', sub: f.name + ': ' + hits.length + ' piece' + VexPlural.s(hits.length) + ' that look sensitive. Tick what to cover; the original file is not changed.' });
     const on = new Set(hits.map((h, i) => i));
     if (!hits.length) body.appendChild(S.note('Nothing sensitive was recognised. The patterns miss things: read the document yourself before you share it.'));
     hits.slice(0, 300).forEach((h, i) => {
@@ -150,7 +150,7 @@ const VexPictureRedact = {
         a.href = url; a.download = f.name.replace(/(\.[^.]+)?$/, '-redacted$1');
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 10000);
-        window.showToast?.('Saved ' + a.download + ' with ' + on.size + ' piece' + (on.size === 1 ? '' : 's') + ' covered');
+        window.showToast?.('Saved ' + a.download + ' with ' + on.size + ' piece' + VexPlural.s(on.size) + ' covered');
       } catch (err) { window.showToast?.(err.message, 'error'); }
     }, { primary: true }));
     if (typeof VexUsage !== 'undefined') VexUsage.touch('redact-tool');

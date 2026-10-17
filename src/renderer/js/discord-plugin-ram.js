@@ -122,7 +122,7 @@ const DiscordPluginRam = {
     }
     if (last.slow) {
       const s = this.summarize(last.slow);
-      out.push('  One at a time: ' + last.slow.plugins.length + ' plugin' + (last.slow.plugins.length === 1 ? '' : 's') + ' tested (' + when(last.slow.at) + ')' + (last.slow.partial ? ' - STOPPED EARLY' : '') + '.' + (s.drift ? ' Baseline drift between the first and last run: heap ' + (s.drift.heap >= 0 ? '+' : '') + s.drift.heap + ' MB, process ' + (s.drift.ws >= 0 ? '+' : '') + s.drift.ws + ' MB.' : ' No second baseline was reached, so drift is unknown.'));
+      out.push('  One at a time: ' + last.slow.plugins.length + ' plugin' + VexPlural.s(last.slow.plugins.length) + ' tested (' + when(last.slow.at) + ')' + (last.slow.partial ? ' - STOPPED EARLY' : '') + '.' + (s.drift ? ' Baseline drift between the first and last run: heap ' + (s.drift.heap >= 0 ? '+' : '') + s.drift.heap + ' MB, process ' + (s.drift.ws >= 0 ? '+' : '') + s.drift.ws + ' MB.' : ' No second baseline was reached, so drift is unknown.'));
       if (last.slow.skipped && last.slow.skipped.length) out.push('  Not tested (cannot be turned off): ' + last.slow.skipped.map(x => x.name).join(', ') + '.');
     }
     out.push('');
@@ -374,7 +374,7 @@ const DiscordPluginRam = {
     const plan = { chosen: picked, skipped: full.skipped };
     const minutes = this.estimateMinutes(picked.length);
     const ok = await measure._confirm({ title: 'Measure plugin memory one at a time', okLabel: 'Start',
-      message: 'This takes about ' + minutes + ' minutes (' + (picked.length + 2) + ' fresh Discord pages, hidden; it stays signed in). For each of ' + picked.length + ' plugin' + (picked.length === 1 ? '' : 's') + ' (' + picked.slice(0, 6).join(', ') + (picked.length > 6 ? ', ...' : '') + ') it is turned off in Vencord, Discord reloads, and its memory is read after 3 minutes; then it is turned back on. Every plugin is put back when it ends, when you close this window, on an error, and at the next start of Vex. Do not use Discord meanwhile; a call pauses it.' });
+      message: 'This takes about ' + minutes + ' minutes (' + (picked.length + 2) + ' fresh Discord pages, hidden; it stays signed in). For each of ' + picked.length + ' plugin' + VexPlural.s(picked.length) + ' (' + picked.slice(0, 6).join(', ') + (picked.length > 6 ? ', ...' : '') + ') it is turned off in Vencord, Discord reloads, and its memory is read after 3 minutes; then it is turned back on. Every plugin is put back when it ends, when you close this window, on an error, and at the next start of Vex. Do not use Discord meanwhile; a call pauses it.' });
     if (!ok) { run.say('Cancelled before anything was changed.'); return null; }
     this._busy = true;
     try {

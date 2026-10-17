@@ -359,7 +359,7 @@ const VideoTools = {
         if (A == null || B == null) throw new Error('Set A and B first (Set A, then Set B and loop)');
         await this.control(wv, 'unloop');
         out.textContent = '';
-        const slides = await this.grabSlides(wv, { a: A, b: B, step: Number(stepIn.value), onProgress: (i, n, k) => say('Looking at ' + i + ' of ' + n + ', ' + k + ' slide' + (k === 1 ? '' : 's') + ' so far') });
+        const slides = await this.grabSlides(wv, { a: A, b: B, step: Number(stepIn.value), onProgress: (i, n, k) => say('Looking at ' + i + ' of ' + n + ', ' + k + ' slide' + VexPlural.s(k) + ' so far') });
         results = { kind: 'slides', slides };
         for (const sl of slides) {
           const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;margin:6px 0;align-items:flex-start';
@@ -367,7 +367,7 @@ const VideoTools = {
           const tx = document.createElement('div'); tx.textContent = this.stamp(sl.s) + ' - ' + (sl.text || '(no readable words)');
           row.append(im, tx); out.append(row);
         }
-        say(slides.length + ' slide' + (slides.length === 1 ? '' : 's') + ' found. Save them to a note.');
+        say(slides.length + ' slide' + VexPlural.s(slides.length) + ' found. Save them to a note.');
       })),
       stepIn, document.createTextNode('seconds apart'),
       mk('Brief by chapter (local model)', guard(async () => {

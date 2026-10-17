@@ -245,7 +245,7 @@ const VexTos = {
           done++;
         }
       }
-      await note(done + ' paragraph' + (done === 1 ? '' : 's') + ' rewritten' + (skipped ? ', ' + skipped + ' left as written' : '') + '. Choose Original to see the page as it was.');
+      await note(done + ' paragraph' + VexPlural.s(done) + ' rewritten' + (skipped ? ', ' + skipped + ' left as written' : '') + '. Choose Original to see the page as it was.');
       return { done, skipped };
     };
     let r;

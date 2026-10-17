@@ -268,7 +268,7 @@ const VexDraftCheck = {
       const n = notes.find(x => x.id === sel.value);
       const r = this.contrast(String(n.content || ''), pool[Number(selA.value)], pool[Number(selB.value)]);
       out.textContent = '';
-      out.appendChild(K.el('h3', { text: r.rows.length + ' claim' + (r.rows.length === 1 ? '' : 's') + ': ' + r.counts.agree + ' agree, ' + r.counts.conflict + ' differ, ' + (r.counts['only-a'] + r.counts['only-b']) + ' in one source only, ' + r.counts.neither + ' in neither' }));
+      out.appendChild(K.el('h3', { text: r.rows.length + ' claim' + VexPlural.s(r.rows.length) + ': ' + r.counts.agree + ' agree, ' + r.counts.conflict + ' differ, ' + (r.counts['only-a'] + r.counts['only-b']) + ' in one source only, ' + r.counts.neither + ' in neither' }));
       const th = (t) => K.el('th', { text: t, style: 'text-align:left;padding:4px 6px' });
       const td = (t, st) => K.el('td', { text: t, style: 'vertical-align:top;padding:4px 6px;border-top:1px solid rgba(128,128,128,.3)' + (st || '') });
       const tbl = K.el('table', { style: 'width:100%;border-collapse:collapse;font-size:.92em' },

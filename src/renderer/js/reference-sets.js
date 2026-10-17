@@ -333,7 +333,7 @@ const VexReferenceSets = {
         if (st.total) {
           act(st.kept === st.total ? 'Offline: all kept' : 'Keep offline (' + st.kept + ' of ' + st.total + ')', async () => {
             if (!st.missing.length) { window.showToast?.('Every page of this set already has an offline copy'); return; }
-            const ok = await window.vexConfirm({ title: 'Keep ' + st.missing.length + ' page' + (st.missing.length === 1 ? '' : 's') + ' offline?', message: 'Vex opens each page of "' + s.name + '" that has no copy yet, one after the other, keeps a copy of it in the archive library, and closes it again. Pages that are private, sign-in, bank, mail or health pages are refused. The copies stay on this computer.', okLabel: 'Keep them' });
+            const ok = await window.vexConfirm({ title: 'Keep ' + st.missing.length + ' page' + VexPlural.s(st.missing.length) + ' offline?', message: 'Vex opens each page of "' + s.name + '" that has no copy yet, one after the other, keeps a copy of it in the archive library, and closes it again. Pages that are private, sign-in, bank, mail or health pages are refused. The copies stay on this computer.', okLabel: 'Keep them' });
             if (!ok) return;
             const r = await this.keepOffline(s.id, { onProgress: (n, of, p) => window.showToast?.('Keeping ' + n + ' of ' + of + ': ' + String(p.title).slice(0, 50)) });
             window.showToast?.(r.kept + ' kept' + (r.failed.length ? ', ' + r.failed.length + ' not kept: ' + r.failed.map(f => f.title.slice(0, 30) + ' (' + f.reason + ')').join('; ').slice(0, 300) : ''), r.failed.length ? 'error' : 'success', 9000);

@@ -215,7 +215,7 @@ const VexPacks = {
       try { this.addSkillToMine(packName, packId, x.item, { quiet: true }); added++; }
       catch (err) { failed.push(x.item.name + ' (' + err.message + ')'); }
     }
-    this._toast('Added ' + added + ' prompt' + (added === 1 ? '' : 's') + ' to your skills' + (kept ? '; ' + kept + ' were already there' + (differ ? ', ' + differ + ' of them worded differently from the pack' : '') : ''));
+    this._toast('Added ' + added + ' prompt' + VexPlural.s(added) + ' to your skills' + (kept ? '; ' + kept + ' were already there' + (differ ? ', ' + differ + ' of them worded differently from the pack' : '') : ''));
     if (failed.length) throw new Error('Could not add: ' + failed.join('; '));
     return { added, kept, differ };
   },

@@ -820,7 +820,7 @@ const DownloadsPanel = {
     if (r && r.cancelled) return r;
     if (!r || !r.ok) { window.showToast?.((r && r.error) || 'Could not extract it', 'error'); return r; }
     const marked = r.motw && r.motw.carried ? ' The "downloaded from the internet" mark was kept on them.' : '';
-    window.showToast?.('Extracted ' + r.files + ' file' + (r.files === 1 ? '' : 's') + '.' + marked, 'success', 8000, {
+    window.showToast?.('Extracted ' + r.files + ' file' + VexPlural.s(r.files) + '.' + marked, 'success', 8000, {
       action: { label: 'Show', title: 'Show the new folder', run: () => window.vex.downloadsShowInFolder?.(r.folder) },
     });
     return r;

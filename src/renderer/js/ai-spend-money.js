@@ -161,7 +161,7 @@ const VexAIMoney = {
   _fmt(n) { return n > 0 && n < 0.01 ? String(Number(n.toPrecision(2))) : String(Math.round(n * 100) / 100); },
   line() {
     const s = this._read();
-    const part = 'About ' + this._fmt(s.spent) + ' ' + s.currency + ' spent on the cloud AI this month (an estimate: ' + s.calls + ' call' + (s.calls === 1 ? '' : 's') + ', ' + s.tokensIn + ' tokens in and ' + s.tokensOut + ' out, counted as one per four characters)';
+    const part = 'About ' + this._fmt(s.spent) + ' ' + s.currency + ' spent on the cloud AI this month (an estimate: ' + s.calls + ' call' + VexPlural.s(s.calls) + ', ' + s.tokensIn + ' tokens in and ' + s.tokensOut + ' out, counted as one per four characters)';
     const unpriced = s.unpriced ? '; ' + s.unpriced + ' call' + (s.unpriced === 1 ? ' had' : 's had') + ' no price in the table, so they cost 0 here' : '';
     const cap = s.cap > 0 ? '. Budget ' + this._fmt(s.cap) + ' ' + s.currency + (s.spent >= s.cap ? ': reached, the cloud is not used until next month.' : ': ' + this._fmt(Math.max(0, s.cap - s.spent)) + ' left.') : '. No money budget.';
     return part + unpriced + cap;
@@ -276,7 +276,7 @@ const VexAIMoney = {
       paint();
       el.appendChild(S.button('Add a price', () => { rows.push({ model: '', inPerM: '0', outPerM: '0' }); paint(); }));
       el.appendChild(S.button('Save the prices', () => { try { this.setRates(rows); window.showToast?.('Prices saved'); } catch (err) { fail(err); } draw(); }, { primary: true }));
-      const by = Object.entries(s.byModel).sort((a, b) => b[1].money - a[1].money).slice(0, 6).map(([m, v]) => m + ': ' + v.calls + ' call' + (v.calls === 1 ? '' : 's') + ', about ' + this._fmt(v.money) + ' ' + s.currency);
+      const by = Object.entries(s.byModel).sort((a, b) => b[1].money - a[1].money).slice(0, 6).map(([m, v]) => m + ': ' + v.calls + ' call' + VexPlural.s(v.calls) + ', about ' + this._fmt(v.money) + ' ' + s.currency);
       if (by.length) el.appendChild(S.note('This month by model: ' + by.join('; ')));
       el.appendChild(S.button('Start this month\'s count again', async () => {
         if (!await window.vexConfirm({ title: 'Start the count again?', message: 'The estimate for this month goes back to 0. The call limits are not touched.', okLabel: 'Start again' })) return;

@@ -147,7 +147,7 @@ const VexPhoneShare = {
       waiting++;
     }
     if (waiting && typeof VexAttention !== 'undefined') {
-      VexAttention.notify({ feature: this.FEATURE, urgency: 'useful', id: 'shares:' + fresh[0].id }, () => window.showToast?.(waiting + ' item' + (waiting === 1 ? '' : 's') + ' shared from your phone: Ctrl+K, Shared from my phone', 'info', 6000));
+      VexAttention.notify({ feature: this.FEATURE, urgency: 'useful', id: 'shares:' + fresh[0].id }, () => window.showToast?.(waiting + ' item' + VexPlural.s(waiting) + ' shared from your phone: Ctrl+K, Shared from my phone', 'info', 6000));
     }
     return waiting;
   },

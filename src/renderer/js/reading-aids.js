@@ -448,7 +448,7 @@ const VexReadingAids = {
     for (const lang of this.LANGS) {
       const name = lang === 'en' ? 'English' : 'Turkish';
       let n = 0; try { n = this.knownCount(lang); } catch (e) { fail(e); }
-      el.appendChild(G.note(name + ': ' + n + ' known word' + (n === 1 ? '' : 's')));
+      el.appendChild(G.note(name + ': ' + n + ' known word' + VexPlural.s(n)));
       el.appendChild(G.button('I know the common ' + name + ' words', () => { try { const total = this.adoptCommon(lang); window.showToast?.(total + ' ' + name + ' words are marked as known', 'success'); } catch (e) { fail(e); } }));
       if (lang === 'en') for (const level of this.LARGE_LEVELS) {
         el.appendChild(G.button('I know the ' + level.toLocaleString('en') + ' commonest English words', () => { try { const total = this.adoptCommon(lang, level); window.showToast?.(total + ' English words are marked as known', 'success'); } catch (e) { fail(e); } }));

@@ -228,7 +228,7 @@ const VexExtDiff = {
       if (live.length) {
         const done = await this.pause(match, live, { auto: true });
         out.paused = done;
-        if (done.length && typeof VexLedger !== 'undefined') VexLedger.note({ feature: this.FEATURE, what: 'Paused ' + done.length + ' extension' + (done.length === 1 ? '' : 's') + ' while you are on ' + match, why: 'You made a rule for this site; they come back when you leave it' });
+        if (done.length && typeof VexLedger !== 'undefined') VexLedger.note({ feature: this.FEATURE, what: 'Paused ' + done.length + ' extension' + VexPlural.s(done.length) + ' while you are on ' + match, why: 'You made a rule for this site; they come back when you leave it' });
       }
     }
     return out;

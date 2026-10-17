@@ -286,7 +286,7 @@ const GamePitstop = {
     if (typeof GameDossier === 'undefined') throw new Error('The game dossier is not available in this window');
     const ok = await window.vexConfirm({
       title: 'Add these pages to the ' + card.app + ' dossier?',
-      message: pages.length + ' page' + (pages.length === 1 ? '' : 's') + ' you opened while you played: Vex keeps each address and title on this PC (never synced) so you can find them next time. Sign-in, payment, private and never-remember pages were already left out. You can delete any of them later from the game guide.',
+      message: pages.length + ' page' + VexPlural.s(pages.length) + ' you opened while you played: Vex keeps each address and title on this PC (never synced) so you can find them next time. Sign-in, payment, private and never-remember pages were already left out. You can delete any of them later from the game guide.',
       okLabel: 'Add them', cancelLabel: 'Not now',
     });
     if (!ok) return 0;

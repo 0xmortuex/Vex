@@ -121,7 +121,7 @@ const VexStartupCheck = {
           const line = this._el('div', 'ad-sig' + (n.unsigned ? ' fresh' : ''), (n.unsigned ? 'Unsigned or untrusted. ' : '') + n.text);
           card.appendChild(line);
         }
-        status.textContent = res.checked + ' program' + (res.checked === 1 ? '' : 's') + ' checked; ' + res.unsigned + ' not signed. Unsigned does not mean harmful: look up anything you do not recognise.';
+        status.textContent = res.checked + ' program' + VexPlural.s(res.checked) + ' checked; ' + res.unsigned + ' not signed. Unsigned does not mean harmful: look up anything you do not recognise.';
       } catch (err) { status.textContent = ''; fail(err); }
       finally { sign.disabled = false; }
     });

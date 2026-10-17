@@ -170,7 +170,7 @@ const VexAISpend = {
   monthLine() {
     const s = this._read();
     const est = s.perCall > 0 ? ' (about ' + (Math.round(s.monthUsed * s.perCall * 100) / 100) + ' at ' + s.perCall + ' a call, your estimate)' : '';
-    if (!s.monthCap) return 'No monthly budget. ' + s.monthUsed + ' cloud call' + (s.monthUsed === 1 ? '' : 's') + ' this month' + est + '.';
+    if (!s.monthCap) return 'No monthly budget. ' + s.monthUsed + ' cloud call' + VexPlural.s(s.monthUsed) + ' this month' + est + '.';
     if (s.monthUsed >= s.monthCap) return 'Monthly budget reached: ' + s.monthUsed + ' of ' + s.monthCap + ' cloud calls' + est + '. Until next month, AI runs on your local model only.';
     return s.monthUsed + ' of ' + s.monthCap + ' cloud calls used this month' + est + '.';
   },
