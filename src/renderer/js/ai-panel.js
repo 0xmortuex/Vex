@@ -2676,9 +2676,11 @@ const AIPanel = {
       lines.push(`- ${c.name} — ${names.join(', ')}${newer ? (names.length ? '; ' : '') + newer + ' newer ones' : ''}`);
     }
 
-    lines.push('', 'Describe only what is listed here. If something is not in this list, say you are not sure rather than guessing from the page.');
-    const text = lines.join('\n');
-    return { role: 'system', content: text.slice(0, this.VEX_KNOWLEDGE_LIMIT) };
+    // The closing instruction is what stops the model inventing features, so it is never the part cut off:
+    // the cap trims the list above it instead.
+    const closing = '\n\nDescribe only what is listed here. If something is not in this list, say you are not sure rather than guessing from the page.';
+    const text = lines.join('\n').slice(0, this.VEX_KNOWLEDGE_LIMIT - closing.length) + closing;
+    return { role: 'system', content: text };
   },
 
   // The model's working, folded away. Collapsed by default: it is context for
