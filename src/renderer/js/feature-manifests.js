@@ -724,7 +724,7 @@
       storageKeys: ['vex.cheatSheet.enabled'], usesKeys: ['vex.annotations', 'vex.notes'], commands: ['cheat-sheet'],
       permissions: quiet({ reads: ['your highlights and their notes'], writes: ['a note or a printable page, only when you ask'] }) },
     { id: 'draft-check', title: 'Draft and evidence check', group: 'Study helpers', maturity: 'new',
-      storageKeys: ['vex.draftCheck.enabled'], usesKeys: ['vex.annotations', 'vex.notes', 'vex.readLater'], commands: ['draft-check'],
+      storageKeys: ['vex.draftCheck.enabled', 'vex.draftCheck.rubric'], usesKeys: ['vex.annotations', 'vex.notes', 'vex.readLater'], commands: ['draft-check'],
       permissions: { reads: ['a note you choose, and your other notes, highlights and read-later pages'], writes: ['nothing: it never changes your text'], sends: ['The claim and one passage to your local model (Ollama) only, only when you press the local-model button'] } },
     { id: 'syllabus-check', title: 'Syllabus coverage check', group: 'Study helpers', maturity: 'new',
       storageKeys: ['vex.syllabi', 'vex.syllabusCheck.enabled'], usesKeys: ['vex.annotations', 'vex.notes'], commands: ['syllabus-check'],
