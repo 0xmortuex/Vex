@@ -22,14 +22,21 @@
 // Memory only. Nothing is written to disk and nothing leaves the window. The cap
 // (vex.searchIndex.capMB) is the only stored setting.
 //
-// Consumers using it: UniversalSearch (js/universal-search.js).
-// Not yet moved (they keep their own list; see the T3-108 note in the report):
-// the Recall index, the history indexer, tab search, the knowledge base index.
+// Consumers using it: UniversalSearch (js/universal-search.js) and the open-tab text search
+// (TabContentIndex.searchText, source 'tabs:text').
+// Deliberately NOT moved, because moving would change what they find or hold the same corpus twice:
+//   - Recall (src/main/recall-index.js) and the knowledge base (src/main/knowledge-base.js) live in the main
+//     process, are saved to disk, rank by stemmed BM25 (and by meaning, with embeddings) and hold tens of
+//     thousands of pages; this index is renderer memory, 3-letter grams and capped at 24 MB;
+//   - the history indexer writes AI summaries and is not a search structure (its summaries are searched
+//     through the 'universal:history' source);
+//   - tab title search (js/tab-search.js) ranks fuzzy matches, which a gram filter would drop.
 (function () {
   const CAP_KEY = 'vex.searchIndex.capMB';
   const DEFAULT_CAP_MB = 24;
   const GRAM = 3;
   const BODY_MAX = 20000;
+  const BODY_LIMIT = 200000;     // the most any one item may ask for
   const ITEM_OVERHEAD = 220;
   const GRAM_BYTES = 18;
 
@@ -65,7 +72,9 @@
       if (!item || item.id == null) throw new Error('An indexed item needs an id');
       const id = String(item.id);
       if (src.docs.has(id)) removeDoc(src, id);
-      const text = fold(item.title) + ' ' + fold(item.subtitle) + ' ' + fold(String(item.body == null ? '' : item.body).slice(0, BODY_MAX));
+      // bodyMax: a source whose consumer searches more than the first 20 000 letters says so (open-tab page text).
+      const bodyMax = Number.isFinite(item.bodyMax) ? Math.min(Math.max(item.bodyMax, 0), BODY_LIMIT) : BODY_MAX;
+      const text = fold(item.title) + ' ' + fold(item.subtitle) + ' ' + fold(String(item.body == null ? '' : item.body).slice(0, bodyMax));
       const grams = gramsOf(text);
       for (const g of grams) { let set = src.grams.get(g); if (!set) src.grams.set(g, set = new Set()); set.add(id); }
       const bytes = text.length * 2 + grams.size * GRAM_BYTES + ITEM_OVERHEAD;
