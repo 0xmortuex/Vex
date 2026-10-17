@@ -2121,6 +2121,20 @@
         main.appendChild(el('span', 'brief-text', it.text));
         if (it.sub) main.appendChild(el('span', 'brief-sub', it.sub));
         row.appendChild(main);
+        // A small drawn line of up to 20 numbers (the endpoint board's latencies). Numbers only: the browser clamps them.
+        if (Array.isArray(it.spark) && it.spark.length > 1) {
+          var NS = 'http://www.w3.org/2000/svg', sp = it.spark.slice(-20).map(Number).filter(isFinite);
+          if (sp.length > 1) {
+            var hi = Math.max.apply(null, sp), lo = Math.min.apply(null, sp), span = hi - lo || 1;
+            var pts = sp.map(function (v, i) { return Math.round(i * 60 / (sp.length - 1)) + ',' + Math.round(14 - (v - lo) / span * 12 + 1); }).join(' ');
+            var svg = document.createElementNS(NS, 'svg'), ln = document.createElementNS(NS, 'polyline');
+            svg.setAttribute('viewBox', '0 0 60 16'); svg.setAttribute('width', '60'); svg.setAttribute('height', '16');
+            svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Recent response times, ' + lo + ' to ' + hi + ' ms');
+            svg.style.flex = 'none'; svg.style.color = 'var(--vex-accent, currentColor)';
+            ln.setAttribute('points', pts); ln.setAttribute('fill', 'none'); ln.setAttribute('stroke', 'currentColor'); ln.setAttribute('stroke-width', '1.5');
+            svg.appendChild(ln); row.appendChild(svg);
+          }
+        }
         if (it.badge) row.appendChild(el('span', 'brief-badge' + (BAD.test(it.badge) ? ' bad' : ''), it.badge));
         if (!it.actions || !it.actions.length) return row;
         // Buttons cannot sit inside a link, so a row with actions is a wrapper.

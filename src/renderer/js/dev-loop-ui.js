@@ -34,6 +34,21 @@ const DevLoopUI = {
     for (const l of lines) if (l) { const d = this._el('div', 'vexsr-mode', l); d.style.whiteSpace = 'normal'; t.appendChild(d); }
     return t;
   },
+  // A drawn line of the latest response times (an SVG built from numbers only), with the range read aloud.
+  sparkline(history) {
+    const pts = (Array.isArray(history) ? history : []).slice(-20).map(Number).filter(Number.isFinite);
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 60 16'); svg.setAttribute('width', '60'); svg.setAttribute('height', '16');
+    const hi = Math.max(...pts), lo = Math.min(...pts), span = hi - lo || 1;
+    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Recent response times, ' + lo + ' to ' + hi + ' ms');
+    svg.style.flex = 'none';
+    const ln = document.createElementNS(NS, 'polyline');
+    ln.setAttribute('points', pts.map((v, i) => Math.round(i * 60 / Math.max(1, pts.length - 1)) + ',' + Math.round(14 - (v - lo) / span * 12 + 1)).join(' '));
+    ln.setAttribute('fill', 'none'); ln.setAttribute('stroke', 'currentColor'); ln.setAttribute('stroke-width', '1.5');
+    svg.appendChild(ln);
+    return svg;
+  },
   _ago(ms) {
     const m = Math.round((Date.now() - ms) / 60000);
     return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago';
@@ -123,6 +138,7 @@ const DevLoopUI = {
       actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
       actions.append(
         this._btn('Open run', () => devLoopOpen(c.runUrl), { label: 'Open the run of ' + c.repo }),
+        this._btn('Open in editor', () => CiFixLoop.openInEditor(c), { label: 'Open the failing file of ' + c.repo + ' in your editor' }),
         this._btn('Copy log excerpt', () => { if (!c.excerpt) throw new Error('There is no log excerpt for this run'); return devLoopCopy(c.excerpt, 'Log excerpt'); }),
         this._btn('Draft a fix prompt', async () => {
           fix.textContent = 'Asking the local model...';
@@ -161,8 +177,19 @@ const DevLoopUI = {
         status.textContent = 'Made with: ' + last.method + '. ' + last.repos + ' repo(s) read.' + (errs.length ? ' Not read: ' + errs.join('; ') : '');
       } catch (err) { status.textContent = ''; throw err; }
     };
+    const src = DevlogDrafter.sources();
+    const srcRow = this._el('div', 'vexsr-rule');
+    for (const [key, label] of [['prs', 'Pull requests (needs the GitHub token)'], ['notes', 'Notes I edited today'], ['pages', 'Titles of pages I visited today']]) {
+      const l = this._el('label', 'vex-platform-note');
+      const box = this._el('input', '');
+      box.type = 'checkbox'; box.checked = src[key];
+      box.addEventListener('change', () => { try { DevlogDrafter.setSources({ [key]: box.checked }); } catch (err) { this._fail('Devlog', err); } });
+      l.append(box, document.createTextNode(' ' + label));
+      srcRow.appendChild(l);
+    }
     host.append(
       this._row(author),
+      srcRow,
       this._row(
         this._btn('Draft devlog', make('devlog', false), { primary: true }),
         this._btn('Draft standup', make('standup', false)),
@@ -195,8 +222,10 @@ const DevLoopUI = {
       const r = s.results[it.id];
       const word = !r ? 'not checked yet' : r.state === 'up' ? 'up' : r.state === 'slow' ? 'slow' : 'down';
       const spark = r && r.history.length ? ' | ' + r.history.slice(-10).map(n => n + 'ms').join(' ') : '';
+      const line = r && r.history.length > 1 ? this.sparkline(r.history) : null;
       wrap.appendChild(this._row(
         this._text(it.name + ': ' + word, it.url, r ? ((r.why ? r.why + '. ' : '') + 'Answered ' + r.status + ' in ' + r.ms + ' ms, ' + this._ago(r.at) + (r.version ? ', version ' + r.version : '')) : '', spark),
+        ...(line ? [line] : []),
         this._btn('Remove', () => { EndpointBoard.remove(it.id); this.draw(); }, { danger: true, label: 'Remove ' + it.name }),
       ));
     }
@@ -223,6 +252,42 @@ const DevLoopUI = {
     }
     if (!wrap.children.length) wrap.appendChild(VexSettingsGroups.note('Not scanned yet.'));
     host.appendChild(wrap);
+    // T1-031: the release notes between the version in use and the newest one, BREAKING lines first.
+    const behind = [];
+    for (const r of Object.values(DependencyRadar.state().results)) for (const d of r.error ? [] : r.deps) if (['major', 'minor', 'patch'].includes(d.gap)) behind.push({ repo: r.repo, dep: d });
+    if (behind.length) {
+      const out = this._el('div', 'vexsr-list');
+      out.setAttribute('role', 'status');
+      host.appendChild(VexSettingsGroups.note('Release notes between the version a repository uses and the newest one (read from the package\'s public GitHub releases):'));
+      const btns = this._el('div', '');
+      btns.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+      for (const { repo, dep } of behind.slice(0, 12)) {
+        btns.appendChild(this._btn(dep.name + ' ' + dep.have + ' to ' + dep.latest, async () => {
+          out.textContent = '';
+          const n = await DependencyRadar.notes(dep);
+          this.drawNotes(out, repo, dep, n);
+        }, { label: 'Read the release notes of ' + dep.name + ' between ' + dep.have + ' and ' + dep.latest }));
+      }
+      host.append(btns, out);
+    }
+  },
+
+  // The notes of one package: a headline that says whether anything is breaking, then each release with its
+  // BREAKING lines marked (text only, never HTML).
+  drawNotes(out, repo, dep, n) {
+    out.appendChild(this._text(dep.name + ' ' + dep.have + ' to ' + dep.latest + (n.breaking ? ': BREAKING changes announced' : n.releases.length ? ': no breaking changes announced' : ''), n.note || (n.releases.length + ' release(s)' + (n.repo ? ' of ' + n.repo : '')), ''));
+    for (const rel of n.releases) {
+      const row = this._el('div', 'vexsr-rule');
+      row.style.flexDirection = 'column';
+      const title = this._el('div', '');
+      title.textContent = rel.version + (rel.name && rel.name !== rel.version ? ' - ' + rel.name : '');
+      title.style.fontWeight = '600';
+      if (rel.breaking) { const tag = this._el('span', 'vexsr-mode'); tag.textContent = ' BREAKING'; tag.style.color = 'var(--danger, #ef4444)'; title.appendChild(tag); }
+      row.appendChild(title);
+      for (const line of rel.breakingLines) { const l = this._el('div', ''); l.textContent = line; l.style.cssText = 'color:var(--danger, #ef4444);white-space:pre-wrap'; row.appendChild(l); }
+      if (rel.url) row.appendChild(this._btn('Open', () => devLoopOpen(rel.url), { label: 'Open the release ' + rel.version + ' of ' + dep.name }));
+      out.appendChild(row);
+    }
   },
 
   // ---- Deploy desk -----------------------------------------------------------------

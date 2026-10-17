@@ -15,11 +15,12 @@
 //     secret fields in a JSON or form body are redacted the same way;
 //   * nothing is sent anywhere: the card only formats text on this computer.
 //
-// Not built: a list of the requests a page made. Vex has no network log that keeps
-// request headers (main only counts bytes and sniffs media), and keeping them would
-// mean holding every page's cookies and tokens, so only a request you describe, or a
-// link's address, can be copied. The converters are pure and take any request object,
-// so a log can feed them later.
+// A list of the requests a page made (Ctrl+K > "Requests of this tab"): main/request-recorder.js records the
+// requests of ONE tab you arm, for five minutes, from the webRequest listeners Vex already has. Authorization,
+// cookies and token-like headers are removed WHEN a request is recorded (they stay as <REDACTED>), the address
+// is redacted like the failed-request log, no body is kept, nothing goes to disk, and a private, Tor or
+// private-window tab is refused. Right-click a request for the four formats. The converters are pure and take
+// any request object.
 //
 // Pure functions are tested in tests/renderer/copyAsRequest.test.js.
 const VexCopyAs = {
@@ -208,6 +209,116 @@ const VexCopyAs = {
     draw();
   },
 
+  // ---- T1-011: a list of one page's requests, right-click one to copy it -------------------------------------------
+  // main/request-recorder.js records the requests of ONE page that you arm, for five minutes, and removes
+  // Authorization, cookies and token-like headers as it records (they are kept as <REDACTED>, so the copy shows a
+  // header was sent). Never a private, Tor or private-window tab. No body is recorded; add one by hand in the card.
+  _recBridge() {
+    const v = typeof window !== 'undefined' ? window.vex : null;
+    if (!v || typeof v.devbenchRecordStart !== 'function') throw new Error('Recording requests is not available in this build');
+    return v;
+  },
+  _activePageId() {
+    if (typeof TabManager === 'undefined' || typeof WebviewManager === 'undefined') throw new Error('Tabs are not available');
+    const tab = TabManager.getActiveTab && TabManager.getActiveTab();
+    const wv = tab && WebviewManager.webviews ? WebviewManager.webviews.get(tab.id) : null;
+    if (!wv || typeof wv.getWebContentsId !== 'function') throw new Error('Open a web page in this tab first');
+    const pol = typeof window !== 'undefined' ? window.VexTabPolicy : null;
+    if (pol && typeof pol.canReadWebview === 'function' && !pol.canReadWebview(wv)) throw new Error('Private, Tor and routed tabs are never recorded');
+    return wv.getWebContentsId();
+  },
+  async _rec(call, id) {
+    const r = await this._recBridge()[call](id);
+    if (!r || !r.ok) throw new Error((r && r.error) || 'The request recorder did not answer');
+    return r;
+  },
+  async startRecording() { return this._rec('devbenchRecordStart', this._activePageId()); },
+  async stopRecording() { return this._rec('devbenchRecordStop', this._activePageId()); },
+  async recorded() { return this._rec('devbenchRecordList', this._activePageId()); },
+
+  // A recorded entry -> the request object the converters take. Pure.
+  fromRecorded(rec) {
+    if (!rec || typeof rec !== 'object') throw new Error('There is no request to copy');
+    return { method: rec.method, url: rec.url, headers: (rec.headers || []).map(h => ({ name: h.name, value: h.value })), body: '' };
+  },
+  // How many header values were removed as it was recorded (the marker). Pure.
+  removedWhenRecorded(rec) { return (rec.headers || []).filter(h => h.value === this.REDACTED).length + (/\[redacted\]/.test(String(rec.url)) ? 1 : 0); },
+
+  _entryMenu(event, rec) {
+    document.querySelectorAll('.tab-context-menu').forEach(m => m.remove());
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu';
+    menu.style.cssText = 'left:' + event.clientX + 'px;top:' + event.clientY + 'px;z-index:2147483000';
+    const add = (label, fn) => {
+      const it = document.createElement('div');
+      it.className = 'tab-context-item';
+      it.setAttribute('role', 'menuitem'); it.tabIndex = 0;
+      it.textContent = label;
+      const run = () => { menu.remove(); try { fn(); } catch (err) { window.showToast?.(err.message, 'error'); } };
+      it.addEventListener('click', run);
+      it.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); run(); } });
+      menu.appendChild(it);
+    };
+    for (const [k, label] of Object.entries(this.FORMATS)) {
+      add('Copy as ' + label, async () => { await navigator.clipboard.writeText(this.format(this.fromRecorded(rec), k)); window.showToast?.('Copied as ' + label); });
+    }
+    add('Edit in the request card...', () => this.open(this.fromRecorded(rec)));
+    if (typeof ApiPlayground !== 'undefined') add('Open in API playground', () => this.toPlayground(this.fromRecorded(rec)));
+    menu.setAttribute('role', 'menu');
+    document.body.appendChild(menu);
+    if (typeof TabManager !== 'undefined' && TabManager._attachMenuDismissal) TabManager._attachMenuDismissal(menu);
+    else setTimeout(() => { const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); } }; document.addEventListener('click', close); }, 0);
+    const first = menu.querySelector('[role=menuitem]');
+    if (first) first.focus();
+  },
+
+  async openRequestList() {
+    if (!this.enabled()) throw new Error('Copy as request is switched off in Settings');
+    if (typeof VexUsage !== 'undefined') VexUsage.touch('copy-as-request');
+    const { body } = VexSettingsGroups.dialog({ id: 'vex-copyas-list', title: 'Requests of this tab', sub: 'Right-click a request to copy it as cURL, fetch or PowerShell. Authorization and cookies are removed as it is recorded; nothing is kept on disk or sent.' });
+    const note = document.createElement('div');
+    note.setAttribute('role', 'status');
+    note.style.cssText = 'font-size:12px;color:var(--text-muted);margin:6px 0';
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:2px;max-height:50vh;overflow:auto';
+    const draw = async () => {
+      const r = await this.recorded();
+      list.textContent = '';
+      note.textContent = r.state.armed
+        ? 'Recording this tab (stops ' + new Date(r.state.until).toLocaleTimeString() + '). ' + r.requests.length + ' request(s). Reload the page, then press Refresh.'
+        : 'Not recording. Press "Record this tab", then reload the page.';
+      for (const rec of r.requests) {
+        const row = document.createElement('div');
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.style.cssText = "display:flex;gap:8px;padding:5px 8px;border-radius:6px;cursor:context-menu;font-family:'JetBrains Mono',monospace;font-size:12px;word-break:break-all";
+        const st = rec.error ? rec.error.replace('net::', '') : rec.status == null ? '...' : String(rec.status);
+        const label = rec.method + ' ' + st + ' ' + rec.url;
+        row.textContent = label;
+        row.setAttribute('aria-label', label + '. Press the context menu key or Enter for copy options');
+        row.addEventListener('contextmenu', (e) => { e.preventDefault(); this._entryMenu(e, rec); });
+        row.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'ContextMenu') {
+            e.preventDefault();
+            const b = row.getBoundingClientRect();
+            this._entryMenu({ clientX: Math.round(b.left + 12), clientY: Math.round(b.bottom - 4) }, rec);
+          }
+        });
+        list.appendChild(row);
+      }
+    };
+    const act = (fn) => async () => { try { await fn(); await draw(); } catch (err) { window.showToast?.(err.message, 'error'); } };
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+    bar.append(
+      VexSettingsGroups.button('Record this tab', act(() => this.startRecording()), { primary: true }),
+      VexSettingsGroups.button('Refresh', act(async () => {})),
+      VexSettingsGroups.button('Stop', act(() => this.stopRecording())),
+    );
+    body.append(bar, note, list);
+    try { await draw(); } catch (err) { note.textContent = err.message; }
+  },
+
   settingsRows(body) {
     body.appendChild(VexSettingsGroup.toggle('Copy as cURL, fetch or PowerShell', this.enabled(), (on) => this.setEnabled(on), 'right-click a link, or Ctrl+K'));
   },
@@ -223,6 +334,10 @@ if (typeof window !== 'undefined') {
         const tab = typeof TabManager !== 'undefined' && TabManager.getActiveTab ? TabManager.getActiveTab() : null;
         VexCopyAs.open({ url: tab && /^https?:/i.test(tab.url || '') ? tab.url : '' });
       },
+    });
+    VexExtras.registerCommand({
+      id: 'copy-as-request-list', label: 'Requests of this tab: copy one as cURL, fetch or PowerShell', hint: 'Record this tab\'s requests for five minutes, then right-click one', icon: 'terminal',
+      action: () => VexCopyAs.openRequestList().catch(err => window.showToast?.(err.message, 'error')),
     });
   }
 }

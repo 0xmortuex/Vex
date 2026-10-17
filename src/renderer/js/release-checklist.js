@@ -11,7 +11,9 @@
 //   Settings › Release check             opens the list for the running version (the
 //                                        bundled CHANGELOG, through getReleaseNotes)
 //
-// Not built: keeping a new feature hidden until it is ticked. That would change
+// The same dialog has a Pre-flight part (VexReleasePreflight, below): GitHub-proven ticks ("Actions on main =
+// success", "latest tag == package.json version"), a checklist of your own lines per repository, and
+// "Open the remaining pages". Not built: keeping a new feature hidden until it is ticked. That would change
 // what every release ships and needs the owner's decision (see the report).
 //
 // Pure parsing first, so tests and the release script load this file in Node.
@@ -298,7 +300,7 @@ const VexReleaseChecklist = {
       const p = this.progress(list.version, list.items);
       body.appendChild(VexSettingsGroups.note('v' + list.version + ': ' + p.done + ' of ' + p.total + ' ticked' + (p.auto ? ' (' + p.auto + ' of them only opened by Vex: you still compare the result)' : '') + '.'));
       const copy = VexSettingsGroups.button('Copy as a checklist', async () => {
-        try { await navigator.clipboard.writeText(this.markdownOf(list, this.ticked(list.version), this.autoTicked(list.version))); window.showToast?.('Checklist copied'); }
+        try { await navigator.clipboard.writeText(this.markdownOf(list, this.ticked(list.version), this.autoTicked(list.version)) + '\n' + VexReleasePreflight.repos().map(r => VexReleasePreflight.markdown(r)).join('\n')); window.showToast?.('Checklist copied'); }
         catch (err) { window.showToast?.('Could not copy: ' + (err && err.message), 'error'); }
       });
       body.appendChild(copy);
@@ -354,6 +356,7 @@ const VexReleaseChecklist = {
         row.append(box, text, go);
         wrap.appendChild(row);
       }
+      VexReleasePreflight.draw(body, draw);
     };
     draw();
   },
@@ -365,8 +368,276 @@ const VexReleaseChecklist = {
   },
 };
 
+// === Pre-flight: the checks GitHub can answer, and a checklist per repository (T2-008) ====================
+//
+// The release check above ticks what the app SAW opened. This part ticks what GitHub can prove, read-only
+// through the GitHub vault (js/github-vault.js; the token stays in the main process):
+//
+//   Actions on main = success       the newest run of EVERY workflow on branch main finished with "success"
+//                                    (a run still going is not a pass)
+//   latest tag == package.json      the highest version tag of the repository equals the "version" in the
+//                                    package.json on main
+//
+// plus a short checklist of your own lines per repository (kept here, ticked by you). It runs only when you press
+// "Run pre-flight"; nothing is read in the background. "Open the remaining pages" opens, in tabs, the GitHub
+// pages of the checks that did not pass (Actions on main, the tags). Hiding a feature until it is ticked is not
+// built (it would change what a release ships).
+const VexReleasePreflight = {
+  KEY: 'vex.releaseCheck.repos',            // { "owner/repo": { custom: [{ id, text }], ticks: { "<id>": at-ms } } }
+  RESULT: 'vex.releaseCheck.preflight',     // { "owner/repo": { at, results: { "<check id>": { ok, detail, url } } } }
+  DEFAULT_REPO: '0xmortuex/Vex',
+  MAX_REPOS: 10,
+  MAX_CUSTOM: 20,
+  CHECKS: [
+    { id: 'actions-main', title: 'Actions on main = success' },
+    { id: 'tag-matches', title: 'Latest tag = package.json version' },
+  ],
+
+  _read(key) {
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    let o;
+    try { o = JSON.parse(raw); } catch (err) { throw new Error('The saved pre-flight data (' + key + ') is not readable: ' + err.message, { cause: err }); }
+    return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  },
+  _write(key, v) { localStorage.setItem(key, JSON.stringify(v)); },
+
+  parseRepo(input) {
+    const m = /^(?:https?:\/\/github\.com\/)?([A-Za-z0-9_.-]{1,100})\/([A-Za-z0-9_.-]{1,100}?)(?:\.git)?(?:[/?#].*)?$/.exec(String(input == null ? '' : input).trim());
+    if (!m || m[1] === '.' || m[1] === '..' || m[2] === '.' || m[2] === '..') return null;
+    return m[1] + '/' + m[2];
+  },
+  repos() {
+    const stored = Object.keys(this._read(this.KEY));
+    return stored.length ? stored : [this.DEFAULT_REPO];
+  },
+  addRepo(input) {
+    const repo = this.parseRepo(input);
+    if (!repo) throw new Error('Use owner/repo, or a github.com address');
+    const all = this._read(this.KEY);
+    if (!Object.keys(all).length) all[this.DEFAULT_REPO] = { custom: [], ticks: {} };
+    if (all[repo]) throw new Error(repo + ' is already listed');
+    if (Object.keys(all).length >= this.MAX_REPOS) throw new Error('At most ' + this.MAX_REPOS + ' repositories');
+    all[repo] = { custom: [], ticks: {} };
+    this._write(this.KEY, all);
+    return repo;
+  },
+  removeRepo(repo) {
+    const all = this._read(this.KEY);
+    delete all[repo];
+    this._write(this.KEY, all);
+    const res = this._read(this.RESULT); delete res[repo]; this._write(this.RESULT, res);
+  },
+  _entry(all, repo) {
+    if (!all[repo]) all[repo] = { custom: [], ticks: {} };
+    if (!Array.isArray(all[repo].custom)) all[repo].custom = [];
+    if (!all[repo].ticks || typeof all[repo].ticks !== 'object') all[repo].ticks = {};
+    return all[repo];
+  },
+  custom(repo) { return this._entry(this._read(this.KEY), repo).custom; },
+  addCustom(repo, text) {
+    const t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (!t) throw new Error('Write the line first');
+    const all = this._read(this.KEY);
+    const e = this._entry(all, repo);
+    if (e.custom.length >= this.MAX_CUSTOM) throw new Error('At most ' + this.MAX_CUSTOM + ' lines per repository');
+    const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    e.custom.push({ id, text: t });
+    this._write(this.KEY, all);
+    return id;
+  },
+  removeCustom(repo, id) {
+    const all = this._read(this.KEY);
+    const e = this._entry(all, repo);
+    e.custom = e.custom.filter(c => c.id !== id);
+    delete e.ticks[id];
+    this._write(this.KEY, all);
+  },
+  setCustomTick(repo, id, on) {
+    const all = this._read(this.KEY);
+    const e = this._entry(all, repo);
+    if (!e.custom.some(c => c.id === id)) throw new Error('That line is not on the list');
+    if (on) e.ticks[id] = Date.now(); else delete e.ticks[id];
+    this._write(this.KEY, all);
+  },
+  customTicked(repo) { return this._entry(this._read(this.KEY), repo).ticks; },
+  results(repo) { return this._read(this.RESULT)[repo] || null; },
+
+  // ---- the checks (read-only GitHub) ----------------------------------------------------------
+  _vault() {
+    if (typeof GitHubVault === 'undefined') throw new Error('The GitHub vault is not loaded');
+    return GitHubVault;
+  },
+  _semver(tag) {
+    const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(tag || ''));
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+  },
+  _cmpv(a, b) { return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]; },
+
+  // The newest run of every workflow on main. -> { ok, detail, url }
+  async checkActions(repo) {
+    const j = await this._vault().json('/repos/' + repo + '/actions/runs?branch=main&per_page=30');
+    const runs = Array.isArray(j && j.workflow_runs) ? j.workflow_runs : [];
+    if (!runs.length) return { ok: false, detail: 'There are no workflow runs on main', url: 'https://github.com/' + repo + '/actions' };
+    const newest = new Map();
+    for (const r of runs) {
+      const key = r.workflow_id != null ? r.workflow_id : r.name;
+      const prev = newest.get(key);
+      if (!prev || Number(r.id) > Number(prev.id)) newest.set(key, r);
+    }
+    const bad = [], running = [];
+    for (const r of newest.values()) {
+      if (r.status !== 'completed') running.push(r.name || 'a workflow');
+      else if (r.conclusion !== 'success') bad.push((r.name || 'a workflow') + ' ' + r.conclusion);
+    }
+    const url = 'https://github.com/' + repo + '/actions?query=branch%3Amain';
+    if (bad.length) return { ok: false, detail: 'Not green on main: ' + bad.join(', '), url };
+    if (running.length) return { ok: false, detail: 'Still running on main: ' + running.join(', '), url };
+    return { ok: true, detail: newest.size + ' workflow(s), all green on main', url };
+  },
+
+  // The highest version tag against the version in package.json on main. -> { ok, detail, url }
+  async checkTag(repo) {
+    const v = this._vault();
+    const tags = await v.json('/repos/' + repo + '/tags?per_page=30');
+    const versions = (Array.isArray(tags) ? tags : []).map(t => ({ name: t.name, v: this._semver(t.name) })).filter(t => t.v).sort((a, b) => this._cmpv(b.v, a.v));
+    const url = 'https://github.com/' + repo + '/tags';
+    if (!versions.length) return { ok: false, detail: 'The repository has no version tag (vX.Y.Z)', url };
+    const file = await v.json('/repos/' + repo + '/contents/package.json?ref=main');
+    if (!file || file.encoding !== 'base64' || typeof file.content !== 'string') throw new Error('package.json of ' + repo + ' could not be read');
+    const bin = atob(file.content.replace(/\s/g, ''));
+    let pkg;
+    try { pkg = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)))); }
+    catch (err) { throw new Error('package.json of ' + repo + ' is not valid JSON', { cause: err }); }
+    const want = this._semver(pkg.version);
+    if (!want) return { ok: false, detail: 'package.json has no version like X.Y.Z (it says "' + String(pkg.version).slice(0, 20) + '")', url };
+    const latest = versions[0];
+    const same = this._cmpv(latest.v, want) === 0;
+    return { ok: same, detail: same ? 'Tag ' + latest.name + ' = package.json ' + pkg.version : 'Latest tag is ' + latest.name + ' but package.json says ' + pkg.version, url };
+  },
+
+  // Runs both checks for one repository and keeps the answers. A failed read is kept as a failed check with its
+  // reason (never as a pass); it does not stop the other check. -> { at, results }
+  async run(repo) {
+    if (!this.parseRepo(repo)) throw new Error('That is not a repository');
+    const results = {};
+    for (const [id, fn] of [['actions-main', () => this.checkActions(repo)], ['tag-matches', () => this.checkTag(repo)]]) {
+      try { results[id] = await fn(); }
+      catch (err) { results[id] = { ok: false, detail: 'Could not check: ' + err.message, url: 'https://github.com/' + repo, error: true }; }
+    }
+    const all = this._read(this.RESULT);
+    all[repo] = { at: Date.now(), results };
+    this._write(this.RESULT, all);
+    if (typeof VexUsage !== 'undefined') VexUsage.touch('release-check');
+    return all[repo];
+  },
+
+  // The GitHub pages of the checks that have not passed (at most 4).
+  remainingPages(repo) {
+    const r = this.results(repo);
+    const out = [];
+    for (const c of this.CHECKS) {
+      const x = r && r.results[c.id];
+      out.push(x && x.ok ? null : (x && x.url) || 'https://github.com/' + repo + (c.id === 'tag-matches' ? '/tags' : '/actions?query=branch%3Amain'));
+    }
+    return out.filter(Boolean).slice(0, 4);
+  },
+  openRemaining(repo) {
+    if (typeof TabManager === 'undefined') throw new Error('Tabs are not available');
+    const pages = this.remainingPages(repo);
+    if (!pages.length) return 0;
+    for (const u of pages) TabManager.createTab(u, true);
+    return pages.length;
+  },
+
+  // Everything for one repository as a markdown checklist (for Copy as a checklist).
+  markdown(repo) {
+    const r = this.results(repo);
+    const ticks = this.customTicked(repo);
+    const lines = ['## Pre-flight: ' + repo, ''];
+    for (const c of this.CHECKS) {
+      const x = r && r.results[c.id];
+      lines.push('- [' + (x && x.ok ? 'x' : ' ') + '] ' + c.title + (x ? ' (' + x.detail + ')' : ' (not run)'));
+    }
+    for (const c of this.custom(repo)) lines.push('- [' + (ticks[c.id] ? 'x' : ' ') + '] ' + c.text);
+    return lines.join('\n') + '\n';
+  },
+
+  // ---- the block in the Release check dialog -----------------------------------------------------
+  draw(host, redraw) {
+    const S = VexSettingsGroups;
+    const fail = (err) => { console.error('[ReleasePreflight]', err); window.showToast?.(err.message || String(err), 'error'); };
+    const wrap = document.createElement('div');
+    const head = document.createElement('div');
+    head.className = 'vexsr-sub';
+    head.style.marginTop = '16px';
+    head.textContent = 'Pre-flight (GitHub, read-only)';
+    wrap.append(head, S.note('Asks GitHub whether the Actions on main are green and the latest tag matches package.json, and keeps a checklist of your own lines per repository. Runs only when you press the button. Uses your GitHub token if you entered one (Settings > GitHub access).'));
+    for (const repo of this.repos()) {
+      const box = document.createElement('div');
+      box.className = 'vexsr-list';
+      box.style.marginTop = '8px';
+      const title = document.createElement('div');
+      title.textContent = repo;
+      title.style.fontWeight = '600';
+      box.appendChild(title);
+      const r = this.results(repo);
+      for (const c of this.CHECKS) {
+        const row = document.createElement('div');
+        row.className = 'vexsr-rule';
+        const x = r && r.results[c.id];
+        const mark = document.createElement('input');
+        mark.type = 'checkbox'; mark.checked = !!(x && x.ok); mark.disabled = true;
+        mark.setAttribute('aria-label', c.title + (x ? (x.ok ? ': passed' : ': not passed') : ': not run'));
+        const t = document.createElement('span');
+        t.className = 'vexsr-host';
+        t.style.wordBreak = 'normal';
+        const a = document.createElement('div'); a.textContent = c.title;
+        const b = document.createElement('div'); b.className = 'vexsr-mode'; b.style.whiteSpace = 'normal';
+        b.textContent = x ? x.detail : 'Not run yet';
+        t.append(a, b);
+        row.append(mark, t);
+        box.appendChild(row);
+      }
+      const ticks = this.customTicked(repo);
+      for (const c of this.custom(repo)) {
+        const row = document.createElement('div');
+        row.className = 'vexsr-rule';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = !!ticks[c.id];
+        cb.setAttribute('aria-label', 'Checked: ' + c.text);
+        cb.addEventListener('change', () => { try { this.setCustomTick(repo, c.id, cb.checked); } catch (err) { fail(err); } });
+        const t = document.createElement('span'); t.className = 'vexsr-host'; t.textContent = c.text;
+        row.append(cb, t, S.button('Remove', () => { try { this.removeCustom(repo, c.id); redraw(); } catch (err) { fail(err); } }, { danger: true, label: 'Remove the line ' + c.text }));
+        box.appendChild(row);
+      }
+      const add = document.createElement('input');
+      add.type = 'text'; add.className = 'set-input'; add.placeholder = 'Add a line for ' + repo; add.setAttribute('aria-label', 'A line for the checklist of ' + repo);
+      const bar = document.createElement('div');
+      bar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-top:6px';
+      bar.append(
+        S.button('Run pre-flight', async () => { try { await this.run(repo); redraw(); } catch (err) { fail(err); } }, { primary: true, label: 'Run the pre-flight of ' + repo }),
+        S.button('Open the remaining pages', () => { try { const n = this.openRemaining(repo); window.showToast?.(n ? 'Opened ' + n + ' page(s)' : 'Everything passed; nothing to open'); } catch (err) { fail(err); } }),
+        S.button('Add line', () => { try { this.addCustom(repo, add.value); redraw(); } catch (err) { fail(err); } }),
+        S.button('Copy', async () => { try { await navigator.clipboard.writeText(this.markdown(repo)); window.showToast?.('Copied'); } catch (err) { fail(err); } }, { label: 'Copy the pre-flight of ' + repo }),
+        S.button('Stop listing', () => { try { this.removeRepo(repo); redraw(); } catch (err) { fail(err); } }, { danger: true, label: 'Stop listing ' + repo }),
+      );
+      box.append(add, bar);
+      wrap.appendChild(box);
+    }
+    const repoIn = document.createElement('input');
+    repoIn.type = 'text'; repoIn.className = 'set-input'; repoIn.placeholder = 'owner/repo'; repoIn.setAttribute('aria-label', 'Another repository for the pre-flight');
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:6px;margin-top:10px';
+    bar.append(repoIn, S.button('Add repository', () => { try { this.addRepo(repoIn.value); redraw(); } catch (err) { fail(err); } }));
+    wrap.appendChild(bar);
+    host.appendChild(wrap);
+  },
+};
+
 if (typeof window !== 'undefined') {
   window.VexReleaseChecklist = VexReleaseChecklist;
+  window.VexReleasePreflight = VexReleasePreflight;
   if (typeof VexSettingsGroups !== 'undefined') {
     VexSettingsGroups.register({
       id: 'release-check',
@@ -380,4 +651,4 @@ if (typeof window !== 'undefined') {
     VexExtras.registerCommand({ id: 'release-check', label: 'Release check', hint: 'Hand-check this version from its CHANGELOG', icon: 'check', action: () => VexReleaseChecklist.open() });
   }
 }
-if (typeof module !== 'undefined' && module.exports) module.exports = { VexReleaseChecklist };
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexReleaseChecklist, VexReleasePreflight };

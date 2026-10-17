@@ -11,8 +11,11 @@
 //     so the card says it proves nothing about who made it, and it is not logged;
 //   * decoding is a read-out, it never runs or opens what it decoded.
 //
-// The entry's longer list (errno, NTSTATUS, EFI_STATUS, HTTP codes, signals, cron
-// with offline lookup tables) is not built: only the decodings above.
+// It also looks codes up in local tables (js/selection-decoder-tables.js, no network): errno and Windows
+// error numbers, NTSTATUS / HRESULT (including the DirectX device-removed codes), EFI_STATUS, HTTP status
+// codes, signals and shell exit codes (128+N), and cron expressions (in words, with the next runs). A bare
+// number is only decoded when it is a name (ENOENT, STATUS_ACCESS_VIOLATION), a hex status (0xC0000005) or
+// has a word in front (errno 2, signal 11, exit code 139); a code that is not in a table is said so.
 //
 // analyze() is pure (the clock and the zone are passed in) and tested in
 // tests/renderer/selectionDecoder.test.js.
@@ -168,6 +171,132 @@ const VexDecode = {
     return { kind: 'base64', title: /[-_]/.test(t) && !/[+/]/.test(t) ? 'Base64 (URL-safe)' : 'Base64', rows };
   },
 
+  _tables() {
+    if (typeof VexDecodeTables !== 'undefined') return VexDecodeTables;
+    if (typeof require === 'function') return require('./selection-decoder-tables').VexDecodeTables;
+    throw new Error('selection-decoder-tables.js must load before selection-decoder.js');
+  },
+
+  _http(s) {
+    const m = /^(?:HTTP[ /]?\d?(?:\.\d)?\s*)?([1-5]\d\d)(?:\s+[A-Za-z' -]{2,40})?$/i.exec(s);
+    if (!m) return null;
+    const h = this._tables().http(m[1]);
+    if (!h) return null;
+    return { kind: 'http', title: 'HTTP status ' + h.code, rows: [{ label: 'Name', value: h.name }, { label: 'Family', value: h.family }, { label: 'Meaning', value: h.meaning }] };
+  },
+
+  _errno(s) {
+    const T = this._tables();
+    const rows = [];
+    const add = (label, e) => rows.push({ label, value: e.name + (e.number != null ? ' (' + e.number + ')' : '') + ': ' + e.meaning });
+    let m = /^(?:Error:\s*)?(WSAE[A-Z0-9]+|E[A-Z][A-Z0-9]{2,})\b(?::.*)?$/.exec(s);
+    if (m) {
+      const name = m[1];
+      const e = T.errno(name);
+      if (e) add('errno', e);
+      for (const [n, v] of Object.entries(T.WIN32)) if (v[0] === name) add('Windows', { number: Number(n), name, meaning: v[1] });
+      if (!rows.length) return null;
+      return { kind: 'errno', title: 'Error ' + name, rows, warnings: e ? ['The numbers differ between systems: this is the Linux number; macOS and Windows C runtimes use others for some names.'] : undefined };
+    }
+    m = /^\(?\s*(errno|os error|error)\s*[:=#]?\s*(-?\d{1,5})\s*\)?$/i.exec(s);
+    if (m) {
+      const n = Math.abs(Number(m[2]));
+      const e = T.errno(String(n)), w = T.win32(n);
+      if (e) add('Linux errno', e);
+      if (w) add('Windows error', w);
+      if (!rows.length) return null;
+      return { kind: 'errno', title: 'Error number ' + n, rows, warnings: e && w ? ['The same number means different things on Linux and Windows: use the line for the system the message came from.'] : undefined };
+    }
+    m = /^(?:WinError|Win32 error|GetLastError|WSAGetLastError|system error)\s*[:=#]?\s*(\d{1,5})$/i.exec(s);
+    if (m) {
+      const w = T.win32(m[1]);
+      if (!w) return null;
+      add('Windows error', w);
+      return { kind: 'errno', title: 'Windows error ' + w.number, rows };
+    }
+    return null;
+  },
+
+  _status(s) {
+    const T = this._tables();
+    let v = null;
+    let m = /^(?:0x)?([0-9A-Fa-f]{8})$/.exec(s);
+    if (m && (/^0x/i.test(s) || /[A-Fa-f]/.test(m[1]))) v = parseInt(m[1], 16);
+    else if ((m = /^(?:exit code|exit status|status|code)?\s*[:=]?\s*(-?\d{9,10})$/i.exec(s))) {
+      const n = Number(m[1]);
+      if (n >= -2147483648 && n <= 4294967295) v = n >>> 0;
+    } else if (/^(STATUS_[A-Z0-9_]+|E_[A-Z]+|DXGI_ERROR_[A-Z_]+)$/.test(s)) {
+      const hit = Object.entries(T.NTSTATUS).find(([, e]) => e[0] === s);
+      if (hit) v = Number(hit[0]);
+    }
+    if (v == null) return null;
+    const r = T.ntstatus(v);
+    // Only a code that is in the table, or that has the high bit set (a warning or an error), is worth a card.
+    if (!r.known && r.severity !== 'Error' && r.severity !== 'Warning') return null;
+    const rows = [{ label: 'Code', value: r.hex + '  (signed ' + (v | 0) + ', unsigned ' + v + ')' }];
+    rows.push(r.known ? { label: 'Name', value: r.name } : { label: 'Name', value: 'not in the offline table' });
+    if (r.known) rows.push({ label: 'Meaning', value: r.meaning });
+    rows.push({ label: 'Severity', value: r.severity });
+    const fac = T.facilityName(r.facility);
+    rows.push({ label: 'Facility', value: r.facility + (fac ? ' (' + fac + ')' : '') });
+    const w = T.win32InHresult(v);
+    if (w) rows.push({ label: 'Win32 error inside', value: w.name + ' (' + w.number + '): ' + w.meaning });
+    const warnings = [];
+    if (!r.known) warnings.push('The same shape is used by NTSTATUS and HRESULT; this code is not in the short offline table, so only its parts are read out.');
+    return { kind: 'ntstatus', title: 'Windows status ' + r.hex, rows, warnings: warnings.length ? warnings : undefined };
+  },
+
+  _efi(s) {
+    const T = this._tables();
+    let key = null;
+    let m = /^EFI_[A-Z_]+$/.exec(s);
+    if (m) key = s;
+    else if ((m = /^(?:0x)?([0-9A-Fa-f]{16})$/.exec(s)) && (/^0x/i.test(s) || /[A-Fa-f]/.test(m[1]))) key = '0x' + m[1];
+    else if ((m = /^0x(80[0-9A-Fa-f]{6})$/.exec(s))) key = '0x' + m[1];
+    if (key == null) return null;
+    const r = T.efi(key);
+    if (!r) return null;
+    const rows = [{ label: 'Name', value: r.name }, { label: 'Kind', value: r.kind }, { label: 'Meaning', value: r.meaning }];
+    if (r.number) rows.splice(1, 0, { label: 'Number', value: String(r.number) + (r.bits ? ' (error bit set, ' + r.bits + '-bit status)' : '') });
+    const warnings = r.bits === 32 ? ['As a 32-bit EFI_STATUS. The same number is also read as a Windows status if it comes from Windows.'] : undefined;
+    return { kind: 'efi', title: 'UEFI status ' + r.name, rows, warnings };
+  },
+
+  _signal(s) {
+    const T = this._tables();
+    let sig = null, from = '';
+    let m = /^SIG[A-Z0-9]+$/.exec(s);
+    if (m) { sig = T.signal(s); }
+    else if ((m = /^(?:signal|sig)\s*[:=#]?\s*(\d{1,2})$/i.exec(s))) { sig = T.signal(m[1]); }
+    else if ((m = /^(?:exit(?:ed)?(?: with)?(?: code| status)?|status|exit)\s*[:=#]?\s*(\d{3})$/i.exec(s))) {
+      const x = T.exitCode(m[1]);
+      if (x) { sig = x.signal; from = 'Exit code ' + x.code + ' = 128 + ' + x.signal.number; }
+    }
+    if (!sig) return null;
+    const rows = [{ label: 'Signal', value: sig.name + ' (' + sig.number + ')' }, { label: 'Default action', value: sig.action }, { label: 'Meaning', value: sig.meaning }];
+    if (from) rows.unshift({ label: 'Exit code', value: from + ': the process was ended by this signal' });
+    return { kind: 'signal', title: 'Signal ' + sig.name, rows, warnings: ['Numbers are the Linux ones; macOS numbers some signals differently.'] };
+  },
+
+  _cron(s, now) {
+    const T = this._tables();
+    const macro = T.MACROS[s.toLowerCase()];
+    const tokens = s.split(/\s+/);
+    if (!macro) {
+      if (tokens.length !== 5 || !tokens.every(t => /^[\d*\/,A-Za-z-]+$/.test(t))) return null;
+      // Five plain numbers are far more often something else; a cron has a star, a step, a list, a range or a name.
+      if (!/[*\/,A-Za-z-]/.test(s)) return null;
+    }
+    let c;
+    try { c = T.parseCron(s); } catch { return null; }   // vex-allow-empty-catch: not a valid cron expression means "not cron"
+    const rows = [{ label: 'In words', value: T.cronWords(c) }];
+    const next = T.cronNext(c, 3, now);
+    if (next.length) rows.push({ label: 'Next runs', value: next.map(d => d.toLocaleString('en-GB', { hour12: false, dateStyle: 'medium', timeStyle: 'short' })).join('\n'), code: true });
+    else rows.push({ label: 'Next runs', value: 'none in the next two years' });
+    if (macro) rows.push({ label: 'Same as', value: macro, code: true });
+    return { kind: 'cron', title: 'Cron expression', rows, warnings: ['Times are in this computer\'s time zone; a server may run cron in another one.'] };
+  },
+
   // What the text could be: a list of { kind, title, rows:[{label,value,code}], warnings? }.
   // Empty when it is none of them. `now` and `zone` are for tests.
   analyze(text, { now = Date.now(), zone } = {}) {
@@ -177,7 +306,7 @@ const VexDecode = {
     const jwt = this._jwt(s, now, zone);
     if (jwt) found.push(jwt);
     else {
-      for (const fn of [this._epoch, this._percent, this._escapes, this._hexString, this._base64]) {
+      for (const fn of [this._http, this._errno, this._status, this._efi, this._signal, this._cron, this._epoch, this._percent, this._escapes, this._hexString, this._base64]) {
         const r = fn.call(this, s, now, zone);
         if (r) found.push(r);
       }
@@ -191,7 +320,7 @@ const VexDecode = {
     const found = this.analyze(text);
     if (typeof VexUsage !== 'undefined') VexUsage.touch('selection-decoder');
     const { body } = VexSettingsGroups.dialog({ id: 'vex-decode', title: 'Decoded selection', sub: 'Worked out on this computer from the text you selected. Nothing is sent or kept.' });
-    if (!found.length) { body.appendChild(VexSettingsGroups.note('Nothing here looks like base64, a percent-encoded address, a JWT, hex, a Unix time or unicode escapes.')); return; }
+    if (!found.length) { body.appendChild(VexSettingsGroups.note('Nothing here looks like base64, a percent-encoded address, a JWT, hex, a Unix time, unicode escapes, an error code (errno, Windows status, UEFI), an HTTP status, a signal or a cron expression.')); return; }
     for (const f of found) {
       const card = document.createElement('div');
       card.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:0 0 10px';

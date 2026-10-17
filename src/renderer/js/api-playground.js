@@ -13,9 +13,13 @@
 //     localhost" (off every time the playground opens) allows localhost only.
 //   - A header value (and an environment variable) can be marked sensitive.
 //     Authorization, Cookie and token-like headers start marked. Sensitive
-//     values are kept in their own key, 'vex.playgroundSecretValues', which
-//     Vex Sync never carries and backups and exports always leave out. The
-//     saved request keeps only the name.
+//     values live in the main process, sealed by the operating system
+//     (main/playground-vault.js): the window can list which keys exist, write
+//     a value it has just been typed and delete, but is never given one back.
+//     {{variables}} are filled in by main when a request is sent. The saved
+//     request keeps only the name. The old localStorage key
+//     'vex.playgroundSecretValues' is moved into the vault once (ready()) and
+//     then removed; Vex Sync never carried it and backups always left it out.
 //   - History keeps the method, the address without its query string, the
 //     status and the time: never a header or a body.
 //   - Not available in a private window.
@@ -117,90 +121,148 @@ const ApiPlayground = {
     try { localStorage.setItem(this.KEY, JSON.stringify(state)); }
     catch (err) { throw new Error('The playground could not be saved: ' + ((err && err.message) || err)); }
   },
-  secrets() {
-    try { const o = JSON.parse(localStorage.getItem(this.SECRET_KEY) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; }
+  // --- secrets (kept in the main process; this window knows only which keys exist) ---------
+  _vaultKeys: null,
+  _bridge() { const v = typeof window !== 'undefined' ? window.vex : null; return v && typeof v.playgroundSecretsKeys === 'function' ? v : null; },
+  _needBridge() {
+    const v = this._bridge();
+    if (!v) throw new Error('This build has no secret vault for the playground, so a sensitive value cannot be saved or used');
+    return v;
   },
-  saveSecrets(map) {
-    try { localStorage.setItem(this.SECRET_KEY, JSON.stringify(map)); }
-    catch (err) { throw new Error('The sensitive values could not be saved: ' + ((err && err.message) || err)); }
-  },
+  secretKeys() { return new Set(this._vaultKeys || []); },
 
-  // A saved request with its sensitive values put back, ready for the form.
-  hydrateRequest(r) {
-    const sec = this.secrets();
-    return { ...r, headers: r.headers.map(h => ({ ...h, value: h.sensitive ? String(sec['req:' + r.id + ':' + h.name] || '') : h.value })) };
+  // Loads the list of vault keys, after the one-time move of the old window-side secrets into the vault.
+  async ready() {
+    const v = this._bridge();
+    if (!v) { if (!this._vaultKeys) this._vaultKeys = new Set(); return false; }
+    await this._migrateLegacy(v);
+    this._vaultKeys = new Set(await v.playgroundSecretsKeys());
+    return true;
   },
-  envVars(env) {
-    if (!env) return {};
-    const sec = this.secrets();
-    const out = {};
-    for (const v of env.vars) out[v.name] = v.secret ? String(sec['env:' + env.id + ':' + v.name] || '') : v.value;
+  // One time: localStorage 'vex.playgroundSecretValues' -> the vault. The old key is removed only after main
+  // says every value was taken in (or was already there); a failure leaves it where it is and is raised.
+  async _migrateLegacy(v) {
+    const raw = localStorage.getItem(this.SECRET_KEY);
+    if (raw == null) return { moved: 0 };
+    let map;
+    try { map = JSON.parse(raw); } catch (err) { throw new Error('The old saved secrets are not readable, so they were not moved into the vault: ' + err.message, { cause: err }); }
+    if (!map || typeof map !== 'object' || Array.isArray(map)) throw new Error('The old saved secrets are not in the expected form, so they were not moved into the vault');
+    const total = Object.keys(map).length;
+    if (total) {
+      const r = await v.playgroundSecretsMigrate(map);
+      if (!r || r.imported + r.kept + r.refused !== total) throw new Error('The vault did not take in all the old secrets, so the old copy was kept');
+      if (r.refused && typeof VexProblems !== 'undefined') VexProblems.note('API playground', r.refused + ' old saved value(s) were not valid names or values and were not moved', new Error('refused ' + r.refused));
+    }
+    localStorage.removeItem(this.SECRET_KEY);
+    return { moved: total };
+  },
+  async _applySecrets({ set = {}, clear = [] }) {
+    if (!Object.keys(set).length && !clear.length) return;
+    const v = this._needBridge();
+    await v.playgroundSecretsApply({ set, clear });
+    if (!this._vaultKeys) this._vaultKeys = new Set();
+    for (const k of clear) this._vaultKeys.delete(k);
+    for (const k of Object.keys(set)) this._vaultKeys.add(k);
+  },
+  _keysWith(prefix) { return [...(this._vaultKeys || [])].filter(k => k.startsWith(prefix)); },
+
+  // A saved request ready for the form: a sensitive header comes back EMPTY with `saved` and `ref` (the vault
+  // key), because the window never holds the value. Left empty in the form, it keeps the saved one.
+  hydrateRequest(r) {
+    const keys = this._vaultKeys || new Set();
+    return { ...r, headers: r.headers.map(h => {
+      if (!h.sensitive) return { ...h };
+      const ref = 'req:' + r.id + ':' + h.name;
+      return { ...h, value: '', ref, saved: keys.has(ref) };
+    }) };
+  },
+  // The active environment as main needs it: plain variables, and for each secret one the vault key.
+  envPlan(env) {
+    const out = { vars: {}, secretVars: {} };
+    if (!env) return out;
+    const keys = this._vaultKeys || new Set();
+    for (const v of env.vars) {
+      if (!v.secret) out.vars[v.name] = v.value;
+      else if (keys.has('env:' + env.id + ':' + v.name)) out.secretVars[v.name] = 'env:' + env.id + ':' + v.name;
+    }
     return out;
   },
+  // Plain variables only: a secret one is never returned (see envPlan).
+  envVars(env) { return this.envPlan(env).vars; },
 
   // form: { id?, name, method, url, body, headers:[{name,value,sensitive,enabled}] }
-  saveRequest(form) {
+  async saveRequest(form) {
+    await this.ready();
     const state = this.load();
-    const secrets = this.secrets();
     let id = form.id && state.requests.some(r => r.id === form.id) ? form.id : null;
     if (!id) {
       if (state.requests.length >= this.MAX_REQUESTS) throw new Error('That is the most saved requests Vex keeps (' + this.MAX_REQUESTS + ')');
       id = this._id('rq');
     }
-    for (const k of Object.keys(secrets)) if (k.startsWith('req:' + id + ':')) delete secrets[k];
+    const prefix = 'req:' + id + ':';
+    const set = {}, keep = new Set();
     const headers = (form.headers || []).filter(h => String(h.name || '').trim()).map(h => {
       const name = String(h.name).trim().slice(0, 100);
       const sensitive = !!h.sensitive;
-      if (sensitive && h.value) secrets['req:' + id + ':' + name] = String(h.value);
+      if (sensitive) {
+        const key = prefix + name;
+        if (h.value) set[key] = String(h.value);
+        else if (this._vaultKeys.has(key)) keep.add(key);
+      }
       return { name, value: sensitive ? '' : String(h.value || '').slice(0, 8192), sensitive, enabled: h.enabled !== false };
     });
+    const clear = this._keysWith(prefix).filter(k => !keep.has(k) && !(k in set));
     const collection = state.collections.some(c => c.id === form.collection) ? form.collection : '';
     const rec = { id, name: String(form.name || '').trim().slice(0, 80) || 'Untitled', collection, method: form.method, url: String(form.url || '').slice(0, 4096), body: String(form.body || '').slice(0, 200000), headers };
     const at = state.requests.findIndex(r => r.id === id);
     if (at >= 0) state.requests[at] = rec; else state.requests.push(rec);
     // Secrets first: a failure here must not leave a request that points at nothing.
-    this.saveSecrets(secrets);
+    await this._applySecrets({ set, clear });
     this.save(state);
     return id;
   },
-  deleteRequest(id) {
+  async deleteRequest(id) {
+    await this.ready();
     const state = this.load();
     state.requests = state.requests.filter(r => r.id !== id);
-    const secrets = this.secrets();
-    for (const k of Object.keys(secrets)) if (k.startsWith('req:' + id + ':')) delete secrets[k];
-    this.saveSecrets(secrets);
+    await this._applySecrets({ clear: this._keysWith('req:' + id + ':') });
     this.save(state);
   },
-  saveEnv(env) {
+  async saveEnv(env) {
+    await this.ready();
     const state = this.load();
-    const secrets = this.secrets();
     let id = env.id && state.envs.some(e => e.id === env.id) ? env.id : null;
     if (!id) {
       if (state.envs.length >= this.MAX_ENVS) throw new Error('That is the most environments Vex keeps (' + this.MAX_ENVS + ')');
       id = this._id('ev');
     }
-    for (const k of Object.keys(secrets)) if (k.startsWith('env:' + id + ':')) delete secrets[k];
+    const prefix = 'env:' + id + ':';
+    const set = {}, keep = new Set();
     const vars = (env.vars || []).filter(v => String(v.name || '').trim()).map(v => {
       const name = String(v.name).trim();
       if (!/^[A-Za-z_][\w.-]{0,60}$/.test(name)) throw new Error('"' + name.slice(0, 30) + '" is not a valid variable name (letters, digits, _ . -)');
       const secret = !!v.secret;
-      if (secret && v.value) secrets['env:' + id + ':' + name] = String(v.value);
+      if (secret) {
+        const key = prefix + name;
+        if (v.value) set[key] = String(v.value);
+        else if (this._vaultKeys.has(key)) keep.add(key);
+      }
       return { name, value: secret ? '' : String(v.value || '').slice(0, 4096), secret };
     });
+    const clear = this._keysWith(prefix).filter(k => !keep.has(k) && !(k in set));
     const rec = { id, name: String(env.name || '').trim().slice(0, 60) || 'Environment', vars };
     const at = state.envs.findIndex(e => e.id === id);
     if (at >= 0) state.envs[at] = rec; else state.envs.push(rec);
-    this.saveSecrets(secrets);
+    await this._applySecrets({ set, clear });
     this.save(state);
     return id;
   },
-  deleteEnv(id) {
+  async deleteEnv(id) {
+    await this.ready();
     const state = this.load();
     state.envs = state.envs.filter(e => e.id !== id);
     if (state.activeEnv === id) state.activeEnv = '';
-    const secrets = this.secrets();
-    for (const k of Object.keys(secrets)) if (k.startsWith('env:' + id + ':')) delete secrets[k];
-    this.saveSecrets(secrets);
+    await this._applySecrets({ clear: this._keysWith('env:' + id + ':') });
     this.save(state);
   },
   setActiveEnv(id) { const s = this.load(); s.activeEnv = s.envs.some(e => e.id === id) ? id : ''; this.save(s); },
@@ -320,12 +382,29 @@ const ApiPlayground = {
   async send(form) {
     if (this._privateWindow()) throw new Error('The API playground is not available in a private window');
     if (!window.vex || typeof window.vex.playgroundSend !== 'function') throw new Error('This window cannot send requests');
+    await this.ready();
+    if (typeof window.vex.playgroundSendForm !== 'function') throw new Error('This build cannot fill in variables in the main process');
     const state = this.load();
     const env = state.envs.find(e => e.id === state.activeEnv) || null;
-    const req = this.buildRequest(form, this.envVars(env));
-    const res = await window.vex.playgroundSend(req);
+    const method = String(form.method || 'GET').toUpperCase();
+    if (!this.METHODS.includes(method)) throw new Error('Method not allowed: ' + method);
+    const keys = this._vaultKeys || new Set();
+    const plan = this.envPlan(env);
+    // {{variables}} stay in the form: main fills them in (secret ones from the vault), so a secret never passes through here.
+    const payload = {
+      form: {
+        method, url: String(form.url || ''), body: form.body == null ? '' : String(form.body), allowLocal: form.allowLocal === true,
+        headers: (form.headers || []).filter(h => h && String(h.name || '').trim()).map(h => {
+          const name = String(h.name).trim();
+          const guess = h.ref || (form.id ? 'req:' + form.id + ':' + name : '');
+          return { name, value: String(h.value == null ? '' : h.value), enabled: h.enabled !== false, sensitive: !!h.sensitive, ref: h.sensitive && guess && keys.has(guess) ? guess : '' };
+        }),
+      },
+      vars: plan.vars, secretVars: plan.secretVars,
+    };
+    const res = await window.vex.playgroundSendForm(payload);
     try {
-      this.addHistory({ method: req.method, url: String(form.url || ''), status: res && res.ok ? res.status : 0, ms: res && res.timeMs, error: res && !res.ok ? res.error : '' });
+      this.addHistory({ method, url: String(form.url || ''), status: res && res.ok ? res.status : 0, ms: res && res.timeMs, error: res && !res.ok ? res.error : '' });
     } catch (err) { console.error('[ApiPlayground] history not saved:', err); }
     return res;
   },
@@ -406,16 +485,17 @@ const ApiPlayground = {
       allowLocal: q('#pg-local').checked,
       headers: [...m.querySelectorAll('#pg-headers [data-row]')].map(r => ({
         name: r.querySelector('[data-h-name]').value, value: r.querySelector('[data-h-value]').value,
-        sensitive: r.querySelector('[data-h-sens]').checked, enabled: r.querySelector('[data-h-on]').checked,
+        sensitive: r.querySelector('[data-h-sens]').checked, enabled: r.querySelector('[data-h-on]').checked, ref: r.dataset.ref || '',
       })),
     });
     const headerRow = (h) => {
       const row = document.createElement('div');
       row.dataset.row = '1';
+      if (h.ref) row.dataset.ref = h.ref;
       row.style.cssText = 'display:flex;gap:6px;margin-bottom:4px;align-items:center';
       row.innerHTML = `<input type="checkbox" data-h-on aria-label="Send this header" ${h.enabled === false ? '' : 'checked'}>
         <input data-h-name type="text" spellcheck="false" placeholder="Name" value="${esc(h.name)}" style="width:170px;${inp}">
-        <input data-h-value type="${h.sensitive ? 'password' : 'text'}" spellcheck="false" placeholder="Value" value="${esc(h.value)}" style="flex:1;${inp}">
+        <input data-h-value type="${h.sensitive ? 'password' : 'text'}" spellcheck="false" placeholder="${h.saved ? 'Saved (leave empty to keep)' : 'Value'}" value="${esc(h.value)}" style="flex:1;${inp}">
         <label style="font-size:11.5px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-h-sens ${h.sensitive ? 'checked' : ''}>Sensitive</label>
         <button type="button" data-h-del aria-label="Remove header" title="Remove" style="padding:5px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;line-height:0">${VexIcons.svg('x', { size: 12 })}</button>`;
       const name = row.querySelector('[data-h-name]'), sens = row.querySelector('[data-h-sens]'), val = row.querySelector('[data-h-value]');
@@ -457,7 +537,7 @@ const ApiPlayground = {
         b.querySelector('[data-open]').addEventListener('click', () => fillForm(this.hydrateRequest(r)));
         b.querySelector('[data-del]').addEventListener('click', async () => {
           if (!(await vexConfirm({ title: 'Delete saved request?', message: 'Delete "' + r.name + '" and its saved header values?', okLabel: 'Delete', danger: true }))) return;
-          try { this.deleteRequest(r.id); if (ui.current.id === r.id) ui.current.id = ''; drawLists(); } catch (err) { window.showToast?.(err.message, 'error'); }
+          try { await this.deleteRequest(r.id); if (ui.current.id === r.id) ui.current.id = ''; drawLists(); } catch (err) { window.showToast?.(err.message, 'error'); }
         });
         saved.appendChild(b);
       }
@@ -504,10 +584,10 @@ const ApiPlayground = {
       drawLists();
     });
     q('#pg-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') q('#pg-send').click(); });
-    q('#pg-save').addEventListener('click', () => {
+    q('#pg-save').addEventListener('click', async () => {
       try {
         const f = readForm();
-        ui.current.id = this.saveRequest(f);
+        ui.current.id = await this.saveRequest(f);
         window.showToast?.('Request saved');
         drawLists();
       } catch (err) { window.showToast?.(err.message, 'error'); }
@@ -539,6 +619,8 @@ const ApiPlayground = {
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     fillForm(ui.current);
     drawLists();
+    // The vault's key list (and the one-time move of old secrets) loads in the background; the lists redraw when it is in.
+    this.ready().then(() => { if (m.isConnected) drawLists(); }).catch((err) => { console.error('[ApiPlayground]', err); window.showToast?.(err.message, 'error'); });
     setTimeout(() => q('#pg-url').focus(), 30);
     return m;
   },
@@ -607,8 +689,9 @@ const ApiPlayground = {
     document.getElementById('vex-playground-env')?.remove();
     const st = this.load();
     const env = st.envs.find(e => e.id === id) || null;
-    const sec = this.secrets();
-    const vars = env ? env.vars.map(v => ({ ...v, value: v.secret ? String(sec['env:' + env.id + ':' + v.name] || '') : v.value })) : [];
+    const keys = this.secretKeys();
+    // A secret value is never shown: it is empty here, with a note that one is saved (empty on Save keeps it).
+    const vars = env ? env.vars.map(v => ({ ...v, value: v.secret ? '' : v.value, saved: v.secret && keys.has('env:' + env.id + ':' + v.name) })) : [];
     const m = document.createElement('div');
     m.id = 'vex-playground-env';
     m.style.cssText = 'position:fixed;inset:0;z-index:100053;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center';
@@ -630,7 +713,7 @@ const ApiPlayground = {
       row.dataset.row = '1';
       row.style.cssText = 'display:flex;gap:6px;margin-bottom:4px;align-items:center';
       row.innerHTML = `<input data-v-name class="set-input" type="text" spellcheck="false" placeholder="name" value="${esc(v.name)}" style="width:150px">
-        <input data-v-value class="set-input" type="${v.secret ? 'password' : 'text'}" spellcheck="false" placeholder="value" value="${esc(v.value)}" style="flex:1">
+        <input data-v-value class="set-input" type="${v.secret ? 'password' : 'text'}" spellcheck="false" placeholder="${v.saved ? 'saved (leave empty to keep)' : 'value'}" value="${esc(v.value)}" style="flex:1">
         <label style="font-size:11.5px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-v-secret ${v.secret ? 'checked' : ''}>Secret</label>
         <button type="button" data-v-del aria-label="Remove variable" style="padding:5px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;line-height:0">${VexIcons.svg('x', { size: 12 })}</button>`;
       const val = row.querySelector('[data-v-value]'), secret = row.querySelector('[data-v-secret]');
@@ -645,12 +728,12 @@ const ApiPlayground = {
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); e.stopPropagation(); close(); } };
     document.addEventListener('keydown', onKey, true);
     q('#ev-cancel').addEventListener('click', close);
-    q('#ev-save').addEventListener('click', () => {
+    q('#ev-save').addEventListener('click', async () => {
       try {
         const rows = [...m.querySelectorAll('#ev-vars [data-row]')].map(r => ({
           name: r.querySelector('[data-v-name]').value, value: r.querySelector('[data-v-value]').value, secret: r.querySelector('[data-v-secret]').checked,
         }));
-        const saved = this.saveEnv({ id: env ? env.id : '', name: q('#ev-name').value, vars: rows });
+        const saved = await this.saveEnv({ id: env ? env.id : '', name: q('#ev-name').value, vars: rows });
         this.setActiveEnv(saved);
       } catch (err) { q('#ev-msg').textContent = err.message; return; }
       close();
@@ -658,7 +741,7 @@ const ApiPlayground = {
     });
     if (q('#ev-del')) q('#ev-del').addEventListener('click', async () => {
       if (!(await vexConfirm({ title: 'Delete environment?', message: 'Delete "' + env.name + '" and its saved values?', okLabel: 'Delete', danger: true }))) return;
-      try { this.deleteEnv(env.id); } catch (err) { q('#ev-msg').textContent = err.message; return; }
+      try { await this.deleteEnv(env.id); } catch (err) { q('#ev-msg').textContent = err.message; return; }
       close();
       if (typeof done === 'function') done();
     });
@@ -668,6 +751,9 @@ const ApiPlayground = {
 
   init() {
     if (typeof document === 'undefined' || !window.VexModuleCommands) return;
+    // Old secrets in the window's storage move into the vault at start-up, not only when the panel is opened.
+    try { if (this._bridge() && localStorage.getItem(this.SECRET_KEY) != null) this.ready().catch((err) => window.VexProblems?.note('API playground', 'Could not move the saved secrets into the vault', err)); }
+    catch (err) { console.error('[ApiPlayground] start-up check failed:', err); }
     VexModuleCommands.set('apiplayground:', [{
       id: 'apiplayground:open', label: 'API Playground', hint: 'Build, save and re-send HTTP requests with environments and history',
       icon: 'send', action: () => { try { this.open(); } catch (err) { window.showToast?.('Could not open: ' + ((err && err.message) || err), 'error'); } },

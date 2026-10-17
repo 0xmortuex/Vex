@@ -61,10 +61,11 @@ const UI_ONLY_CHANNELS = new Set([
   'app:boot-feature', 'app:boot-disabled', 'egress:summary', 'egress:list', 'egress:clear',
   // The GitHub read-only token vault and the developer feeds: Vex's own window only.
   'github:status', 'github:token-set', 'github:token-clear', 'github:token-test', 'github:get',
-  'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping', 'fx:tcmb', 'status:check',
+  'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping', 'devfeeds:notes', 'fx:tcmb', 'status:check',
   // Developer desk, plugin dev loop and the Electron ticker: Vex's own window only.
   'devdesk:config', 'devdesk:set-config', 'devdesk:grant-root', 'devdesk:revoke-root', 'devdesk:open-file', 'devdesk:open-terminal', 'devdesk:branch', 'devdesk:ports',
   'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind',
+  'devext:vencord-pick', 'devext:vencord-status', 'devext:vencord-reload', 'devext:vencord-restore', 'devext:console-start', 'devext:console-stop', 'devext:console-clear', 'devext:console-list',
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
   'sources:resolve-doi', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget',
   // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
@@ -120,7 +121,7 @@ const UI_ONLY_CHANNELS = new Set([
   'userscripts:list', 'userscripts:preview', 'userscripts:install', 'userscripts:set-enabled', 'userscripts:remove', 'userscripts:set-global', 'userscripts:set-hosts', 'userscripts:clear-values', 'userscripts:fetch',
   // The API playground (main/api-playground.js): sending a request with
   // headers the person wrote is never a page's or an extension's call.
-  'playground:send',
+  'playground:send', 'playground:send-form', 'playground:secrets-keys', 'playground:secrets-apply', 'playground:secrets-migrate',
   // Vex Packs (main/packs-store.js): installing, switching, trusting a signing
   // key and exporting are never a page's, an extension's or an auxiliary
   // window's call. Closed in a private window too (PRIVATE_DISABLED).
@@ -129,7 +130,7 @@ const UI_ONLY_CHANNELS = new Set([
   // The quick-capture inbox holds what was clipped (main/capture-inbox.js) and
   // the downloads tidy-up history holds file names: the person's own window only.
   'repos:pick-folder', 'clips-inbox:list', 'clips-inbox:add', 'clips-inbox:remove', 'clips-inbox:clear', 'downloads:tidy-history', 'downloads:tidy-plan', 'downloads:tidy-apply', 'downloads:tidy-undo',
-  'devbench:requests', 'devbench:overrides-get', 'devbench:overrides-set', 'devbench:overrides-active', 'devbench:overrides-state', 'devbench:overrides-pick-file',
+  'devbench:requests', 'devbench:record-start', 'devbench:record-list', 'devbench:record-stop', 'devbench:overrides-get', 'devbench:overrides-set', 'devbench:overrides-active', 'devbench:overrides-state', 'devbench:overrides-pick-file',
   'devbench:log-pick-file', 'devbench:log-follow-socket', 'devbench:log-poll', 'devbench:log-stop', 'devbench:log-list', 'devbench:pkg',
   // The release-download assistant and the mod desk (main/download-desk.js): file names and hashes, the person's own window only.
   'downloads:set-media-names', 'downloads:release-assist', 'downloads:mods-plan', 'downloads:mods-apply', 'downloads:mods-undo', 'downloads:mods-history',

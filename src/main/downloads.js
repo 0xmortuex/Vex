@@ -12,7 +12,7 @@ const path = require('path');
 // standing waits in the holding folder for a confirm; without them none is.
 // releases: the record of GitHub release assets that were downloaded (download-desk.js
 // createReleaseDesk), so the window can offer the hash and a VirusTotal link for one.
-function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null, releases = null }) {
+function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null, releases = null, inspectFile = null }) {
 const { hasRecentGesture } = require('../main-helpers');
 const _broadcastDownloadEvent = broadcast;
 // Live DownloadItems, keyed by the id the renderer knows them by, so the panel
@@ -439,6 +439,13 @@ function wireDownloadsOnSession(ses, tag) {
         const known = _explain.get(info.id);
         if (known) Object.assign(known, { fileName: info.fileName, path: savePath, state, receivedBytes: safeCall(item, 'getReceivedBytes', 0), totalBytes: safeCall(item, 'getTotalBytes', 0) });
         if (state === 'completed') _noteFile(savePath, ephemeral);
+        // What the file really is, from its first bytes and (a zip) its file list (file-content-check.js, T3-010). The answer rides
+        // on the event as text; a file that could not be read is said not to be checked, never clean.
+        let fileCheck = null;
+        if (state === 'completed' && inspectFile) {
+          try { fileCheck = inspectFile(savePath, info.fileName); }
+          catch (err) { console.error('[Downloads] could not check ' + info.fileName + ':', err.message); fileCheck = { checked: false, detected: '', findings: [], note: 'The file could not be checked: ' + err.message, worst: '' }; }
+        }
         // A GitHub release asset: remembered (a private or Tor tab's never is), and the window told.
         let release = null;
         if (state === 'completed' && !ephemeral && releases) {
@@ -459,6 +466,7 @@ function wireDownloadsOnSession(ses, tag) {
           url: info.url,
           ephemeral,
           release,
+          fileCheck,
           receivedBytes: safeCall(item, 'getReceivedBytes', 0),
           totalBytes: safeCall(item, 'getTotalBytes', 0)
         });

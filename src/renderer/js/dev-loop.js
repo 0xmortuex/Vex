@@ -288,6 +288,25 @@ const CiFixLoop = {
     return DevLoopLocalAI.generate(system, prompt, { maxTokens: 600 });
   },
 
+  // T1-002: file:line references in a failed run's log, as relative paths in the repository. The runner's own
+  // checkout paths (/home/runner/work/R/R/ or D:\a\R\R\) are cut off so they resolve inside the local clone.
+  editorRefs(card) {
+    if (typeof DevDesk === 'undefined') throw new Error('Open in editor is not available (Settings > Developer desk)');
+    const text = [card.errorLine, card.excerpt].filter(Boolean).join('\n')
+      .replace(/\/home\/runner\/work\/[^/\s]+\/[^/\s]+\//g, './')
+      .replace(/[A-Za-z]:[\\/]a[\\/][^\\/\s]+[\\/][^\\/\s]+[\\/]/g, './');
+    return DevDesk.parseTrace(text).map(r => ({ ...r, repo: card.repo }));
+  },
+
+  // Opens the first file:line of the failure in the editor chosen under Settings > Developer desk.
+  async openInEditor(card) {
+    const refs = this.editorRefs(card);
+    if (!refs.length) throw new Error('No file and line were found in this failure\'s log');
+    const r = await DevDesk.openRef(refs[0]);
+    window.showToast?.('Opened ' + refs[0].path.split('\\').pop() + ':' + refs[0].line);
+    return r;
+  },
+
   forget(id) { const s = this.state(); s.cards = s.cards.filter(c => c.id !== id); this.save(s); },
 
   start() {
@@ -326,12 +345,58 @@ const DevlogDrafter = {
     return perRepo.map(r => ({ repo: r.repo, commits: r.commits.filter(c => c.message && !/^Merge (branch|pull request|remote-tracking)/.test(c.message)) })).filter(r => r.commits.length);
   },
 
-  markdown(day, perRepo, { style = 'devlog' } = {}) {
+  // What goes in besides commits (T1-029). Pull requests are read only when the GitHub token vault holds a
+  // token; page titles and edited notes only when asked for. Defaults: pull requests on, the other two off.
+  sources() {
+    const s = this.state().sources || {};
+    return { prs: s.prs !== false, pages: s.pages === true, notes: s.notes === true };
+  },
+  setSources(patch) {
+    const s = this.state();
+    s.sources = { ...this.sources(), ...Object.fromEntries(Object.entries(patch || {}).filter(([k]) => ['prs', 'pages', 'notes'].includes(k)).map(([k, v]) => [k, !!v])) };
+    DevLoopStore.write(this.KEY, s);
+  },
+
+  // Titles only (never addresses) of the pages visited since `since`, without private-session visits. Pure over the list.
+  pageTitles(entries, since, limit = 15) {
+    const seen = new Set(), out = [];
+    for (const e of Array.isArray(entries) ? entries : []) {
+      if (!e || e.ownSession || !e.title || e.title === e.url) continue;
+      const t = Date.parse(e.visitedAt || e.visited || '');
+      if (Number.isNaN(t) || t < since.getTime()) continue;
+      const title = this.firstLine(devLoopRedact(e.title)).slice(0, 120);
+      if (!title || seen.has(title)) continue;
+      seen.add(title); out.push(title);
+      if (out.length >= limit) break;
+    }
+    return out;
+  },
+  // Titles of the notes edited since `since`. The devlog notes this drafter saved itself are left out.
+  noteTitles(notes, since, limit = 15) {
+    return (Array.isArray(notes) ? notes : [])
+      .filter(n => n && !(Array.isArray(n.tags) && n.tags.includes('devlog')) && Date.parse(n.updatedAt || '') >= since.getTime())
+      .map(n => this.firstLine(devLoopRedact(n.title || 'Untitled note')).slice(0, 120)).slice(0, limit);
+  },
+  // Pull requests of `author` in `repo` updated since `since`. -> [{ repo, number, title, state, url }]
+  async prsOf(repo, since, author) {
+    const list = await GitHubVault.json('/repos/' + repo + '/pulls?state=all&sort=updated&direction=desc&per_page=30');
+    if (!Array.isArray(list)) throw new Error('GitHub gave no pull request list for ' + repo);
+    return list
+      .filter(p => Date.parse(p.updated_at || '') >= since.getTime() && (!author || (p.user && String(p.user.login).toLowerCase() === author.toLowerCase())))
+      .map(p => ({ repo, number: p.number, title: this.firstLine(p.title), state: p.merged_at ? 'merged' : p.state, url: String(p.html_url || '') }));
+  },
+
+  markdown(day, perRepo, { style = 'devlog', prs = [], pages = [], notes = [] } = {}) {
     const rows = this.clean(perRepo);
-    if (!rows.length) return '# ' + (style === 'standup' ? 'Standup ' : 'Devlog ') + day + '\n\nNo commits found for this day.\n';
+    const extra = prs.length || pages.length || notes.length;
+    if (!rows.length && !extra) return '# ' + (style === 'standup' ? 'Standup ' : 'Devlog ') + day + '\n\nNo commits found for this day.\n';
     const head = style === 'standup' ? '# Standup ' + day + '\n\nWhat I did:\n' : '# Devlog ' + day + '\n';
     const body = rows.map(r => '\n## ' + r.repo + '\n\n' + r.commits.map(c => '- ' + c.message + ' (`' + c.sha + '`)').join('\n')).join('\n');
-    return head + body + '\n';
+    const more = [];
+    if (prs.length) more.push('\n## Pull requests\n\n' + prs.map(p => '- ' + p.repo + '#' + p.number + ' ' + p.title + ' (' + p.state + ')').join('\n'));
+    if (notes.length) more.push('\n## Notes I edited\n\n' + notes.map(t => '- ' + t).join('\n'));
+    if (pages.length) more.push('\n## Pages I read\n\n' + pages.map(t => '- ' + t).join('\n'));
+    return head + body + more.join('\n') + '\n';
   },
 
   async commitsOf(repo, since, author) {
@@ -342,7 +407,7 @@ const DevlogDrafter = {
   },
 
   // -> { day, markdown, repos, errors, method }. method says how the text was made.
-  async draft({ date = new Date(), style = 'devlog', polish = false } = {}) {
+  async draft({ date = new Date(), style = 'devlog', polish = false, sources = null } = {}) {
     if (!this.enabled()) throw new Error('The devlog drafter is switched off');
     const repos = DevLoopRepos.list();
     if (!repos.length) throw new Error('Add at least one repository first');
@@ -352,8 +417,28 @@ const DevlogDrafter = {
       try { perRepo.push({ repo, commits: await this.commitsOf(repo, since, author) }); }
       catch (err) { errors[repo] = err.message; devLoopNote('Devlog', 'Could not read the commits of ' + repo, err); }
     }
-    let markdown = this.markdown(day, perRepo, { style }), method = 'plain list';
-    if (polish && this.clean(perRepo).length) {
+    const want = { ...this.sources(), ...(sources || {}) };
+    const prs = [], pages = [], notes = [];
+    if (want.prs) {
+      // Only with a token in the vault: without one the 60 requests an hour are for the commits.
+      const has = typeof GitHubVault.status === 'function' ? !!(await GitHubVault.status()).has : false;
+      if (has) {
+        for (const repo of repos) {
+          try { prs.push(...await this.prsOf(repo, since, author)); }
+          catch (err) { errors[repo] = (errors[repo] ? errors[repo] + '; ' : '') + 'pull requests: ' + err.message; devLoopNote('Devlog', 'Could not read the pull requests of ' + repo, err); }
+        }
+      }
+    }
+    if (want.pages) {
+      if (typeof HistoryPanel === 'undefined' || typeof HistoryPanel.list !== 'function') throw new Error('The history is not available');
+      pages.push(...this.pageTitles(HistoryPanel.list(), since));
+    }
+    if (want.notes) {
+      if (typeof NotesPanel === 'undefined' || !Array.isArray(NotesPanel.notes)) throw new Error('Notes are not available');
+      notes.push(...this.noteTitles(NotesPanel.notes, since));
+    }
+    let markdown = this.markdown(day, perRepo, { style, prs, pages, notes }), method = 'plain list';
+    if (polish && (this.clean(perRepo).length || prs.length || pages.length || notes.length)) {
       const system = style === 'standup'
         ? 'Turn this commit list into a short standup update: three to six plain sentences or bullets, first person, past tense. Use only what the commits say.'
         : 'Turn this commit list into a short developer devlog entry: a title line and a few short paragraphs or bullets in plain language. Use only what the commits say; do not invent features.';
@@ -362,7 +447,7 @@ const DevlogDrafter = {
       markdown = text + '\n\n---\n\n' + markdown;
       method = 'local model';
     }
-    return { day, markdown, repos: perRepo.length, errors, method };
+    return { day, markdown, repos: perRepo.length, errors, method, counts: { prs: prs.length, pages: pages.length, notes: notes.length } };
   },
 
   saveToNotes(draft) {
@@ -502,6 +587,35 @@ const EndpointBoard = {
   },
 };
 
+// The endpoint board on the New Tab (T1-030): a Morning Brief card with a red "down" badge and a small drawn line of
+// the latest response times, for each endpoint that has failed two looks in a row. It exists only while something is
+// down, so it is never an always-on card; it competes for a New Tab slot with a high priority (a dead worker matters
+// more than a weather line). The page draws the line from at most 20 numbers it is handed (start.html).
+const VexBriefEndpointHealth = {
+  id: 'endpoint-health',
+  title: 'An endpoint is down',
+  icon: 'activity',
+  PRIORITY: 90,
+  isEnabled() { return EndpointBoard.enabled(); },
+  downItems() {
+    const s = EndpointBoard.state();
+    return s.items.filter(i => { const r = s.results[i.id]; return r && r.state === 'down' && (r.fails || 0) >= 2; })
+      .map(i => ({ item: i, res: s.results[i.id] }));
+  },
+  available() { return this.isEnabled() && this.downItems().length > 0; },
+  build() {
+    const down = this.downItems();
+    if (!down.length) return null;
+    return { lines: down.slice(0, 6).map(({ item, res }) => ({ text: item.name, detail: (res.why || 'not answering') + (res.version ? ' (last version ' + res.version + ')' : ''), state: 'down', spark: res.history.slice(-20) })) };
+  },
+  registerSlot() {
+    if (typeof NewTabSlots === 'undefined') return false;
+    if (NewTabSlots.list().some(d => d.id === 'brief-endpoint-health')) return false;
+    NewTabSlots.register({ id: 'brief-endpoint-health', label: 'An endpoint is down', slot: 'card', priority: this.PRIORITY, cost: 3, bytes: 700, briefSection: this.id, available: () => this.available() });
+    return true;
+  },
+};
+
 // ---------------------------------------------------------------------------------
 // T1-031  Dependency radar
 const DependencyRadar = {
@@ -595,14 +709,37 @@ const DependencyRadar = {
       const range = man.deps[name];
       const castlabs = name === 'electron' && /castlabs/i.test(range);
       const have = this.minVersion(range);
-      if (!have) { deps.push({ name, range, have: '', latest: '', gap: 'unknown', advisories: 0, castlabs }); continue; }
+      if (!have) { deps.push({ name, eco: man.eco, range, have: '', latest: '', gap: 'unknown', advisories: 0, castlabs }); continue; }
       const latest = await this._latest(man.eco, name, castlabs);
       const gap = this.compare(have, latest);
       let advisories = 0;
       if (gap !== 'current' && gap !== 'ahead' && !castlabs) advisories = (await window.vex.devfeedsAdvisories(man.eco, name, have)).count;
-      deps.push({ name, range, have, latest, gap, advisories, castlabs });
+      deps.push({ name, eco: man.eco, range, have, latest, gap, advisories, castlabs });
     }
     return { repo, file, at: Date.now(), deps, error: '' };
+  },
+
+  // T1-031: the release notes between the version a repository uses and the newest one, read by the main process
+  // from the package's public GitHub releases (no credential of yours goes to a package host). The BREAKING lines
+  // are picked out so a major step is judged before it is taken. Cached for a day per package and range.
+  // -> { name, repo, releases: [{ version, name, url, breaking, breakingLines, body }], note, breaking }
+  async notes(dep) {
+    if (!dep || !dep.have || !dep.latest) throw new Error('There is no version range to read release notes for');
+    if (dep.castlabs) return { name: dep.name, repo: this.CASTLABS, releases: [], breaking: false, note: 'castLabs notes are on https://github.com/' + this.CASTLABS + '/releases' };
+    if (typeof window === 'undefined' || !window.vex || typeof window.vex.devfeedsNotes !== 'function') throw new Error('Release notes are not available in this build');
+    const ck = 'notes:' + dep.eco + ':' + dep.name + ':' + dep.have + '>' + dep.latest;
+    const s = this.state();
+    const hit = s.cache[ck];
+    if (hit && Date.now() - hit.at < 24 * 3600000) return hit.value;
+    const r = await window.vex.devfeedsNotes(dep.eco, dep.name, dep.have, dep.latest);
+    const value = { ...r, breaking: r.releases.some(x => x.breaking) };
+    const again = this.state();
+    // Keep the cache small: the notes bodies are not kept, only what the card shows.
+    again.cache[ck] = { at: Date.now(), value: { ...value, releases: value.releases.map(x => ({ ...x, body: String(x.body || '').slice(0, 800) })) } };
+    const keys = Object.keys(again.cache).filter(k => k.startsWith('notes:'));
+    for (const k of keys.sort((a, b) => again.cache[a].at - again.cache[b].at).slice(0, Math.max(0, keys.length - 30))) delete again.cache[k];
+    this.save(again);
+    return value;
   },
 
   isBehind(result) { return !!result && !result.error && result.deps.some(d => d.gap === 'major' || d.gap === 'minor' || d.gap === 'patch'); },
@@ -733,6 +870,7 @@ const DeployDesk = {
 };
 
 if (typeof window !== 'undefined') {
-  Object.assign(window, { DevLoopStore, DevLoopLocalAI, DevLoopRepos, CiFixLoop, DevlogDrafter, EndpointBoard, DependencyRadar, DeployDesk, devLoopRedact });
+  Object.assign(window, { DevLoopStore, DevLoopLocalAI, DevLoopRepos, CiFixLoop, DevlogDrafter, EndpointBoard, VexBriefEndpointHealth, DependencyRadar, DeployDesk, devLoopRedact });
+  VexBriefEndpointHealth.registerSlot();
 }
-if (typeof module !== 'undefined' && module.exports) module.exports = { DevLoopStore, DevLoopLocalAI, DevLoopRepos, CiFixLoop, DevlogDrafter, EndpointBoard, DependencyRadar, DeployDesk, devLoopRedact };
+if (typeof module !== 'undefined' && module.exports) module.exports = { DevLoopStore, DevLoopLocalAI, DevLoopRepos, CiFixLoop, DevlogDrafter, EndpointBoard, VexBriefEndpointHealth, DependencyRadar, DeployDesk, devLoopRedact };

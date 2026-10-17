@@ -36,6 +36,8 @@ const BriefIntegration = {
     // Wave 4 cards (js/brief-extras/foldin-cards.js): each is also a candidate for a New Tab slot.
     { id: 'platform-status', order: 3, icon: 'warning', maxItems: 4, get: () => (typeof VexBriefPlatformStatus !== 'undefined' ? VexBriefPlatformStatus : null) },
     { id: 'watch-flag', order: 9, icon: 'cloud', maxItems: 3, get: () => (typeof VexBriefWatchFlag !== 'undefined' ? VexBriefWatchFlag : null) },
+    // Wave 5: a red card when one of the owner's own endpoints is down (js/dev-loop.js, T1-030).
+    { id: 'endpoint-health', order: 2, icon: 'activity', maxItems: 6, get: () => (typeof VexBriefEndpointHealth !== 'undefined' ? VexBriefEndpointHealth : null) },
     { id: 'perm-audit', order: 103, icon: 'shield', maxItems: 1, get: () => (typeof VexBriefPermAudit !== 'undefined' ? VexBriefPermAudit : null) },
     { id: 'old-highlight', order: 106, icon: 'bulb', maxItems: 1, get: () => (typeof VexBriefOldHighlight !== 'undefined' ? VexBriefOldHighlight : null) },
     // 2026-10 modules that already answer in the extras shape.
@@ -147,7 +149,8 @@ const BriefIntegration = {
         text: l.text,
         sub: l.detail || '',
         url: l.url || '',
-        badge: l.met === true ? 'done' : '',
+        badge: l.met === true ? 'done' : (l.state ? this._stateBadge(l.state) : ''),
+        spark: Array.isArray(l.spark) ? l.spark : [],
         actions: this._actionsOf(id, String(i), l.actions),
       }));
     } else if (Array.isArray(out.items)) {
@@ -156,6 +159,7 @@ const BriefIntegration = {
         sub: i.detail || i.sub || '',
         url: i.url || '',
         badge: i.state ? this._stateBadge(i.state) : (i.badge || ''),
+        spark: Array.isArray(i.spark) ? i.spark : [],
       }));
     }
     const payload = {};

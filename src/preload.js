@@ -388,6 +388,10 @@ contextBridge.exposeInMainWorld('vex', {
   // API playground (js/api-playground.js): one request, sent from main with a
   // short timeout; resolves { ok, status, … } or { ok:false, error }.
   playgroundSend: (req) => ipcRenderer.invoke('playground:send', req),
+  playgroundSendForm: (payload) => ipcRenderer.invoke('playground:send-form', payload),
+  playgroundSecretsKeys: () => ipcRenderer.invoke('playground:secrets-keys'),
+  playgroundSecretsApply: (change) => ipcRenderer.invoke('playground:secrets-apply', change),
+  playgroundSecretsMigrate: (legacy) => ipcRenderer.invoke('playground:secrets-migrate', legacy),
   // An MCP server's token, kept encrypted in main; '' removes it.
   mcpAuthSet: (id, token) => ipcRenderer.invoke('mcp:auth-set', id, token),
   // GitHub read-only token vault (main/github-vault.js): the token goes in once
@@ -401,6 +405,7 @@ contextBridge.exposeInMainWorld('vex', {
   devfeedsLatest: (ecosystem, name) => ipcRenderer.invoke('devfeeds:latest', ecosystem, name),
   devfeedsAdvisories: (ecosystem, name, version) => ipcRenderer.invoke('devfeeds:advisories', ecosystem, name, version),
   devfeedsPing: (url) => ipcRenderer.invoke('devfeeds:ping', url),
+  devfeedsNotes: (ecosystem, name, from, to) => ipcRenderer.invoke('devfeeds:notes', ecosystem, name, from, to),
   // One Crossref request for a DOI, only when the person asks (main/doi-resolve.js).
   sourcesResolveDoi: (doi) => ipcRenderer.invoke('sources:resolve-doi', doi),
   // The built-in PDF toolkit (main/pdf-toolkit.js): pick files, run one operation, forget the picked list.
@@ -422,6 +427,14 @@ contextBridge.exposeInMainWorld('vex', {
   devextStop: () => ipcRenderer.invoke('devext:stop'),
   devextStatus: () => ipcRenderer.invoke('devext:status'),
   devextVencord: () => ipcRenderer.invoke('devext:vencord'),
+  devextVencordPick: () => ipcRenderer.invoke('devext:vencord-pick'),
+  devextVencordStatus: () => ipcRenderer.invoke('devext:vencord-status'),
+  devextVencordReload: () => ipcRenderer.invoke('devext:vencord-reload'),
+  devextVencordRestore: () => ipcRenderer.invoke('devext:vencord-restore'),
+  devextConsoleStart: () => ipcRenderer.invoke('devext:console-start'),
+  devextConsoleStop: () => ipcRenderer.invoke('devext:console-stop'),
+  devextConsoleClear: () => ipcRenderer.invoke('devext:console-clear'),
+  devextConsoleList: (level, since) => ipcRenderer.invoke('devext:console-list', level, since),
   castlabsBehind: (force) => ipcRenderer.invoke('castlabs:behind', force),
   // Today's TCMB rates, fetched only when asked (main/fx-rates.js).
   fxTcmb: () => ipcRenderer.invoke('fx:tcmb'),
@@ -755,6 +768,9 @@ contextBridge.exposeInMainWorld('vex', {
   reposPickFolder: () => ipcRenderer.invoke('repos:pick-folder'),
   // Developer bench (js/dev-bench.js): failed requests, response overrides, log tailer, package facts.
   devbenchRequests: (pageId) => ipcRenderer.invoke('devbench:requests', pageId),
+  devbenchRecordStart: (pageId) => ipcRenderer.invoke('devbench:record-start', pageId),
+  devbenchRecordList: (pageId) => ipcRenderer.invoke('devbench:record-list', pageId),
+  devbenchRecordStop: (pageId) => ipcRenderer.invoke('devbench:record-stop', pageId),
   devbenchOverridesGet: () => ipcRenderer.invoke('devbench:overrides-get'),
   devbenchOverridesSet: (cfg) => ipcRenderer.invoke('devbench:overrides-set', cfg),
   devbenchOverridesActive: (on) => ipcRenderer.invoke('devbench:overrides-active', on),

@@ -147,6 +147,7 @@ define('capture:close capture:open', []);
 // Developer bench (renderer js/dev-bench.js; main/request-log.js, response-overrides.js, log-tail.js,
 // pkg-intel.js). Files only ever come from main's own dialogs; the tailer follows a granted id.
 define('devbench:requests', [integer]);
+define('devbench:record-start devbench:record-list devbench:record-stop', [integer]);
 define('devbench:overrides-get devbench:overrides-pick-file devbench:log-pick-file devbench:log-list', []);
 define('devbench:overrides-set', [object]);
 define('devbench:overrides-active', [boolean]);
@@ -537,6 +538,10 @@ define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','P
 // API playground (main/api-playground.js): one request from the request
 // builder. Headers are name/value text; main checks every name and value.
 // allowLocal: the person switched on "Allow localhost" for this request.
+define('playground:secrets-keys', []);
+define('playground:secrets-apply', [shape({ set: optional(object), clear: optional(value => Array.isArray(value) && value.length <= 500 && value.every(string(200))) })]);
+define('playground:secrets-migrate', [object]);
+define('playground:send-form', [shape({ form: object, vars: optional(object), secretVars: optional(object) })]);
 define('playground:send', [shape({ url: web, method: oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS']), headers: optional(object), body: optional(string(1024 * 1024)), allowLocal: optional(boolean) })]);
 // An MCP server's token, kept encrypted in main; an empty one removes it.
 define('mcp:auth-set', [string(80), string(4096)]);
@@ -549,10 +554,14 @@ define('github:get', [string(400), optional(shape({ authed: optional(boolean) })
 define('devfeeds:latest', [oneOf(['npm', 'pypi']), string(120)]);
 define('devfeeds:advisories', [oneOf(['npm', 'pypi']), string(120), string(60)]);
 define('devfeeds:ping', [string(300)]);
+define('devfeeds:notes', [oneOf(['npm', 'pypi']), string(120), string(60), string(60)]);
 // Developer desk (main/dev-desk.js), plugin dev loop (main/dev-extension.js) and the Electron
 // ticker (main/castlabs-ticker.js). Folders come only from main's folder dialog; a path to open
 // is checked against the granted folders in main.
 define('devdesk:config devdesk:grant-root devext:pick devext:reload devext:stop devext:status devext:vencord', []);
+// The owner's own Vencord build and the Discord panel's console tray (main/discord-dev.js): no path comes from a window.
+define('devext:vencord-pick devext:vencord-status devext:vencord-reload devext:vencord-restore devext:console-start devext:console-stop devext:console-clear', []);
+define('devext:console-list', [optional(oneOf(['verbose', 'info', 'warning', 'error'])), optional(value => Number.isSafeInteger(value) && value >= 0)]);
 define('devdesk:set-config', [shape({ enabled: optional(boolean), editor: optional(string(20)), terminal: optional(string(20)) })]);
 define('devdesk:revoke-root devdesk:open-terminal devdesk:branch', [string(500)]);
 define('devdesk:open-file', [shape({ path: string(500), line: optional(integer), col: optional(integer) })]);

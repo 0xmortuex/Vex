@@ -2849,6 +2849,8 @@ ipcMain.handle('discord:lite', (_e, on) => { _discordLite = !!on; return _discor
 // onCompleted / onErrorOccurred (wireMediaSnifferOnSession). A second listener
 // would replace Vex's own.
 const _devRequestLog = require('./main/request-log').createRequestLog();
+// "Copy as request" from a list of one page's requests (main/request-recorder.js): off until a page is armed, secrets removed as recorded.
+const _requestRecorder = require('./main/request-recorder').createRequestRecorder();
 const DEV_OVERRIDES_FILE = path.join(userDataPath, 'response-overrides.json');
 let _devOverrides = null;
 try {
@@ -2875,6 +2877,17 @@ const _devPkg = require('./main/pkg-intel').createPkgIntel({
 const _devNeedOverrides = () => { if (!_devOverrides) throw new Error('Response overrides are unavailable: the saved rules could not be read (see the log)'); return _devOverrides; };
 const _devReply = (fn) => async (...args) => { try { return { ok: true, ...(await fn(...args)) }; } catch (err) { return { ok: false, error: (err && err.message) || String(err) }; } };
 ipcMain.handle('devbench:requests', _devReply((_e, pageId) => ({ requests: _devRequestLog.list(pageId) })));
+// The request list for "Copy as request": one armed page at a time, never a private or Tor page.
+ipcMain.handle('devbench:record-start', _devReply((_e, pageId) => {
+  const contents = webContents.fromId(pageId);
+  if (!contents || contents.isDestroyed() || contents.getType() !== 'webview') throw new Error('That tab is not a page that can be recorded');
+  const priv = _extPageIsPrivate(contents);
+  const armed = _requestRecorder.arm(pageId, { allowed: !priv, why: 'Private, Tor and private-window tabs are never recorded' });
+  contents.once('destroyed', () => _requestRecorder.disarm(pageId));
+  return { state: _requestRecorder.state(pageId), until: armed.until };
+}));
+ipcMain.handle('devbench:record-list', _devReply((_e, pageId) => ({ requests: _requestRecorder.list(pageId), state: _requestRecorder.state(pageId) })));
+ipcMain.handle('devbench:record-stop', _devReply((_e, pageId) => { _requestRecorder.disarm(pageId); return { state: _requestRecorder.state(pageId) }; }));
 ipcMain.handle('devbench:overrides-get', _devReply(() => _devNeedOverrides().get()));
 ipcMain.handle('devbench:overrides-set', _devReply((_e, cfg) => _devNeedOverrides().set(cfg)));
 ipcMain.handle('devbench:overrides-active', _devReply((_e, on) => ({ active: _devNeedOverrides().setActive(on) })));
@@ -3012,6 +3025,7 @@ function wireClientHintsOnSession(ses) {
     // keeps the entry (its pages' requests are set by its rule).
     if (_siteUaOverridden.size && details.resourceType === 'mainFrame' && _siteUaOverridden.has(details.webContentsId)
       && !(_hasUaRules && SiteRules.userAgentFor(_siteRules, details.url, MOBILE_UA))) _siteUaOverridden.delete(details.webContentsId);
+    _requestRecorder.recordHeaders(details, h); // only a page the person armed; secrets are removed as it is recorded
     callback({ requestHeaders: h });
   });
 }
@@ -3146,6 +3160,7 @@ function wireMediaSnifferOnSession(ses) {
     _extRequestCompleted(ses, details);
     _countNetBytes(details); // tab-cost
     _devRequestLog.record(details); // failed requests for a bug report (address only)
+    _requestRecorder.recordDone(details);
     try {
       const { webContentsId, url, resourceType, responseHeaders, statusCode } = details;
       if (!webContentsId || !url || (statusCode && statusCode >= 400)) return;
@@ -3176,7 +3191,7 @@ function wireMediaSnifferOnSession(ses) {
   });
   // Requests that never got an answer (the other half of a bug report). No other
   // code registers onErrorOccurred, so this does not replace anything.
-  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => _devRequestLog.record(details));
+  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => { _devRequestLog.record(details); _requestRecorder.recordDone(details); });
 }
 
 // Keep a page as a PDF, or as one file that opens offline (src/main/page-save.js).
@@ -3655,6 +3670,8 @@ const _downloadService = require('./main/downloads').createDownloadService({ app
   lastGestureAt: (contents) => _lastGestureAt.get(contents.id), askAutoDownloads: askAutomaticDownloads,
   // A program or script from a site with no standing is asked about first (web-safety.js).
   judgeDownload: (info) => _webSafety.judgeDownload(info), askRiskyDownload,
+  // The saved file's first bytes (and a zip's file list) against its name; skipped while Web safety is off.
+  inspectFile: (file, name) => (_webSafety.snapshot().sensitivity === 'off' ? null : require('./main/file-content-check').inspectFile({ fs, file, name })),
   // Read lazily, the first time a download finishes or is opened.
   knownBefore: () => {
     const list = JSON.parse(_persistLoad()['vex.downloads'] || '[]');
@@ -7120,9 +7137,6 @@ ipcMain.handle('devdesk:revoke-root', (_event, dir) => _devDesk.revokeRoot(dir))
 ipcMain.handle('devdesk:open-file', (_event, req) => _devDesk.openFile(req));
 ipcMain.handle('devdesk:open-terminal', (_event, dir) => _devDesk.openTerminal(dir));
 ipcMain.handle('devdesk:branch', (_event, dir) => _devDesk.branch(dir));
-// Electron/castLabs ticker (main/castlabs-ticker.js): one bounded GET of a public tag list.
-const _castlabs = require('./main/castlabs-ticker').createCastlabsTicker({ fetch: _politeBackgroundFetch });
-ipcMain.handle('castlabs:behind', (_event, force) => _castlabs.check({ force: force === true }));
 // Plugin dev loop (main/dev-extension.js): an unpacked extension folder picked in the
 // folder dialog is loaded from where it is and reloaded when a file in it changes.
 const _devExt = require('./main/dev-extension').createDevExtension({
@@ -7144,6 +7158,38 @@ ipcMain.handle('devext:reload', async () => { await _devExt.reload(); return _de
 ipcMain.handle('devext:stop', () => _devExt.stop());
 ipcMain.handle('devext:status', () => _devExt.status());
 ipcMain.handle('devext:vencord', () => _devExt.vencordStatus(extensionsDir));
+// Vencord dev reload and the Discord panel's console tray (main/discord-dev.js): the owner's own local build only.
+const _discordPanelContents = () => {
+  const ses = secureSessions.fromPartition('persist:discord');
+  return webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.session === ses);
+};
+const _discordDev = require('./main/discord-dev').createDiscordDev({
+  fs, path, crypto: require('crypto'), protectedDir: userDataPath,
+  installed: () => _installedVencord(),
+  reloadExtension: async (dir) => {
+    if (_boot.safeMode) throw new Error('Vex started in safe mode, which loads no extensions');
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
+    _unloadFromAllSessions(dir);
+    await _loadExtensionEverywhere(dir, manifest);
+  },
+  reloadPanel: () => { const list = _discordPanelContents().filter(wc => wc.getType() === 'webview'); for (const wc of list) wc.reloadIgnoringCache(); return list.length; },
+  panelContents: () => _discordPanelContents().filter(wc => wc.getType() === 'webview'),
+  redact: require('./renderer/js/redact').redactText,
+});
+ipcMain.handle('devext:vencord-pick', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const opts = { title: 'The dist/browser.js of your own Vencord checkout', buttonLabel: 'Use this build', properties: ['openFile'], filters: [{ name: 'browser.js', extensions: ['js'] }] };
+  const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (r.canceled || !r.filePaths || !r.filePaths[0]) return { canceled: true };
+  return { canceled: false, ..._discordDev.grant(r.filePaths[0]) };
+});
+ipcMain.handle('devext:vencord-status', () => _discordDev.status());
+ipcMain.handle('devext:vencord-reload', () => _discordDev.reload());
+ipcMain.handle('devext:vencord-restore', () => _discordDev.restore());
+ipcMain.handle('devext:console-start', () => _discordDev.trayStart());
+ipcMain.handle('devext:console-stop', () => _discordDev.trayStop());
+ipcMain.handle('devext:console-clear', () => _discordDev.trayClear());
+ipcMain.handle('devext:console-list', (_event, level, since) => _discordDev.trayList({ level: level || 'verbose', since: since || 0 }));
 app.on('before-quit', () => { _devExt.stop().catch((err) => console.error('[DevExtension] could not unload on quit:', err.message)); });
 ipcMain.handle('cloud:token-save', (_event, token) => {
   if (typeof token !== 'string' || token.length < 24 || token.length > 512) throw new Error('Use a token of 24–512 characters');
@@ -7181,10 +7227,25 @@ ipcMain.handle('github:token-set', (_event, token) => _githubVault.set(token));
 ipcMain.handle('github:token-clear', () => _githubVault.clear());
 ipcMain.handle('github:token-test', () => _githubVault.test());
 ipcMain.handle('github:get', (_event, apiPath, opts) => _githubVault.get(apiPath, opts || {}));
-const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: _politeNetFetch, publicFetch: boundedPublicFetch });
+// API playground secrets (main/playground-vault.js): sealed by the OS, never handed back to the window; the
+// {{variables}} of a request are filled in here, when it is sent.
+const _playgroundVault = require('./main/playground-vault').createPlaygroundVault({ secretStore, file: path.join(userDataPath, 'playground-secrets.enc'), send: (req) => _apiPlayground.send(req) });
+ipcMain.handle('playground:secrets-keys', () => _playgroundVault.keys());
+ipcMain.handle('playground:secrets-apply', (_event, change) => _playgroundVault.apply(change));
+ipcMain.handle('playground:secrets-migrate', (_event, legacy) => _playgroundVault.migrate(legacy));
+ipcMain.handle('playground:send-form', async (_event, payload) => {
+  try { return await _playgroundVault.sendForm(payload); }
+  catch (err) { return { ok: false, error: (err && err.message) || String(err) }; }
+});
+// Electron/castLabs ticker (main/castlabs-ticker.js): one bounded GET of a public tag list, read through the
+// GitHub vault so it gets the token's 5,000 requests an hour when there is one (the token stays in the vault).
+const _castlabs = require('./main/castlabs-ticker').createCastlabsTicker({ fetch: _githubVault.asFetch() });
+ipcMain.handle('castlabs:behind', (_event, force) => _castlabs.check({ force: force === true }));
+const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: _politeNetFetch, publicFetch: boundedPublicFetch, github: (p) => _githubVault.get(p) });
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
 ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
+ipcMain.handle('devfeeds:notes', (_event, ecosystem, name, from, to) => _devFeeds.notes(ecosystem, name, from, to));
 // DOI lookup for the sources list (main/doi-resolve.js): one Crossref request, only when the person presses the button.
 const _doiResolver = require('./main/doi-resolve').createDoiResolver({ fetch: boundedNetFetch });
 ipcMain.handle('sources:resolve-doi', async (_event, doi) => {

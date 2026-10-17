@@ -6,7 +6,7 @@
 //   js/copy-as-request.js      copy a link as cURL / fetch / PowerShell, or open it in the API playground
 //   js/github-helpers.js       permalink, branch name, commit message on github.com
 //   js/snippet-translator.js   npm <-> pnpm, pip <-> uv, bash <-> PowerShell (text only, with a danger lint)
-//   js/selection-decoder.js    base64, JWT, hex, Unix time, escapes decoded locally
+//   js/selection-decoder.js    base64, JWT, hex, Unix time, escapes, errno, NTSTATUS, EFI_STATUS, HTTP, signals and cron decoded locally
 //   js/reference-sets.js       doc pages and snippets pinned to a project
 //
 // This file only gathers their right-click rows for the page menu (js/webview.js asks it

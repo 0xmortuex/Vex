@@ -127,6 +127,8 @@ const VexBrief = {
     const items = (Array.isArray(out.items) ? out.items : []).slice(0, def.maxItems || 6).map(it => ({
       text: str(it.text, 200), sub: str(it.sub, 200), url: /^https?:\/\//i.test(String(it.url || '')) ? str(it.url, 2048) : '',
       when: str(it.when, 40), badge: str(it.badge, 24), cmd: it.cmd && typeof it.cmd.type === 'string' ? it.cmd : null,
+      // A drawn line for the page: up to 20 finite numbers, nothing else (the page builds the SVG itself).
+      spark: Array.isArray(it.spark) ? it.spark.slice(-20).map(Number).filter(n => Number.isFinite(n) && n >= 0 && n <= 600000) : [],
       // Small buttons under a row: [{label, cmd}]. Each one is a command the browser answers.
       actions: (Array.isArray(it.actions) ? it.actions : []).filter(a => a && a.cmd && typeof a.cmd.type === 'string').slice(0, 4).map(a => ({ label: str(a.label, 30), cmd: a.cmd })),
     }));

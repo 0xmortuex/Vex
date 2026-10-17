@@ -100,7 +100,7 @@ the count of dropped entries on screen ("skipped"). Unknown fields are ignored.
 - The optional summary (`Summarize with the local AI`) sends the channel text to the LOCAL model
   only (`AIRouter.callOn('local', ...)`), never to a cloud model.
 
-## Deferred (the plugin side, for the owner's Vencord repository)
+## The plugin side: source in tools/vencord-bridge (BLOCKED-EXTERNAL: build and publish in the owner's Vencord repository)
 
 1. The plugin itself: collect mentions, replies and the last N messages of chosen channels from
    the client's stores, and write `vex-bridge.json` atomically, e.g. on mention and every few minutes.

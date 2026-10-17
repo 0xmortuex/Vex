@@ -41,9 +41,20 @@ const PATHS = [
   new RegExp('^/repos/' + SEG + '/' + SEG + '/releases$'),
   new RegExp('^/repos/' + SEG + '/' + SEG + '/releases/latest$'),
   new RegExp('^/repos/' + SEG + '/' + SEG + '/contents/[A-Za-z0-9_.@/-]{1,200}$'),
+  // Wave 5: what the desk, the watch, the panel, the dashboard and the tickers read (still GET only).
+  new RegExp('^/repos/' + SEG + '/' + SEG + '/tags$'),
+  new RegExp('^/repos/' + SEG + '/' + SEG + '/releases/tags/[A-Za-z0-9_.@+-]{1,100}$'),
+  new RegExp('^/repos/' + SEG + '/' + SEG + '/pulls$'),
+  new RegExp('^/repos/' + SEG + '/' + SEG + '/pulls/\\d{1,20}$'),
+  new RegExp('^/repos/' + SEG + '/' + SEG + '/commits/[0-9a-f]{7,40}/(?:status|check-runs)$'),
+  new RegExp('^/users/' + SEG + '$'),
+  new RegExp('^/users/' + SEG + '/repos$'),
+  new RegExp('^/search/issues$'),
 ];
-const QUERY_KEYS = new Set(['per_page', 'page', 'branch', 'status', 'event', 'since', 'until', 'sha', 'author', 'ref', 'state', 'sort', 'direction', 'type']);
+const QUERY_KEYS = new Set(['per_page', 'page', 'branch', 'status', 'event', 'since', 'until', 'sha', 'author', 'ref', 'state', 'sort', 'direction', 'type', 'q']);
 const QUERY_VALUE = /^[A-Za-z0-9_.:+,@/-]{1,100}$/;
+// A search query (/search/issues?q=): words and GitHub qualifiers, no quotes or other operators.
+const SEARCH_QUERY = /^[A-Za-z0-9_.:@/ -]{1,200}$/;
 const LOG_REDIRECT_HOST = /(^|\.)(githubusercontent\.com|blob\.core\.windows\.net)$/;
 const MAX_BODY = 2 * 1024 * 1024;       // text handed back, bytes
 const MAX_LOG = 12 * 1024 * 1024;       // a job log read from storage, bytes
@@ -57,7 +68,7 @@ function apiUrl(pathAndQuery) {
   if (u.pathname.includes('..') || u.pathname.includes('%')) throw new Error('That GitHub address is not allowed');
   if (!PATHS.some(re => re.test(u.pathname))) throw new Error('That GitHub endpoint is not one Vex reads');
   for (const [k, v] of u.searchParams) {
-    if (!QUERY_KEYS.has(k) || !QUERY_VALUE.test(v)) throw new Error('That GitHub query is not allowed: ' + k);
+    if (!QUERY_KEYS.has(k) || !(k === 'q' ? (u.pathname === '/search/issues' && SEARCH_QUERY.test(v)) : QUERY_VALUE.test(v))) throw new Error('That GitHub query is not allowed: ' + k);
   }
   return u.href;
 }
@@ -169,7 +180,21 @@ function createGithubVault({ secretStore, file, fetch, now = () => Date.now() } 
     return { status: res.status, ok: res.ok, authed, text: out.text, capped: out.capped, quota };
   }
 
-  return { status, set, clear, test, get, apiUrl };
+  // A fetch-shaped adapter for main-process modules that were written against a plain fetch (the castLabs
+  // ticker): the address must be an api.github.com one on the vault's list, the token is added here and
+  // never shown to the caller. -> { ok, status, headers, arrayBuffer() }
+  function asFetch() {
+    return async (url) => {
+      let u;
+      try { u = new URL(String(url)); } catch (err) { throw new Error('That is not a GitHub address', { cause: err }); }
+      if (u.protocol !== 'https:' || u.hostname !== API_HOST) throw new Error('Only api.github.com is reachable');
+      const r = await get(u.pathname + u.search);
+      const body = Buffer.from(r.text, 'utf8');
+      return { ok: r.ok, status: r.status, headers: new Map(), arrayBuffer: async () => body };
+    };
+  }
+
+  return { status, set, clear, test, get, apiUrl, asFetch };
 }
 
 module.exports = { createGithubVault, apiUrl, quotaOf, API_HOST, TOKEN_RE };

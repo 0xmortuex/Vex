@@ -71,6 +71,9 @@ const DevDesk = {
   candidates(ref) {
     if (!ref.relative) return [ref.path];
     const order = [];
+    // A reference that names its repository (the CI card) looks in that repository's folder first.
+    const hinted = ref.repo ? this.pathOf(ref.repo) : '';
+    if (hinted) order.push(hinted);
     if (typeof VexRepos !== 'undefined' && typeof TabManager !== 'undefined') {
       const tab = TabManager.getActiveTab && TabManager.getActiveTab();
       const r = tab && tab.url ? VexRepos.match(tab.url) : null;

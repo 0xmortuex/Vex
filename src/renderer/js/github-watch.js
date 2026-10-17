@@ -52,14 +52,24 @@ const GitHubWatch = {
   },
 
   async _get(path) {
-    // Through main's shared polite client (rate limit per host, backoff on a 429, ETag cache, no checks on a metered line).
-    if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Web access is not available in this build');
-    const r = await window.vex.apiRequest({ url: this.API + path, publicOnly: true, headers: { Accept: 'application/vnd.github+json' }, egress: 'GitHub watch', polite: { background: true } });
-    if (!r || r.ok === false) throw new Error((r && r.error) || 'GitHub could not be reached');
+    // With the GitHub token switched on, main reads it (5,000 requests an hour, still through the shared polite
+    // client). Without it, main's shared polite client reads it as a public request (rate limit per host, backoff
+    // on a 429, ETag cache, no checks on a metered line).
+    let r;
+    let body = '';
+    if (typeof GitHubVault !== 'undefined' && GitHubVault.available()) {
+      r = await GitHubVault.fetch(this.API + path, { headers: { Accept: 'application/vnd.github+json' } });
+      if (r.ok) body = await r.text();
+    } else {
+      if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Web access is not available in this build');
+      r = await window.vex.apiRequest({ url: this.API + path, publicOnly: true, headers: { Accept: 'application/vnd.github+json' }, egress: 'GitHub watch', polite: { background: true } });
+      if (!r || r.ok === false) throw new Error((r && r.error) || 'GitHub could not be reached');
+      body = r.body;
+    }
     if (r.status === 404) throw new Error('GitHub cannot show it — private repositories are not visible to Vex');
     if (r.status === 403 || r.status === 429) throw new Error('GitHub asked Vex to slow down; it will try again later');
     if (r.status >= 400) throw new Error('GitHub answered ' + r.status);
-    return JSON.parse(r.body);
+    return JSON.parse(body);
   },
 
   // One look. → { told: string|null, done: boolean }
