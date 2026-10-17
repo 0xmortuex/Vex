@@ -50,7 +50,7 @@ describe('arming', () => {
     seed({ reminderId: null });
     await expect(AR.arm('rc_1', true)).rejects.toThrow(/Give the recipe a time first/);
     seed();
-    await expect(AR.arm('rc_1', true, { dest: 'email' })).rejects.toThrow(/history or to a note/);
+    await expect(AR.arm('rc_1', true, { dest: 'email' })).rejects.toThrow(/Deliver to history only, or saved as a note/);
     await expect(AR.arm('rc_1', true, { backend: 'cloud' })).rejects.toThrow(/local model or on Auto/);
   });
   it('arms and disarms, with a ledger line each time', async () => {

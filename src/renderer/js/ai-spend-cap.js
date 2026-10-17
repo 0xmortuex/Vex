@@ -80,14 +80,18 @@ const VexAISpend = {
     const s = this._read();
     if (s.cap > 0 && s.used >= s.cap) return 'day';
     if (s.monthCap > 0 && s.monthUsed >= s.monthCap) return 'month';
+    if (this._moneyReached()) return 'money';
     return null;
   },
+  // The money budget (js/ai-spend-money.js) is a third limit with the same effect: the cloud is not used.
+  _moneyReached() { return typeof VexAIMoney !== 'undefined' && VexAIMoney.reached(); },
   monthCap() { return this._read().monthCap; },
   monthUsed() { return this._read().monthUsed; },
   // The sentence the router puts in an error or a notice when a limit stopped the cloud.
   limitText() {
     const w = this.reachedWhich();
     const s = this._read();
+    if (w === 'money') return VexAIMoney.limitText();
     if (w === 'month') return "This month's limit of " + s.monthCap + ' cloud AI calls is used up';
     return "Today's limit of " + s.cap + ' cloud AI calls is used up';
   },
@@ -123,6 +127,7 @@ const VexAISpend = {
     const s = this._read();
     if (s.cap > 0 && s.used >= s.cap) return null;
     if (s.monthCap > 0 && s.monthUsed >= s.monthCap) return null;
+    if (this._moneyReached()) return null;
     const f = String(feature || 'unknown').slice(0, 40);
     s.used++;
     s.monthUsed++;
@@ -173,6 +178,7 @@ const VexAISpend = {
   // The router kept a request off the cloud because a limit was reached. Said once per period in the
   // ledger and as a notice, so the answer that comes back from the local model is not a mystery.
   noteDowngrade(feature) {
+    if (this.reachedWhich() === 'money') return VexAIMoney.noteDowngrade(feature);
     const s = this._read();
     const which = this.reachedWhich() || 'day';
     const period = which === 'month' ? s.month : s.day;

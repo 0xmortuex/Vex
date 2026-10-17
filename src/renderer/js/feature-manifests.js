@@ -480,6 +480,8 @@
     // The cap is a safety net (like the sensitivity gate): Minimal Vex must never lift it, so it has no switch to flip.
     { id: 'ai-spend-cap', title: 'Daily cap on cloud AI calls', group: 'AI spend cap', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiSpend', 'vex.aiQuality', 'vex.aiSpendRouting'],
       permissions: { reads: ['how many cloud AI calls were made today'], writes: ['the count and the cap you chose'], sends: [] } },
+    { id: 'ai-money', title: 'Money budget for cloud AI', group: 'AI spend cap', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiMoney'], events: ['vex:ai-spend'], commands: ['ai-quality-history'],
+      permissions: { reads: ['the size of each cloud AI request and answer, and the model that answered, to estimate its cost'], writes: ['the prices you typed, your monthly budget and the estimate for this month'], sends: [] } },
     { id: 'summary-cache', title: 'Summary cache', group: 'Summary cache', maturity: 'new', storageKeys: ['vex.summaryCache', 'vex.summaryCache.enabled'], budget: { storageKB: 600 },
       permissions: { reads: ['the text of a page you ask to have summarised, to tell whether it changed'], writes: ['the finished summaries, on this computer, up to 40 for 30 days'], sends: [] } },
     { id: 'tos-highlighter', title: 'Terms of service highlighter', group: 'Terms of service highlighter', maturity: 'new', storageKeys: ['vex.tosHighlighter', 'vex.reader.simplify'], commands: ['tos-highlight'],
