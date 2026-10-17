@@ -22,6 +22,8 @@ let settled = false;
 const probe = harness.launch({
   exe: process.env.VEX_SMOKE_EXECUTABLE || undefined,
   args: process.env.VEX_SMOKE_EXECUTABLE ? [] : ['.'],
+  // Set only by scripts/verify-packaged-boot.js for the build the release has just made.
+  releaseBuild: process.env.VEX_RELEASE_BOOT === '1' && !!process.env.VEX_SMOKE_EXECUTABLE,
   cwd: projectRoot,
   env: { VEX_SMOKE: '1', VEX_SKIP_VMP_VERIFY: '1' },
 });

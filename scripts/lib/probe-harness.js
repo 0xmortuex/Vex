@@ -64,6 +64,21 @@ function assertNotOwnersCopy(exe) {
   }
 }
 
+// The release's own boot check (scripts/verify-packaged-boot.js) has to start the build it has just
+// made, and that build sits in dist\win-unpacked. That is allowed only when the caller says so
+// (opts.releaseBuild), only for that folder's Vex.exe, and only while no process is running that
+// file: the owner's copy is not open. Everything else keeps the refusal above. `table` is
+// injectable for tests.
+function assertLaunchable(exe, opts = {}, table) {
+  const unpackedExe = path.join(REPO, 'dist', 'win-unpacked', 'Vex.exe');
+  const isReleaseBoot = opts.releaseBuild === true && typeof exe === 'string' && norm(exe) === norm(unpackedExe);
+  if (!isReleaseBoot) { assertNotOwnersCopy(exe); return; }
+  const running = (table || processTable()).filter(r => r.exe && norm(r.exe) === norm(exe));
+  if (running.length) {
+    throw new Error('probe-harness: Vex from dist\\win-unpacked is running (pid ' + running.map(r => r.pid).join(', ') + '); close it first, the release boot check does not start beside it');
+  }
+}
+
 function freePort() {
   return new Promise((resolve, reject) => {
     const s = net.createServer();
@@ -82,7 +97,7 @@ function logPid(rec) {
 function launch(opts = {}) {
   let exe = opts.exe || require(path.join(REPO, 'node_modules', 'electron'));
   if (/[\\/]/.test(exe)) exe = path.resolve(exe); // a relative exe must mean the same file to spawn and to the owner check
-  assertNotOwnersCopy(exe);
+  assertLaunchable(exe, opts);
   const args = (opts.args || ['.']).slice();
   const given = args.find(a => /^--user-data-dir=/.test(a));
   let userDataDir;
@@ -196,4 +211,4 @@ function dispose(handle, { keepProfile = false } = {}) {
   return r;
 }
 
-module.exports = { launch, launchWithPort, freePort, stopOwned, removeProfile, dispose, processTable, descendantsOf, isOwned, assertTempProfile, assertNotOwnersCopy, forbiddenProfileRoots, PID_LOG, REPO };
+module.exports = { launch, launchWithPort, freePort, stopOwned, removeProfile, dispose, processTable, descendantsOf, isOwned, assertTempProfile, assertNotOwnersCopy, assertLaunchable, forbiddenProfileRoots, PID_LOG, REPO };

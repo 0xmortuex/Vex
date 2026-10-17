@@ -44,7 +44,7 @@ function check() {
   console.log(`verify-packaged-boot: starting the built Vex ${pkg.version} …`);
   const r = spawnSync(process.execPath, [path.join(__dirname, 'verify-smoke-boot.js')], {
     cwd: root, stdio: 'inherit', windowsHide: true,
-    env: { ...process.env, VEX_SMOKE_EXECUTABLE: exe, VEX_NO_OS_SCHEDULE: '1' },
+    env: { ...process.env, VEX_SMOKE_EXECUTABLE: exe, VEX_RELEASE_BOOT: '1', VEX_NO_OS_SCHEDULE: '1' },
   });
   if (r.status !== 0) throw new Error('the built Vex did not start — NOT uploading it. See the output above.');
   console.log(`verify-packaged-boot: v${pkg.version} starts and renders. Uploading.`);
