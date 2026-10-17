@@ -7,7 +7,9 @@
 //   ReadingTriage    T3-017  ranks the read-later queue against the goals you
 //                    typed: read now / skim / drop, each with one line of why.
 //                    "Drop" is a suggestion; the queue is never touched, and the
-//                    raw order is one click away.
+//                    raw order is one click away. It is also weighed against the focus block
+//                    you are in now and against how often you finish what you save from a
+//                    site (finish rate), both from what is already on this computer.
 //   SeenBefore       T3-037  "have I seen this before?": your history, notes,
 //                    highlights and read-later list searched for the page in
 //                    front, with a similarity hint. Words only, on this computer.
@@ -135,8 +137,36 @@ const ReadingTriage = {
     return v.filter(i => i && !i.read && i.url);
   },
 
+  // The goal of the focus block running now (Focus OS), or null when none runs or Focus OS is not loaded.
+  focus() {
+    if (typeof FocusOS === 'undefined' || typeof FocusOS.active !== 'function') return null;
+    const b = FocusOS.active();
+    const g = b && typeof FocusOS.goal === 'function' ? FocusOS.goal(b.goalId) : null;
+    return g && g.title ? { title: String(g.title), words: AiWords.tokens(String(g.title)) } : null;
+  },
+  // Every saved item, read or not: the base of the finish rate.
+  all() {
+    if (typeof ReadLater !== 'undefined' && Array.isArray(ReadLater.items)) return ReadLater.items.filter(i => i && i.url);
+    const v = AiWords.record('vex.readLater', () => [], 'Reading triage');
+    if (!Array.isArray(v)) throw new Error('The read-later list is not readable');
+    return v.filter(i => i && i.url);
+  },
+  // How often you finish what you save from each site: { [host]: { saved, read, rate } }. A site's items saved in the
+  // last three days are not counted yet; they have not had time to be read.
+  finishRates(items, now = Date.now()) {
+    const out = {};
+    for (const i of items || []) {
+      const host = this._host(i.url);
+      if (!host || (!i.read && i.at && now - i.at < 3 * 86400000)) continue;
+      const e = out[host] || (out[host] = { saved: 0, read: 0, rate: 0 });
+      e.saved++; if (i.read) e.read++;
+    }
+    for (const e of Object.values(out)) e.rate = e.saved ? e.read / e.saved : 0;
+    return out;
+  },
   // Pure. -> { score, matched: [goal], verdict, reason }
-  score(item, goals, now = Date.now()) {
+  // ctx (optional): { focus: { title, words }, rates } from focus() and finishRates().
+  score(item, goals, now = Date.now(), ctx = {}) {
     let host = '', path = '';
     try { const u = new URL(item.url); host = u.hostname.replace(/^www\./, ''); path = decodeURIComponent(u.pathname); } catch { host = ''; }
     const have = new Set(AiWords.tokens([item.title || '', host, path].join(' ')));
@@ -153,17 +183,33 @@ const ReadingTriage = {
     let score = matched.length * 3 + partial;
     if (Number.isFinite(item.minutes)) score += item.minutes <= 10 ? 1 : (item.minutes > 30 ? -1 : 0);
     score += days <= 7 ? 1 : (days > 60 ? -1 : 0);
+    // The block you are in now: a title that shares half its words with the block's goal.
+    let inBlock = false;
+    if (ctx.focus && ctx.focus.words && ctx.focus.words.length) {
+      const share = ctx.focus.words.filter(w => have.has(w)).length / ctx.focus.words.length;
+      if (share >= 0.5) { inBlock = true; score += 2; }
+    }
+    // The site's finish rate, once there is enough to say (four saved or more).
+    let habit = '';
+    const rate = ctx.rates && ctx.rates[host];
+    if (rate && rate.saved >= 4) {
+      if (rate.rate >= 0.6) { score += 1; habit = 'you usually finish what you save from ' + host; }
+      else if (rate.rate <= 0.2) { score -= 1; habit = 'you rarely finish what you save from ' + host; }
+    }
     let verdict, reason;
-    if (!goals.length) { verdict = 'skim'; reason = 'No goals are set yet, so this is only the order you saved it in'; }
+    if (!goals.length && !(inBlock && score >= 3)) { verdict = 'skim'; reason = 'No goals are set yet, so this is only the order you saved it in'; }
     else if (matched.length && score >= 3) { verdict = 'read now'; reason = 'Matches your goal "' + matched[0] + '"' + (Number.isFinite(item.minutes) ? ', ' + item.minutes + ' min' : ''); }
+    else if (!matched.length && inBlock && score >= 3) { verdict = 'read now'; reason = 'Fits the block you are in (' + ctx.focus.title.slice(0, 40) + ')'; inBlock = false; }
     else if (matched.length) { verdict = 'skim'; reason = 'Touches your goal "' + matched[0] + '", but it is long or old'; }
     else if (days > this.OLD_DAYS) { verdict = 'drop'; reason = 'Nothing to do with your goals, saved ' + Math.round(days) + ' days ago'; }
     else { verdict = 'skim'; reason = 'Nothing on your goals, but it is recent'; }
-    return { score: Math.round(score * 100) / 100, matched, verdict, reason };
+    if (inBlock) reason += '; fits the block you are in (' + ctx.focus.title.slice(0, 40) + ')';
+    if (habit) reason += '; ' + habit;
+    return { score: Math.round(score * 100) / 100, matched, verdict, reason, inBlock };
   },
 
-  rank(items, goals, now = Date.now()) {
-    return items.map((item, i) => ({ item, i, ...this.score(item, goals, now), by: 'rules' }))
+  rank(items, goals, now = Date.now(), ctx = {}) {
+    return items.map((item, i) => ({ item, i, ...this.score(item, goals, now, ctx), by: 'rules' }))
       .sort((a, b) => b.score - a.score || (b.item.at || 0) - (a.item.at || 0) || a.i - b.i);
   },
 
@@ -212,7 +258,7 @@ const ReadingTriage = {
     };
     const rank = () => {
       this.setGoals(goals.value);
-      rows = this.rank(this.queue(), this.goals());
+      rows = this.rank(this.queue(), this.goals(), Date.now(), { focus: this.focus(), rates: this.finishRates(this.all()) });
       status.textContent = rows.length + ' unread. Ranked by rules; ask the local model for reasons if you like.';
       draw();
     };

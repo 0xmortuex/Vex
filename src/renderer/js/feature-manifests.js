@@ -202,7 +202,7 @@
     { id: 'webhook-inspector', title: 'Webhook inspector', maturity: 'new', storageKeys: ['vex.webhookInspector'], jobs: ['Webhook inspector view'], commands: ['webhook-inspector'], tiers: { minimal: false, standard: false },
       permissions: { reads: ['requests sent to a port on 127.0.0.1 that you opened'], writes: ['nothing on disk; requests are kept in memory until it stops'], sends: [] } },
     { id: 'reading-triage', title: 'Reading triage by goals', maturity: 'new', storageKeys: ['vex.readingTriage'], usesKeys: ['vex.readLater'], commands: ['reading-triage'],
-      permissions: { reads: ['your read-later list and the goals you typed'], writes: ['your goals'], sends: ['The titles and sites of up to 15 items to your local model, only when you ask for reasons'] } },
+      permissions: { reads: ['your read-later list (including what you finished) and the goals you typed', 'the goal of the focus block running now'], writes: ['your goals'], sends: ['The titles and sites of up to 15 items to your local model, only when you ask for reasons'] } },
     { id: 'seen-before', title: 'Have I seen this before?', maturity: 'new', storageKeys: ['vex.seenBefore'], usesKeys: ['vex.history', 'vex.notes', 'vex.annotations', 'vex.readLater'], commands: ['seen-before'],
       permissions: { reads: ['the page in front, your history, notes, highlights and read-later list'], writes: ['its own switch'], sends: [] } },
     { id: 'ai-recipes', title: 'Scheduled AI recipes', maturity: 'new', storageKeys: ['vex.aiRecipes'], usesKeys: ['vex.skills', 'vex.reminders'], commands: ['ai-recipes'],
