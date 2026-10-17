@@ -17,6 +17,18 @@ describe('arguments', () => {
     expect(o).toMatchObject({ looks: ['firefox'], cycles: 20, only: ['notes', 'memory'], list: true });
     expect(o.allow.test('Clear history')).toBe(true);
   });
+  it('runs the Full tier by default and reads --tiers (Simple and Minimal too)', () => {
+    expect(M.parseArgs([]).tiers).toEqual(['full']);
+    expect(M.parseArgs(['--tiers=full,simple,minimal']).tiers).toEqual(['full', 'simple', 'minimal']);
+    expect(() => M.parseArgs(['--tiers=expert'])).toThrow(/unknown tier/);
+    expect(M.TIERS).toEqual(['full', 'simple', 'minimal']);
+  });
+  it('is part of CI: the sampled three-tier run is an npm script and a workflow step', () => {
+    const fs = require('fs'), path = require('path');
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
+    expect(pkg.scripts['smoke:matrix:ci']).toMatch(/--tiers=full,simple,minimal/);
+    expect(fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'verify.yml'), 'utf8')).toMatch(/npm run smoke:matrix:ci/);
+  });
   it('rejects what it does not know', () => {
     expect(() => M.parseArgs(['--looks=win98'])).toThrow(/unknown look/);
     expect(() => M.parseArgs(['--cycles=0'])).toThrow();

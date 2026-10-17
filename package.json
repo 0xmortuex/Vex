@@ -15,6 +15,7 @@
     "smoke": "node scripts/verify-smoke-boot.js",
     "smoke:restart": "node scripts/verify-restart.js",
     "smoke:matrix": "node scripts/check-smoke-matrix.js",
+    "smoke:matrix:ci": "node scripts/check-smoke-matrix.js --looks=firefox --tiers=full,simple,minimal --cycles=2 --limit=40",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "pack": "node scripts/heavy-gate.js pack && electron-builder --dir",
