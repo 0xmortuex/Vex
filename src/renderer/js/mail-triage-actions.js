@@ -118,7 +118,7 @@ const MailTriage = {
     const res = await AIRouter.callOn('local', 'chat', { message: this.buildPrompt({ ...msg, text }), persona: this.PERSONA });
     const reply = this.plainReply(res && (res.result || res.text || res.message));
     if (!reply) throw new Error('The local AI returned nothing');
-    return { reply, subject: /^\s*re\s*:/i.test(msg.subject || '') ? msg.subject : 'Re: ' + (msg.subject || ''), to: this.addressOf(m), webmail: msg.webmail || '' };
+    return { model: (res && res.model) || '', reply, subject: /^\s*re\s*:/i.test(msg.subject || '') ? msg.subject : 'Re: ' + (msg.subject || ''), to: this.addressOf(m), webmail: msg.webmail || '' };
   },
   addressOf(m) { const a = String(((m && m.from) || {}).address || ''); return /^[^\s@<>]+@[^\s@<>]+$/.test(a) ? a : ''; },
 
@@ -159,6 +159,8 @@ const MailTriage = {
         if (!overlay.isConnected) return;
         ta.value = info.reply; ta.disabled = false; openBtn.disabled = false; ta.focus();
         status.textContent = 'Written by your local AI. Vex does not send anything: edit it, then open it in your mail program.';
+        overlay.querySelector('.vex-prov-chip')?.remove();
+        if (typeof VexProvenance !== 'undefined') status.after(VexProvenance.chip({ kind: 'local', model: info.model, read: 'the message you are answering' }));
       } catch (err) {
         if (!overlay.isConnected) return;
         status.textContent = err.message;

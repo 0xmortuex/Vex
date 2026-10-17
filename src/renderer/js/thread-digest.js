@@ -249,6 +249,7 @@ const VexThreadDigest = {
         for (const t of list) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
         out.appendChild(ul);
       };
+      if (typeof VexProvenance !== 'undefined') out.appendChild(VexProvenance.chip({ kind: 'local', read: 'the thread text you chose' }));
       const s = r.sections;
       if (s.other && !s.decisions.length && !s.questions.length && !s.fresh.length) {
         const p = document.createElement('div'); p.style.whiteSpace = 'pre-wrap'; p.textContent = r.answer; out.appendChild(p);

@@ -50,6 +50,7 @@ const AICompose = {
         try { const o = JSON.parse(out); if (o && o.reply) out = o.reply; } catch {}
         out = String(out).trim();
         if (!out) throw new Error('Empty response');
+        const by = typeof VexProvenance !== 'undefined' && data.backend ? ' (written by ' + VexProvenance.label(VexProvenance.fromResult(data, { read: 'your instruction' })) + ')' : '';
         if (ctx.hasInput) {
           await wv.executeJavaScript(`(()=>{
             const a=document.activeElement; if(!a) return;
@@ -58,10 +59,10 @@ const AICompose = {
             a.dispatchEvent(new Event('input',{bubbles:true}));
             a.dispatchEvent(new Event('change',{bubbles:true}));
           })()`);
-          window.showToast?.('Written into the field');
+          window.showToast?.('Written into the field' + by);
         } else {
           await navigator.clipboard.writeText(out);
-          window.showToast?.('Copied to clipboard');
+          window.showToast?.('Copied to clipboard' + by);
         }
         m.remove();
       } catch (err) {

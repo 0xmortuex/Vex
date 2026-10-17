@@ -167,7 +167,7 @@ const VexToday = {
   brief(now = Date.now()) {
     try {
       const b = JSON.parse(localStorage.getItem(this.BRIEF_KEY) || 'null');
-      return b && b.day === this._day(now) && b.text ? { text: b.text, at: b.at } : null;
+      return b && b.day === this._day(now) && b.text ? { text: b.text, at: b.at, by: typeof b.by === 'string' ? b.by.slice(0, 80) : '' } : null;
     } catch { return null; }
   },
 
@@ -200,7 +200,9 @@ const VexToday = {
     // showed that JSON as it came (found 2026-09-29).
     const text = String(AIPanel._parseResponse(raw).reply || raw).trim();
     if (!text) throw new Error('The AI returned nothing');
-    localStorage.setItem(this.BRIEF_KEY, JSON.stringify({ day: this._day(now), text, at: now }));
+    // Which backend wrote it, in the chip's words, so the New Tab page can say so next to the paragraph.
+    const by = typeof VexProvenance !== 'undefined' && res && res.backend ? VexProvenance.label(VexProvenance.fromResult(res, { read: 'your reminders, tasks, changed pages and feeds' })) : '';
+    localStorage.setItem(this.BRIEF_KEY, JSON.stringify({ day: this._day(now), text, at: now, by }));
     await this.refresh();
     return text;
   },

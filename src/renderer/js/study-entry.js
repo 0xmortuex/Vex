@@ -306,12 +306,13 @@ const VexStudyEntry = {
     const { kept, dropped } = this.checkTeachBack(this.parseTeachBack(res && res.result), item.body);
     if (!kept.length) throw new Error('None of the questions could be checked against the page' + (dropped.length ? ' (' + dropped[0].reason + ')' : '') + '. Nothing was kept.');
     if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
-    return this._teachBackDialog(item, kept, dropped);
+    return this._teachBackDialog(item, kept, dropped, res && res.model);
   },
 
-  _teachBackDialog(item, kept, dropped) {
+  _teachBackDialog(item, kept, dropped, model) {
     const G = VexSettingsGroups;
     const { body, close } = G.dialog({ id: 'vex-teachback', title: 'Teach-back questions', sub: 'Each answer carries a quote that was found on the page. Nothing is saved until you confirm.' });
+    if (typeof VexProvenance !== 'undefined') body.appendChild(VexProvenance.chip({ kind: 'local', model, read: 'the page you were on' }));
     const boxes = [];
     kept.forEach((c, i) => {
       const box = document.createElement('div');

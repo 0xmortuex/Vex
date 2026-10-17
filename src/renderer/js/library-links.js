@@ -179,7 +179,7 @@ const VexLibraryLinks = {
     let res;
     try { res = await AIRouter.callOn('local', 'chat', { message: this.conflictPrompt(question, sources), conversationHistory: [] }); }
     catch (err) { throw new Error('Your local model could not answer: ' + String((err && err.message) || err).replace(/\.$/, '') + '. Nothing was sent to the cloud.', { cause: err }); }
-    return this.checkConflicts(this.parseConflicts(res && res.result), sources);
+    return { ...this.checkConflicts(this.parseConflicts(res && res.result), sources), model: (res && res.model) || '' };
   },
 
   _el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; },
@@ -215,7 +215,7 @@ const VexLibraryLinks = {
     check.title = 'Your local model compares the cited sources; each position must quote its source';
     check.addEventListener('click', async () => {
       check.disabled = true;
-      try { const r = await this.checkSources(question, result.sources); conflicts = r.conflicts; this._renderConflicts(out, r); }
+      try { const r = await this.checkSources(question, result.sources); conflicts = r.conflicts; this._renderConflicts(out, r); if (typeof VexProvenance !== 'undefined') VexProvenance.attach(out, { kind: 'local', model: r.model, read: 'the sources cited in the answer' }); }
       catch (e) { fail(e); }
       check.disabled = false;
     });

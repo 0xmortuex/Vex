@@ -540,6 +540,7 @@ const Knowledge = {
           VexAnswerCitations.render(answerBox, r.claims, r.sources, { onError: (err) => say(err.message, true) });
           answerBox.appendChild(Object.assign(document.createElement('div'), { className: 'vexsr-mode', textContent: VexAnswerCitations.summaryLine(r.claims) }));
         } else answerBox.textContent = r.answer;
+        if (typeof VexProvenance !== 'undefined') VexProvenance.attach(answerBox, { kind: 'local', model: r.model, read: 'the sources listed below' });
         say([r.model ? 'Answered by ' + r.model + ' on this PC.' : 'Answered on this PC.'].concat(r.notes).join(' '));
         // Check the sources for conflicts, read the answer aloud (js/library-links.js).
         if (typeof VexLibraryLinks !== 'undefined') VexLibraryLinks.decorateAnswer(answerBox, r, { question: q, say });

@@ -189,7 +189,7 @@ const VexDraftField = {
       if (signal && signal.aborted) throw err;
       throw new Error('Your local model could not answer: ' + String((err && err.message) || err).replace(/\.$/, '') + '. Nothing was sent to the cloud.', { cause: err });
     }
-    return this.parseReply(res && res.result);
+    return { ...this.parseReply(res && res.result), model: (res && res.model) || '' };
   },
 
   // ---- running it in the page ------------------------------------------------------------------------------
@@ -259,6 +259,7 @@ const VexDraftField = {
       result.textContent = '';
       const dBox = el('div'); dBox.style.cssText = 'white-space:pre-wrap;padding:10px;border:1px solid var(--border);border-radius:8px;margin-top:6px;max-height:240px;overflow:auto';
       dBox.setAttribute('aria-label', 'What will change');
+      if (typeof VexProvenance !== 'undefined') result.appendChild(VexProvenance.chip({ kind: 'local', model: r.model, read: 'the text in the box and your instruction' }));
       if (original.trim()) {
         for (const seg of this.diff(original, r.text)) {
           const sp = el('span', null, seg.text);

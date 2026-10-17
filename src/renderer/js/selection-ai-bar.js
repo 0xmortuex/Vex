@@ -187,7 +187,7 @@ const SelectionAIBar = {
       if (!wv || typeof wv.send !== 'function') { window.showToast?.('That page is no longer available', 'error'); return; }
       // A failed send must not be reported as a successful edit.
       wv.send('vex-replace-selection', { text: out });
-      window.showToast?.(act === 'fix' ? 'Fixed' : act === 'shorten' ? 'Shortened' : 'Rewritten');
+      window.showToast?.((act === 'fix' ? 'Fixed' : act === 'shorten' ? 'Shortened' : 'Rewritten') + (typeof VexProvenance !== 'undefined' && res && res.backend ? ' by ' + VexProvenance.label(VexProvenance.fromResult(res, { read: 'the text you selected' })) : ''));
     } catch (err) {
       console.error('[SelectionAIBar] edit failed:', err);
       window.showToast?.('AI edit failed: ' + (err?.message || 'unknown error'), 'error');

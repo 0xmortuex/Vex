@@ -85,7 +85,7 @@ describe('conflicts between sources', () => {
   it('asks the local model only, and reports its failure without the cloud', async () => {
     const callOn = vi.fn().mockResolvedValue({ result: raw([]) });
     globalThis.AIRouter = { callOn };
-    expect(await L.checkSources('q', sources)).toEqual({ conflicts: [], dropped: 0 });
+    expect(await L.checkSources('q', sources)).toEqual({ conflicts: [], dropped: 0, model: '' });   // model: what the provenance chip names
     expect(callOn.mock.calls[0][0]).toBe('local');
     callOn.mockRejectedValue(new Error('Ollama is down.'));
     await expect(L.checkSources('q', sources)).rejects.toThrow(/Nothing was sent to the cloud/);

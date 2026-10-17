@@ -205,6 +205,7 @@ const VexPaperBrief = {
         const row = document.createElement('div');
         row.className = 'vexsr-rule';
         row.style.cssText = 'display:block;margin:6px 0';
+        if (c.summary && typeof VexProvenance !== 'undefined') row.appendChild(VexProvenance.chip({ kind: 'local', read: 'the text of this chapter' }));
         row.appendChild(G.note(c.title + ' (pp. ' + c.page + (c.endPage > c.page ? '-' + c.endPage : '') + ')' + (c.summary ? ': ' + c.summary : '')));
         for (const q of c.claims || []) row.appendChild(G.note('"' + q.quote + '" (p. ' + q.page + ')'));
         if (c.dropped) row.appendChild(G.note(c.dropped + ' claim(s) left out: the sentence was not on the page.'));
@@ -227,6 +228,7 @@ const VexPaperBrief = {
       const pre = document.createElement('pre');
       pre.style.cssText = 'white-space:pre-wrap;word-break:break-word;font-size:12.5px;max-height:50vh;overflow:auto';
       pre.textContent = md;
+      if (typeof VexProvenance !== 'undefined') out.appendChild(VexProvenance.chip({ kind: 'local', read: 'the text of the PDF' }));
       out.appendChild(pre);
       const bar = document.createElement('div');
       bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';

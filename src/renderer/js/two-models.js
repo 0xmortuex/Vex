@@ -78,6 +78,7 @@ const TwoModels = {
     const head = `<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:5px">
         <b style="font-size:11.5px;color:var(--text)">${esc(a.name)}</b>
         <span style="font-size:10px;color:var(--text-muted)">${esc(a.model || '')}${a.ok ? ' · ' + (a.ms / 1000).toFixed(1) + ' s' : ''}</span>
+        ${a.ok && typeof VexProvenance !== 'undefined' ? VexProvenance.html(VexProvenance.fromResult(a, { read: 'the page you asked about' })) : ''}
       </div>`;
     const body = a.ok
       ? `<div style="font-size:12.5px;color:var(--text)">${md(a.text)}</div>`

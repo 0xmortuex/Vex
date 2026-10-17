@@ -145,10 +145,12 @@ const Recall = {
     const base = await this.search(q, opts);
     if (typeof AIRouter === 'undefined' || typeof AIRouter.callAI !== 'function') return base;
     let terms = [];
+    let wroteBy = null;
     try {
       const res = await AIRouter.callAI('chat', { message:
         `I'm searching the full text of pages I've already read for: "${q}".\n` +
         `List up to 6 alternative search queries — synonyms, related concepts, and specific terms — that would surface relevant pages. Return ONLY the queries, one per line, no numbering or commentary.` });
+      wroteBy = res && res.backend ? { backend: res.backend, model: res.model } : null;
       let out = String((res && (res.result || res.text || res.message)) || '');
       // A chat answer can come in the chat's JSON envelope ({"reply": …}),
       // which is what the local model sends: read as lines, it was one line
@@ -172,7 +174,7 @@ const Recall = {
     const lists = await Promise.all(terms.map(t => this.search(t, opts)));
     lists.forEach(list => list.hits.forEach((h, i) => add(h, 10 - Math.min(i, 9))));
     const hits = [...seen.values()].sort((a, b) => b.score - a.score).map(v => v.hit);
-    return { total: hits.length, hits, terms: base.terms, took: base.took, expanded: terms };
+    return { total: hits.length, hits, terms: base.terms, took: base.took, expanded: terms, expandedBy: wroteBy };
   },
 
   // --- by meaning (optional, local Ollama embeddings only) ----------------------
@@ -545,6 +547,13 @@ const Recall = {
         const note = document.createElement('div');
         note.className = 'recall-idle recall-meaning-note';
         note.textContent = 'Matched by words only. ' + res.meaningError;
+        out.prepend(note);
+      }
+      // The extra search words came from a model: say which (js/provenance-chip.js).
+      if (res.expanded && res.expanded.length && res.expandedBy && typeof VexProvenance !== 'undefined') {
+        const note = document.createElement('div');
+        note.className = 'recall-idle recall-smart-note';
+        note.append('Also searched for: ' + res.expanded.join(', ') + ' ', VexProvenance.chip(VexProvenance.fromResult(res.expandedBy, { read: 'what you typed' })));
         out.prepend(note);
       }
       if (!append) setCursor(0);
