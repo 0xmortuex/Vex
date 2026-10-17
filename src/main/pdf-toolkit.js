@@ -146,6 +146,18 @@ async function rotate(bytes, { spec, degrees } = {}, name) {
   return { bytes: await save(doc), pages: idx.length };
 }
 
+// Re-encodes the big pictures at a lower quality (and scales the oversized ones down), then repacks the file.
+// codec: the picture codec (Electron nativeImage in Vex, see main/pdf-images.js). Refuses when nothing was gained.
+async function shrink(bytes, { level, codec } = {}, name) {
+  const { shrinkDocument } = require('./pdf-images');
+  const doc = await load(bytes, name);
+  const r = shrinkDocument(doc, codec, level || 'balanced');
+  doc.setProducer('Vex PDF toolkit');
+  const out = Buffer.from(await doc.save({ useObjectStreams: true }));
+  if (out.length >= bytes.length) throw new Error('Vex could not make this PDF smaller (' + bytes.length + ' bytes; ' + r.changed + ' pictures re-encoded, ' + r.skipped + ' left as they are)');
+  return { bytes: out, pages: doc.getPageCount(), before: bytes.length, after: out.length, changed: r.changed, skipped: r.skipped };
+}
+
 // ---- the Electron layer ---------------------------------------------------------
 function safeBase(file) {
   const clean = Array.from(nodePath.basename(file, nodePath.extname(file))).filter(c => c.charCodeAt(0) >= 32).join('');
@@ -165,7 +177,7 @@ async function writeAtomic(file, bytes, fsImpl) {
   await fsImpl.promises.rename(temp, file);
 }
 
-function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs } = {}) {
+function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs, nativeImage } = {}) {
   if (!ipcMain || !dialog || typeof windowFor !== 'function') throw new Error('registerPdfToolkit needs ipcMain, dialog and windowFor');
   const picked = new Map();     // token -> { file, name, bytes, pages }
 
@@ -232,6 +244,10 @@ function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs } = {}
       } else if (req.op === 'rotate') {
         const r = await rotate(first.bytes, { spec: req.spec, degrees: req.degrees }, first.name);
         outputs = [{ name: safeBase(first.file) + '-rotated.pdf', bytes: r.bytes, pages: r.pages }];
+      } else if (req.op === 'shrink') {
+        if (!nativeImage) throw new Error('Shrinking pictures needs Electron, which is not available here');
+        const r = await shrink(first.bytes, { level: req.level, codec: require('./pdf-images').nativeImageEncoder(nativeImage) }, first.name);
+        outputs = [{ name: safeBase(first.file) + '-smaller.pdf', bytes: r.bytes, pages: r.pages, before: r.before, changed: r.changed }];
       } else if (req.op === 'split') {
         const parts = await split(first.bytes, { mode: req.mode, n: req.n, spec: req.spec }, first.name);
         outputs = parts.map((p, i) => ({ name: safeBase(first.file) + '-part-' + String(i + 1).padStart(2, '0') + ' (' + p.label + ').pdf', bytes: p.bytes, pages: p.pages }));
@@ -246,7 +262,7 @@ function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs } = {}
         if (!/\.pdf$/i.test(target)) target += '.pdf';
         if (inputs.some(i => samePath(i.file, target))) throw new Error('That would replace one of the PDFs you started from. Save the new one under another name');
         await writeAtomic(target, outputs[0].bytes, fsImpl);
-        written.push({ path: target, name: nodePath.basename(target), pages: outputs[0].pages, bytes: outputs[0].bytes.length });
+        written.push({ path: target, name: nodePath.basename(target), pages: outputs[0].pages, bytes: outputs[0].bytes.length, before: outputs[0].before, changed: outputs[0].changed });
       } else {
         const opts = { title: 'Choose a folder for the ' + outputs.length + ' new PDFs', buttonLabel: 'Save here', defaultPath: dir, properties: ['openDirectory', 'createDirectory'] };
         const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
@@ -266,4 +282,4 @@ function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs } = {}
   return { tokens: () => picked.size };
 }
 
-module.exports = { registerPdfToolkit, parsePageSpec, merge, extract, split, rotate, pageCount, LIMITS };
+module.exports = { registerPdfToolkit, parsePageSpec, merge, extract, split, rotate, shrink, pageCount, LIMITS };

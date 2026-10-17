@@ -564,7 +564,8 @@ define('sources:resolve-doi', [string(300)]);
 const pdfToken = value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
 define('pdftool:pick-files pdftool:forget', []);
 define('pdftool:run', [shape({
-  op: oneOf(['merge', 'extract', 'rotate', 'split']),
+  op: oneOf(['merge', 'extract', 'rotate', 'split', 'shrink']),
+  level: optional(oneOf(['small', 'balanced', 'high'])),
   tokens: value => Array.isArray(value) && value.length >= 1 && value.length <= 20 && value.every(pdfToken),
   spec: optional(string(200)),
   degrees: optional(oneOf([90, 180, 270])),

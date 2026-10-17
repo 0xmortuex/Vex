@@ -2427,7 +2427,7 @@ require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, window
   addAuthenticator: (list) => _totpTransfer.addAccounts(list) });
 // Built-in PDF toolkit: merge, split, extract and rotate pages, all local with pdf-lib (main/pdf-toolkit.js).
 // The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
-require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender) });
+require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), nativeImage });
 
 // === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
 // Keys are made and kept here, encrypted like the vault, and only finished
