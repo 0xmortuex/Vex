@@ -193,9 +193,11 @@ function isMeteredWindows({ execFile = require('child_process').execFile } = {})
 
 // ---- finding an update -------------------------------------------------------------
 // null when the installed version is current; else the verified new package.
-async function findWebStoreUpdate({ id, installedVersion, fetch, chromeVersion, webstore, AdmZip, validateZip, publisherKeySha256 }) {
+// checkFetch: the small "is there a newer version" question (T3-030: the polite client, which paces, backs off and
+// reuses an unchanged answer); fetch: the package itself, which is large and verified by signature and hash.
+async function findWebStoreUpdate({ id, installedVersion, fetch, checkFetch = fetch, chromeVersion, webstore, AdmZip, validateZip, publisherKeySha256 }) {
   const ws = webstore || require('./webstore');
-  const res = await fetch(checkUrl(id, installedVersion, chromeVersion), { maxBytes: 256 * 1024, timeoutMs: 30000, credentials: 'omit' });
+  const res = await checkFetch(checkUrl(id, installedVersion, chromeVersion), { maxBytes: 256 * 1024, timeoutMs: 30000, credentials: 'omit', egress: { feature: 'Extension updates', kind: 'check' } });
   if (!res.ok) throw new Error(`Google's update server answered ${res.status}.`);
   const answer = parseUpdateResponse(await res.text(), id);
   if (answer.status === 'noupdate') return null;
@@ -228,10 +230,10 @@ function zipManifest(buffer, { AdmZip, validateZip }) {
   return JSON.parse(entry.getData().toString('utf-8').replace(/^\uFEFF/, ''));
 }
 
-async function findCatalogUpdate({ catalogId, installedVersion, fetch, sources, AdmZip, validateZip }) {
+async function findCatalogUpdate({ catalogId, installedVersion, fetch, checkFetch = fetch, sources, AdmZip, validateZip }) {
   const src = sources || require('./extension-sources');
   if (!Object.prototype.hasOwnProperty.call(src.SOURCES, catalogId)) throw new Error('Vex does not fetch "' + catalogId + '" by itself any more');
-  const res = await fetch(src.latestReleaseUrl(catalogId), { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Vex' }, maxBytes: 2 * 1024 * 1024, timeoutMs: 20000 });
+  const res = await checkFetch(src.latestReleaseUrl(catalogId), { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Vex' }, maxBytes: 2 * 1024 * 1024, timeoutMs: 20000, egress: { feature: 'Extension updates', kind: 'check' } });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error('GitHub answered ' + res.status);
   const release = await res.json();

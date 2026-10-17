@@ -385,3 +385,25 @@ describe('where an extension came from, and its access to files', () => {
     expect(() => extHelpers.readFileAccess(dir)).toThrow(/corrupt/);
   });
 });
+
+describe('the question goes through the polite client, the package does not (T3-030)', () => {
+  const zip = makeZip({ 'ext/manifest.json': JSON.stringify(manifest({ version: '3.1.0' })) });
+  const digest = 'sha256:' + crypto.createHash('sha256').update(zip).digest('hex');
+  const rel = { tag_name: 'v3.1.0', assets: [{ name: 'darkreader-chrome.zip', browser_download_url: 'https://github.com/darkreader/darkreader/releases/download/v3.1.0/darkreader-chrome.zip', digest }] };
+  it('asks GitHub for the latest release through checkFetch and downloads the zip through fetch', async () => {
+    const asked = [], downloaded = [];
+    const checkFetch = async (url, init) => { asked.push({ url, egress: init.egress }); return new Response(JSON.stringify(rel), { status: 200 }); };
+    const fetch = async (url) => { downloaded.push(url); return new Response(zip, { status: 200 }); };
+    const found = await upd.findCatalogUpdate({ catalogId: 'dark-reader', installedVersion: '3.0.0', fetch, checkFetch, AdmZip, validateZip });
+    expect(found.version).toBe('3.1.0');
+    expect(asked).toHaveLength(1);
+    expect(asked[0].url).toMatch(/^https:\/\/api\.github\.com\//);
+    expect(asked[0].egress).toEqual({ feature: 'Extension updates', kind: 'check' });
+    expect(downloaded).toEqual([rel.assets[0].browser_download_url]);
+  });
+  it('main hands the polite client to both finders as checkFetch', () => {
+    const src = fs.readFileSync(path.resolve(__dirname, '../../src/main.js'), 'utf8');
+    expect(src).toMatch(/findWebStoreUpdate\(\{[^}]*checkFetch: _politeNetFetch/);
+    expect(src).toMatch(/findCatalogUpdate\(\{[^}]*checkFetch: _politeNetFetch/);
+  });
+});
