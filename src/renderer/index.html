@@ -1981,7 +1981,6 @@
   <script src="js/attention-inbox.js"></script>
   <script src="js/vex-medals.js"></script>
   <script src="js/vex-medals-catalog.js"></script>
-  <script src="js/vex-medals-profile.js"></script>
   <script src="js/discover.js"></script>
   <script src="js/tasks.js"></script>
   <script src="js/tab-cost.js"></script>
@@ -1996,12 +1995,10 @@
   <script src="js/backup.js"></script>
   <!-- Platform tools: Settings sections they add themselves (js/vex-settings-groups.js). -->
   <script src="js/vex-settings-groups.js"></script>
-  <script src="js/vex-usage-ui.js"></script>
   <script src="js/vex-minimal-mode.js"></script>
   <script src="js/vex-health.js"></script>
   <!-- Playfulness master level, Settings > Attention, the New Tab slot grid. -->
   <script src="js/vex-playfulness.js"></script>
-  <script src="js/attention-settings.js"></script>
   <!-- Find options, clean link copy, typed-count completion, Keep on top, activity dots (js/tabs-nav.js). -->
   <script src="js/tabs-nav.js"></script>
   <script src="js/newtab-slots.js"></script>
@@ -2121,8 +2118,6 @@
   <script src="js/highlight-resurface.js"></script>
   <script src="js/form-rescue.js"></script>
   <script src="js/redact-tool.js"></script>
-  <script src="js/capture-tools.js"></script>
-  <script src="js/timeline-actions.js"></script>
   <script src="js/tor-session.js"></script>
   <script src="js/accessibility.js"></script>
   <script src="js/annotations.js"></script>
@@ -2167,15 +2162,11 @@
        settings-groups.js, so this file needs only the script tags. -->
   <script src="js/settings-groups.js"></script>
   <!-- Needs VexModuleCommands from settings-groups.js, so it comes after it. -->
-  <script src="js/tabs-nav-settings.js"></script>
   <script src="js/site-readability.js"></script>
   <script src="js/page-actions.js"></script>
   <script src="js/agent-safety.js"></script>
   <script src="js/agent-task-runner.js"></script>
-  <script src="js/agent-task-panel.js"></script>
-  <script src="js/page-recorder.js"></script>
   <script src="js/workspace-metrics.js"></script>
-  <script src="js/clipboard-pipeline.js"></script>
   <script src="js/api-playground.js"></script>
   <script src="js/site-identity.js"></script>
   <script src="js/logins-hub.js"></script>
@@ -2204,7 +2195,6 @@
   <script src="js/qr-verdict.js"></script>
   <script src="js/vault-hygiene.js"></script>
   <script src="js/download-safety.js"></script>
-  <script src="js/security-helpers.js"></script>
   <!-- Community and chat tools: timezone helper, unread to task, meeting links, noise rules, announcement composer, community numbers, link harvester, Discord status suggestions, moderator kit, Vencord bridge (file reader). They read nothing from a site and post nothing. -->
   <script src="js/comms-store.js"></script>
   <script src="js/tz-helper.js"></script>
@@ -2233,10 +2223,7 @@
   <script src="js/tracker-receipts.js"></script>
   <!-- Each of these adds its own Settings group at run time (protect-settings.js) -->
   <script src="js/protect-settings.js"></script>
-  <script src="js/privacy-report-card.js"></script>
-  <script src="js/extension-audit-view.js"></script>
   <script src="js/tab-snapshots.js"></script>
-  <script src="js/quiet-hours-ui.js"></script>
   <script src="js/ai-restyle.js"></script>
   <script src="js/leak-canary.js"></script>
   <script src="js/form-fill.js"></script>
@@ -2255,7 +2242,6 @@
   <script src="js/time-of-day.js"></script>
   <script src="js/tab-reason.js"></script>
   <script src="js/search-again.js"></script>
-  <script src="js/shopping-clip.js"></script>
   <script src="js/reader-kinds.js"></script>
   <!-- Living (js/living-core.js first: the layers below read its quiet gate): all off until chosen. -->
   <script src="js/living-core.js"></script>
@@ -2270,13 +2256,10 @@
   <script src="js/fun/discovery-log.js"></script>
   <script src="js/fun/daily-challenge.js"></script>
   <script src="js/fun/vex-pet.js"></script>
-  <script src="js/fun/fun-settings.js"></script>
   <!-- Play: optional, off by default (js/vex-fun.js holds the shared rules). -->
   <script src="js/vex-fun.js"></script>
   <script src="js/vex-sounds.js"></script>
   <script src="js/vex-daily-word.js"></script>
-  <script src="js/vex-mini-games.js"></script>
-  <script src="js/vex-tab-tetris.js"></script>
   <script src="js/packs-consumers.js"></script>
   <script src="js/vex-integration.js"></script>
   <!-- Wave 2: gates and security. After vex-extras.js (their commands) and passwords.js (the interlock is called from it). -->
@@ -2288,7 +2271,6 @@
   <!-- Developer loop: the GitHub token vault, then the features that read through it, then their screen. -->
   <script src="js/github-vault.js"></script>
   <script src="js/dev-loop.js"></script>
-  <script src="js/dev-loop-ui.js"></script>
   <!-- Wave 3: developer shortcuts (Cloudflare links, Roblox ids, repo skim), local services and the webhook inspector, then reading and watching with the local model. After dev-loop.js, page-watch.js, readlater.js, skills.js and quick-reminder.js. -->
   <script src="js/dev-shortcuts.js"></script>
   <script src="js/local-tools-ui.js"></script>
@@ -2446,6 +2428,7 @@
   <script src="js/brief-extras/foldin-cards.js"></script>
   <!-- Every feature above registers with the usage record here, once all of them exist. -->
   <script src="js/vex-usage-registry.js"></script>
+  <!-- Wave 5 (T3-066): 18 more modules that only register a Settings section, a Ctrl+K command or a panel load after start-up: see VexBoot.LATE_MODULES in js/lazy-boot.js. -->
   <script src="js/lazy-boot.js"></script>
   <!-- window-bundle: break - start-up runs even if a feature above fails to load -->
   <script src="js/app.js"></script>

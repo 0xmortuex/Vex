@@ -92,6 +92,9 @@ describe('script order in index.html', () => {
   const html = read(path.join(ROOT, 'src/renderer/index.html'));
   const order = [...html.matchAll(/<script src="js\/([^"]+)"/g)].map(m => m[1]);
   const at = (f) => order.indexOf(f);
+  // Modules that load after start-up (js/lazy-boot.js LATE_MODULES) are in the window, after every blocking script.
+  const late = [...read(path.join(RJS, 'lazy-boot.js')).matchAll(/src: 'js\/([^']+)'/g)].map(m => m[1]);
+  const inWindow = (f) => at(f) >= 0 || late.includes(f);
 
   it('has no script twice', () => {
     expect(order.filter((f, i) => order.indexOf(f) !== i)).toEqual([]);
@@ -103,10 +106,10 @@ describe('script order in index.html', () => {
       ['living-core.js', 'focus-scenes.js'], ['living-core.js', 'sticker-sheet.js'],
       ['vex-medals.js', 'vex-medals-catalog.js'], ['vex-medals.js', 'fun/fun-core.js'], ['vex-medals-catalog.js', 'fun/levels.js'],
       ['vex-defaults.js', 'sleep-consent.js'], ['vex-defaults.js', 'vex-playfulness.js'], ['attention-state.js', 'vex-attention.js'], ['vex-attention.js', 'attention-inbox.js'],
-      ['vex-settings-groups.js', 'vex-playfulness.js'], ['vex-settings-groups.js', 'attention-settings.js'], ['vex-settings-groups.js', 'newtab-slots.js'],
-      ['command.js', 'attention-settings.js'], ['vex-playfulness.js', 'app.js'], ['newtab-slots.js', 'app.js'],
+      ['vex-settings-groups.js', 'vex-playfulness.js'], ['vex-settings-groups.js', 'newtab-slots.js'],
+      ['vex-playfulness.js', 'app.js'], ['newtab-slots.js', 'app.js'],
       ['vex-attention.js', 'vex-medals.js'], ['fun/fun-core.js', 'fun/levels.js'], ['fun/fun-core.js', 'fun/vex-pet.js'],
-      ['vex-settings-groups.js', 'fun/fun-settings.js'], ['vex-usage.js', 'vex-usage-registry.js'],
+      ['vex-usage.js', 'vex-usage-registry.js'],
       ['vex-fun.js', 'vex-sounds.js'], ['vex-usage-registry.js', 'app.js'], ['vex-integration.js', 'app.js'],
       ['packs-ui.js', 'packs-consumers.js'], ['packs-consumers.js', 'app.js'], ['brief-integration.js', 'vex-integration.js'],
     ];
@@ -119,7 +122,7 @@ describe('script order in index.html', () => {
     const new26 = ['living-core.js', 'tab-personality.js', 'seasonal-worlds.js', 'weather-layer.js', 'focus-scenes.js', 'sticker-sheet.js',
       'fun/fun-core.js', 'fun/levels.js', 'fun/discovery-log.js', 'fun/daily-challenge.js', 'fun/vex-pet.js', 'fun/fun-settings.js',
       'vex-attention.js', 'vex-integration.js', 'vex-usage-registry.js', 'packs-consumers.js'];
-    expect(new26.filter(f => at(f) < 0 && !start.includes('js/' + f))).toEqual([]);
+    expect(new26.filter(f => !inWindow(f) && !start.includes('js/' + f))).toEqual([]);
   });
 });
 

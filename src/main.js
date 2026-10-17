@@ -8431,6 +8431,7 @@ app.whenReady().then(async () => {
       setTimeout(() => app.exit(ok ? 0 : 1), 150);
     };
     wc.on('render-process-gone', (_e, d) => finish(false, 'render-process-gone ' + (d && d.reason)));
+    const bootStarted = Date.now();
     const deadline = Date.now() + 25000;
     const poll = async () => {
       if (done) return;
@@ -8443,12 +8444,20 @@ app.whenReady().then(async () => {
           sb: typeof SidebarManager!=='undefined',
           cb: typeof CommandBar!=='undefined',
           st: (typeof VexSelfTest!=='undefined'&&typeof VexProblems!=='undefined')?VexSelfTest.startFailures().map(function(f){return f.area+(f.detail?' ('+f.detail+')':'');}):null,
+          boot: (typeof VexBoot!=='undefined')?{marks:VexBoot.marks,failed:VexBoot.failed||[]}:null,
+          nodes: document.querySelectorAll('*').length,
           bundle: (function(){var m=document.querySelector('meta[name="vex-window-bundle"]');return m&&document.readyState!=='loading'?{ran:(typeof VexWindowBundle!=='undefined'?VexWindowBundle.length:0),of:+m.content}:null;})()
         };}catch(e){return {err:String(e)};}})()`, true);
         // The packaged window's scripts come in chunks (scripts/window-bundle.js);
         // a chunk that threw while loading took the files after it with it.
         if (s && s.bundle && s.bundle.ran !== s.bundle.of) { finish(false, `window bundle: ${s.bundle.ran} of ${s.bundle.of} chunks finished loading`); return; }
         if (s && s.tm && s.tabs >= 1 && s.wvm && s.wv >= 1 && s.sb && s.cb) {
+          // The modules that load after start-up (js/lazy-boot.js) get a little longer, so a failure to load one is seen.
+          if (s.boot && !s.boot.marks.settled && Date.now() < bootStarted + 35000) { setTimeout(poll, 400); return; }
+          if (s.boot && s.boot.failed.length) { finish(false, 'late modules failed to load: ' + s.boot.failed.join(', ')); return; }
+          // Boot marks and DOM size, for scripts/verify-smoke-boot.js to hold against scripts/startup-budget.json.
+          // (src/diagnostics.js lets only lines that start with "SMOKE:" through.)
+          console.log('SMOKE: BOOT ' + JSON.stringify({ marks: s.boot ? s.boot.marks : null, nodes: s.nodes }));
           // The check after an update (js/post-update-selftest.js): a feature that failed to start fails the boot.
           if (Array.isArray(s.st) && s.st.length && process.env.VEX_SMOKE_ALLOW_START_FAILURES !== '1') { finish(false, s.st.length + ' feature(s) failed to start: ' + s.st.join('; ')); return; }
           if (process.env.VEX_SECURITY_SMOKE === '1' || process.env.VEX_UI_SMOKE === '1' || process.env.VEX_RESTART_PHASE || process.env.VEX_DRM_SMOKE === '1') {
