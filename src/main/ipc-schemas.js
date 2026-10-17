@@ -92,6 +92,9 @@ define('downloads:mods-apply', [string(64)]);
 // file Vex downloaded itself. Neither builds an address or a command from what is sent.
 define('downloads:motw-check', []);
 define('downloads:open-defender', [optional(string(4096))]);
+// "Scan now" (src/main/defender-scan.js): a download's path (honoured only for a file Vex downloaded) or "pick", where main
+// opens the dialog. No program name, no argument and no folder can be sent.
+define('downloads:defender-scan', [shape({ source: oneOf(['download', 'pick']), path: optional(string(4096)) })]);
 define('web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);

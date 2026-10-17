@@ -182,7 +182,7 @@ Blocking, isolation, Tor, and the things that follow you.
 - **QR code checker** (`qr-verdict`): Reads a QR code from a picture you pick, paste or drop and shows what it holds and a verdict on the address before you open anything. Run it from Ctrl+K, Check a QR code. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.
   - Open: Ctrl+K: "Check a QR code"; Settings > Safer browsing helpers.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Scan with Windows Security button** (`defender-shortcut`): Adds a shield button to a finished download that can run code. It opens Windows Security and shows the file in its folder. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.
+- **Scan with Windows Security button** (`defender-shortcut`): Adds a shield button to a finished download that can run code. It opens Windows Security and shows the file in its folder. An opt-in "Scan now" runs the Microsoft Defender scanner on one file after you confirm the exact command. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.
   - Open: Settings > Safer browsing helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Check the mark on downloads** (`motw-check`): Lists which files Vex downloaded no longer carry Windows' downloaded from the internet mark. Run it from Ctrl+K, Check the marks on my downloads. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.

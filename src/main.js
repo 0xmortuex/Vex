@@ -9159,6 +9159,29 @@ ipcMain.handle('downloads:open-defender', async (_e, filePath) => {
   try { return { ok: true, ...(await _defender.open(filePath)) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// "Scan now" (T3-110, Wave 6): MpCmdRun.exe -Scan -ScanType 3 -File <path>, spawn shell:false, after a confirm raised
+// here that shows the exact command. The program is found in main; the file is a download of Vex's or one picked in a
+// dialog opened here, never a path a window names (main/defender-scan.js).
+const _defenderScan = require('./main/defender-scan').createDefenderScan({
+  spawn: require('child_process').spawn,
+  isDownloadedFile: (p) => typeof p === 'string' && _downloadService.isDownloadedFile(p),
+  confirm: async ({ title, message, okLabel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'question', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
+  pickFile: async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    const opts = { title: 'Choose a file to scan with Microsoft Defender', buttonLabel: 'Choose', properties: ['openFile'] };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    return r.canceled || !r.filePaths || !r.filePaths[0] ? null : r.filePaths[0];
+  },
+});
+ipcMain.handle('downloads:defender-scan', async (_e, req) => {
+  try { return await _defenderScan.scan(req); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('downloads:open-folder', async () => {
   try { const r = await shell.openPath(_downloadPrefs.get().folder); return { ok: !r, error: r || null }; }
   catch (err) { return { ok: false, error: err.message }; }

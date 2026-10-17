@@ -674,6 +674,9 @@ const DownloadsPanel = {
     rowEl.querySelectorAll('[data-action="scan-defender"]').forEach(b => b.addEventListener('click', () => {
       VexDefenderShortcut.open(b.dataset.path).catch(err => window.showToast?.(err.message, 'error'));
     }));
+    rowEl.querySelectorAll('[data-action="scan-now"]').forEach(b => b.addEventListener('click', () => {
+      VexDefenderShortcut.scan('download', b.dataset.path).catch(err => window.showToast?.(err.message, 'error'));
+    }));
     rowEl.querySelectorAll('[data-action="show-in-folder"]').forEach(b => b.addEventListener('click', () => window.vex.downloadsShowInFolder?.(b.dataset.path)));
     rowEl.querySelectorAll('[data-action="pause"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'pause')));
     rowEl.querySelectorAll('[data-action="resume"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'resume')));
@@ -776,7 +779,9 @@ const DownloadsPanel = {
 
   _scanButton(dl) {
     if (typeof VexDefenderShortcut === 'undefined' || !VexDefenderShortcut.offers(dl.filename)) return '';
-    return `<button class="dl-btn" data-action="scan-defender" data-path="${this._esc(dl.path)}" title="Scan with Windows Security" aria-label="Scan with Windows Security">${VexIcons.svg('shield', { size: 14 })}</button>`;
+    const now = VexDefenderShortcut.offersScan(dl.filename)
+      ? `<button class="dl-btn" data-action="scan-now" data-path="${this._esc(dl.path)}" title="Scan now with Microsoft Defender" aria-label="Scan now with Microsoft Defender">${VexIcons.svg('search', { size: 14 })}</button>` : '';
+    return `<button class="dl-btn" data-action="scan-defender" data-path="${this._esc(dl.path)}" title="Scan with Windows Security" aria-label="Scan with Windows Security">${VexIcons.svg('shield', { size: 14 })}</button>${now}`;
   },
 
   _rowHtml(dl) {
