@@ -36,6 +36,7 @@ const VexMoreTabToolsSettings = {
     VexSettingsGroups.register({ id: this.ID, title: 'More tab tools', keywords: 'select tabs bulk hold width close rename name thumbnail wake hints split keys', render: (body) => this.render(body) });
     if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
       VexExtras.registerCommand({ id: 'rename-tab', label: 'Rename this tab', hint: 'A name of your own for this page, shown on the strip', icon: 'edit', action: () => VexTabNames.rename().catch(err => window.showToast?.(err.message, 'error')) });
+      VexExtras.registerCommand({ id: 'move-tab-to-window', label: 'Move this tab to a new window', hint: 'Opens this page in a window of its own and closes the tab, with an Undo; a private or Tor tab stays where it is', icon: 'window', action: () => { const t = TabManager.getActiveTab(); VexTabWindow.move(t).catch(err => window.showToast?.((err && err.message) || String(err), 'error')); } });
     }
   },
 };

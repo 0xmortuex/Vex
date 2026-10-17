@@ -59,7 +59,7 @@ How Vex holds the pages you have open.
   - Open: Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Tab names of my own** (`tab-names`): Gives a page a name of your own in the tab strip. Choose Rename tab in a tab's menu, or Ctrl+K, "Rename this tab". On an existing profile it starts off; turn it on in Settings > Tab tools.
-  - Open: Ctrl+K: "Rename this tab"; Settings > Tab tools.
+  - Open: Ctrl+K: "Rename this tab", "Move this tab to a new window"; Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Picture while a sleeping tab wakes** (`tab-thumbs`): When you go to a sleeping tab, shows the last picture of its page over the empty area until the real page has loaded. On an existing profile it starts off; turn it on in Settings > Tab tools.
   - Open: Settings > Tab tools.

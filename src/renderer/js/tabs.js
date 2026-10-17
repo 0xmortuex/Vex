@@ -1950,6 +1950,8 @@ const TabManager = {
       ...(typeof VexTabNames !== 'undefined' && VexTabNames.enabled() && VexTabNames.allowed(tab)
         ? [{ label: 'Rename tab…', action: () => VexTabNames.rename(tab).catch(err => window.showToast?.(err.message, 'error')) }]
         : []),
+      // Move the tab to a window of its own, or open a copy there (js/tab-names.js).
+      ...(typeof VexTabWindow !== 'undefined' ? VexTabWindow.menuItems(tab) : []),
       ...(webPage && typeof Bookmarks !== 'undefined'
         ? [{ label: Bookmarks.has(tab.url) ? 'Remove bookmark' : 'Bookmark…', action: () => Bookmarks.toggle(tab.url, tab.title) }]
         : []),
