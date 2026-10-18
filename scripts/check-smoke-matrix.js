@@ -131,7 +131,9 @@ const PAGE_SETUP = `(() => {
   const visible = (el) => { if (!el) return false; const t = (el.matches('input[type=checkbox]') && el.closest('label.toggle')) || el; const r = t.getBoundingClientRect(); const s = getComputedStyle(t); return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden'; };
   window.__smoke = {
     // A shell that was built on first use and is hidden now (Peek, the AI panel) is not a layer left on screen.
-    layers: () => [...document.body.children].filter(e => !/^(SCRIPT|STYLE|LINK)$/.test(e.tagName) && !e.hidden && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden').map(layer),
+    // The Why-is-Vex-slow bar belongs to a background watcher, not to the item that was opened: on a busy machine (a CI
+    // runner, or an item that itself measures processes) it appears whatever is being opened, and is not a layer the item left.
+    layers: () => [...document.body.children].filter(e => !/^(SCRIPT|STYLE|LINK)$/.test(e.tagName) && e.id !== 'vex-slow-notice' && !e.hidden && getComputedStyle(e).display !== 'none' && getComputedStyle(e).visibility !== 'hidden').map(layer),
     intervals: () => live.size,
     visible,
     // Put the profile in a tier. Minimal Vex is entered/left through its own switch so the usage rows are exercised.

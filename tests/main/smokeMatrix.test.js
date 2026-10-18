@@ -97,6 +97,19 @@ describe('the page helpers', () => {
     document.body.appendChild(extra);
     expect(M.newLayers(['#top-bar.<div>', '.a.b<div>'], window.__smoke.layers())).toEqual(['.vex-dialog-overlay<div>']);
   });
+  it('does not count the Why-is-Vex-slow bar as a layer an item left, but still counts a dialog that stayed', () => {
+    document.body.innerHTML = '<div id="top-bar">x</div>';
+    window.eval(M.PAGE_SETUP);
+    const before = window.__smoke.layers();
+    const bar = document.createElement('div');
+    bar.id = 'vex-slow-notice'; bar.className = 'vexslow-notice'; bar.textContent = 'Something is using a lot of processor';
+    document.body.appendChild(bar);
+    expect(M.newLayers(before, window.__smoke.layers())).toEqual([]);
+    const dialog = document.createElement('div');
+    dialog.className = 'vex-dialog-overlay';
+    document.body.appendChild(dialog);
+    expect(M.newLayers(before, window.__smoke.layers())).toEqual(['.vex-dialog-overlay<div>']);
+  });
   it('opening a panel through SidebarManager reports whether it became visible', async () => {
     document.body.innerHTML = '<div id="panel-notes"></div>';
     window.eval(M.PAGE_SETUP);
