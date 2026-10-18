@@ -110,6 +110,7 @@ const CitationTracker = {
     const g = document.createElement('div');
     g.className = 'setting-group';
     g.setAttribute('data-vex-mod', 'citation-tracker');
+    g.id = 'settings-citations';
     g.innerHTML = `
       <label class="setting-label">Citations in Notes</label>
       <p class="setting-info muted" style="margin-bottom:8px">When you paste text you copied from a web page into a note, add a link to the page after it. Vex only matches copies it saw on a page and the paste you make in the note editor; it never reads the system clipboard in the background, and copies from private or Tor tabs are not remembered.</p>

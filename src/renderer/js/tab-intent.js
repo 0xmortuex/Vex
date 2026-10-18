@@ -139,7 +139,7 @@ const VexTabIntent = {
 
   // ---- saying why -------------------------------------------------------------------------------------
   async askWhy() {
-    if (!this.enabled()) { window.showToast?.('Tab reasons are switched off in Settings', 'info'); return; }
+    if (!this.enabled()) { window.showToast?.('Turn on "Show tab origins and written reasons" in Settings > Why a tab is open. Revisit reminders have a separate switch.', 'info'); return; }
     if (typeof TabManager === 'undefined') throw new Error('Tabs are not loaded');
     const tab = TabManager.getActiveTab();
     if (!tab) { window.showToast?.('Open a page first', 'info'); return; }
@@ -159,13 +159,29 @@ const VexTabIntent = {
   },
 
   group(el) {
+    this.controls(el);
     el.appendChild(VexSettingsGroups.note('The hover card of a tab also says which page opened it, what you searched there, a reason you wrote, and when you last had it in front. Opener and search words are kept in memory for this run only; a reason you write is kept on this computer.'));
     el.appendChild(VexSettingsGroups.button('Say why the current tab is open', () => { this.askWhy().catch(err => window.showToast?.(err.message, 'error')); }, { primary: true }));
+  },
+
+  controls(el) {
+    const G = window.VexSettingsGroup;
+    if (!G) return;
+    el.appendChild(G.toggle('Show tab origins and written reasons', this.enabled(), (on) => {
+      this.setEnabled(on);
+      // Both Settings entry points operate the same flag. Keep a second
+      // visible copy honest without rebuilding Settings during a click.
+      for (const input of document.querySelectorAll('[data-tab-intent-switch]')) input.checked = this.enabled();
+    }, 'Includes the Say why this tab is open command; separate from revisit reminders'));
+    const input = el.lastElementChild.querySelector('input');
+    if (input) input.dataset.tabIntentSwitch = 'true';
   },
 };
 
 if (typeof window !== 'undefined') {
   window.VexTabIntent = VexTabIntent;
+  // The revisit section can mount before this script in the renderer.
+  window.VexSettingsGroup?.refresh('settings-tabreason');
   if (typeof VexSettingsGroups !== 'undefined') {
     VexSettingsGroups.register({ id: 'tab-intent', title: 'Why is this tab open', keywords: 'tab hover card opener searched why reason last visited intent', before: 'about', build: (el) => VexTabIntent.group(el) });
   }

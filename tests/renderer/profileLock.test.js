@@ -79,3 +79,30 @@ describe('wiring', () => {
     expect(fs.readFileSync(path.join(ROOT, 'src/renderer/js/vex-usage-registry.js'), 'utf8')).toContain("['profile-lock'");
   });
 });
+
+describe('Settings while the lock is switched off', () => {
+  const { VexSettingsGroup } = require('../../src/renderer/js/settings-group.js');
+  const labels = (body) => [...body.querySelectorAll('button')].map(b => b.textContent);
+  const tick = () => new Promise(r => setTimeout(r, 0));
+  beforeEach(() => { globalThis.VexSettingsGroup = VexSettingsGroup; window.VexSettingsGroup = VexSettingsGroup; globalThis.VexSettingsGroups = { note: (t) => { const d = document.createElement('div'); d.textContent = t; return d; }, button: (t, fn) => { const b = document.createElement('button'); b.textContent = t; b.addEventListener('click', fn); return b; } }; });
+
+  it('still offers the way out of a profile that is encrypted, and never "Encrypt my profile"', async () => {
+    window.vex = { profileCryptStatus: vi.fn(async () => ({ enabled: true, locked: false, state: 'on', plainCopies: 0 })) };
+    VexProfileLock.setEnabled(false);
+    const body = document.createElement('div');
+    VexProfileLock.settingsRows(body);
+    await tick(); await tick();
+    expect(labels(body)).toEqual(expect.arrayContaining(['Change passphrase...', 'New recovery code...', 'Switch back to plain files...']));
+    expect(labels(body)).not.toContain('Encrypt my profile...');
+    expect(body.textContent).toMatch(/switched off, but your profile is still encrypted/);
+  });
+  it('offers nothing to undo when the profile is plain', async () => {
+    window.vex = { profileCryptStatus: vi.fn(async () => ({ enabled: false })) };
+    VexProfileLock.setEnabled(false);
+    const body = document.createElement('div');
+    VexProfileLock.settingsRows(body);
+    await tick(); await tick();
+    expect(labels(body)).toEqual([]);
+    expect(body.textContent).toMatch(/switched off. Your profile files are readable text/);
+  });
+});

@@ -422,7 +422,7 @@ const AgentTools = {
       feature: VexFeatures.nameOf(f), what: f.what,
       ...(f.cmd ? { command: f.cmd } : {}),
       ...(VexFeatures.keysOf(f) ? { shortcut: VexFeatures.keysOf(f) } : {}),
-      ...(f.manual ? { note: 'Done by hand — tell the user how; there is no command to run' } : {}),
+      ...(f.manual && !f.cmd && !f.panel ? { note: 'Done by hand — tell the user how; there is no command to run' } : {}),
     }));
   },
 

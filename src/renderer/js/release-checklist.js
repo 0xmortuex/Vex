@@ -473,7 +473,12 @@ const VexReleaseChecklist = {
     const label = document.createElement('label');
     label.className = 'vex-platform-note';
     const box = document.createElement('input');
-    box.type = 'checkbox'; box.checked = this.holdOn();
+    el.appendChild(VexSettingsGroup.toggle('Use the release check', this.enabled(), (on) => {
+      try { this.setEnabled(on); } catch (err) { window.showToast?.('Could not change the release check: ' + ((err && err.message) || err), 'error'); return; }
+      box.disabled = !on;
+      if (typeof VexUsage !== 'undefined') VexUsage.touch('release-check');
+    }, 'off also puts back any feature it was holding'));
+    box.type = 'checkbox'; box.checked = this.holdOn(); box.disabled = !this.enabled();
     box.setAttribute('aria-label', 'Hold this version\'s new features until I tick them');
     box.addEventListener('change', () => {
       this.setHold(box.checked).catch((err) => { box.checked = this.holdOn(); window.showToast?.('Could not change the hold: ' + ((err && err.message) || err), 'error'); });

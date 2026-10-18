@@ -269,17 +269,22 @@ const VexDiscover = {
   },
 
   // Switch a hidden panel or an off setting back on, then show it.
-  turnOn(id) {
+  async turnOn(id) {
     const f = VexFeatures.get(id);
     if (!f) throw new Error('No feature "' + id + '" in the catalogue');
     const off = VexFeatures.offState(f);
     if (!off) { this.showMe(id); return; }
-    off.enable();
-    if (f.panel && typeof SidebarManager !== 'undefined') SidebarManager.applyPanelOverrides?.();
-    window.showToast?.(VexFeatures.nameOf(f) + ' is on', 'success');
-    this._paint();
-    // Give the sidebar a frame to draw the icon before pointing at it.
-    setTimeout(() => { try { this.showMe(id); } catch (err) { console.warn('[discover] could not show', id, err && err.message); } }, 120);
+    // The shared introduction: what it is, what it touches, then "Turn on and open" or "Cancel".
+    const outcome = await VexActivation.offer({
+      entry: f, requested: VexFeatures.nameOf(f),
+      run: async () => {
+        if (f.panel && typeof SidebarManager !== 'undefined') SidebarManager.applyPanelOverrides?.();
+        this._paint();
+        // Give the sidebar a frame to draw the icon before pointing at it.
+        setTimeout(() => { try { this.showMe(id); } catch (err) { console.warn('[discover] could not show', id, err && err.message); } }, 120);
+      },
+    });
+    if (outcome !== 'ran') this._paint();
   },
 };
 

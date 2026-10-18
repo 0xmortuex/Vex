@@ -163,6 +163,10 @@ const VexSelfTest = {
     el.appendChild(VexSettingsGroups.note(r
       ? 'Last check: Vex ' + r.version + ', ' + new Date(r.at).toLocaleString() + (r.ok ? ' - all good.' : ' - ' + this.lines(r).length + ' thing(s) to look at.')
       : 'On the first start of each version Vex checks that its features started, runs the health check and looks for new kinds of crash. It says something only if there is a problem.'));
+    el.appendChild(VexSettingsGroup.toggle('Check after each update', this.enabled(), (on) => {
+      this.setEnabled(on);
+      if (typeof VexUsage !== 'undefined') VexUsage.touch('update-self-test');
+    }, 'the manual buttons below work either way'));
     el.appendChild(VexSettingsGroups.button('Run the check now', async () => {
       try {
         const result = await this.check();

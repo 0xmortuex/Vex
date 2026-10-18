@@ -134,7 +134,7 @@ const VexSecurityHelpers = {
     if (typeof VexVaultHygiene !== 'undefined') {
       this._toggle(body, 'Vault hygiene', 'A calm view of reused, weak and old passwords and missing 2FA, and once a week one quiet line when there is something to change. No password is shown.', () => VexVaultHygiene.enabled(), (on) => VexVaultHygiene.setEnabled(on));
       this._button(body, 'Open the vault hygiene view', () => VexVaultHygiene.open());
-      this._toggle(body, 'Weekly safety check', 'Once a week, one quiet card when something needs a look: passwords and the mailbox that recovers them, permissions that end soon, odd files in Downloads. Counts and names only.', () => VexVaultHygiene.rollupEnabled(), (on) => VexVaultHygiene.setRollupEnabled(on));
+      this._toggle(body, 'Weekly safety check', 'Once a week, one quiet card when something needs a look: passwords and the mailbox that recovers them, permissions that end soon, odd files in Downloads. Counts and names only. It also needs Vault hygiene above to be on.', () => VexVaultHygiene.rollupPreference(), (on) => VexVaultHygiene.setRollupEnabled(on));
       this._button(body, 'Run the weekly safety check now', () => VexVaultHygiene.openRollup());
     }
   },

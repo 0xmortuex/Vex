@@ -175,7 +175,6 @@ const VexWeeklyNote = {
   render(box) {
     box.appendChild(window.VexWorkflow.toggleRow('Keep a record of what I clip, for the weekly note', 'address, title, time and the first 600 characters', this.enabled(), (on) => {
       if (!window.VexWorkflow.setPref('weeklyNote', on)) window.showToast?.('The choice could not be saved', 'error');
-      this.init();
     }));
     box.appendChild(window.VexWorkflow.toggleRow('Write the weekly note by itself', 'Fridays from 17:00', this.autoOn(), (on) => {
       if (!window.VexWorkflow.setPref('weeklyNoteAuto', on)) window.showToast?.('The choice could not be saved', 'error');
@@ -210,6 +209,7 @@ const VexWeeklyNote = {
   },
 };
 
+window.VexWorkflow.onPref('weeklyNote', () => VexWeeklyNote.init());
 window.VexWorkflow.register({
   id: 'weeklyNote', title: 'Clips and the weekly note', icon: 'note',
   render: (box) => VexWeeklyNote.render(box),

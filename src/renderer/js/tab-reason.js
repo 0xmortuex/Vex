@@ -161,6 +161,12 @@ const VexTabReason = {
   buildSettings(body) {
     const G = window.VexSettingsGroup;
     const p = this.prefs();
+    if (window.VexTabIntent) {
+      window.VexTabIntent.controls(body);
+      body.append(G.button('Say why the current tab is open', () => {
+        window.VexTabIntent.askWhy().catch(err => window.showToast?.(err.message, 'error'));
+      }));
+    }
     body.append(G.toggle('Ask about a tab I come back to after a while', p.revisit, (on) => { this.savePrefs({ revisit: on }); }));
     const days = document.createElement('input');
     days.type = 'number'; days.min = '3'; days.max = '30'; days.value = String(p.days); days.className = 'set-input'; days.style.maxWidth = '90px';

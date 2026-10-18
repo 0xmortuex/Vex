@@ -1734,7 +1734,7 @@ const TabManager = {
         if (name == null) return;
         try {
           SessionManager.saveCurrentSession(name, tabsInGroup);
-          window.showToast?.('Saved “' + name + '” — Ctrl+K › Sessions to open it again');
+          window.showToast?.('Saved “' + name + '” — Ctrl+K › Load Session to open it again');
         } catch (err) { window.showToast?.((err && err.message) || 'Could not save it', 'error'); }
         return;
       }

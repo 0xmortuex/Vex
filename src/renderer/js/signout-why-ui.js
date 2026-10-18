@@ -63,6 +63,24 @@ const VexSignoutWhy = {
 
 if (typeof window !== 'undefined') {
   window.VexSignoutWhy = VexSignoutWhy;
+  if (typeof VexSettingsGroups !== 'undefined') {
+    VexSettingsGroups.register({
+      id: 'signout-why',
+      title: 'Sign-in: why you were signed out',
+      keywords: 'signed out sign-in lost cookie expired logged out why session ended',
+      before: 'about',
+      build: (el) => {
+        el.appendChild(VexSettingsGroups.note('Vex keeps a local record of when a site\'s sign-in cookie went and which rule ended it (names and dates only, never a value).'));
+        el.appendChild(VexSettingsGroup.toggle('Say why, once, after a saved password signs me in again', VexSignoutWhy.enabled(), (on) => {
+          VexSignoutWhy.setEnabled(on);
+          if (typeof VexUsage !== 'undefined') VexUsage.touch('signout-why');
+        }, 'never in Game mode or quiet'));
+        el.appendChild(VexSettingsGroups.button('Why was I signed out?', () => {
+          VexSignoutWhy.show().catch(err => window.showToast?.(err.message, 'error'));
+        }));
+      },
+    });
+  }
   window.addEventListener('vex:autofill-logged', (e) => {
     const d = e && e.detail;
     if (!d || d.kind !== 'password' || !d.ok || !window.vex || typeof window.vex.signoutWhy !== 'function') return;

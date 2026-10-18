@@ -24,6 +24,8 @@ const PluginDev = {
     if (!on && window.vex && typeof window.vex.devextStop === 'function') {
       window.vex.devextStop().catch((err) => DevDeskUtil.fail('Plugin dev loop', err));
     }
+    // On every route that flips the switch (not only the Settings toggle): the commands follow it.
+    this.registerCommands();
   },
 
   async pick() {
@@ -198,7 +200,7 @@ const PluginDev = {
   settingsRows(body) {
     const S = VexSettingsGroup;
     body.appendChild(S.note('Plugin dev loop: load an unpacked extension from its folder, reload it when you save, and see which chrome.* APIs it uses that Vex lacks. Also lists installed Vencord builds (read-only). Not kept across restarts.'));
-    body.appendChild(S.toggle('Plugin dev loop', this.enabled(), (on) => { this.setEnabled(on); this.registerCommands(); VexSettingsGroup.refresh('setting-dev-desk'); }));
+    body.appendChild(S.toggle('Plugin dev loop', this.enabled(), (on) => { this.setEnabled(on); VexSettingsGroup.refresh('setting-dev-desk'); }));
     if (this.enabled()) body.appendChild(S.button('Open the plugin dev loop', () => { this.open().catch(err => DevDeskUtil.fail('Plugin dev loop', err)); }));
   },
 };

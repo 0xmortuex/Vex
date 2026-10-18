@@ -557,8 +557,6 @@ if (typeof document !== 'undefined') {
     try { VexAutopilot.recordGitHub(e.detail); }
     catch (err) { window.VexProblems?.note('Autopilot', 'Could not keep a GitHub event', err); }
   });
-  // Opened from a brief item or anywhere that cannot reach the object.
-  document.addEventListener('vex:autopilot-open', () => { VexAutopilot.showPanel().catch(err => window.showToast?.(err.message, 'error')); });
 }
 if (typeof window !== 'undefined') {
   window.VexAutopilot = VexAutopilot;

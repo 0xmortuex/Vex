@@ -63,6 +63,10 @@ const CredentialInterlock = {
 
   group(el) {
     el.appendChild(VexSettingsGroups.note('When a password field takes focus on an address that is made to look like a site you have a login for, or a well-known brand, Vex asks before you type. Nothing is looked up online; the field is never read.'));
+    el.appendChild(VexSettingsGroup.toggle('Ask before I type a password on a lookalike address', this.enabled(), (on) => {
+      this.setEnabled(on);
+      if (typeof VexUsage !== 'undefined') VexUsage.touch('credential-interlock');
+    }));
   },
 };
 

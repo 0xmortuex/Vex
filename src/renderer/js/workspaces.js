@@ -178,7 +178,7 @@ const WorkspaceManager = {
     }
   },
 
-  // Settings › General › Workspaces: what a switch does with private and Tor
+  // Settings › Workspaces: what a switch does with private and Tor
   // tabs. 'ask' (the default) or 'close' ("Always close them").
   EPHEMERAL_KEY: 'vex.workspacePrivateTabs',
 
@@ -216,7 +216,7 @@ const WorkspaceManager = {
     });
     if (always) {
       this.setEphemeralChoice('close');
-      window.showToast?.(t('wsPrivate.saved', 'Private and Tor tabs will close when you switch workspace. Settings › General › Workspaces changes it back.'));
+      window.showToast?.(t('wsPrivate.saved', 'Private and Tor tabs will close when you switch workspace. Settings › Workspaces changes it back.'));
       return true;
     }
     return close;

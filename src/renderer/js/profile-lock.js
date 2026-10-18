@@ -187,13 +187,24 @@ const VexProfileLock = {
     const S = VexSettingsGroup;
     body.appendChild(S.note('Encrypts the settings file (your notes, clips, history, journal, ledger and every other saved value) and your open tabs on disk, with a passphrase and a recovery code. Vex takes a verified backup first, checks every file opens again before removing the plain copy, and stops with your files untouched if anything fails. It asks for the passphrase every time Vex starts. Nothing is on until you switch it on, and you can switch back to plain files. If you lose both the passphrase and the recovery code, nobody can open the data.'));
     body.appendChild(S.toggle('Encrypted profile lock', this.enabled(), (on) => { this.setEnabled(on); if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE); window.VexSettingsGroups?.inject(); }, 'Ctrl+K > Encrypted profile lock'));
-    if (!this.enabled()) return;
     const line = this._el('div', 'setting-info', 'Checking...');
     line.setAttribute('aria-live', 'polite');
     body.appendChild(line);
     const refresh = () => this.status().then((st) => { line.textContent = this.statusLine(st); return st; }).catch((e) => { line.textContent = (e && e.message) || String(e); });
-    refresh();
     const run = (fn) => () => { fn.call(this).then(() => { refresh(); }).catch((e) => { this._fail(e); refresh(); }); };
+    if (!this.enabled()) {
+      // Switched off must never hide the way out of a profile that is still encrypted: only "Encrypt my profile" stays away.
+      this.status().then((st) => {
+        if (!st || !st.enabled) { line.textContent = 'The encrypted profile lock is switched off. Your profile files are readable text.'; return; }
+        line.textContent = 'The lock is switched off, but your profile is still encrypted. ' + this.statusLine(st) + ' These stay available so you can always change the passphrase or go back to plain files.';
+        body.appendChild(S.button('Change passphrase...', run(this.changePassphrase)));
+        body.appendChild(S.button('New recovery code...', run(this.newRecoveryCode)));
+        body.appendChild(S.button('Switch back to plain files...', run(this.turnOff)));
+        body.appendChild(S.button('What is and is not encrypted...', () => { this.showCoverage().catch((e) => this._fail(e)); }));
+      }).catch((e) => { line.textContent = (e && e.message) || String(e); });
+      return;
+    }
+    refresh();
     body.appendChild(S.button('Encrypt my profile...', run(this.turnOn)));
     body.appendChild(S.button('Change passphrase...', run(this.changePassphrase)));
     body.appendChild(S.button('New recovery code...', run(this.newRecoveryCode)));

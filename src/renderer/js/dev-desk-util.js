@@ -12,7 +12,13 @@ const DevDeskUtil = {
         try { return localStorage.getItem(key) === 'on'; }
         catch (err) { console.error('[DevDesk] the switch ' + key + ' could not be read:', err.message); return false; }
       },
-      setEnabled(on) { localStorage.setItem(key, on ? 'on' : 'off'); },
+      // A module spreads this into itself and may define followEnabled(on): its commands, its background
+      // job, whatever it pushes elsewhere. It runs on EVERY route that flips the switch (the Settings
+      // toggle, Library's Turn on, Discover, Feature usage, Minimal Vex), not only the Settings toggle.
+      setEnabled(on) {
+        localStorage.setItem(key, on ? 'on' : 'off');
+        if (typeof this.followEnabled === 'function') this.followEnabled(on);
+      },
     };
   },
   // A JSON object kept in localStorage. A record that cannot be read is reported and started again.

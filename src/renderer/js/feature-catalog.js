@@ -98,8 +98,8 @@ const VexFeatures = {
       what: 'Asks Chromium which Vencord plugin allocated how much memory in the Discord panel over a short window you choose (read-only, about a minute), and can turn plugins off one at a time to measure each one\u2019s real cost (opt-in, about 5 minutes per plugin, every plugin is put back). Results go into the Why is Discord big? report with their limits stated. Numbers and plugin names only; nothing is sent.' },
     { id: 'tasks', phrases: 'task manager end task what is using my memory processes kill', cat: 'tabs', cmd: 'tasks', name: 'Running tasks',
       what: 'Every process Vex is running, biggest first, named — and a button to end one, or keep it off for an hour, eight hours, or until you let it back. Right-click any tab or panel → “What is this using?”.' },
-    { id: 'keep-awake', cat: 'tabs', name: 'Keep a tab awake', manual: true,
-      what: 'Right-click a tab → keep awake, and it stays loaded no matter how long you ignore it. For a dashboard, a match, a long upload.' },
+    { cmd: 'keep-awake', openLabel: 'Keep this tab awake', id: 'keep-awake', cat: 'tabs', name: 'Keep a tab awake',
+      what: 'Right-click a tab → keep awake, or press Ctrl+K and run Keep This Tab Awake, and it stays loaded no matter how long you ignore it. For a dashboard, a match, a long upload.' },
     { id: 'split', phrases: 'side by side two pages at once compare split screen two windows', cat: 'tabs', cmd: 'split',
       what: 'Two, three or four pages side by side in one window — four lands as a 2×2 grid.' },
     { id: 'pip', phrases: 'small window floating video corner picture in picture watch while working', cat: 'tabs', cmd: 'pip',
@@ -471,7 +471,7 @@ const VexFeatures = {
     // --- Media ------------------------------------------------------------
     { id: 'drm', phrases: 'netflix spotify disney prime video not playing', cat: 'media', name: 'Netflix, Spotify, Prime and Disney+', manual: true,
       what: 'Protected video and audio play here. Most Electron-based browsers cannot do this at all.' },
-    { id: 'screenshare', cat: 'media', name: 'Screen sharing with real controls', manual: true,
+    { cmd: 'checkscreenshare', openLabel: 'Check screen sharing', id: 'screenshare', cat: 'media', name: 'Screen sharing with real controls',
       what: 'When a site asks to share your screen, you choose the source, resolution up to 1440p, frame rate, whether system audio goes with it and whether the cursor shows.' },
     { id: 'media-grabber', cat: 'media', cmd: 'media',
       what: 'Finds the video or audio playing on a page and saves it.' },
@@ -593,7 +593,7 @@ const VexFeatures = {
       what: 'Turns a wall of raw JSON into something you can fold and read.' },
     { id: 'responsive', cat: 'dev', cmd: 'responsive',
       what: 'The same page at phone, tablet and desktop width, side by side.' },
-    { id: 'devtools', phrases: 'inspect element console devtools debug', cat: 'dev', name: 'DevTools', keys: 'F12', manual: true,
+    { id: 'devtools', phrases: 'inspect element console devtools debug', cat: 'dev', name: 'DevTools', manual: true, keys: 'F12',
       what: 'The full Chromium developer tools, on the page you are looking at.' },
     { id: 'dev-mode', cat: 'dev', cmd: 'dev-mode',
       what: 'Two ways to use any theme: user mode is the browser, developer mode adds a dashboard button beside the Toolbox and a panel in the sidebar.' },
@@ -636,43 +636,43 @@ const VexFeatures = {
     { id: 'formfill2', cat: 'unique', cmd: 'formfill', name: 'Universal form fill',
       what: 'One profile that fills any form on any site — and never touches card numbers.' },
     // --- Wave 0-3 features (one entry per feature manifest; `feature` names the manifest) ---
-    { id: 'brief-mail-triage', feature: 'brief-mail-triage', newer: true, cat: 'work', name: 'Mail triage in the brief', phrases: 'mail inbox triage reply draft brief', manual: true,
+    { id: 'brief-mail-triage', setting: {"section":"settings-brief-actions","label":"Brief actions"}, feature: 'brief-mail-triage', newer: true, cat: 'work', name: 'Mail triage in the brief', phrases: 'mail inbox triage reply draft brief', manual: true,
       what: 'In the morning brief, each message of your read-only inbox gets Done, Snooze, Mark and a drafted reply. A reply draft sends that one message to your AI backend only when you press it.' },
-    { id: 'brief-github-desk', feature: 'brief-github-desk', newer: true, cat: 'dev', name: 'GitHub desk', phrases: 'pull request review github brief issues', manual: true,
+    { id: 'brief-github-desk', setting: {"section":"settings-brief-actions","label":"Brief actions"}, cmd: 'github-desk', openLabel: 'Open GitHub desk', feature: 'brief-github-desk', newer: true, cat: 'dev', name: 'GitHub desk', phrases: 'pull request review github brief issues', manual: true,
       what: 'The brief lists your open pull requests, review requests and their CI status from GitHub, using the username you gave. On by default; switch it off in Settings > Brief actions.' },
-    { id: 'brief-snooze', feature: 'brief-snooze', newer: true, cat: 'work', name: 'Snooze anything', phrases: 'snooze later remind brief', manual: true,
+    { id: 'brief-snooze', setting: {"section":"settings-brief-actions","label":"Brief actions"}, cmd: 'snooze-current', openLabel: 'Snooze this tab', feature: 'brief-snooze', newer: true, cat: 'work', name: 'Snooze anything', phrases: 'snooze later remind brief', manual: true,
       what: 'Snoozed tabs, stories, mail and reminders come back in the next brief. On by default; switch it off in Settings > Brief actions.' },
-    { id: 'brief-finder', feature: 'brief-finder', newer: true, cat: 'work', name: 'Find a lost page', phrases: 'find lost page history last week', manual: true,
+    { id: 'brief-finder', setting: {"section":"settings-brief-actions","label":"Brief actions"}, cmd: 'find-lost-page', openLabel: 'Find a lost page', feature: 'brief-finder', newer: true, cat: 'work', name: 'Find a lost page', phrases: 'find lost page history last week', manual: true,
       what: 'Searches your history and saved page text by words and by "last week" from the brief. Private and Tor tabs are never searched. On by default; switch it off in Settings > Brief actions.' },
-    { id: 'brief-interests', feature: 'brief-interests', newer: true, cat: 'work', name: 'Learn my interests', phrases: 'interests topics personalise news', manual: true,
+    { id: 'brief-interests', setting: {"section":"settings-brief-actions","label":"Brief actions"}, feature: 'brief-interests', newer: true, cat: 'work', name: 'Learn my interests', phrases: 'interests topics personalise news', manual: true,
       what: 'Remembers which topics and sites you open, on this computer only, to put them first in AI news and the brief. Off by default: turn it on in Settings > Brief actions.' },
-    { id: 'brief-day-layout', feature: 'brief-day-layout', newer: true, cat: 'work', name: 'Arrange the brief by time of day', phrases: 'arrange brief sections time of day evening', manual: true,
+    { id: 'brief-day-layout', setting: {"section":"settings-brief-actions","label":"Brief actions"}, feature: 'brief-day-layout', newer: true, cat: 'work', name: 'Arrange the brief by time of day', phrases: 'arrange brief sections time of day evening', manual: true,
       what: 'Moves the brief sections you usually use at this hour to the top. Off by default: turn it on in Settings > Brief actions.' },
-    { id: 'brief-next-action', feature: 'brief-next-action', newer: true, cat: 'work', name: 'Suggest what I usually do next', phrases: 'what next suggest usual', manual: true,
+    { id: 'brief-next-action', setting: {"section":"settings-brief-actions","label":"Brief actions"}, feature: 'brief-next-action', newer: true, cat: 'work', name: 'Suggest what I usually do next', phrases: 'what next suggest usual', manual: true,
       what: 'Remembers the order of what you do (commands and panels, not pages) and suggests the likely next one. Off by default: turn it on in Settings > Brief actions.' },
-    { id: 'delight-rabbit-hole', feature: 'delight-rabbit-hole', newer: true, cat: 'unique', name: 'Take me somewhere interesting', phrases: 'random page surprise me bored', manual: true,
+    { id: 'delight-rabbit-hole', setting: {"section":"settings-delights","label":"Little surprises"}, cmd: 'rabbit-hole', openLabel: 'Take me somewhere interesting', feature: 'delight-rabbit-hole', newer: true, cat: 'unique', name: 'Take me somewhere interesting', phrases: 'random page surprise me bored', manual: true,
       what: 'A command that opens a page from your own history, bookmarks or Read Later, chosen at random. Off by default: turn it on in Settings > Little surprises.' },
-    { id: 'delight-time-capsule', feature: 'delight-time-capsule', newer: true, cat: 'unique', name: 'Time capsules', phrases: 'time capsule future note', manual: true,
+    { id: 'delight-time-capsule', setting: {"section":"settings-delights","label":"Little surprises"}, feature: 'delight-time-capsule', newer: true, cat: 'unique', name: 'Time capsules', phrases: 'time capsule future note', manual: true,
       what: 'Seal a page or a note to be handed back on a date you choose, with one reminder that morning. Off by default: turn it on in Settings > Little surprises.' },
-    { id: 'delight-on-this-day', feature: 'delight-on-this-day', newer: true, cat: 'unique', name: 'On this day', phrases: 'on this day memories years ago', manual: true,
+    { id: 'delight-on-this-day', setting: {"section":"settings-delights","label":"Little surprises"}, feature: 'delight-on-this-day', newer: true, cat: 'unique', name: 'On this day', phrases: 'on this day memories years ago', manual: true,
       what: 'What you read, saved and wrote on this date in earlier years, from your own history and notes. Off by default: turn it on in Settings > Little surprises.' },
-    { id: 'delight-old-bookmark', feature: 'delight-old-bookmark', newer: true, cat: 'unique', name: 'A forgotten bookmark', phrases: 'old bookmark forgotten', manual: true,
+    { id: 'delight-old-bookmark', setting: {"section":"settings-delights","label":"Little surprises"}, feature: 'delight-old-bookmark', newer: true, cat: 'unique', name: 'A forgotten bookmark', phrases: 'old bookmark forgotten', manual: true,
       what: 'One old bookmark a day with three answers: still good, archive, or open. Off by default: turn it on in Settings > Little surprises.' },
-    { id: 'delight-mood-themes', feature: 'delight-mood-themes', newer: true, cat: 'look', name: 'Mood themes', phrases: 'theme time of day season mood', manual: true,
+    { id: 'delight-mood-themes', setting: {"section":"settings-delights","label":"Little surprises"}, feature: 'delight-mood-themes', newer: true, cat: 'look', name: 'Mood themes', phrases: 'theme time of day season mood', manual: true,
       what: 'A theme for the morning, day, evening and night, and a seasonal look you can wear for a week. Off by default: turn it on in Settings > Little surprises.' },
-    { id: 'delight-widgets', feature: 'delight-widgets', newer: true, cat: 'look', name: 'Start page widgets', phrases: 'start page widgets quote countdown habit', manual: true,
+    { id: 'delight-widgets', setting: {"section":"settings-delights","label":"Little surprises"}, feature: 'delight-widgets', newer: true, cat: 'look', name: 'Start page widgets', phrases: 'start page widgets quote countdown habit', manual: true,
       what: 'A quote of the day, a countdown, a photo from your PC and a habit tracker on the start page, kept on this computer. Off by default: turn it on in Settings > Little surprises.' },
-    { id: 'workflow-ask-tabs', feature: 'workflow-ask-tabs', newer: true, cat: 'ai', name: 'Ask across my tabs', phrases: 'ask my tabs question across tabs', manual: true,
+    { id: 'workflow-ask-tabs', setting: {"section":"workflow-settings","label":"Workflow and chains"}, cmd: 'ask-tabs', openLabel: 'Ask across my tabs', feature: 'workflow-ask-tabs', newer: true, cat: 'ai', name: 'Ask across my tabs', phrases: 'ask my tabs question across tabs', manual: true,
       what: 'Ask a question and get an answer from the text of your open tabs, with the tab each passage came from. Your question and the passages go to your AI backend, so use the local one if you want it to stay on this PC. Settings > Workflow and chains.' },
-    { id: 'workflow-focus-auto', feature: 'workflow-focus-auto', newer: true, cat: 'work', name: 'Switch focus profiles by itself', phrases: 'focus profile automatic switch', manual: true,
+    { id: 'workflow-focus-auto', setting: {"section":"workflow-settings","label":"Workflow and chains"}, feature: 'workflow-focus-auto', newer: true, cat: 'work', name: 'Switch focus profiles by itself', phrases: 'focus profile automatic switch', manual: true,
       what: 'Switches the active focus profile by itself, for example by the hour, and records each switch in Why did that happen. Settings > Workflow and chains.' },
-    { id: 'workflow-release-radar', feature: 'workflow-release-radar', newer: true, cat: 'dev', name: 'Release radar', phrases: 'release radar new version project follow', manual: true,
+    { cmd: 'release-radar', openLabel: 'Show what is new for me', id: 'workflow-release-radar', setting: {"section":"workflow-settings","label":"Workflow and chains"}, feature: 'workflow-release-radar', newer: true, cat: 'dev', name: 'Release radar', phrases: 'release radar new version project follow',
       what: 'Watches the projects you follow and tells you when a new release comes out. Settings > Workflow and chains.' },
-    { id: 'workflow-weekly-note', feature: 'workflow-weekly-note', newer: true, cat: 'work', name: 'Weekly note', phrases: 'weekly note review week', manual: true,
+    { cmd: 'weekly-note', openLabel: 'Write this week’s note', id: 'workflow-weekly-note', setting: {"section":"workflow-settings","label":"Workflow and chains"}, feature: 'workflow-weekly-note', newer: true, cat: 'work', name: 'Weekly note', phrases: 'weekly note review week',
       what: 'Writes one note per week from your own week: what you opened, saved and finished. Settings > Workflow and chains.' },
     { id: 'workflow-resume-workday', feature: 'workflow-resume-workday', newer: true, cat: 'work', name: 'Resume my workday', phrases: 'resume workday yesterday tabs end of day', cmd: 'workday-resume',
       what: 'Saves your tabs, groups and AI thread at the end of the day and reopens them the next day. Saving at a set time is off until you choose a time in Settings > Workflow and chains.' },
-    { id: 'citations', feature: 'citations', newer: true, cat: 'work', name: 'Citations in Notes', phrases: 'citation cite source notes bibliography', manual: true,
+    { setting: { section: 'settings-citations', label: 'Citations in Notes' }, id: 'citations', feature: 'citations', newer: true, cat: 'work', name: 'Citations in Notes', phrases: 'citation cite source notes bibliography', manual: true,
       what: 'Adds the source of a page you cite as a citation inside a note. Off by default: turn it on in Settings > Citations in Notes.' },
     { id: 'knowledge-base', feature: 'knowledge-base', newer: true, where: 'Knowledge base', cat: 'ai', name: 'Knowledge base', phrases: 'search by meaning ask my library knowledge base local ai', cmd: 'kb-search',
       what: 'Searches what you kept (bookmarks, notes, highlights, archived pages) by meaning, and lets a local model answer from it with the sources named. Off by default: turn it on in Settings > Knowledge base.' },
@@ -684,9 +684,11 @@ const VexFeatures = {
       what: 'Ctrl+K understands more plain sentences: "note: idea for the trip" makes a note, "open GitHub PRs" opens that page, "I have 20 minutes" lists the Read Later links that fit, and "remind me to call Sam at 5" means the next 5 o’clock. On by default; the switch is in Settings > One box.' },
     { id: 'workspace-metrics', feature: 'workspace-metrics', newer: true, cat: 'work', name: 'Workspace metrics', phrases: 'metrics time per workspace statistics csv', setting: { section: 'setting-workspace-metrics', label: 'Workspace metrics' },
       what: 'How much time each workspace gets, and how many tabs and notes, as a few numbers per day with no addresses or titles; export as CSV from Settings > Workspaces. On by default; switch it off in Settings > Workspace metrics.' },
-    { id: 'fortune', feature: 'fortune', newer: true, cat: 'unique', name: 'Fortune', phrases: 'fortune line of the day quote fun brief', manual: true,
+    { id: 'weather-place', feature: 'weather-place', cat: 'unique', name: 'Weather place search', phrases: 'weather city district postcode zip location country start page forecast', setting: { id: 'setting-weather-input', label: 'Weather location' },
+      what: 'Pick where the start-page weather is for by city, district or postcode, with a country filter. A postcode is looked up at OpenStreetMap, a name at Open-Meteo, and you choose from the matches. Settings > Weather location, the Change location button on the New Tab page, or the setup wizard.' },
+    { setting: { section: 'settings-expression', label: 'Fun and expression' }, id: 'fortune', feature: 'fortune', newer: true, cat: 'unique', name: 'Fortune', phrases: 'fortune line of the day quote fun brief', manual: true,
       what: 'One short hand-written line a day (a thought, a tip or a pun) in the Morning Brief. Off until you turn it on in Settings > Fun and expression.' },
-    { id: 'page-actions', feature: 'page-actions', newer: true, cat: 'look', name: 'Page actions', phrases: 'page action script click accept scroll site automation', setting: { section: 'setting-page-actions', label: 'Page actions — boost scripts' },
+    { cmd: 'pageaction:new', openLabel: 'New page action for this site', id: 'page-actions', feature: 'page-actions', newer: true, cat: 'look', name: 'Page actions', phrases: 'page action script click accept scroll site automation', setting: { section: 'setting-page-actions', label: 'Page actions — boost scripts' },
       what: 'Small per-site scripts in a tiny readable language (for example: click "Accept all", scroll to comments) that you run on demand from Ctrl+K. Set up in Settings > Page actions.' },
     { id: 'play-room', cat: 'unique', name: 'Play room', phrases: 'fun play games memory matching pattern echo pixel art drawing postcard silly creative prompts bubble wrap impossible choices souvenirs bored boredom relax', cmd: 'play-room', what: 'Pop bubble wrap, make impossible choices, match memory tiles, echo patterns, draw pixel postcards or keep silly ideas. Collect souvenirs and small rewards in your existing profile. All local, untimed and playable without animation.' },
     { id: 'fun-pet', feature: 'fun-pet', newer: true, where: 'Fun and progress', setting: { section: 'setting-fun-progress', label: 'Fun and progress' }, cat: 'unique', name: 'Vex Pet', phrases: 'pet companion new tab fun', manual: true,
@@ -697,37 +699,37 @@ const VexFeatures = {
       what: 'Points for useful things, never for time on screen, adding up to a browser level. Off by default: turn it on in Settings > Fun and progress.' },
     { id: 'fun-challenge', feature: 'fun-challenge', newer: true, where: 'Fun and progress', setting: { section: 'setting-fun-progress', label: 'Fun and progress' }, cat: 'unique', name: 'Daily challenge', phrases: 'daily challenge one minute', manual: true,
       what: 'One tiny idea a day; skipping costs nothing and there is no streak. Off by default: turn it on in Settings > Fun and progress.' },
-    { id: 'play-games', feature: 'play-games', newer: true, cat: 'unique', name: 'Offline mini games', phrases: 'mini games offline play wait', manual: true,
+    { id: 'play-games', setting: {"section":"play-games-settings","label":"Play: mini games"}, cmd: 'mini-games', openLabel: 'Open mini games', feature: 'play-games', newer: true, cat: 'unique', name: 'Offline mini games', phrases: 'mini games offline play wait', manual: true,
       what: 'Small offline games to play while a page loads or you wait. Off by default: turn it on in Settings > Play.' },
-    { id: 'play-tetris', feature: 'play-tetris', newer: true, cat: 'unique', name: 'Tab Tetris', phrases: 'tetris tab game', manual: true,
+    { id: 'play-tetris', setting: {"section":"play-tetris-settings","label":"Play: tab tetris"}, cmd: 'tab-tetris', openLabel: 'Open Tab Tetris', feature: 'play-tetris', newer: true, cat: 'unique', name: 'Tab Tetris', phrases: 'tetris tab game', manual: true,
       what: 'Tab Tetris: a falling-blocks game built from your own tab titles. Off by default: turn it on in Settings > Play.' },
-    { id: 'play-word', feature: 'play-word', newer: true, cat: 'unique', name: 'Daily word', phrases: 'word game daily puzzle wordle', manual: true,
+    { id: 'play-word', setting: {"section":"play-word-settings","label":"Play: daily word"}, cmd: 'daily-word', openLabel: 'Open Daily Word', feature: 'play-word', newer: true, cat: 'unique', name: 'Daily word', phrases: 'word game daily puzzle wordle', manual: true,
       what: 'A daily word puzzle with a streak. Off by default: turn it on in Settings > Play.' },
-    { id: 'play-sounds', feature: 'play-sounds', newer: true, cat: 'unique', name: 'Sounds', phrases: 'sounds jingle audio', manual: true,
+    { id: 'play-sounds', setting: {"section":"play-sounds-settings","label":"Play: sound packs"}, feature: 'play-sounds', newer: true, cat: 'unique', name: 'Sounds', phrases: 'sounds jingle audio', manual: true,
       what: 'Small sounds for Vex events. Off by default: turn it on in Settings > Play. Quiet mode and Game mode silence it.' },
-    { id: 'living-tab-personality', feature: 'living-tab-personality', newer: true, cat: 'look', name: 'Tab personality', phrases: 'tab personality mood look', manual: true,
+    { id: 'living-tab-personality', setting: {"section":"living-settings","label":"Living Vex"}, feature: 'living-tab-personality', newer: true, cat: 'look', name: 'Tab personality', phrases: 'tab personality mood look', manual: true,
       what: 'Gives each site a small mood in how its tab looks. Off by default: turn it on in Settings > Living.' },
-    { id: 'living-tab-glow', feature: 'living-tab-glow', newer: true, cat: 'look', name: 'Tab daily glow', phrases: 'tab glow daily', manual: true,
+    { id: 'living-tab-glow', setting: {"section":"living-settings","label":"Living Vex"}, feature: 'living-tab-glow', newer: true, cat: 'look', name: 'Tab daily glow', phrases: 'tab glow daily', manual: true,
       what: 'A gentle daily glow on the tabs you use most. Off by default: turn it on in Settings > Living.' },
-    { id: 'living-weather', feature: 'living-weather', newer: true, cat: 'look', name: 'Weather layer', phrases: 'weather layer start page', manual: true,
+    { id: 'living-weather', setting: {"section":"living-settings","label":"Living Vex"}, feature: 'living-weather', newer: true, cat: 'look', name: 'Weather layer', phrases: 'weather layer start page', manual: true,
       what: 'A weather layer on the start page that follows the real weather. Off by default: turn it on in Settings > Living.' },
-    { id: 'living-stickers', feature: 'living-stickers', newer: true, cat: 'look', name: 'Stickers', phrases: 'stickers decorate start page', manual: true,
+    { id: 'living-stickers', setting: {"section":"living-settings","label":"Living Vex"}, feature: 'living-stickers', newer: true, cat: 'look', name: 'Stickers', phrases: 'stickers decorate start page', manual: true,
       what: 'Stickers you place on the start page. Off by default: turn it on in Settings > Living.' },
-    { id: 'distraction-budget', feature: 'distraction-budget', newer: true, cat: 'work', name: 'Distraction budget', phrases: 'distraction budget limit social media time', manual: true,
+    { id: 'distraction-budget', setting: {"section":"settings-distraction-budget","label":"Distraction budget"}, feature: 'distraction-budget', newer: true, cat: 'work', name: 'Distraction budget', phrases: 'distraction budget limit social media time', manual: true,
       what: 'A daily limit per kind of site (social, video, games) with a quiet reminder when it is used up. Set the limits in Settings > Distraction budget.' },
-    { id: 'smart-bookmarks', feature: 'smart-bookmarks', newer: true, where: 'Living bookmarks', cat: 'work', name: 'Smart bookmarks', phrases: 'living bookmarks snapshot dead link changed', manual: true,
+    { cmd: 'living-bookmarks', openLabel: 'Open Living Bookmarks', id: 'smart-bookmarks', feature: 'smart-bookmarks', newer: true, where: 'Living bookmarks', cat: 'work', name: 'Smart bookmarks', phrases: 'living bookmarks snapshot dead link changed',
       what: 'Keeps a snapshot of each bookmarked page and tells you when a page has changed or died. It asks each bookmarked page for a fresh copy. Background checks are off until you switch them on in Settings > Living bookmarks.' },
     { id: 'search-again', feature: 'search-again', newer: true, where: 'Repeated searches', cat: 'work', name: 'Search again', phrases: 'searched before history again search', cmd: 'search-again', setting: { section: 'settings-searchagain', label: 'Repeated searches' },
       what: 'When a search results page opens and the same search is already in your history, says when, and links the page you opened from it that time. Local history only; private and Tor tabs are never read. Settings > Repeated searches.' },
     { id: 'command-aliases', feature: 'command-aliases', newer: true, where: 'Command shortcut words', cat: 'work', name: 'Command aliases', phrases: 'alias shortcut word command abbreviation', cmd: 'alias-add', setting: { section: 'settings-aliases', label: 'Command shortcut words' },
       what: 'A word you type into Ctrl+K and always finish by picking the same command becomes that command\u2019s shortcut (for example "pr" for the PR desk) after three times. You can also make, change or delete them in Settings > Command shortcut words.' },
-    { id: 'meeting-prep', feature: 'meeting-prep', newer: true, where: 'Workflow and chains (the Daily tools block)', cat: 'work', name: 'Meeting prep', phrases: 'meeting prep calendar event notes', manual: true,
+    { cmd: 'meeting-prep', openLabel: 'Prepare for my next meeting', id: 'meeting-prep', setting: {"section":"workflow-settings","label":"Workflow and chains"}, feature: 'meeting-prep', newer: true, where: 'Workflow and chains (the Daily tools block)', cat: 'work', name: 'Meeting prep', phrases: 'meeting prep calendar event notes',
       what: 'About ten minutes before a calendar event, builds one card with the documents its invitation links to and your last notes for that meeting. It never opens the call link. The mode is Ask (default), Automatic or Off, in the Daily tools block of Settings > Workflow and chains.' },
-    { id: 'routine-detect', feature: 'routine-detect', newer: true, where: 'Workflow and chains (the Daily tools block)', cat: 'work', name: 'Routine detection', phrases: 'routine detect habit same time every day', manual: true,
+    { id: 'routine-detect', setting: {"section":"workflow-settings","label":"Workflow and chains"}, feature: 'routine-detect', newer: true, where: 'Workflow and chains (the Daily tools block)', cat: 'work', name: 'Routine detection', phrases: 'routine detect habit same time every day', manual: true,
       what: 'Watches the order in which you first open sites; when the same run of three or more repeats on several mornings it offers once to save it as a command chain. It never opens anything itself. On by default; switch it off in the Daily tools block of Settings > Workflow and chains.' },
-    { id: 'tab-cleanup', feature: 'tab-cleanup', newer: true, where: 'Workflow and chains (the Daily tools block)', cat: 'tabs', name: 'Evening tab cleanup', phrases: 'evening tab cleanup archive idle tabs', manual: true,
+    { cmd: 'tab-cleanup', openLabel: 'Tidy stale tabs now', id: 'tab-cleanup', setting: {"section":"workflow-settings","label":"Workflow and chains"}, feature: 'tab-cleanup', newer: true, where: 'Workflow and chains (the Daily tools block)', cat: 'tabs', name: 'Evening tab cleanup', phrases: 'evening tab cleanup archive idle tabs',
       what: 'Once an evening, lists tabs that have sat unused for days and second copies of another open tab, with one button to archive them into the Library and an Undo. The mode is Ask (default) or Off, in the Daily tools block of Settings > Workflow and chains.' },
-    { id: 'tab-auto-group', feature: 'tab-auto-group', newer: true, cat: 'tabs', name: 'Add new tabs to the group they match', phrases: 'auto group tabs new tab match', manual: true,
+    { setting: { section: 'setting-smart-tab-grouping', label: 'Smart Tab Grouping' }, id: 'tab-auto-group', feature: 'tab-auto-group', newer: true, cat: 'tabs', name: 'Add new tabs to the group they match', phrases: 'auto group tabs new tab match', manual: true,
       what: 'A new tab that matches an existing group is moved into it. The switch is in Settings > Smart Tab Grouping.' },
     { id: 'text-snippets', feature: 'text-snippets', newer: true, cat: 'work', name: 'Text snippets', phrases: 'text expander snippet abbreviation canned reply', setting: { section: 'setting-text-snippets', label: 'Text snippets' },
       what: 'Type a short word and press Tab or Space to expand it into a saved block of text, in any text box except password, card and payment fields. On an existing profile it starts off; turn it on in Settings > Text snippets.' },
@@ -741,13 +743,13 @@ const VexFeatures = {
       what: 'Brings back old highlights and last week’s note for a second look, a few at a time. On an existing profile it starts off; turn it on in Settings > Capture tools.' },
     { id: 'form-rescue', feature: 'form-rescue', newer: true, cat: 'work', name: 'Unfinished forms', phrases: 'lost form text recover closed tab typed', cmd: 'form-rescue', setting: { section: 'setting-form-rescue', label: 'Unfinished forms' },
       what: 'Keeps, encrypted for 7 days, the text you typed into pages you closed, so a lost form can be recovered. Never password, card or one-time-code fields. On an existing profile it starts off; turn it on in Settings > Unfinished forms.' },
-    { id: 'redact-tool', feature: 'redact-tool', newer: true, cat: 'privacy', name: 'Redact pictures', phrases: 'redact blur black out screenshot ocr personal', manual: true,
+    { id: 'redact-tool', setting: { section: 'setting-capture-tools', label: 'Capture tools' }, feature: 'redact-tool', newer: true, cat: 'privacy', name: 'Redact pictures', phrases: 'redact blur black out screenshot ocr personal', manual: true,
       what: 'Opens a screenshot or picture, finds text with on-device OCR, and lets you black out parts before saving a copy without metadata. On an existing profile it starts off; turn it on in Settings > Capture tools.' },
     { id: 'update-self-test', feature: 'update-self-test', newer: true, cat: 'data', name: 'Check after an update', phrases: 'after update check self test crash', setting: { section: 'vex-sg-update-self-test', label: 'Update self-test' },
       what: 'After an update, Vex checks its own problems and crash log for this version and tells you if something broke. On by default; Settings > Update self-test.' },
-    { id: 'signout-why', feature: 'signout-why', newer: true, cat: 'logins', name: 'Say why a sign-in was lost', phrases: 'why signed out logged out sign in lost', cmd: 'whysignedout',
+    { id: 'signout-why', feature: 'signout-why', newer: true, cat: 'logins', name: 'Say why a sign-in was lost', phrases: 'why signed out logged out sign in lost', cmd: 'whysignedout', setting: { section: 'vex-sg-signout-why', label: 'Sign-in: why you were signed out' },
       what: 'When a site signed you out, says which rule or setting ended the sign-in, read from cookie names and dates only.' },
-    { id: 'commit-guard', feature: 'commit-guard', newer: true, cat: 'unique', name: 'Protect Windows from running out of memory', phrases: 'game memory commit crash bsod protect windows', manual: true,
+    { id: 'commit-guard', setting: {"section":"setting-game-helpers","label":"Game mode helpers"}, feature: 'commit-guard', newer: true, cat: 'unique', name: 'Protect Windows from running out of memory', phrases: 'game memory commit crash bsod protect windows', manual: true,
       what: 'While Game mode is on, holds Vex background work when Windows is low on memory, so a game and a build cannot run it out. On by default.' },
     { id: 'fake-update-guard', feature: 'fake-update-guard', newer: true, cat: 'privacy', name: 'Fake update guard', phrases: 'fake browser update overlay scam malware chrome out of date download warn', setting: { section: 'setting-fake-update-guard', label: 'Fake update guard' },
       what: 'Warns when a page covers the window with a fake "your browser is out of date, download the update" notice that leads to a program. It only warns: it changes and clicks nothing, and skips private, Tor and routed tabs. On an existing profile it starts off; turn it on in Settings > Fake update guard.' },
@@ -765,17 +767,17 @@ const VexFeatures = {
       what: 'When you click into a password box on an address made to look like another site (paypa1.com, roblox.com.verify-account.xyz), stops with a question before you type anything. On an existing profile it starts off; turn it on in Settings > Password page check.' },
     { id: 'playfulness', feature: 'playfulness', newer: true, cat: 'unique', name: 'Playfulness', phrases: 'quiet calm fun level playful', setting: { section: 'setting-playfulness', label: 'Playfulness' },
       what: 'One level (Off, Calm, Full) that decides how playful everything fun may be. Calm is the default. Settings > Playfulness.' },
-    { id: 'attention-inbox', feature: 'attention-inbox', newer: true, cat: 'unique', name: 'Attention Inbox', phrases: 'notifications inbox bell held back quiet', manual: true,
+    { cmd: 'attention-inbox', openLabel: 'Open the inbox', id: 'attention-inbox', setting: {"section":"setting-attention","label":"Attention"}, feature: 'attention-inbox', newer: true, cat: 'unique', name: 'Attention Inbox', phrases: 'notifications inbox bell held back quiet',
       what: 'The bell that holds notices that did not fit the cap, instead of interrupting you. On by default; Settings > Attention.' },
     { id: 'newtab-slots', feature: 'newtab-slots', newer: true, cat: 'look', name: 'New Tab layout', phrases: 'new tab cards layout start page slots', setting: { section: 'setting-newtab-layout', label: 'New Tab layout' },
       what: 'Chooses which cards the New Tab page shows and in what order; cards compete for a few slots instead of all showing. Settings > New Tab layout.' },
-    { id: 'game-flush', feature: 'game-flush', newer: true, cat: 'unique', name: 'Save my work when a game starts', phrases: 'game start save work flush session', manual: true,
+    { id: 'game-flush', setting: {"section":"setting-game-helpers","label":"Game mode helpers"}, feature: 'game-flush', newer: true, cat: 'unique', name: 'Save my work when a game starts', phrases: 'game start save work flush session', manual: true,
       what: 'When a game starts, saves your open tabs, the note you are typing and text in page boxes to an Auto-saved session first. On an existing profile it starts off; turn it on in Settings > Game mode.' },
-    { id: 'game-warmdown', feature: 'game-warmdown', newer: true, cat: 'unique', name: 'Warm down when a game launcher opens', phrases: 'game launcher warm down steam epic sleep tabs', manual: true,
+    { id: 'game-warmdown', setting: {"section":"setting-game-helpers","label":"Game mode helpers"}, feature: 'game-warmdown', newer: true, cat: 'unique', name: 'Warm down when a game launcher opens', phrases: 'game launcher warm down steam epic sleep tabs', manual: true,
       what: 'When a game launcher you listed opens, holds background work and sleeps background tabs before the game itself starts. On an existing profile it starts off; turn it on in Settings > Game mode.' },
     { id: 'game-pitstop', feature: 'game-pitstop', newer: true, cat: 'unique', name: 'After-game pit-stop card', phrases: 'after game summary pit stop what missed', cmd: 'gamepitstop:last',
       what: 'After a game, shows a card of what Vex held back while you played (notices, jobs, sync) and the tabs it slept. On an existing profile it starts off; turn it on in Settings > Game mode.' },
-    { id: 'game-checklist', feature: 'game-checklist', newer: true, cat: 'unique', name: 'Pre-game checklist', phrases: 'pre game checklist before playing homework', manual: true,
+    { id: 'game-checklist', setting: {"section":"setting-game-helpers","label":"Game mode helpers"}, feature: 'game-checklist', newer: true, cat: 'unique', name: 'Pre-game checklist', phrases: 'pre game checklist before playing homework', manual: true,
       what: 'A short list you write of things to do before you play (homework, a chore). When a game launcher opens or a listed game starts, one card shows it, any unsaved note and running downloads. It never blocks a game. Off until you turn it on in Settings > Game mode helpers.' },
     { id: 'ai-sensitivity', feature: 'ai-sensitivity', newer: true, cat: 'ai', name: 'Sensitivity gate before cloud AI', phrases: 'cloud ai sensitive private data warning before send', manual: true,
       what: 'Checks a request for the cloud AI before it is sent, holds it back if it looks sensitive, and sends it only if you say yes; each decision is in Why did that happen.' },
@@ -835,19 +837,19 @@ const VexFeatures = {
       what: 'Holds panel and message notices and shows them as a digest at times you choose. On an existing profile it starts off; turn it on in Settings > Panels and messages.' },
     { id: 'close-protect', feature: 'close-protect', newer: true, cat: 'panels', name: 'Close-protect', phrases: 'close protect call unsaved typing ask before closing', setting: { section: 'setting-panels-comms', label: 'Panels and messages' },
       what: 'Asks before closing a tab that is playing sound, in a call or holding text you typed (it only checks yes or no, never reads the text). On an existing profile it starts off; turn it on in Settings > Panels and messages.' },
-    { id: 'tab-mru', feature: 'tab-mru', newer: true, cat: 'tabs', name: 'Ctrl+Tab by recency', phrases: 'ctrl tab recent switch mru last used', manual: true,
+    { id: 'tab-mru', setting: {"section":"setting-tab-tools","label":"Tab tools"}, feature: 'tab-mru', newer: true, cat: 'tabs', name: 'Ctrl+Tab by recency', phrases: 'ctrl tab recent switch mru last used', manual: true,
       what: 'Ctrl+Tab switches in the order you used the tabs last, like Alt+Tab. On an existing profile it starts off; turn it on in Settings > Tab tools.' },
     { id: 'tab-search', feature: 'tab-search', newer: true, cat: 'tabs', name: 'Search open tabs', phrases: 'search open tabs find tab list', cmd: 'tab-search',
       what: 'A list of every open tab, last used first, narrowed as you type (Ctrl+Alt+Z). On an existing profile it starts off; turn it on in Settings > Tab tools.' },
-    { id: 'nav-history-menu', feature: 'nav-history-menu', newer: true, cat: 'tabs', name: 'Back and Forward list', phrases: 'back forward history list menu', manual: true,
+    { id: 'nav-history-menu', setting: {"section":"setting-tab-tools","label":"Tab tools"}, feature: 'nav-history-menu', newer: true, cat: 'tabs', name: 'Back and Forward list', phrases: 'back forward history list menu', manual: true,
       what: 'Right-click or hold Back and Forward to see the list of pages behind and ahead. On an existing profile it starts off; turn it on in Settings > Tab tools.' },
-    { id: 'strip-actions', feature: 'strip-actions', newer: true, cat: 'tabs', name: 'Quick actions on the tab strip', phrases: 'tab strip quick actions mute pin duplicate reopen closed', manual: true,
+    { id: 'strip-actions', setting: {"section":"setting-tab-tools","label":"Tab tools"}, feature: 'strip-actions', newer: true, cat: 'tabs', name: 'Quick actions on the tab strip', phrases: 'tab strip quick actions mute pin duplicate reopen closed', manual: true,
       what: 'Rest the pointer on a tab for a bar with mute, pin, duplicate and close-the-others; double-click the empty strip for a new tab; middle-click the + button to reopen the last closed tab. Each part has its own switch in Settings > Tab tools. On an existing profile it starts off; turn it on in Settings > Tab tools.' },
     { id: 'night-coach', feature: 'night-coach', newer: true, cat: 'work', name: 'Night usage coach', phrases: 'night coach sleep bedtime late evening usage', cmd: 'nightcoach-quiet', setting: { section: 'setting-night-coach', label: 'Night usage coach' },
       what: 'Counts how long you used Vex after your bedtime and nudges you late at night; quiet for tonight and a seven-night view are in Ctrl+K. On an existing profile it starts off; turn it on in Settings > Night usage coach.' },
     { id: 'announce-desk', feature: 'announce-desk', newer: true, cat: 'work', name: 'Announcement desk', phrases: 'announcements exam results school university watch', cmd: 'announce-desk', setting: { section: 'setting-announce-desk', label: 'Announcement desk' },
       what: 'Watches the public school, university and exam pages you add and shows what is new, checking every 15 minutes on a result day. On an existing profile it starts off; turn it on in Settings > Announcement desk.' },
-    { id: 'longdoc-engine', feature: 'longdoc-engine', newer: true, cat: 'ai', name: 'Long-document engine', phrases: 'long document summary map reduce pdf', manual: true,
+    { id: 'longdoc-engine', feature: 'longdoc-engine', newer: true, cat: 'ai', name: 'Long-document engine', phrases: 'long document summary map reduce pdf', manual: true, setting: { section: 'vex-sg-longdoc-engine', label: 'Long documents' },
       what: 'Lets other AI features work on documents longer than one request, by summarising in pieces and joining the pieces. Settings > Long documents. On an existing profile it starts off; turn it on in Settings > Long documents.' },
     { id: 'thread-digest', feature: 'thread-digest', newer: true, cat: 'ai', name: 'Thread digest', phrases: 'summarise thread digest since last read decisions', cmd: 'thread-digest', setting: { section: 'setting-thread-digest', label: 'Thread digest' },
       what: 'Digests a long thread, from your selection or the page: decisions, open questions and what is new since you last read, with your local model. On an existing profile it starts off; turn it on in Settings > Thread digest.' },
@@ -855,13 +857,13 @@ const VexFeatures = {
       what: 'Rewrites or drafts the text of the box you are typing in, shows the difference, and changes the box only when you press the button. On an existing profile it starts off; turn it on in Settings > Draft into the field.' },
     { id: 'embedding-manager', feature: 'embedding-manager', newer: true, cat: 'ai', name: 'Embedding model manager', phrases: 'embedding model ollama recall search meaning', setting: { section: 'setting-embedding-manager', label: 'Search by meaning (embedding model)' },
       what: 'Shows which embedding models your own Ollama has and picks the one Recall uses to search by meaning; it can ask Ollama to download one after you confirm. On an existing profile it starts off; turn it on in Settings > Search by meaning (embedding model).' },
-    { id: 'answer-citations', feature: 'answer-citations', newer: true, where: 'Knowledge base', cat: 'ai', name: 'Show-me-where citations', phrases: 'show me where citation source passage answer', manual: true,
-      what: 'Under an AI answer, "show me where" marks the passage on the page each claim came from. On an existing profile it starts off; turn it on in Settings > Knowledge base.' },
+    { id: 'answer-citations', feature: 'answer-citations', newer: true, where: 'Knowledge base', cat: 'ai', name: 'Show-me-where citations', phrases: 'show me where citation source passage answer', manual: true, setting: { section: 'vex-sg-answer-citations', label: 'Knowledge: show-me-where citations' },
+      what: 'Under an AI answer, "show me where" marks the passage on the page each claim came from. On an existing profile it starts off; turn it on in Settings > Knowledge: show-me-where citations.' },
     { id: 'site-instructions', feature: 'site-instructions', newer: true, cat: 'ai', name: 'Site instructions and typed skills', phrases: 'site instruction ai per site skills', cmd: 'site-instruction-edit', setting: { section: 'setting-site-instructions', label: 'Site instructions' },
       what: 'A standing instruction added to every AI chat on one site, and skills you bound to that site. On an existing profile it starts off; turn it on in Settings > Site instructions.' },
     { id: 'game-library', feature: 'game-library', newer: true, cat: 'unique', name: 'Installed games', phrases: 'installed games steam epic roblox add game mode', cmd: 'game-library-find',
       what: 'Looks at your Steam, Epic and Roblox installs and offers each game to Game mode; nothing is opened or started. On an existing profile it starts off; turn it on in Settings > Game mode.' },
-    { id: 'site-audio-memory', feature: 'site-audio-memory', newer: true, cat: 'media', name: 'Volume kept per site', phrases: 'volume per site remember loud', manual: true,
+    { cmd: 'siteplay:level', openLabel: 'Even out loudness on this site', id: 'site-audio-memory', feature: 'site-audio-memory', newer: true, cat: 'media', name: 'Volume kept per site', phrases: 'volume per site remember loud', setting: { section: 'vex-sg-site-volume', label: 'Volume: kept per site' },
       what: 'Keeps a volume level per site and reminds you when a loud one is left on; also keeps the speed, captions and place in a long video, and can even out the loudness of a site. On an existing profile it starts off; turn it on in Settings > Volume.' },
     { id: 'link-routing', feature: 'link-routing', newer: true, cat: 'panels', name: 'Links open in the matching panel', phrases: 'links open in panel discord github route', cmd: 'link-routing', setting: { section: 'vex-sg-link-routing', label: 'Links and panels' },
       what: 'A link that would open as a new tab opens inside the panel that already has that site, by rules you can edit. On an existing profile it starts off; turn it on in Settings > Links and panels.' },
@@ -873,9 +875,9 @@ const VexFeatures = {
       what: 'Page watches, patch radar and GitHub watch send one line per change to the Attention Inbox instead of many alerts. On an existing profile it starts off; turn it on in Settings > Watcher alerts.' },
     { id: 'tabs-nav', feature: 'tabs-nav', newer: true, cat: 'tabs', name: 'Tabs and navigation extras', phrases: 'find options clean link keep on top autocomplete', cmd: 'tabsnav:keep-on-top',
       what: 'Find-bar options, clean copy-link, a switch-to-tab suggestion, and keeping the Vex window on top. Settings > Tabs and navigation.' },
-    { id: 'dev-desk', feature: 'dev-desk', newer: true, cat: 'dev', name: 'Open in editor and terminal', phrases: 'open in editor stack trace vscode terminal folder', manual: true,
+    { id: 'dev-desk', setting: {"section":"setting-dev-desk","label":"Developer desk"}, feature: 'dev-desk', newer: true, cat: 'dev', name: 'Open in editor and terminal', phrases: 'open in editor stack trace vscode terminal folder', manual: true,
       what: 'Select a stack-trace line and choose Open in editor to jump to that file, and open Windows Terminal in a repository’s folder from its tab group. Only inside folders you granted, with a fixed argument list and no shell. Off until you turn it on in Settings > Developer desk.' },
-    { id: 'dev-ports-pair', feature: 'dev-ports-pair', newer: true, cat: 'dev', name: 'Dev ports', phrases: 'localhost port dev server reload', manual: true,
+    { id: 'dev-ports-pair', setting: {"section":"setting-dev-desk","label":"Developer desk"}, feature: 'dev-ports-pair', newer: true, cat: 'dev', name: 'Dev ports', phrases: 'localhost port dev server reload', manual: true,
       what: 'Pairs a localhost port with a tab and reloads the tab when the port starts answering again. On an existing profile it starts off; turn it on in Settings > Developer desk.' },
     { id: 'actions-board', feature: 'actions-board', newer: true, cat: 'dev', name: 'Actions board', phrases: 'actions board github runs failing', cmd: 'actionsboard:open',
       what: 'One board with the newest GitHub Actions run of each listed repository and which failures you have not seen. On an existing profile it starts off; turn it on in Settings > Developer desk.' },
@@ -967,15 +969,15 @@ const VexFeatures = {
       what: 'Shows how much each feature keeps and caps the Recall index; the oldest pages go first. Settings > Storage.' },
     { id: 'ai-route-control', feature: 'ai-route-control', newer: true, cat: 'ai', name: 'Where AI runs', phrases: 'which ai answered backend model route', cmd: 'ai-answered-by',
       what: 'One place that shows where AI runs now and which backend answered the last answer.' },
-    { id: 'attention-budget', feature: 'attention-budget', newer: true, cat: 'unique', name: 'Attention Budget', phrases: 'attention budget notifications limit mute nag', manual: true,
+    { id: 'attention-budget', setting: {"section":"setting-attention","label":"Attention"}, feature: 'attention-budget', newer: true, cat: 'unique', name: 'Attention Budget', phrases: 'attention budget notifications limit mute nag', manual: true,
       what: 'The rule behind every notice: each feature gets a small allowance, the rest is held, and you can mute any feature in Settings > Attention.' },
     { id: 'defaults-consents', feature: 'defaults-consents', newer: true, cat: 'data', name: 'Defaults, consents and one-time migrations', phrases: 'defaults consent migration setting reset', manual: true,
       what: 'Keeps Vex’s versioned defaults and the consents you gave, and makes sure a new default never overrides a choice you made.' },
     { id: 'preference-store', feature: 'preference-store', newer: true, cat: 'data', name: 'Preference store', phrases: 'preferences file settings checksum', manual: true,
       what: 'The preference file Vex writes your settings to, with a checksum so a damaged file is detected.' },
-    { id: 'library-data', feature: 'library-data', newer: true, cat: 'data', name: 'Notes, bookmarks and read later', phrases: 'notes bookmarks read later library data', manual: true,
+    { panel: 'library', id: 'library-data', feature: 'library-data', newer: true, cat: 'data', name: 'Notes, bookmarks and read later', phrases: 'notes bookmarks read later library data',
       what: 'Your notes, bookmarks, read later, annotations and sticky notes: the data the Library holds.' },
-    { id: 'feature-registry', feature: 'feature-registry', newer: true, cat: 'unique', name: 'Feature records', phrases: 'feature registry minimal vex usage staged', manual: true,
+    { setting: { section: 'vex-sg-feature-usage', label: 'Feature usage' }, id: 'feature-registry', feature: 'feature-registry', newer: true, cat: 'unique', name: 'Feature records', phrases: 'feature registry minimal vex usage staged', manual: true,
       what: 'The record of which features exist, which you use and which are staged off; Minimal Vex mode uses it to switch features off and restore them.' },
     // ---- Wave 3 and Wave 4 features (integration of Waves 1-4) ----
     { id: 'cloudflare-shortcuts', feature: 'cloudflare-shortcuts', newer: true, cat: 'dev', name: 'Cloudflare dashboard shortcuts', phrases: 'cloudflare worker workers logs kv namespace dashboard deep link wrangler cf', cmd: 'cloudflare-shortcuts',
@@ -1032,8 +1034,8 @@ const VexFeatures = {
       what: 'Counts on this computer how often each feature is opened, held back or fails, and after two weeks may suggest hiding one you never use or pinning one you use daily. On an existing profile it starts off; turn it on in Settings > Usage counts and suggestions.' },
     { id: 'capability-dial', feature: 'capability-dial', newer: true, cat: 'unique', name: 'Simple, Standard or Power', phrases: 'simple standard power level dial capability fewer features hide unused tier less clutter', cmd: 'capability-dial', setting: { section: 'vex-sg-capability-dial', label: 'Simple, Standard or Power' },
       what: 'One dial for how much Vex shows. Simple switches off the features you have never used, after two weeks of counting and with the list shown first. Standard is Vex as it is. Power brings the usage suggestions weekly. On an existing profile it starts off; turn it on in Settings > Simple, Standard or Power.' },
-    { id: 'first-use-sheet', feature: 'first-use-sheet', newer: true, cat: 'unique', name: 'First-use sheet', phrases: 'first use new feature card what does this do beta feature intro permissions explanation turn off feature', manual: true,
-      what: 'The first time you use a new or beta feature, a small card says what it does, what it touches and how to turn it off. On an existing profile it starts off; turn it on in Settings > First-use sheet.' },
+    { id: 'first-use-sheet', feature: 'first-use-sheet', newer: true, cat: 'unique', name: 'First-use sheet', phrases: 'first use new feature card what does this do beta feature intro permissions explanation turn off feature', manual: true, setting: { section: 'vex-sg-feature-sheet', label: 'What each feature touches' },
+      what: 'The first time you use a new or beta feature, a small card says what it does, what it touches and how to turn it off. On an existing profile it starts off; turn it on in Settings > What each feature touches.' },
     { id: 'ai-spend-cap', feature: 'ai-spend-cap', newer: true, cat: 'ai', name: 'Daily cap on cloud AI calls', phrases: 'ai limit daily limit cloud ai cost budget spend cap worker bill too many ai calls stop cloud ai', setting: { section: 'vex-sg-ai-spend-cap', label: 'AI spend cap' },
       what: 'Sets a limit on how many cloud AI calls Vex makes per day, so the cloud AI worker you pay for cannot run up a bill.' },
     { id: 'ai-money', feature: 'ai-money', newer: true, cat: 'ai', name: 'Money budget for cloud AI', phrases: 'ai money budget price per token model cost estimate monthly budget spend quality history failed answers', setting: { section: 'vex-sg-ai-money', label: 'AI spend cap: money budget and prices' },
@@ -1094,41 +1096,41 @@ const VexFeatures = {
       what: 'Resizes and crops one picture you choose to the size and file limit a form asks for, and saves it as a new file. Open it from Ctrl+K with "Prepare a picture for a form". On an existing profile it starts off; turn it on in Settings > Photo preparer.' },
     { id: 'form-assist', feature: 'form-assist', newer: true, cat: 'logins', name: 'Form assistant', phrases: 'autofill form fill address name email phone confirm each field careful form fill one box at a time', cmd: 'formassist:open', setting: { section: 'setting-form-assist', label: 'Form assistant' },
       what: 'Looks at the form in front of you and proposes a value for each box from your Form Fill profile. A box is filled only when you press its own Fill button. Open it from Ctrl+K, "Form assistant (confirm each field)". On an existing profile it starts off; turn it on in Settings > Form assistant.' },
-    { id: 'scroll-memory', feature: 'scroll-memory', newer: true, cat: 'tabs', name: 'Scroll position across restart and reopen', phrases: 'remember scroll position restore where i was reopen closed tab keep place in page restart lose my place reading position', manual: true,
+    { id: 'scroll-memory', setting: {"section":"setting-tab-comforts","label":"Tab comforts"}, feature: 'scroll-memory', newer: true, cat: 'tabs', name: 'Scroll position across restart and reopen', phrases: 'remember scroll position restore where i was reopen closed tab keep place in page restart lose my place reading position', manual: true,
       what: 'Remembers how far down a page you had read, so a reopened tab or a restarted Vex comes back to the same place instead of the top. On an existing profile it starts off; turn it on in Settings > Tab comforts.' },
     { id: 'essentials', feature: 'essentials', newer: true, cat: 'tabs', name: 'Essential tabs in every workspace', phrases: 'essential tabs keep tab open all workspaces mail calendar discord shared tabs pinned across workspaces workspace switch', cmd: 'essentials',
       what: 'Lets chosen tabs such as mail, calendar or Discord stay open when you switch workspaces. Right-click a tab and choose Make essential, or open the list from Ctrl+K, "Essential tabs". On an existing profile it starts off; turn it on in Settings > Tab comforts.' },
-    { id: 'spell-lang', feature: 'spell-lang', newer: true, cat: 'reading', name: 'English and Turkish spelling', phrases: 'spell check language turkish english both languages red underline add to dictionary spelling dictionary right click', manual: true,
+    { id: 'spell-lang', setting: {"section":"setting-tab-comforts","label":"Tab comforts"}, feature: 'spell-lang', newer: true, cat: 'reading', name: 'English and Turkish spelling', phrases: 'spell check language turkish english both languages red underline add to dictionary spelling dictionary right click', manual: true,
       what: 'Adds a Spelling language choice to the right-click menu of any box you can type in: Automatic, English, Turkish, or English and Turkish together. It also adds Add to dictionary for an underlined word. On an existing profile it starts off; turn it on in Settings > Tab comforts.' },
-    { id: 'autoscroll', feature: 'autoscroll', newer: true, cat: 'reading', name: 'Middle-click autoscroll', phrases: 'autoscroll middle click scroll wheel press scroll automatically hands free scrolling mouse wheel button scroll marker', manual: true,
+    { id: 'autoscroll', setting: {"section":"setting-tab-comforts","label":"Tab comforts"}, feature: 'autoscroll', newer: true, cat: 'reading', name: 'Middle-click autoscroll', phrases: 'autoscroll middle click scroll wheel press scroll automatically hands free scrolling mouse wheel button scroll marker', manual: true,
       what: 'Press the middle mouse button on empty page space and the page scrolls by itself toward wherever you move the pointer, faster the further you go. On an existing profile it starts off; turn it on in Settings > Tab comforts.' },
     { id: 'pinned-home', feature: 'pinned-home', newer: true, cat: 'tabs', name: 'Pinned tab home page', phrases: 'pinned tab home back to pinned page links open new tab pin stays put return to pinned site pin moved away', cmd: 'pinned-home-back',
       what: 'Gives a pinned tab a home, the address it was pinned on. A link that leaves that site opens in a new tab so the pin stays put. Ctrl+K, "Back to the pinned page" returns it. On an existing profile it starts off; turn it on in Settings > Tab comforts.' },
-    { id: 'load-failure', feature: 'load-failure', newer: true, cat: 'reading', name: 'Page that did not load', phrases: 'page not loading error could not be reached err name not resolved connection failed site down offline wayback machine retry http', manual: true,
+    { id: 'load-failure', setting: {"section":"setting-tab-comforts","label":"Tab comforts"}, feature: 'load-failure', newer: true, cat: 'reading', name: 'Page that did not load', phrases: 'page not loading error could not be reached err name not resolved connection failed site down offline wayback machine retry http', manual: true,
       what: 'Replaces Chromium\'s grey error page with a Vex page that says in plain words what went wrong and offers buttons: try again, hard reload, try http, open your saved copy, look in the Wayback Machine, copy the address. On an existing profile it starts off; turn it on in Settings > Tab comforts.' },
     { id: 'paste-plain', feature: 'paste-plain', newer: true, cat: 'reading', name: 'Paste as plain text', phrases: 'paste plain text paste without formatting strip formatting paste match style clipboard no fonts colours links', cmd: 'paste-plain',
       what: 'Pastes the clipboard into a page\'s text box as plain text only, with no fonts, colours or links. Use the right-click menu in anything you can type in, or Ctrl+K, "Paste as plain text". On an existing profile it starts off; turn it on in Settings > Tab comforts.' },
     { id: 'tab-text-find', feature: 'tab-text-find', newer: true, cat: 'tabs', name: 'Find text in all tabs', phrases: 'search all tabs find text in every tab which tab had phrase search open tabs content find across tabs sleeping tabs', cmd: 'tab-text-find',
       what: 'Searches the text of all your open tabs, including sleeping ones, for the exact words you type. It lists which tabs have them and how often. Open it from Ctrl+K, "Find text in all tabs". On an existing profile it starts off; turn it on in Settings > Tab comforts.' },
-    { id: 'gesture-editor', feature: 'gesture-editor', newer: true, cat: 'tabs', name: 'Mouse gesture editor', phrases: 'mouse gestures right click drag stroke custom gestures change what gesture does gesture actions edit gestures', manual: true,
+    { setting: { section: 'setting-gesture-editor', label: 'Mouse gesture editor' }, id: 'gesture-editor', feature: 'gesture-editor', newer: true, cat: 'tabs', name: 'Mouse gesture editor', phrases: 'mouse gestures right click drag stroke custom gestures change what gesture does gesture actions edit gestures', manual: true,
       what: 'A screen in Settings where you choose what each right-button mouse stroke does. A stroke can run one of Vex\'s own actions or any Ctrl+K command, including a command chain. On an existing profile it starts off; turn it on in Settings > Mouse gestures.' },
-    { id: 'tab-select', feature: 'tab-select', newer: true, cat: 'tabs', name: 'Pick several tabs', phrases: 'select multiple tabs ctrl click tabs shift click tabs group tabs together mute many tabs close several tabs bulk tab actions', manual: true,
+    { id: 'tab-select', setting: {"section":"setting-tab-tools","label":"Tab tools"}, feature: 'tab-select', newer: true, cat: 'tabs', name: 'Pick several tabs', phrases: 'select multiple tabs ctrl click tabs shift click tabs group tabs together mute many tabs close several tabs bulk tab actions', manual: true,
       what: 'Ctrl-click tabs to pick them, or Shift-click to pick a run. A small bar under the tab strip then lets you group, mute, pin, bookmark, show side by side or close them all at once. On an existing profile it starts off; turn it on in Settings > Tab tools.' },
-    { id: 'tab-hold', feature: 'tab-hold', newer: true, cat: 'tabs', name: 'Keep tab widths while closing', phrases: 'close tabs x button moves tab width stays same closing many tabs wrong tab closed tab bar stretch like chrome', manual: true,
+    { id: 'tab-hold', setting: {"section":"setting-tab-tools","label":"Tab tools"}, feature: 'tab-hold', newer: true, cat: 'tabs', name: 'Keep tab widths while closing', phrases: 'close tabs x button moves tab width stays same closing many tabs wrong tab closed tab bar stretch like chrome', manual: true,
       what: 'Keeps the tabs at their current width while you close several with the X, so the next cross stays under the pointer instead of sliding away as the others widen. On an existing profile it starts off; turn it on in Settings > Tab tools.' },
     { id: 'tab-names', feature: 'tab-names', newer: true, cat: 'tabs', name: 'Tab names of my own', phrases: 'rename tab custom tab name label tab own title change tab title name a tab', cmd: 'rename-tab',
       what: 'Gives a page a name of your own in the tab strip. Choose Rename tab in a tab\'s menu, or Ctrl+K, "Rename this tab". On an existing profile it starts off; turn it on in Settings > Tab tools.' },
-    { id: 'tab-thumbs', feature: 'tab-thumbs', newer: true, cat: 'tabs', name: 'Picture while a sleeping tab wakes', phrases: 'sleeping tab white screen wake tab preview thumbnail instant tab switch blank page while loading tab picture', manual: true,
+    { id: 'tab-thumbs', setting: {"section":"setting-tab-tools","label":"Tab tools"}, feature: 'tab-thumbs', newer: true, cat: 'tabs', name: 'Picture while a sleeping tab wakes', phrases: 'sleeping tab white screen wake tab preview thumbnail instant tab switch blank page while loading tab picture', manual: true,
       what: 'When you go to a sleeping tab, shows the last picture of its page over the empty area until the real page has loaded. On an existing profile it starts off; turn it on in Settings > Tab tools.' },
     { id: 'link-hints', feature: 'link-hints', newer: true, cat: 'tabs', name: 'Keyboard hints', phrases: 'keyboard click links without mouse link hints vimium style letters on links go to tab by keyboard hint labels click with keyboard', cmd: 'link-hints',
       what: 'Puts a short yellow label on every visible link, button and field so you can click it by typing the label. Start with Ctrl+Alt+I or Ctrl+K, "Hints: click with the keyboard"; "Hints: go to a tab" does the same for tabs. On an existing profile it starts off; turn it on in Settings > Tab tools.' },
     { id: 'split-keys', feature: 'split-keys', newer: true, cat: 'tabs', name: 'Split view keys', phrases: 'split screen keyboard next pane swap panes divider 25 75 50 50 alt click link other pane side by side tabs resize split', cmd: 'split-focus-next',
       what: 'Adds keyboard control to split view: move to the next pane, swap panes, and snap the divider to 25/75, 50/50 or 75/25. Find them in Ctrl+K under "Split view". On an existing profile it starts off; turn it on in Settings > Tab tools.' },
-    { id: 'preconnect', feature: 'preconnect', newer: true, cat: 'look', name: 'Connect ahead to links', phrases: 'preconnect faster links load speed up hover link prefetch connect early pointer rest on link allow list sites', manual: true,
+    { id: 'preconnect', setting: {"section":"setting-links-windows","label":"Links and windows"}, feature: 'preconnect', newer: true, cat: 'look', name: 'Connect ahead to links', phrases: 'preconnect faster links load speed up hover link prefetch connect early pointer rest on link allow list sites', manual: true,
       what: 'When you rest the pointer on a link, Vex opens the network connection to that site ahead of the click so the page starts faster. On an existing profile it starts off; turn it on in Settings > Links and windows.' },
-    { id: 'mini-window', feature: 'mini-window', newer: true, cat: 'tabs', name: 'Links from other programs in a small window', phrases: 'open link from other app small window mini window links from email chat apps popup window external links auto close', manual: true,
+    { id: 'mini-window', setting: {"section":"setting-links-windows","label":"Links and windows"}, feature: 'mini-window', newer: true, cat: 'tabs', name: 'Links from other programs in a small window', phrases: 'open link from other app small window mini window links from email chat apps popup window external links auto close', manual: true,
       what: 'Opens a link handed to Vex by another program in a small window instead of a full tab, and can close that window after a set number of minutes. On an existing profile it starts off; turn it on in Settings > Links and windows.' },
-    { id: 'jump-list', feature: 'jump-list', newer: true, cat: 'tabs', name: 'Taskbar actions', phrases: 'taskbar right click jump list new note new workspace reopen last closed tab quick capture windows taskbar shortcuts', manual: true,
+    { id: 'jump-list', setting: {"section":"setting-links-windows","label":"Links and windows"}, feature: 'jump-list', newer: true, cat: 'tabs', name: 'Taskbar actions', phrases: 'taskbar right click jump list new note new workspace reopen last closed tab quick capture windows taskbar shortcuts', manual: true,
       what: 'Adds actions to the menu you get by right-clicking Vex on the Windows taskbar: New note, New workspace, Reopen last closed tab and Quick capture. On an existing profile it starts off; turn it on in Settings > Links and windows.' },
     { id: 'window-set', feature: 'window-set', newer: true, cat: 'tabs', name: 'Remember my windows', phrases: 'restore windows reopen closed window remember window size position open as app windows come back after restart window layout', cmd: 'reopen-window',
       what: 'Brings back the windows you had last time, with their sizes and places, including Open as App windows. Ctrl+K, "Reopen closed window" brings back the latest closed one. On an existing profile it starts off; turn it on in Settings > Links and windows.' },
@@ -1192,9 +1194,9 @@ const VexFeatures = {
       what: 'Keeps only the sentences in new patch notes that name a hero, item or word on your watch list, quoted word for word, up to five per patch. Open it with Ctrl+K: Patch digest. On an existing profile it starts off; turn it on in Settings > Games and media.' },
     { id: 'service-check', feature: 'service-check', newer: true, cat: 'media', name: 'Is it me or the game?', phrases: 'is it down outage status server down lag internet problem discord down roblox down game not loading connection check', cmd: 'service-check',
       what: 'Ctrl+K answers whether a problem is your connection or the service itself. It reads the status pages you list and times a connection to a few public hosts, then gives one sentence. On an existing profile it starts off; turn it on in Settings > Games and media.' },
-    { id: 'panel-guard', feature: 'panel-guard', newer: true, cat: 'media', name: 'Per-panel processor guard', phrases: 'game lag fps cpu usage sidebar panel heavy background panel sleep panel game performance slow while gaming', manual: true,
+    { setting: { section: 'setting-panel-guard', label: 'Per-panel processor guard' }, id: 'panel-guard', feature: 'panel-guard', newer: true, cat: 'media', name: 'Per-panel processor guard', phrases: 'game lag fps cpu usage sidebar panel heavy background panel sleep panel game performance slow while gaming', manual: true,
       what: 'While a game runs, Vex watches how much processor its own side panels use. It puts the heaviest hidden one to sleep if it stays over a limit. On an existing profile it starts off; turn it on in Settings > Games and media.' },
-    { id: 'net-courtesy', feature: 'net-courtesy', newer: true, cat: 'media', name: 'Network courtesy mode', phrases: 'game ping lag downloads pause download during game bandwidth network usage data used gaming internet slow', manual: true,
+    { setting: { section: 'setting-net-courtesy', label: 'Network courtesy mode' }, id: 'net-courtesy', feature: 'net-courtesy', newer: true, cat: 'media', name: 'Network courtesy mode', phrases: 'game ping lag downloads pause download during game bandwidth network usage data used gaming internet slow', manual: true,
       what: 'While a game runs, Vex pauses its own downloads and tells you afterwards how much network Vex used. When the game ends it resumes the ones it paused. An opt-in switch also keeps playing YouTube videos in background tabs at a low quality. On an existing profile it starts off; turn it on in Settings > Games and media.' },
     { id: 'video-later', feature: 'video-later', newer: true, cat: 'media', name: 'Video watch-later', phrases: 'watch later save video youtube later video queue resume video where i stopped video progress video length minutes left', cmd: 'video-later-save',
       what: 'Saves the video playing in the front tab into Read Later with its length, channel and how far you got. Use Ctrl+K: Save this video for later, Update progress, or Videos to watch. On an existing profile it starts off; turn it on in Settings > Games and media.' },
@@ -1238,7 +1240,7 @@ const VexFeatures = {
       what: 'Ready-made starting points for the page watcher: seats available, fare below your figure, new lowest price, and sale date. Ctrl+K: Remind Me Before This Ends sets a reminder with a link back to the page. On an existing profile it starts off; turn it on in Settings > Watch templates.' },
     { id: 'game-holds', feature: 'game-holds', newer: true, cat: 'media', name: 'Held while you played', phrases: 'missed notifications while gaming game mode messages what did i miss after game toasts held back announcement filter maintenance patch', cmd: 'game-holds', setting: { section: 'vex-sg-game-holds', label: 'Held while you played' },
       what: 'After a Game mode session, one list of the Vex messages held while you played. Open it with Ctrl+K: Held while you played. On an existing profile it starts off; turn it on in Settings > Held while you played.' },
-    { id: 'brief-cards', feature: 'brief-cards', newer: true, cat: 'unique', name: 'Brief cards', phrases: 'morning brief new tab cards permission summary service status old highlight flagged pages weather warning page changed outage card', manual: true,
+    { id: 'brief-cards', setting: {"section":"vex-sg-brief-cards","label":"Brief cards"}, feature: 'brief-cards', newer: true, cat: 'unique', name: 'Brief cards', phrases: 'morning brief new tab cards permission summary service status old highlight flagged pages weather warning page changed outage card', manual: true,
       what: 'Four small New Tab and Morning Brief cards: permission summary, service status, an old highlight to revisit, and pages you flagged that changed. On an existing profile it starts off; turn it on in Settings > Brief cards.' },
   ],
 
@@ -1369,7 +1371,9 @@ const VexFeatures = {
     if (!item) return [];
     const out = [];
     if (item.panel) out.push({ act: 'panel', label: 'Open panel' });
-    if (this.command(item)) out.push({ act: 'command', label: item.openLabel || 'Run command' });
+    // A switched-off feature often has no live command yet (it registers it when it is on). The button stays:
+    // pressing it introduces the feature and offers to turn it on (VexActivation in js/feature-catalog.js).
+    if (this.command(item) || (item.cmd && this.offState(item))) out.push({ act: 'command', label: item.openLabel || 'Run command' });
     if (item.setting && (item.setting.id || item.setting.section)) out.push({ act: 'settings', label: 'Open settings' });
     if (item.sel) out.push({ act: 'show', label: 'Show me' });
     return out;
@@ -1389,6 +1393,19 @@ const VexFeatures = {
   // to switch themselves on.
   offState(item) {
     if (!item) return null;
+    const usage = typeof VexUsage !== 'undefined' ? VexUsage : null;
+    const featureId = item.feature || item.id;
+    const registered = usage && typeof usage.get === 'function' && usage.get(featureId);
+    if (registered && !usage.isEnabled(featureId)) {
+      return {
+        reason: 'This feature is switched off',
+        enable: async () => {
+          if (typeof VexMinimalMode !== 'undefined' && VexMinimalMode.isOn()) throw new Error('Leave Minimal Vex before turning this feature on');
+          await usage.enable(featureId);
+          if (!usage.isEnabled(featureId)) throw new Error('This feature is still held off. Check its Settings and quiet modes.');
+        },
+      };
+    }
     if (item.panel) {
       let ov = {};
       try { ov = JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}') || {}; } catch { ov = {}; }
@@ -1402,7 +1419,7 @@ const VexFeatures = {
         };
       }
     }
-    if (item.setting && item.setting.id) {
+    if (!registered && item.setting && item.setting.id) {
       const box = document.getElementById(item.setting.id);
       if (box && box.type === 'checkbox' && !box.checked) {
         return {
@@ -1464,5 +1481,156 @@ const VexFeatures = {
   },
 };
 
-if (typeof window !== 'undefined') window.VexFeatures = VexFeatures;
-if (typeof module !== 'undefined' && module.exports) module.exports = { VexFeatures };
+// === Asking for a feature that is switched off ===================================
+//
+// Library, Discover, the feature search in Ctrl+K and a Ctrl+K command all used to meet a switched-off
+// feature differently: a toast that refused, a "Turn on" button that switched it on without saying what it
+// was, or nothing at all. This is the one flow they share:
+//
+//   1. a short introduction, from what Vex already knows about the feature (the catalogue sentence, the
+//      long paragraph, the how-to, the manifest's reads / writes / sends) and nothing invented;
+//   2. "Turn on and open", "Open settings" and "Cancel";
+//   3. only after "Turn on and open": the feature is switched on through its own switch (VexFeatures.offState
+//      -> enable), the result is checked, and the request the person made runs ONCE, after it is really on;
+//   4. anything that holds the feature off (Minimal Vex, a quiet mode, a prerequisite) is said as it is,
+//      and nothing is overridden.
+// Cancel, Escape and "Open settings" change nothing.
+const VexActivation = {
+  DIALOG_ID: 'vex-activation',
+  _busy: false,
+
+  // The catalogue entry for a feature id (the manifest id, or the catalogue's own), or null.
+  entryFor(featureId) {
+    if (typeof VexFeatures === 'undefined' || !featureId) return null;
+    return VexFeatures.ITEMS.find(f => f.feature === featureId) || VexFeatures.ITEMS.find(f => f.id === featureId) || null;
+  },
+
+  _manifest(id) {
+    if (typeof VexRegistry === 'undefined' || !id) return null;
+    try { return VexRegistry.get(id) || null; } catch { return null; }
+  },
+
+  // Is the feature held off by Minimal Vex rather than by its own switch?
+  _heldByMinimal(featureId) {
+    if (typeof VexUsage === 'undefined' || !featureId || typeof VexUsage.offNotice !== 'function') return false;
+    const note = VexUsage.offNotice(featureId);
+    return !!note && /Minimal Vex/.test(note);
+  },
+
+  // The plain-language introduction. -> { name, what, more, how, touches[], off, settings, maturity, heldByMinimal }
+  async describe(entry, featureId) {
+    const id = featureId || (entry && (entry.feature || entry.id)) || '';
+    if (typeof FeatureDetails === 'undefined' && typeof VexLazy !== 'undefined' && VexLazy.ensure) {
+      try { await VexLazy.ensure('js/feature-details.js'); } catch (err) { console.error('[Activation] the long descriptions could not be loaded:', err); }
+    }
+    const m = this._manifest(id) || this._manifest(entry && entry.id);
+    const name = (entry && typeof VexFeatures !== 'undefined' ? VexFeatures.nameOf(entry) : '') || (m && m.title) || id;
+    const key = entry && entry.id;
+    const details = typeof FeatureDetails !== 'undefined' && key ? FeatureDetails[key] : '';
+    const how = typeof FeatureHow !== 'undefined' && key ? FeatureHow[key] : '';
+    const ways = [];
+    if (entry && entry.cmd) ways.push('Press Ctrl+K and run “' + ((entry.openLabel) || name) + '”.');
+    if (entry && entry.panel) ways.push('Open its panel from the sidebar.');
+    if (entry && entry.setting && (entry.setting.label)) ways.push('Its controls are in Settings > ' + entry.setting.label + '.');
+    const touches = [];
+    if (m && typeof VexRegistry.permissionLines === 'function') {
+      try { touches.push(...VexRegistry.permissionLines(m.id)); } catch (err) { console.error('[Activation] the data lines could not be read:', err); }
+    }
+    return {
+      name,
+      what: (entry && entry.what) || (m && m.title) || '',
+      more: details || '',
+      how: how || ways.join(' '),
+      touches,
+      off: ((entry && entry.setting && entry.setting.label) ? 'Settings > ' + entry.setting.label + ', or ' : '') + 'Settings > Feature usage.',
+      settings: entry && entry.setting && (entry.setting.id || entry.setting.section) ? { target: entry.setting.id || entry.setting.section, label: entry.setting.label } : null,
+      maturity: m ? m.maturity : '',
+      heldByMinimal: this._heldByMinimal(id),
+    };
+  },
+
+  // Offer a switched-off feature.
+  //   entry | featureId   the catalogue entry, or the feature id of a Ctrl+K command's owner
+  //   requested           what the person asked for, for the button label ("Turn on and open Snooze")
+  //   run                 async () => the original action; called once, after the feature is really on
+  // -> 'ran' | 'enabled' | 'settings' | 'cancelled' | 'failed' | 'busy'
+  async offer({ entry, featureId, requested, run } = {}) {
+    if (typeof VexFeatures === 'undefined') throw new Error('The feature list is not loaded');
+    const e = entry || this.entryFor(featureId) || { id: featureId, feature: featureId };
+    const off = VexFeatures.offState(e);
+    if (!off) { if (run) await run(); return 'ran'; }
+    if (this._busy) return 'busy';
+    this._busy = true;
+    try {
+      const info = await this.describe(entry || this.entryFor(featureId), featureId || (e && (e.feature || e.id)));
+      return await this._dialog(e, off, info, requested, run);
+    } finally { this._busy = false; }
+  },
+
+  _dialog(e, off, info, requested, run) {
+    return new Promise((resolve) => {
+      if (typeof VexSettingsGroups === 'undefined') throw new Error('The dialog kit is not loaded');
+      const G = VexSettingsGroups;
+      const { overlay, body, close } = G.dialog({ id: this.DIALOG_ID, title: info.name + ' is switched off', sub: 'Here is what it does before you decide.' });
+      let finished = false, closingByUs = false;
+      const finish = (outcome) => { if (finished) return; finished = true; observer.disconnect(); resolve(outcome); };
+      const shut = () => { closingByUs = true; close(); };
+      // Escape and the X close the dialog from the inside; that is a Cancel.
+      const observer = new MutationObserver(() => { if (!overlay.isConnected && !closingByUs) finish('cancelled'); });
+      observer.observe(document.body, { childList: true });
+
+      const section = (title, text) => {
+        if (!text) return;
+        const h = document.createElement('div'); h.className = 'vex-platform-note'; h.style.fontWeight = '600'; h.textContent = title;
+        body.append(h, G.note(text));
+      };
+      section('What it does', [info.what, info.more].filter(Boolean).join(' '));
+      section('How to use it', info.how);
+      if (info.touches.length) section('What it touches', info.touches.join('. ') + '.');
+      if (info.maturity === 'experimental') section('Note', 'This is experimental. It stays off on every profile until you switch it on yourself.');
+      else if (info.maturity === 'new' || info.maturity === 'beta') section('Note', 'This is a newer feature, so it was not switched on for you.');
+      section('Turning it off again', info.off);
+
+      const status = G.note(''); status.setAttribute('role', 'status'); body.appendChild(status);
+      const actions = document.createElement('div'); actions.className = 'vexsr-actions';
+      const buttons = [];
+      const lock = (on) => buttons.forEach(b => { b.disabled = on; });
+
+      if (info.heldByMinimal) {
+        status.textContent = 'Minimal Vex is holding this feature off. Leave Minimal Vex to use it; nothing is switched on from here.';
+      } else {
+        buttons.push(G.button(requested ? 'Turn on and open' : 'Turn on', async () => {
+          lock(true);
+          status.textContent = 'Turning it on…';
+          try { await off.enable(); }
+          catch (err) { status.textContent = 'It could not be turned on: ' + ((err && err.message) || err); lock(false); return; }
+          const still = VexFeatures.offState(e);
+          if (still) { status.textContent = still.reason + '. Check its Settings and quiet modes; Vex did not override that.'; lock(false); return; }
+          shut();
+          window.showToast?.(info.name + ' is on', 'success');
+          if (!run) { finish('enabled'); return; }
+          try { await run(); finish('ran'); }
+          catch (err) { window.showToast?.(info.name + ' is on, but it could not open: ' + ((err && err.message) || err), 'error'); finish('failed'); }
+        }, { primary: true }));
+      }
+      if (info.settings) {
+        buttons.push(G.button('Open settings', () => {
+          shut(); finish('settings');
+          if (typeof SettingsUI === 'undefined' || typeof SettingsUI.openSection !== 'function') { window.showToast?.('Settings is not available in this window', 'error'); return; }
+          SettingsUI.openSection(info.settings.target);
+        }));
+      } else if (info.heldByMinimal) {
+        buttons.push(G.button('Open Minimal Vex settings', () => {
+          shut(); finish('settings');
+          if (typeof SettingsUI !== 'undefined' && SettingsUI.openSection) SettingsUI.openSection('setting-minimal-vex');
+        }));
+      }
+      buttons.push(G.button('Cancel', () => { shut(); finish('cancelled'); }));
+      buttons.forEach(b => actions.appendChild(b));
+      body.appendChild(actions);
+    });
+  },
+};
+
+if (typeof window !== 'undefined') { window.VexFeatures = VexFeatures; window.VexActivation = VexActivation; }
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexFeatures, VexActivation };

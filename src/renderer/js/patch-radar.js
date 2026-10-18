@@ -492,7 +492,7 @@ const ReleaseRadar = {
 
   // Look up the matched products whose answer is older than CACHE_MS. → { items, errors }
   async refresh({ force = false, now = Date.now() } = {}) {
-    if (!this.enabled()) throw new Error('The release radar is off in Settings › Workflow');
+    if (!this.enabled()) throw new Error('The release radar is off in Settings › Workflow and chains');
     if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) throw new Error('The release radar is not used in a private window');
     const used = this.usedProducts(await this._extensions(), this._watchedRepos(), now).slice(0, this.MAX_LOOKUPS);
     const st = this._state();
@@ -536,7 +536,7 @@ const ReleaseRadar = {
   },
 
   async open() {
-    if (!this.enabled()) { window.showToast?.('The release radar is off in Settings › Workflow', 'info'); return; }
+    if (!this.enabled()) { window.showToast?.('The release radar is off in Settings › Workflow and chains', 'info'); return; }
     document.getElementById('vex-relradar')?.remove();
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
     const m = document.createElement('div');
@@ -617,7 +617,6 @@ const ReleaseRadar = {
   render(box) {
     box.appendChild(window.VexWorkflow.toggleRow('Release radar: what is new in the tools I use', 'only tools your history, extensions or GitHub watches show', this.enabled(), (on) => {
       if (!window.VexWorkflow.setPref('releaseRadar', on)) window.showToast?.('The choice could not be saved', 'error');
-      this.init();
     }));
     box.appendChild(window.VexWorkflow.toggleRow('Check by itself every six hours', 'off by default; asks GitHub only after you have agreed once', this.backgroundOn(), (on) => {
       if (!window.VexWorkflow.setPref('releaseRadarBackground', on)) window.showToast?.('The choice could not be saved', 'error');
@@ -643,6 +642,7 @@ const ReleaseRadar = {
 };
 
 if (!!window.VexWorkflow) {
+  window.VexWorkflow.onPref('releaseRadar', () => ReleaseRadar.init());
   window.VexWorkflow.register({
     id: 'releaseRadar', title: 'Release radar', icon: 'rocket',
     render: (box) => ReleaseRadar.render(box),

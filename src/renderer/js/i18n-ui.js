@@ -39,6 +39,12 @@ const VexI18nUI = {
   // English.
   TABLE: {
     tr: {
+      // --- feature audit 2026-10 ---
+      'Keep This Tab Awake…': 'Bu sekmeyi uyanık tut…',
+      'Knowledge: show-me-where citations': 'Bilgi: kaynağı göster alıntıları',
+      'Long documents': 'Uzun belgeler',
+      'Sign-in: why you were signed out': 'Oturum: neden çıkış yapıldı',
+      'Volume: kept per site': 'Ses: site başına saklanan',
       // --- Wave 5 headings, chips and commands ---
       'Go to a higher level of this address': 'Bu adresin üst düzeyine git',
       'Move this tab to a new window': 'Bu sekmeyi yeni pencereye taşı',

@@ -272,7 +272,7 @@ const GameChecklist = {
       lab.appendChild(box);
       add(lab, 'span', null, it.text);
     }
-    if (!items.length) add(root, 'div', 'gc-check', 'Your list is empty. Add things to it in Settings › Game mode.');
+    if (!items.length) add(root, 'div', 'gc-check', 'Your list is empty. Add things to it in Settings › Game mode helpers.');
     for (const c of this.checks()) add(root, 'div', 'gc-check', (c.ok ? 'Fine: ' : 'Look at: ') + c.text);
     // Study minutes against game minutes, and the patch and server line: each only when switched on.
     const line = (c) => add(root, 'div', 'gc-check', (c.ok ? 'Fine: ' : 'Look at: ') + c.text);

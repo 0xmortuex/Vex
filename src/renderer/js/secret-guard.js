@@ -103,6 +103,8 @@ const SecretGuard = {
     if (typeof WebviewManager === 'undefined') return;
     for (const wv of WebviewManager.webviews.values()) this.push(wv);
   },
+  // Runs on every route that flips the switch (DevDeskUtil.switchFor): the open pages are told, the command follows.
+  followEnabled() { this.pushAll(); this.registerCommands(); },
   // The page held a paste: ask, then tell it what to do.
   async onPaste(webview, msg) {
     if (!msg || typeof msg !== 'object' || !Number.isInteger(msg.id) || !Array.isArray(msg.kinds)) return;
@@ -164,7 +166,7 @@ const SecretGuard = {
     const S = VexSettingsGroup;
     const redraw = () => VexSettingsGroup.refresh('setting-dev-desk');
     body.appendChild(S.note('Secret paste guard: holds a paste that contains an API key, token, private key or @everyone on a site that is not on your allowed list, and the same check on Vex AI prompts, and offers a redacted copy. The secret itself is never logged or stored.'));
-    body.appendChild(S.toggle('Secret paste guard', this.enabled(), (on) => { this.setEnabled(on); this.pushAll(); this.registerCommands(); redraw(); }));
+    body.appendChild(S.toggle('Secret paste guard', this.enabled(), (on) => { this.setEnabled(on); redraw(); }));
     if (!this.enabled()) return;
     for (const h of this.allowed()) {
       const row = DevDeskUtil.el('div', 'setting-toggle-row');

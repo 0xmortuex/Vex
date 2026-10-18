@@ -304,7 +304,7 @@ if (typeof window !== 'undefined') {
     });
   }
   if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
-    VexExtras.registerCommand({ id: 'study-block', label: 'Study Block', hint: 'Start or end a study session with an allowlist', icon: 'graduation', action: () => { if (typeof SettingsUI !== 'undefined' && SettingsUI.openSection) SettingsUI.openSection('Study block'); } });
+    VexExtras.registerCommand({ id: 'study-block', label: 'Study Block', hint: 'Start or end a study session with an allowlist', icon: 'graduation', action: () => { if (typeof SettingsUI !== 'undefined' && SettingsUI.openSection) SettingsUI.openSection('vex-sg-study-block'); } });
   }
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexStudyBlock };

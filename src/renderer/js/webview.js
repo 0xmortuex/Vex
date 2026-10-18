@@ -773,9 +773,10 @@ const WebviewManager = {
           } else if (cmd.type === 'handoff-open' || cmd.type === 'handoff-dismiss') {
             // A card for a tab sent from another device (js/handoff.js).
             if (typeof Handoff !== 'undefined') Handoff.onStartCommand(cmd, webview);
-          } else if (typeof cmd.type === 'string' && cmd.type.startsWith('brief-')) {
+          } else if (typeof cmd.type === 'string' && typeof VexBrief !== 'undefined' && VexBrief.isStartCommand(cmd.type)) {
             // A button in the Morning Brief on the New Tab page (js/brief.js
-            // accepts only what its last snapshot offered).
+            // accepts only what its last snapshot offered). Its sections also draw "autopilot-open" and
+            // "command" buttons, which this branch used to drop without a word.
             if (typeof VexBrief !== 'undefined') VexBrief.onStartCommand(cmd, webview);
           }
         } catch (err) {

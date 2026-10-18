@@ -103,7 +103,12 @@ function aiPrefs(key, defaults, area) {
     },
     save(s) { localStorage.setItem(key, JSON.stringify(s)); },
     enabled() { return this.state().enabled !== false; },
-    setEnabled(on) { const s = this.state(); s.enabled = !!on; this.save(s); },
+    // Every route that flips the switch (the Settings box, Library's Turn on, Discover, Feature usage)
+    // brings the module's commands with it, not only the Settings box.
+    setEnabled(on) {
+      const s = this.state(); s.enabled = !!on; this.save(s);
+      if (typeof this.registerCommands === 'function') this.registerCommands();
+    },
   };
 }
 
@@ -1082,7 +1087,7 @@ const AiJudgementUI = {
       l.className = 'vex-platform-note';
       const box = document.createElement('input');
       box.type = 'checkbox'; box.checked = mod.enabled();
-      box.addEventListener('change', () => { try { mod.setEnabled(box.checked); if (mod.registerCommands) mod.registerCommands(); } catch (err) { aiFail(label, err); } });
+      box.addEventListener('change', () => { try { mod.setEnabled(box.checked); } catch (err) { aiFail(label, err); } });
       l.append(box, document.createTextNode(' ' + label));
       el.appendChild(l);
     }

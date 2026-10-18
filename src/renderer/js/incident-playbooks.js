@@ -149,6 +149,7 @@ const VexIncident = {
   list() { return [...Object.entries(this.PLAYBOOKS), ...Object.entries(this._pack)].map(([id, p]) => ({ id, title: p.title, sub: p.sub, ...this.progress(id) })); },
 
   async open(playbook = null) {
+    if (!this.enabled()) throw new Error('The checklists are switched off. Turn them on in Settings > If something went wrong.');
     if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
     if (!playbook) return this.openChooser();
     const pb = this.get(playbook);
@@ -218,7 +219,11 @@ const VexIncident = {
 
   group(el) {
     el.appendChild(VexSettingsGroups.note('Step-by-step checklists for "I clicked something" and "an account of mine was taken over". They run real Vex actions where they can and tell you what to do yourself where they cannot. Nothing is scanned or sent.'));
-    el.appendChild(VexSettingsGroups.button('Open the checklists', () => this.openChooser(), { primary: true }));
+    el.appendChild(VexSettingsGroup.toggle('Use the checklists', this.enabled(), (on) => {
+      this.setEnabled(on);
+      if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
+    }, 'off turns the Ctrl+K command off too'));
+    el.appendChild(VexSettingsGroups.button('Open the checklists', () => this.open().catch(err => window.showToast?.(err.message, 'error')), { primary: true }));
   },
 };
 

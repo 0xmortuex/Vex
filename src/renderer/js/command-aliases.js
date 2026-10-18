@@ -171,7 +171,8 @@ const VexAliases = {
 
   // `typed` is what was in the box when `item` was run; `index` the row it was.
   learn(typed, item, commands, index) {
-    if (!this.prefs().learn) return null;
+    // Off means off: nothing typed is recorded, and no shortcut is made or announced.
+    if (!this.prefs().enabled || !this.prefs().learn) return null;
     const w = this.normalize(typed);
     if (!this.NAME.test(w) || !item || !item.id || this.NOT_COMMANDS.has(item.id)) return null;
     const cmds = commands || this._commands();

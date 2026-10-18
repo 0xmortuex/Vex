@@ -416,7 +416,7 @@ const SitePlayback = {
   async toggleLevel() {
     const tab = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
     if (!tab || !/^https?:\/\//i.test(tab.url || '')) throw new Error('Open a page that plays something first');
-    if (!this.enabled()) throw new Error('Turn on "Volume kept per site" in Settings first');
+    if (!this.enabled()) throw new Error('Turn on "Remember the volume for each site" in Settings > Volume first');
     const on = !((this.forHost(tab.url) || {}).level);
     this.setLevel(tab.url, on);
     const wv = WebviewManager.webviews.get(tab.id);

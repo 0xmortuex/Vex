@@ -12,7 +12,8 @@ describe('docs/FEATURES.md', () => {
   it('has a line for every feature manifest', () => {
     expect(built.missing).toEqual([]);
     for (const m of built.manifests) expect(built.text, m.id).toContain('(`' + m.id + '`)');
-    expect(built.total).toBe(built.manifests.length);
+    expect(built.total).toBe(built.catalog.length);
+    for (const item of built.catalog) expect(built.text, item.id).toContain('(`' + item.id + '`)');
   });
 
   it('is the file the generator would write now', () => {
@@ -23,7 +24,7 @@ describe('docs/FEATURES.md', () => {
   it('says how to open or turn on every feature and has no emoji', () => {
     expect(built.text).not.toMatch(/\p{Extended_Pictographic}/u);
     const blocks = built.text.split('\n- **').slice(1);
-    expect(blocks.length).toBe(built.manifests.length);
+    expect(blocks.length).toBe(built.catalog.length);
     for (const b of blocks) expect(b, b.slice(0, 40)).toMatch(/\n {2}- Open: /);
   });
 

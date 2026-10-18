@@ -203,7 +203,6 @@ const FocusProfiles = {
   render(box) {
     box.appendChild(window.VexWorkflow.toggleRow('Switch focus profiles by itself', 'by weekday, time, or a running game', this.enabled(), (on) => {
       if (!window.VexWorkflow.setPref('focusAuto', on)) window.showToast?.('The choice could not be saved', 'error');
-      if (on) this.init();
     }));
     const note = document.createElement('div');
     note.className = 'setting-info muted';
@@ -314,6 +313,8 @@ const FocusProfiles = {
   },
 };
 
+// Switching it on starts the timed check; switching it off needs nothing: evaluate() reads enabled() itself.
+window.VexWorkflow.onPref('focusAuto', (on) => { if (on) FocusProfiles.init(); });
 window.VexWorkflow.register({
   id: 'focus', title: 'Focus profiles', icon: 'target',
   render: (box) => FocusProfiles.render(box),

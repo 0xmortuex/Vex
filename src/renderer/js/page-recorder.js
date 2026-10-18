@@ -309,7 +309,7 @@ const PageRecorder = {
 
   _requireOn() {
     if (!PageActions.available()) throw new Error('Page actions are not available in a private window');
-    if (!PageActions.enabled()) throw new Error('Page actions are turned off (Settings › Boosts)');
+    if (!PageActions.enabled()) throw new Error('Page actions are turned off (Settings › Page actions)');
   },
 
   // The scheduled path. Everything that can stop it stops it BEFORE a page is
@@ -498,7 +498,7 @@ const PageRecorder = {
     const icon = (n) => (window.VexIcons ? VexIcons.svg(n, { size: 14 }) : '');
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:10px">Do something once on a site and Vex saves it as a page action you can replay, dry-run, or schedule. Password and code fields are never recorded: they become "ask me". A scheduled run does no clicking or typing unless you approved those exact steps, and three failures in a row pause it.</p>
-      ${on ? '' : '<div class="muted" style="font-size:12px;margin-bottom:8px">Turn on page actions (Settings › Boosts) first.</div>'}
+      ${on ? '' : '<div class="muted" style="font-size:12px;margin-bottom:8px">Turn on page actions (Settings › Page actions) first.</div>'}
       ${this.killed() ? '<div class="vex-rec-killed" role="alert" style="margin-bottom:8px">The kill switch was pressed: scheduled page scripts are held. <button type="button" class="btn-secondary-sm" data-act="rearm">Allow them again</button></div>' : ''}
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <button type="button" class="btn-secondary" data-act="record" ${on && !this._rec ? '' : 'disabled'}>${icon('target')} Record the open site</button>

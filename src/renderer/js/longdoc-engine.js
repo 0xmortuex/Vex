@@ -261,4 +261,18 @@ const VexLongDoc = {
 };
 
 if (typeof window !== 'undefined') window.VexLongDoc = VexLongDoc;
+if (typeof window !== 'undefined' && typeof VexSettingsGroups !== 'undefined') {
+  VexSettingsGroups.register({
+    id: 'longdoc-engine',
+    title: 'Long documents',
+    keywords: 'long document engine read in pieces summarize thread digest local model coverage',
+    build: (el) => {
+      el.appendChild(VexSettingsGroups.note('Reads a text too long for the local model in pieces and says how much of it was covered. Thread digest and the other long-text tools use it; nothing runs until you ask one of them.'));
+      el.appendChild(VexSettingsGroup.toggle('Read long texts in pieces', VexLongDoc.enabled(), (on) => {
+        try { VexLongDoc.setEnabled(on); if (typeof VexUsage !== 'undefined') VexUsage.touch('longdoc-engine'); }
+        catch (err) { window.showToast?.(err.message, 'error'); }
+      }, 'off stops Thread digest too'));
+    },
+  });
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexLongDoc };

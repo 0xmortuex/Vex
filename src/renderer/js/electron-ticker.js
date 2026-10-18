@@ -55,6 +55,8 @@ const ElectronTicker = {
   },
   stop() { if (this._job) { this._job.stop(); this._job = null; } },
   sync() { if (this.enabled()) this.start(); else this.stop(); },
+  // Runs on every route that flips the switch (DevDeskUtil.switchFor).
+  followEnabled() { this.sync(); this.registerCommands(); },
 
   registerCommands() {
     if (typeof VexModuleCommands === 'undefined') return false;
@@ -67,7 +69,7 @@ const ElectronTicker = {
   settingsRows(body) {
     const S = VexSettingsGroup;
     body.appendChild(S.note('Electron ticker: compares the Electron this Vex runs with the newest castLabs releases (one public GitHub request every six hours, no account). A new "behind" number is a suggestion in the Attention Inbox.'));
-    body.appendChild(S.toggle('Electron ticker', this.enabled(), (on) => { this.setEnabled(on); this.sync(); this.registerCommands(); VexSettingsGroup.refresh('setting-dev-desk'); }));
+    body.appendChild(S.toggle('Electron ticker', this.enabled(), (on) => { this.setEnabled(on); VexSettingsGroup.refresh('setting-dev-desk'); }));
     if (!this.enabled()) return;
     body.appendChild(S.note(this.describe(this.last)));
     body.appendChild(S.button('Check now', () => { this.check(true).then(() => VexSettingsGroup.refresh('setting-dev-desk')).catch(err => DevDeskUtil.fail('Electron ticker', err)); }));

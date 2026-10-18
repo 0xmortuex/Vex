@@ -47,6 +47,8 @@ const VexWindowSet = {
   setEnabled(on) { this.save({ on: !!on }); },
   async reopenClosed() {
     if (!window.vex || typeof window.vex.windowsReopenClosed !== 'function') throw new Error('The window cannot reach the window list');
+    // Nothing is recorded while the switch is off, so main would only say there is nothing to bring back.
+    if (!this.enabled()) throw new Error('Remembering windows is switched off. Turn on "Remember my windows" in Settings > Links and windows.');
     const r = await window.vex.windowsReopenClosed();
     if (!r.ok) throw new Error(r.reason || 'No closed window to bring back');
     return r;
@@ -97,7 +99,9 @@ const VexLinksWindowsSettings = {
     if (VexWindowSet.enabled()) toggle('Open the Open as App windows of last time again', '', VexWindowSet.prefs().apps, (on) => VexWindowSet.save({ apps: on }));
   },
   init() {
+    if (this._inited) return;
     if (typeof VexSettingsGroups === 'undefined') throw new Error('VexSettingsGroups is not loaded');
+    this._inited = true;
     VexSettingsGroups.register({ id: this.ID, title: 'Links and windows', keywords: 'preconnect link hover mini window external discord steam jump list taskbar restore windows monitor', render: (body) => this.render(body) });
     if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
       VexExtras.registerCommand({ id: 'reopen-window', label: 'Reopen closed window', hint: 'Bring back the Open as App window you closed last', icon: 'window', action: () => VexWindowSet.reopenClosed().catch(fail => window.showToast?.(fail.message, 'error')) });
@@ -106,4 +110,8 @@ const VexLinksWindowsSettings = {
 };
 
 if (typeof window !== 'undefined') { window.VexMiniWindow = VexMiniWindow; window.VexWindowSet = VexWindowSet; window.VexLinksWindowsSettings = VexLinksWindowsSettings; }
+// This file loads after start-up (js/lazy-boot.js LATE_MODULES): app.js's own call to init() runs before it
+// exists, so nobody else starts it. Without this the "Links and windows" section and Ctrl+K "Reopen closed
+// window" were never registered. init() runs once however many callers there are.
+if (typeof window !== 'undefined' && typeof VexSettingsGroups !== 'undefined') VexLinksWindowsSettings.init();
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexMiniWindow, VexWindowSet, VexLinksWindowsSettings };

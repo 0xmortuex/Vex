@@ -89,7 +89,12 @@ const VexPlayRoom = {
         try {
           if (!window.VexMiniGames && window.VexLazy?.ensure) await window.VexLazy.ensure('js/vex-mini-games.js');
           if (!window.VexMiniGames) throw new Error('Mini games are not loaded');
-          if (!VexFun.flag('games')) VexFun.setFlag('games', true);
+          if (!VexFun.flag('games')) {
+            // A button must not switch a feature on behind the person's back.
+            const ok = await vexConfirm({ title: 'Turn on offline mini games?', message: 'Offline mini games are switched off in Settings > Play: mini games. Turn them on and open them?', okLabel: 'Turn on and open' });
+            if (!ok) return;
+            VexFun.setFlag('games', true);
+          }
           win.close(); window.VexMiniGames.open();
         } catch (err) { window.showToast?.(err.message, 'error'); }
       }));

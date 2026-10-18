@@ -234,6 +234,11 @@ const VexBrief = {
   // ---- commands from the start page ---------------------------------------
   // The page can only ask for these. Anything it names that was not in the
   // last snapshot it was given is refused.
+  // The command types a Brief button can send from the New Tab page. webview.js forwards exactly these;
+  // a type missing here is a button that does nothing (the "Open Autopilot" button did not work for that reason).
+  isStartCommand(type) {
+    return typeof type === 'string' && (type.startsWith('brief-') || type === 'autopilot-open' || type === 'command');
+  },
   async onStartCommand(cmd, webview) {
     if (!cmd || typeof cmd.type !== 'string') return;
     try {
@@ -272,8 +277,24 @@ const VexBrief = {
         // The Autopilot card's button (js/autopilot.js). Only offered when the last build listed it.
         if (!this._offered('autopilot', 'autopilot-open')) throw new Error('Autopilot is not on offer');
         if (typeof VexAutopilot === 'undefined') throw new Error('Autopilot is not loaded');
-        // Autopilot listens for this and opens its own panel (js/autopilot.js).
-        document.dispatchEvent(new CustomEvent('vex:autopilot-open'));
+        // Open its panel directly, so a failure is reported here instead of vanishing into an event listener.
+        await VexAutopilot.showPanel();
+        return;
+      }
+      if (cmd.type === 'command' && typeof cmd.id === 'string') {
+        // A button that runs a Ctrl+K command (I have 10 minutes, Open the timeline...). Only what the last build offered.
+        if (!this._offered('command', cmd.id)) throw new Error('That command is not on offer');
+        if (typeof CommandBar === 'undefined') throw new Error('Commands are not loaded');
+        const live = (CommandBar.commands || []).find(c => c.id === cmd.id);
+        if (live) { await CommandBar._execute(live); return; }
+        // Not registered: its feature is probably switched off. Introduce it rather than do nothing.
+        const owner = typeof VexRegistry !== 'undefined' ? VexRegistry.forCommand(cmd.id) : null;
+        if (!owner || typeof VexActivation === 'undefined') throw new Error('That command is not available in this window');
+        await VexActivation.offer({ featureId: owner, requested: cmd.id, run: async () => {
+          const fresh = (CommandBar.commands || []).find(c => c.id === cmd.id);
+          if (!fresh) throw new Error('That command is still not available');
+          await CommandBar._execute(fresh, { activated: true });
+        } });
         return;
       }
       if (cmd.type === 'brief-open-panel' && typeof cmd.panel === 'string') {
@@ -292,6 +313,7 @@ const VexBrief = {
       (kind === 'file' && c.type === 'brief-open-file' && c.path === value) ||
       (kind === 'action' && c.type === 'brief-action' && c.key === value) ||
       (kind === 'autopilot' && c.type === 'autopilot-open') ||
+      (kind === 'command' && c.type === 'command' && c.id === value) ||
       (kind === 'url' && c.type === 'brief-open-url' && c.url === value && /^https?:\/\//i.test(String(value))) ||
       (kind === 'panel' && c.type === 'brief-open-panel' && c.panel === value));
     return secs.some(s => (s.items || []).some(i => hit(i.cmd) || (i.actions || []).some(a => hit(a.cmd))) || hit(s.action && s.action.cmd));

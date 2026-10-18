@@ -126,6 +126,7 @@ const VexPackContent = {
     if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
     const all = this.phrases();
     const { body } = VexSettingsGroups.dialog({ id: 'vex-phrases', title: 'Phrases to copy', sub: 'Press a phrase to copy it. Square brackets are for you to fill in. Check your conference\'s own rules of procedure: they differ.' });
+    if (!this.enabled()) { body.appendChild(VexSettingsGroups.note('Holidays and phrases from packs are switched off. Turn on "Show Phrases to copy and Public holidays coming up in Ctrl+K" in Settings > Holidays and phrases from packs.')); return; }
     if (!all.length) { body.appendChild(VexSettingsGroups.note('No phrase pack is switched on. Open Vex Packs and switch on "Model UN procedure phrases".')); return; }
     const search = document.createElement('input');
     search.type = 'search';
@@ -163,6 +164,7 @@ const VexPackContent = {
     const { body } = VexSettingsGroups.dialog({ id: 'vex-holidays', title: 'Public holidays', sub: 'From the holiday pack you switched on. Dates marked "verify" follow the religious calendar: check the official announcement.' });
     const today = this.today(now);
     const rows = this.upcoming(today, 12);
+    if (!this.enabled()) { body.appendChild(VexSettingsGroups.note('Holidays and phrases from packs are switched off. Turn on "Show Phrases to copy and Public holidays coming up in Ctrl+K" in Settings > Holidays and phrases from packs.')); return; }
     if (!this.all().length) { body.appendChild(VexSettingsGroups.note('No holiday pack is switched on. Open Vex Packs and switch on "Turkish public holidays".')); return; }
     if (!rows.length) { body.appendChild(VexSettingsGroups.note('The holiday data ends before today. A newer pack is needed.')); return; }
     const hints = this.bridgeHints(today, rows[rows.length - 1].date);

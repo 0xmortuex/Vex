@@ -109,15 +109,14 @@ describe('Morning Brief adapters', () => {
 
   it('the Autopilot button only opens the panel when the last build offered it', async () => {
     const { VexBrief } = fresh('brief.js');
-    globalThis.VexAutopilot = {};
-    const opened = vi.fn();
-    document.addEventListener('vex:autopilot-open', opened);
+    const showPanel = vi.fn(async () => {});
+    globalThis.VexAutopilot = { showPanel };
     window.showToast = vi.fn();
     await VexBrief.onStartCommand({ type: 'autopilot-open' });
-    expect(opened).not.toHaveBeenCalled();
+    expect(showPanel).not.toHaveBeenCalled();
     VexBrief._last = { sections: [{ items: [], action: { label: 'Open Autopilot', cmd: { type: 'autopilot-open' } } }] };
     await VexBrief.onStartCommand({ type: 'autopilot-open' });
-    expect(opened).toHaveBeenCalledTimes(1);
+    expect(showPanel).toHaveBeenCalledTimes(1);
   });
 });
 

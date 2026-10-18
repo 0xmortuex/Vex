@@ -49,7 +49,7 @@ const VexUsageCounters = {
     let o = null;
     if (raw) {
       try { o = JSON.parse(raw); }
-      catch (err) { throw new Error('The usage counters are not readable (Settings > New for you can reset them): ' + err.message); }
+      catch (err) { throw new Error('The usage counters are not readable (Settings > Usage counts and suggestions can reset them): ' + err.message); }
     }
     const ok = o && typeof o === 'object' && o.v === 1 && o.days && typeof o.days === 'object';
     this._rec = ok ? o : { v: 1, since: this._now(), days: {} };

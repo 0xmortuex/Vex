@@ -179,7 +179,7 @@ describe('the backup before the update', () => {
     saved({ ok: true, name: 'before-2.35.0-2026-10-01-140509.json' });
     await flush(); await flush();
     expect(window.vex.updates.install).toHaveBeenCalledWith('2.35.0');
-    expect(cover().querySelector('.update-cover-status-text').textContent).toMatch(/Your data was backed up first: Settings › Backup lists it\./);
+    expect(cover().querySelector('.update-cover-status-text').textContent).toMatch(/Your data was backed up first: Settings › Backups from before updates… lists it\./);
   });
 
   it('a backup that fails stops the install and asks: Install anyway, or Cancel (focused)', async () => {

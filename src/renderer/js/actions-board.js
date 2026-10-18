@@ -135,6 +135,8 @@ const ActionsBoard = {
   },
   stop() { if (this._job) { this._job.stop(); this._job = null; } },
   sync() { if (this.enabled()) this.start(); else this.stop(); },
+  // Runs on every route that flips the switch (DevDeskUtil.switchFor).
+  followEnabled() { this.sync(); this.registerCommands(); },
 
   // ---- the board --------------------------------------------------------------------------
   open() {
@@ -192,7 +194,7 @@ const ActionsBoard = {
     const redraw = () => VexSettingsGroup.refresh('setting-dev-desk');
     const fail = (err) => DevDeskUtil.fail('Actions board', err);
     body.appendChild(S.note('Actions board: the last CI run of each listed repository, red only when it changed since you looked. Uses the GitHub read-only token (Settings > GitHub access) or public data without one.'));
-    body.appendChild(S.toggle('Actions board', this.enabled(), (on) => { this.setEnabled(on); this.sync(); this.registerCommands(); redraw(); }));
+    body.appendChild(S.toggle('Actions board', this.enabled(), (on) => { this.setEnabled(on); redraw(); }));
     if (!this.enabled()) return;
     body.appendChild(S.button('Open the board', () => { try { this.open(); } catch (err) { fail(err); } }));
     for (const r of this.state().repos) {

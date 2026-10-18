@@ -1154,7 +1154,7 @@
 
             <!-- Phase 16: Smart Tab Grouping -->
             <div class="setting-group">
-              <label class="setting-label">Smart Tab Grouping</label>
+              <label class="setting-label" id="setting-smart-tab-grouping">Smart Tab Grouping</label>
               <p class="setting-info muted" style="margin-bottom:10px">Vex AI clusters open tabs into named groups and remembers patterns so future matching tabs auto-join. Use Ctrl+Shift+G any time.</p>
               <div class="setting-toggle-row">
                 <span>Auto-suggest when 12+ tabs are ungrouped</span>
@@ -1353,8 +1353,12 @@
                   <label for="setting-weather-input" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Weather location (start-page weather)</label>
                   <div id="setting-weather-current" style="font-size:12px;color:var(--text-muted);margin-bottom:6px"></div>
                   <div style="display:flex;gap:8px">
-                    <input type="text" id="setting-weather-input" class="set-input" placeholder="e.g. Ataşehir or Istanbul" autocomplete="off" spellcheck="false" style="flex:1">
+                    <input type="text" id="setting-weather-input" class="set-input" placeholder="e.g. Ataşehir, Istanbul or 34852" autocomplete="off" spellcheck="false" style="flex:1">
                     <button id="setting-weather-search" class="btn-secondary" style="white-space:nowrap">Search</button>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+                    <label for="setting-weather-country" style="font-size:12px;color:var(--text-muted)">Country</label>
+                    <select id="setting-weather-country" class="set-input" style="max-width:240px"></select>
                   </div>
                   <div id="setting-weather-results" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
                   <div id="setting-weather-status" style="font-size:11.5px;color:var(--text-muted);margin-top:6px;min-height:15px"></div>

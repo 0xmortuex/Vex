@@ -433,7 +433,7 @@ const UpdateNotifier = {
 
   async _install(info, backedUp) {
     this._setPhase('installing', 'Closing Vex to install the update. Your tabs are saved, and Vex opens again by itself when it is done.'
-      + (backedUp ? ' Your data was backed up first: Settings › Backup lists it.' : ''));
+      + (backedUp ? ' Your data was backed up first: Settings › Backups from before updates… lists it.' : ''));
     // vex.lastSeenVersion is left as it is: on the new version, the short
     // "What's new" card (update-log.js) names the highlights once the
     // features are there to try. It used to be set here, so an update from

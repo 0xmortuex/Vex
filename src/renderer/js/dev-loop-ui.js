@@ -115,7 +115,7 @@ const DevLoopUI = {
     const repos = DevLoopRepos.list();
     const bar = this._row();
     bar.append(
-      this._btn('Check now', async () => { const r = await CiFixLoop.checkAll(); window.showToast?.(r.length ? r.length + ' new failed run(s)' : 'No new failed runs'); this.draw(); }),
+      this._btn('Check now', async () => { if (typeof GitHubVault !== 'undefined' && !GitHubVault.enabled()) throw new Error('GitHub access is switched off. Turn it on in Settings > GitHub access first.'); const r = await CiFixLoop.checkAll(); window.showToast?.(r.length ? r.length + ' new failed run(s)' : 'No new failed runs'); this.draw(); }),
       ...repos.slice(0, 6).map(repo => this._btn('Latest failure of ' + repo.split('/')[1], async () => {
         const c = await CiFixLoop.inspectLatest(repo);
         window.showToast?.(c ? 'Read the latest failed run of ' + repo : repo + ' has no failed runs');
@@ -242,7 +242,7 @@ const DevLoopUI = {
     keys.setAttribute('aria-label', 'Key packages, separated by commas');
     host.append(
       this._row(keys, this._btn('Save packages', () => { DependencyRadar.setKeys(keys.value.split(',')); window.showToast?.('Saved'); })),
-      this._row(this._btn('Scan now', async () => { await DependencyRadar.scanAll(); this.draw(); }, { primary: true }), this._el('span', 'vexsr-mode', DependencyRadar.summaryText())),
+      this._row(this._btn('Scan now', async () => { if (typeof GitHubVault !== 'undefined' && !GitHubVault.enabled()) throw new Error('GitHub access is switched off. Turn it on in Settings > GitHub access first.'); await DependencyRadar.scanAll(); this.draw(); }, { primary: true }), this._el('span', 'vexsr-mode', DependencyRadar.summaryText())),
     );
     const wrap = this._el('div', 'vexsr-list');
     for (const r of Object.values(DependencyRadar.state().results)) {

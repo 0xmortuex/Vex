@@ -68,7 +68,8 @@ const ALLOWED_LINES = [
 
 const read = (rel) => fs.readFileSync(path.join(renderer, rel), 'utf8');
 const isComment = (line) => /^\s*(\/\/|\/\*|\*)/.test(line);
-const PICTOGRAPHIC = /\p{Extended_Pictographic}/u;
+// © ® ™ are ordinary in prose (the OpenStreetMap credit needs the first); everything else pictographic still fails.
+const PICTOGRAPHIC = /(?![\u00A9\u00AE\u2122])\p{Extended_Pictographic}/u;
 
 describe('VexIcons', () => {
   it('draws every icon on the same 24x24 grid, stroked in currentColor', () => {

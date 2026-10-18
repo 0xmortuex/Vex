@@ -106,3 +106,35 @@ describe('decorate()', () => {
     expect(el.querySelector('.preview-intent')).toBe(null);
   });
 });
+
+describe('tab reason Settings entry points', () => {
+  it('exposes the command switch next to revisit reminders, without enabling it implicitly', async () => {
+    const { VexTabReason: R } = fresh(JS + 'tab-reason.js');
+    window.VexSettingsGroup = fresh(JS + 'settings-group.js').VexSettingsGroup;
+    I.setEnabled(false);
+    const body = document.createElement('div');
+    R.buildSettings(body);
+    const master = body.querySelector('[data-tab-intent-switch]');
+    expect(master.checked).toBe(false);
+    expect(body.querySelector('input[aria-label="Ask about a tab I come back to after a while"]').checked).toBe(true);
+    expect(I.enabled()).toBe(false);
+    window.showToast = vi.fn();
+    await I.askWhy();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringContaining('Show tab origins and written reasons'), 'info');
+  });
+
+  it('keeps both command switches synchronized and does not change reminder preferences', () => {
+    const { VexTabReason: R } = fresh(JS + 'tab-reason.js');
+    window.VexSettingsGroup = fresh(JS + 'settings-group.js').VexSettingsGroup;
+    R.savePrefs({ revisit: false, days: 12 }); I.setEnabled(false);
+    const one = document.createElement('div'), two = document.createElement('div');
+    document.body.append(one, two); R.buildSettings(one); I.controls(two);
+    const first = one.querySelector('[data-tab-intent-switch]'), second = two.querySelector('[data-tab-intent-switch]');
+    first.checked = true; first.dispatchEvent(new Event('change'));
+    expect(I.enabled()).toBe(true); expect(second.checked).toBe(true);
+    second.checked = false; second.dispatchEvent(new Event('change'));
+    expect(I.enabled()).toBe(false); expect(first.checked).toBe(false);
+    expect(R.prefs()).toEqual({ revisit: false, days: 12 });
+    one.remove(); two.remove();
+  });
+});

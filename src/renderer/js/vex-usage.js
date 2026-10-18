@@ -156,6 +156,11 @@ const VexUsage = {
     const rec = state.features[id] || (state.features[id] = { first: t, last: t, n: 0 });
     rec.last = t;
     rec.n += 1;
+    // A feature held off here (staged enablement, or the dashboard) that is on again because the person
+    // used its OWN Settings switch, or any other route that does not go through enable(): the mark is
+    // stale. Left in place, register() switches the feature off again at the next start.
+    const feature = this._features.get(id);
+    if (state.off[id] && feature.isEnabled && this._isOn(feature)) delete state.off[id];
     this._saveSoon();
     if (typeof VexUsageCounters !== 'undefined') VexUsageCounters.note(id, 'opened');   // js/usage-counters.js: local counts
     if (rec.n === 1 && typeof VexFeatureSheet !== 'undefined') VexFeatureSheet.firstUse(id);   // js/feature-sheet.js: what a new feature touches
@@ -163,6 +168,18 @@ const VexUsage = {
   },
 
   // ---- state ------------------------------------------------------------------
+  // The words for a command that was run while its feature is off, or null when the feature is on (or
+  // is not a feature the registry knows). One answer for every command a manifest lists: command.js
+  // asks before it runs one. The way back named here always exists: Feature usage lists every
+  // registered feature whatever its own Settings section shows.
+  offNotice(id) {
+    const f = this._features.get(id);
+    if (!f || this._isOn(f)) return null;
+    return this._forcedHidden.has(id)
+      ? f.title + ' is held off by Minimal Vex. Leave Minimal Vex to use it.'
+      : f.title + ' is switched off. Turn it on in Settings > Feature usage.';
+  },
+
   // Is the feature on? Its own answer when it gives one; otherwise "on unless
   // the person switched it off here".
   _isOn(feature) {
@@ -274,22 +291,29 @@ const VexUsage = {
     const label = group.querySelector(':scope > .setting-label') || group.querySelector('.setting-label, h3, h2');
     return label ? String(label.textContent || '').trim().toLowerCase() : '';
   },
-  // Hides every Settings section whose heading starts with the `group` of a
-  // hidden feature, and shows the ones that are no longer hidden. A section
-  // that is shown again is exactly as it was: only a class comes and goes.
+  // Hides a Settings section when EVERY feature that belongs to it is hidden, and shows the ones
+  // that are no longer hidden. A section that is shown again is exactly as it was: only a class
+  // comes and goes. Two rules keep a section from taking a sibling's switches with it:
+  //   * a heading belongs to the most specific `group` it starts with ("Holidays" must not claim
+  //     "Holidays and phrases from packs", nor "Play" the "Playfulness" section);
+  //   * several features share a section: it stays while any one of them is still on.
   applyGroups(root) {
     if (typeof document === 'undefined') return;
     const scope = root || document.querySelector('#panel-settings .settings-content');
     if (!scope) return;
     const hidden = this._hiddenIds();
-    const wanted = [];
-    for (const id of hidden) {
-      const f = this._features.get(id);
-      if (f && f.group) wanted.push(f.group.toLowerCase());
+    const byGroup = new Map();
+    for (const f of this._features.values()) {
+      if (!f.group) continue;
+      const key = f.group.toLowerCase();
+      if (!byGroup.has(key)) byGroup.set(key, []);
+      byGroup.get(key).push(f);
     }
     scope.querySelectorAll('.setting-group').forEach(g => {
       const heading = this._heading(g);
-      const hide = !!heading && wanted.some(w => heading.startsWith(w));
+      let best = '';
+      if (heading) for (const key of byGroup.keys()) if (heading.startsWith(key) && key.length > best.length) best = key;
+      const hide = !!best && byGroup.get(best).every(f => hidden.has(f.id));
       g.classList.toggle('vex-usage-hidden', hide);
     });
   },

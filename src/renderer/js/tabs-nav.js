@@ -355,7 +355,7 @@
   }
   // The words selected on the page in front, searched with the engine you chose, in a new tab.
   async function searchSelection() {
-    if (!on('addressExtras')) throw new Error('Turn on "Address bar extras" in Settings > Tabs and navigation first');
+    if (!on('addressExtras')) throw new Error('Turn on "Tabs and navigation extras" and then "Address bar extras" in Settings > Tabs and navigation first');
     if (typeof TabManager === 'undefined' || typeof WebviewManager === 'undefined') throw new Error('Tabs are not loaded');
     const wv = WebviewManager.webviews.get(TabManager.activeTabId);
     if (!wv) throw new Error('Open a page first');
@@ -549,6 +549,8 @@
   }
   async function setKeepOnTop(value) {
     if (isPrivateWindow()) throw new Error('Keep on top is set from a normal window');
+    // The master switch gates it (syncOnTop wants enabled() && keepOnTop): saying "Vex stays on top" while that is off was untrue.
+    if (value && !enabled()) throw new Error('Turn on "Tabs and navigation extras" in Settings > Tabs and navigation first, then Keep Vex on top');
     setPref('keepOnTop', !!value);
     const s = await syncOnTop();
     if (typeof window !== 'undefined' && window.showToast) {

@@ -301,7 +301,7 @@ const PageActions = {
 
   async run(id, { auto = false } = {}) {
     const state = this._load();
-    if (!state.enabled || !this.available()) throw new Error('Page actions are turned off (Settings › Boosts)');
+    if (!state.enabled || !this.available()) throw new Error('Page actions are turned off (Settings › Page actions)');
     if (typeof id === 'string' && id.startsWith('pack:') && auto) throw new Error('A pack\'s page action only runs when you choose it');
     const s = (typeof id === 'string' && id.startsWith('pack:')) ? this._pack.get(id) : state.scripts.find(x => x.id === id);
     if (!s) throw new Error('That script no longer exists');

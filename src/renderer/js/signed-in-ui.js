@@ -29,7 +29,10 @@ const VexSignedIn = {
     TabManager.createTab(url, true);
   },
 
+  _needOn() { if (!this.enabled()) throw new Error('What am I signed in to is switched off. Turn it on in Settings > What am I signed in to.'); },
+
   async open() {
+    this._needOn();
     if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
     const { body } = VexSettingsGroups.dialog({ id: 'vex-signed-in', title: 'What am I signed in to', sub: 'Sites with a sign-in cookie in Vex. Only cookie names and dates are read, never their values or your passwords.' });
     body.appendChild(VexSettingsGroups.note('Loading...'));
@@ -71,6 +74,7 @@ const VexSignedIn = {
 
   // Asks for a site by name (the playbook's first step and the Ctrl+K command).
   async killPrompt() {
+    this._needOn();
     const tab = typeof TabManager !== 'undefined' && TabManager.getActiveTab ? TabManager.getActiveTab() : null;
     let start = '';
     try { start = new URL(tab && tab.url).hostname.replace(/^www\./, ''); } catch { start = ''; }   // vex-allow-empty-catch: no web page open; the box just starts empty
@@ -138,6 +142,10 @@ const VexSignedIn = {
 
   group(el) {
     el.appendChild(VexSettingsGroups.note('A read-only list of the sites you look signed in to (cookie names and dates only) with a button to clear one site everywhere and be walked through ending its session.'));
+    el.appendChild(VexSettingsGroup.toggle('Use this tool', this.enabled(), (on) => {
+      this.setEnabled(on);
+      if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
+    }, 'off turns the two Ctrl+K commands off too'));
     el.appendChild(VexSettingsGroups.button('What am I signed in to', () => this.open().catch(err => window.showToast?.(err.message, 'error')), { primary: true }));
     el.appendChild(VexSettingsGroups.button('My session leaked', () => this.killPrompt().catch(err => window.showToast?.(err.message, 'error')), { danger: true }));
   },

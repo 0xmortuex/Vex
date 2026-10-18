@@ -37,6 +37,8 @@ const VexVaultHygiene = {
     'aol.com': ['aol'], 'gmx.com': ['gmx'], 'gmx.net': ['gmx'], 'zoho.com': ['zoho'], 'yandex.com': ['yandex'], 'mail.ru': ['mail'],
   },
   rollupEnabled() { try { return this.enabled() && localStorage.getItem(this.ROLL_KEY) !== 'off'; } catch (err) { throw new Error('Could not read the weekly safety check switch: ' + err.message, { cause: err }); } },
+  // The person's own choice for the weekly check, whatever the master switch says (the switch in Settings shows this).
+  rollupPreference() { try { return localStorage.getItem(this.ROLL_KEY) !== 'off'; } catch (err) { throw new Error('Could not read the weekly safety check switch: ' + err.message, { cause: err }); } },
   setRollupEnabled(on) { localStorage.setItem(this.ROLL_KEY, on ? 'on' : 'off'); return !!on; },
 
   enabled() { try { return localStorage.getItem(this.KEY) !== 'off'; } catch { return true; } },

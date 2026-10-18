@@ -519,6 +519,7 @@ const Knowledge = {
       if (!q) { list.textContent = ''; say(''); return; }
       say('Searching…');
       try {
+        if (!this.enabled()) throw new Error('The knowledge base index is switched off, so there is nothing to search. Turn on “Index what I keep” in Settings › Knowledge base.');
         const r = await this.search(q);
         if (mine !== seq || !ov.isConnected) return;
         say((r.when ? 'From ' + r.when + '. ' : '') + (r.mode === 'meaning' ? 'Matched by words and by meaning.' : 'Matched by words.') + (r.semanticError ? ' ' + r.semanticError : ''), false);
@@ -569,6 +570,7 @@ const Knowledge = {
     const runRelated = async () => {
       say('Looking for what you kept that relates to this page…');
       try {
+        if (!this.enabled()) throw new Error('The knowledge base index is switched off, so there is nothing to relate. Turn on “Index what I keep” in Settings › Knowledge base.');
         const page = await this._pageText();
         const r = await this.relatedBlock(page, { limit: 8 });
         answerBox.hidden = true;

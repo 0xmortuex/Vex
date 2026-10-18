@@ -126,3 +126,19 @@ describe('what each button does', () => {
     expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/Unknown action/), 'error');
   });
 });
+
+describe('Library commands respect the shared command dispatcher', () => {
+  it('opens GitHub desk through the dispatcher rather than calling its action directly', async () => {
+    const feature = VexFeatures.get('brief-github-desk');
+    expect(feature.cmd).toBe('github-desk');
+    expect(VexFeatures.actions(feature).some(a => a.act === 'command')).toBe(true);
+    const command = CommandBar.commands.find(c => c.id === feature.cmd);
+    CommandBar._execute = vi.fn();
+    await FeatureLibrary.open(feature.id, 'command');
+    expect(CommandBar._execute).toHaveBeenCalledWith(command);
+    expect(command.action).not.toHaveBeenCalled();
+    await VexGuide.run(feature);
+    expect(CommandBar._execute).toHaveBeenCalledTimes(2);
+    expect(command.action).not.toHaveBeenCalled();
+  });
+});

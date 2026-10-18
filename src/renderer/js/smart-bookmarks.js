@@ -297,7 +297,7 @@ const SmartBookmarks = {
       const p = this.prefs();
       noteEl.textContent = p.enabled
         ? 'Looks again about every ' + this.INTERVALS[p.hours] + ', a few at a time, never while a game runs. Change it in Settings.'
-        : 'Background checks are off (Settings › Living bookmarks). You can still check a page by hand with the button on its row.';
+        : 'Background checks are off (Settings › Timeline, bookmarks and reading). You can still check a page by hand with the button on its row.';
       listEl.textContent = '';
       const items = this.list();
       if (!items.length) {
@@ -388,7 +388,7 @@ const SmartBookmarks = {
     const b = marks.find(m => m.url === tab.url);
     if (!b) throw new Error('This page is not bookmarked yet — bookmark it with the star, then try again');
     const s = await this.keepAlive(b.id);
-    if (!this.isEnabled()) window.showToast?.('Text saved. Background checks are off: switch them on in Settings › Living bookmarks.', 'info', 8000);
+    if (!this.isEnabled()) window.showToast?.('Text saved. Background checks are off: switch them on in Settings › Timeline, bookmarks and reading.', 'info', 8000);
     else window.showToast?.('Keeping it alive — ' + this.statusWords(s).toLowerCase());
     return s;
   },

@@ -412,6 +412,7 @@ const CommandBar = {
     { id: 'discord-measure', label: 'Measure Discord over 10 minutes', hint: 'Samples the Discord panel’s memory every 30 seconds while it is hidden and shows the trend; or with and without Vencord (memory only, ends by itself)', icon: 'activity', action: () => { if (typeof DiscordMeasure === 'undefined') { window.showToast?.('The measuring tool is not loaded', 'error'); return; } DiscordMeasure.open({ ab: false }).catch(err => window.showToast?.(err.message, 'error')); } },
     { id: 'tasks', label: 'Running Tasks', hint: 'Every process Vex is running and what it costs — with a way to end one', icon: 'activity', action: () => { if (typeof VexTasks !== 'undefined') VexTasks.open(); } },
     { id: 'sleep', label: 'Sleep Tab', hint: 'Put current tab to sleep', shortcut: 'Ctrl+Shift+Z', icon: 'sleep', action: () => TabManager.sleepActiveTab() },
+    { id: 'keep-awake', label: 'Keep This Tab Awake…', hint: 'Choose how long this tab stays loaded however long you ignore it: for a dashboard, a match, a long upload', icon: 'sleep', action: () => { const t = TabManager.getActiveTab(); if (!t) throw new Error('Open the tab you want to keep awake first'); TabManager._showKeepAwakeChooser(t); } },
     { id: 'sleep-all', label: 'Sleep All Inactive', hint: 'Sleep all non-active tabs', icon: 'sleep', action: () => { TabManager.sleepAllInactive(); window.showToast?.('All inactive tabs sleeping'); } },
     { id: 'wake-all', label: 'Wake All Tabs', hint: 'Wake all sleeping tabs', icon: 'sun', action: () => { TabManager.wakeAllTabs(); window.showToast?.('All tabs awake'); } },
     // Phase 5 commands
@@ -1352,7 +1353,25 @@ const CommandBar = {
     try { localStorage.setItem(this.USAGE_KEY, JSON.stringify(u)); } catch {}
   },
 
-  _execute(item) {
+  _execute(item, opts) {
+    // A command that belongs to a feature (its manifest lists it) does not run while that feature is
+    // switched off: it introduces the feature and offers to turn it on (VexActivation in js/feature-catalog.js), and runs
+    // the command once if the person says yes. Many of these ran regardless of the switch.
+    // A command that is meant to work while its feature is off sets runsWhenOff. `activated` is the run
+    // that follows a confirmed "Turn on and open": the gate has been through once and does not ask again.
+    if (!item.runsWhenOff && !(opts && opts.activated) && typeof VexRegistry !== 'undefined' && typeof VexUsage !== 'undefined') {
+      const owner = VexRegistry.forCommand(item.id);
+      const off = owner ? VexUsage.offNotice(owner) : null;
+      if (off) {
+        this.close();
+        if (typeof VexActivation === 'undefined') { window.showToast?.(off, 'info'); return; }
+        // The command may have been re-registered by the feature's own switch: run the live one.
+        const run = async () => this._execute((this.commands || []).find(c => c.id === item.id) || item, { activated: true });
+        VexActivation.offer({ featureId: owner, requested: item.label, run })
+          .catch(err => window.showToast?.((err && err.message) || off, 'error'));
+        return;
+      }
+    }
     this._recordUsage(item);
     // The release hand-check ticks the item that names this command (js/release-checklist.js).
     if (typeof VexReleaseChecklist !== 'undefined') VexReleaseChecklist.noteCommand(item.label).catch(err => console.error('[ReleaseCheck] could not note the command:', err.message));

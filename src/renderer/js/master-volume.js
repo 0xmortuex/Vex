@@ -644,6 +644,20 @@ const MasterVolume = {
 };
 
 if (typeof window !== 'undefined') window.MasterVolume = MasterVolume;
+if (typeof window !== 'undefined' && typeof VexSettingsGroups !== 'undefined') {
+  VexSettingsGroups.register({
+    id: 'site-volume',
+    title: 'Volume: kept per site',
+    keywords: 'volume per site remember loudness even out master volume video resume place',
+    build: (el) => {
+      el.appendChild(VexSettingsGroups.note('Vex remembers the volume you set for each site and puts it back when the site opens, including media the page adds later. A private window never keeps any.'));
+      el.appendChild(VexSettingsGroup.toggle('Remember the volume for each site', MasterVolume.siteMemoryEnabled(), (on) => {
+        try { MasterVolume.setSiteMemoryEnabled(on); if (typeof VexUsage !== 'undefined') VexUsage.touch('site-audio-memory'); }
+        catch (err) { window.showToast?.(err.message, 'error'); }
+      }));
+    },
+  });
+}
 // site-volume.js loads first (index.html); in a unit test on its own it is absent.
 if (typeof window !== 'undefined' && typeof window.vexOnLateFrame === 'function') MasterVolume.init();
 if (typeof module !== 'undefined' && module.exports) module.exports = { MasterVolume };

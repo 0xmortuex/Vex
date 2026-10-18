@@ -78,18 +78,20 @@ function build(opts = {}) {
   for (const item of catalog.ITEMS) if (!entryOf.has(item.id)) entryOf.set(item.id, item);
 
   const missing = [];
+  const documented = new Set();
   const byCat = new Map(catalog.CATS.map(c => [c.id, []]));
   for (const m of manifests) {
     const item = entryOf.get(m.id);
     if (!item || !item.what) { missing.push(m.id); continue; }
+    documented.add(item.id);
     const cmds = (m.commands || []).filter(c => labels[c]).map(c => '"' + labels[c] + '"');
     const itemCmd = item.cmd && labels[item.cmd] && !(m.commands || []).includes(item.cmd) ? ['"' + labels[item.cmd] + '"'] : [];
     const phrases = cmds.concat(itemCmd);
     const where = [];
     if (phrases.length) where.push('Ctrl+K: ' + phrases.join(', '));
     if (item.where) where.push('Settings > ' + item.where);
-    else if (m.group) where.push('Settings > ' + m.group);
     else if (item.setting && item.setting.label) where.push('Settings > ' + item.setting.label);
+    else if (m.group) where.push('Settings > ' + m.group);
     if (!where.length) {
       const named = /Settings (?:>|›) ([^.;,]+)/.exec(item.what);
       where.push(named ? 'Settings > ' + named[1].trim() : 'no command; it works by itself');
@@ -97,6 +99,7 @@ function build(opts = {}) {
     const state = STATE[m.maturity] || (m.killSwitch === 'none' ? 'always on, no switch' : '');
     const line = [
       '- **' + (item.name || m.title) + '** (`' + m.id + '`): ' + item.what.replace(/\s+/g, ' ').trim(),
+      item.id !== m.id ? '  - Catalogue: (`' + item.id + '`).' : '',
       '  - Open: ' + where.join('; ') + '.',
       state ? '  - Default: ' + state + '.' : '',
     ].filter(Boolean).join('\n');
@@ -106,6 +109,20 @@ function build(opts = {}) {
     const err = new Error('Feature manifests with no catalogue entry (add `feature: \'<id>\'` to an entry in feature-catalog.js): ' + missing.join(', '));
     err.missing = missing;
     throw err;
+  }
+
+  // Older built-in features also belong in the reference, even when they
+  // have no manifest. Do not silently reduce "all features" to new modules.
+  for (const item of catalog.ITEMS) {
+    if (documented.has(item.id)) continue;
+    const where = [];
+    if (item.cmd) where.push('Ctrl+K: "' + (labels[item.cmd] || item.name || item.id) + '"');
+    if (item.panel) where.push('sidebar panel: ' + item.panel);
+    if (item.setting) where.push('Settings > ' + (item.setting.label || item.setting.id || item.setting.section));
+    if (!where.length) where.push('Library > ' + (item.name || item.id) + ' > How it works');
+    const line = '- **' + (item.name || item.id) + '** (`' + item.id + '`): ' + item.what.replace(/\s+/g, ' ').trim()
+      + '\n  - Open: ' + where.join('; ') + '.';
+    (byCat.get(item.cat) || byCat.get('unique')).push(line);
   }
 
   const parts = [
@@ -124,7 +141,7 @@ function build(opts = {}) {
     parts.push('## ' + c.name, '', c.blurb, '', lines.join('\n'), '');
   }
   parts.splice(4, 0, 'Features listed: ' + total + '.', '');
-  return { text: parts.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n', manifests, missing, total };
+  return { text: parts.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n', manifests, catalog: catalog.ITEMS, missing, total };
 }
 
 function main() {

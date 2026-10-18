@@ -145,6 +145,8 @@ const DevPortsPair = {
   },
   stop() { if (this._job) { this._job.stop(); this._job = null; } },
   sync() { if (this.enabled()) this.start(); else this.stop(); },
+  // Runs on every route that flips the switch (DevDeskUtil.switchFor).
+  followEnabled() { this.sync(); this.registerCommands(); },
 
   openPort(port) {
     if (typeof TabManager === 'undefined') throw new Error('Tabs are not available');
@@ -168,7 +170,7 @@ const DevPortsPair = {
     const redraw = () => VexSettingsGroup.refresh('setting-dev-desk');
     const fail = (err) => DevDeskUtil.fail('Dev ports', err);
     body.appendChild(S.note('Dev ports: give a localhost port the name of a repository, reload its tabs when it comes back, and (optionally) keep each paired port\'s cookies in its own jar. Only the ports you pair are touched; the check is a local connect and sends nothing.'));
-    body.appendChild(S.toggle('Dev ports', this.enabled(), (on) => { this.setEnabled(on); this.sync(); this.registerCommands(); redraw(); }));
+    body.appendChild(S.toggle('Dev ports', this.enabled(), (on) => { this.setEnabled(on); redraw(); }));
     if (!this.enabled()) return;
     body.appendChild(S.toggle('Keep each dev server\'s cookies apart', this.state().isolate === true, (on) => { this.setIsolating(on); }, 'new tabs only'));
     for (const [port, name] of Object.entries(this.pairs())) {

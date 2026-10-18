@@ -140,6 +140,8 @@ const VexFormAssist = {
     if (!this.enabled()) throw new Error('The form assistant is switched off in Settings');
     const wv = this._webview();
     if (!wv) throw new Error('Open a page with a form first');
+    // It reads the form's boxes and offers your profile for them: never in a private, Tor or routed tab.
+    if (typeof VexTabPolicy !== 'undefined' && !VexTabPolicy.canReadWebview(wv)) throw new Error('A private, Tor or routed tab is never read');
     const url = typeof wv.getURL === 'function' ? wv.getURL() : '';
     if (!this.pageOk(url)) throw new Error('The form assistant only works on secure (https) pages');
     if (typeof FormFill === 'undefined') throw new Error('The Form Fill profile is not loaded');

@@ -8,7 +8,7 @@
 //
 // The address is kept without its scheme, query and fragment ("docs.example.com/guide"),
 // so a page that adds ?utm= or #section to itself keeps the name. Only ordinary web
-// pages in the normal profile get one: a private, Tor or container tab is never
+// pages in the normal profile (including built-in service tabs) get one: a private, Tor or container tab is never
 // written down, and neither is a page of Vex's own. At most 300 names are kept; the
 // oldest go first.
 // Move a tab to a window of its own (T3-118, the second half): the tab's address opens in a new Vex window
@@ -42,6 +42,7 @@ const VexTabNames = {
   ON_KEY: 'vex.tabNamesOn',
   MAX: 300,
   MAX_LENGTH: 80,
+  NORMAL_PARTITIONS: ['persist:main', 'persist:discord', 'persist:whatsapp', 'persist:claude', 'persist:spotify', 'persist:netflix', 'persist:roblox'],
 
   enabled() { return localStorage.getItem(this.ON_KEY) !== 'off'; },
   setEnabled(on) { localStorage.setItem(this.ON_KEY, on ? 'on' : 'off'); },
@@ -54,10 +55,16 @@ const VexTabNames = {
     const path = u.pathname.length > 1 ? u.pathname.replace(/\/+$/, '') : '';
     return (u.host + path).toLowerCase();
   },
-  // A tab of the normal profile: a Tor, private or container session is never written down.
+  // Service panels opened as tabs still belong to the current browser
+  // profile. Do not mistake their cookie jars for private/container sessions.
   allowed(tab) {
     if (!tab || !this.keyFor(tab.url)) return false;
-    return !tab.partition || String(tab.partition) === 'persist:main';
+    const policy = window.VexTabPolicy;
+    if (policy?.isPrivateWindow) return false;
+    const partition = String(tab.partition || policy?.defaultPartition || 'persist:main');
+    if (!this.NORMAL_PARTITIONS.includes(partition)) return false;
+    if (policy?.canPersist && !policy.canPersist(tab)) return false;
+    return !(policy?.isRouted && policy.isRouted(partition));
   },
 
   all() {

@@ -42,8 +42,8 @@ const FeatureLibrary = {
     const cat = (VexFeatures.CATS || []).find(c => c.id === f.cat);
     const where = [];
     if (f.panel) where.push('A panel on the sidebar' + (typeof SidebarManager !== 'undefined' && SidebarManager.panelLabel ? ' — ' + SidebarManager.panelLabel(f.panel) : ''));
-    if (f.setting) where.push('A switch in Settings' + (f.setting.label ? ' — “' + f.setting.label + '”' : ''));
-    if (f.cmd) where.push('In the command bar — Ctrl+K, then “' + (VexFeatures.command(f) || {}).label + '”');
+    if (f.setting) where.push((f.setting.section ? 'A section in Settings' : 'A control in Settings') + (f.setting.label ? ' — “' + f.setting.label + '”' : ''));
+    if (f.cmd) where.push('In the command bar — Ctrl+K, then “' + ((VexFeatures.command(f) || {}).label || VexFeatures.nameOf(f)) + '”');
     if (f.sel && !f.panel && !f.cmd) where.push('A control in the window itself');
     if (f.manual && !where.length) where.push('Something you do with the mouse or the keyboard, not a command');
     const steps = (typeof VexGuide !== 'undefined') ? VexGuide.steps(f) : [];
@@ -58,6 +58,7 @@ const FeatureLibrary = {
       keys,
       category: cat ? cat.name : f.cat,
       what: f.what,
+        off: VexFeatures.offState(f),
       // The paragraph after the headline (js/feature-details.js); a feature
       // without one still shows the catalogue's sentence above.
       detail: f.detail || (typeof FeatureDetails !== 'undefined' ? FeatureDetails[f.id] : '') || '',
@@ -274,6 +275,27 @@ const FeatureLibrary = {
     }));
     root.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); this.open(b.dataset.id, b.dataset.act); }));
     root.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); this.ask(b.dataset.ask); }));
+    root.querySelectorAll('[data-feature-enable]').forEach(b => b.addEventListener('click', () => this.enableFeature(b.dataset.featureEnable, b)));
+  },
+
+  async enableFeature(id, button) {
+    if (button) button.disabled = true;
+    try {
+      const f = VexFeatures.get(id), off = VexFeatures.offState(f);
+      if (off) {
+        // The same introduction as everywhere else; the first way to open it runs once after it is on.
+        const first = VexFeatures.actions(f).find(a => a.act === 'panel' || a.act === 'command');
+        await VexActivation.offer({ entry: f, requested: first ? VexFeatures.nameOf(f) : '', run: first ? () => this.open(id, first.act, { activated: true }) : null });
+      }
+      const card = button?.closest('.flib-card');
+      if (card) {
+        const holder = document.createElement('div'); holder.innerHTML = this._cardHtml(this.card(f));
+        const replacement = holder.firstElementChild;
+        replacement.classList.toggle('open', card.classList.contains('open'));
+        card.replaceWith(replacement); this._wireCards(replacement);
+      }
+    } catch (err) { window.showToast?.('Could not turn this feature on: ' + err.message, 'error'); }
+    finally { if (button?.isConnected) button.disabled = false; }
   },
 
   _cardHtml(c) {
@@ -285,6 +307,7 @@ const FeatureLibrary = {
           <span class="flib-chevron">›</span>
         </button>
         <div class="flib-what">${this._esc(c.what)}</div>
+        ${c.off ? `<div class="flib-state">${this._esc(c.off.reason)} <button type="button" class="flib-btn" data-feature-enable="${this._esc(c.id)}">Turn on</button></div>` : ''}
         <div class="flib-more">
           ${c.detail ? `<p class="flib-detail">${this._esc(c.detail)}</p>` : ''}
           ${c.where.length ? `<div class="flib-sub">Where it lives</div><ul>${c.where.map(w => `<li>${this._esc(w)}</li>`).join('')}</ul>` : ''}
@@ -311,17 +334,24 @@ const FeatureLibrary = {
 
   // One button: `act` is one of VexFeatures.actions(). Each does exactly what
   // its label says and says so when it cannot — a button must never do nothing.
-  open(id, act) {
+  open(id, act, opts) {
     const f = VexFeatures.get(id);
     try {
       if (!f) throw new Error('That feature is not in the list any more');
+      // Settings can always be opened. Anything else on a switched-off feature is introduced first and runs
+      // once if the person turns it on (VexActivation in js/feature-catalog.js).
+      if (act !== 'settings' && !(opts && opts.activated) && typeof VexActivation !== 'undefined' && VexFeatures.offState(f)) {
+        return VexActivation.offer({ entry: f, requested: VexFeatures.nameOf(f), run: () => this.open(id, act, { activated: true }) })
+          .catch(err => window.showToast?.((err && err.message) || 'That would not open', 'error'));
+      }
       if (act === 'panel') {
         if (typeof SidebarManager === 'undefined') throw new Error('The sidebar is not available in this window');
         SidebarManager.openPanel(f.panel);
       } else if (act === 'command') {
         const c = VexFeatures.command(f);
         if (!c) throw new Error('The command for this is not available in this window');
-        return Promise.resolve(c.action()).catch(err => window.showToast?.((err && err.message) || 'That would not start', 'error'));
+        const result = typeof CommandBar._execute === 'function' ? CommandBar._execute(c) : c.action();
+        return Promise.resolve(result).catch(err => window.showToast?.((err && err.message) || 'That would not start', 'error'));
       } else if (act === 'settings') {
         if (typeof SettingsUI === 'undefined') throw new Error('Settings is not available in this window');
         SettingsUI.openSection(f.setting.id || f.setting.section);

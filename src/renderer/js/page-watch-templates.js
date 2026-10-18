@@ -108,6 +108,11 @@ const PageWatchTemplates = {
     if (typeof vexPrompt !== 'function') throw new Error('Vex could not ask you, so nothing was set');
     if (typeof VexQuickReminder === 'undefined') throw new Error('Reminders are not available here');
     const tab = this._activeTab();
+    // The reminder keeps the page's address. A private or Tor tab's address must not be kept: the watch
+    // templates and page reminders (js/page-reminders.js) refuse those tabs the same way.
+    if ((tab.partition && tab.partition !== 'persist:main' && !/^persist:container-/.test(tab.partition)) || (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow)) {
+      throw new Error('Private and Tor tabs are not saved in a reminder');
+    }
     const endText = await vexPrompt({ title: 'Remind me before this ends', label: 'When does the offer end? (tomorrow 18:00, friday 9pm)', value: '', okLabel: 'Next' });
     if (endText == null) return null;
     const end = VexQuickReminder.parseWhen(endText);

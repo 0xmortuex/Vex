@@ -207,4 +207,18 @@ const VexAnswerCitations = {
 };
 
 if (typeof window !== 'undefined') window.VexAnswerCitations = VexAnswerCitations;
+if (typeof window !== 'undefined' && typeof VexSettingsGroups !== 'undefined') {
+  VexSettingsGroups.register({
+    id: 'answer-citations',
+    title: 'Knowledge: show-me-where citations',
+    keywords: 'citations show me where answer source quote knowledge base ask library highlight',
+    build: (el) => {
+      el.appendChild(VexSettingsGroups.note('In a knowledge-base answer, Vex checks each quoted passage really appears in its source, greys out claims it cannot back up, and lets you jump to the passage. Nothing on the page is changed.'));
+      el.appendChild(VexSettingsGroup.toggle('Check answers against their sources', VexAnswerCitations.enabled(), (on) => {
+        try { VexAnswerCitations.setEnabled(on); if (typeof VexUsage !== 'undefined') VexUsage.touch('answer-citations'); }
+        catch (err) { window.showToast?.(err.message, 'error'); }
+      }));
+    },
+  });
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexAnswerCitations };

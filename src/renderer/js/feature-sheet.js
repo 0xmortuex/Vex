@@ -168,7 +168,7 @@ const VexFeatureSheet = {
     acts.append(mk('Got it', close, true));
     if (m.killSwitch === 'usage') {
       acts.append(mk('Turn this off', async () => {
-        try { await VexRegistry.switchOff(m.id); window.showToast?.(m.title + ' is off. Settings > Usage can turn it back on.', 'info'); close(); }
+        try { await VexRegistry.switchOff(m.id); window.showToast?.(m.title + ' is off. Settings > Feature usage can turn it back on.', 'info'); close(); }
         catch (err) { window.showToast?.(err.message, 'error'); }
       }));
     }
@@ -181,6 +181,9 @@ const VexFeatureSheet = {
   // ---- the Settings section ------------------------------------------------------------------------
   group(el) {
     el.appendChild(VexSettingsGroups.note('What each feature reads, writes and sends off this computer, from the description it ships with. "Reset" deletes only the data that feature owns, after showing you the list; you can undo it until you close Vex.'));
+    el.appendChild(VexSettingsGroup.toggle('Show a short card the first time I use a new feature', this.enabled(), (on) => {
+      try { this.setEnabled(on); } catch (err) { window.showToast?.(err.message, 'error'); }
+    }, 'never in Game mode or a private window'));
     const all = VexRegistry.all().slice().sort((a, b) => (a.group || a.title).localeCompare(b.group || b.title) || a.title.localeCompare(b.title));
     const box = document.createElement('div');
     box.className = 'vexsr-list';

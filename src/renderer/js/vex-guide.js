@@ -139,9 +139,13 @@ const VexGuide = {
 
   // Do it, rather than describe it: run the command, open the panel, or point
   // at the real control.
-  run(entry) {
+  run(entry, opts) {
+    // A switched-off feature is introduced first, and runs once if the person turns it on.
+    if (!(opts && opts.activated) && typeof VexActivation !== 'undefined' && VexFeatures.offState(entry)) {
+      return VexActivation.offer({ entry, requested: VexFeatures.nameOf(entry), run: () => this.run(entry, { activated: true }) });
+    }
     const c = VexFeatures.command(entry);
-    if (c) return Promise.resolve(c.action());
+    if (c) return Promise.resolve(typeof CommandBar._execute === 'function' ? CommandBar._execute(c) : c.action());
     if (entry.panel && typeof SidebarManager !== 'undefined') return Promise.resolve(SidebarManager.openPanel(entry.panel));
     return this.show(entry);
   },

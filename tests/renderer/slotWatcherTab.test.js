@@ -99,6 +99,15 @@ describe('keeping a tab under watch', () => {
     delete window.VexProblems;
   });
 
+  it('keeping a tab says the watcher is off, and keeps nothing, while the watcher is switched off', async () => {
+    localStorage.setItem(SW.KEY, JSON.stringify({ on: false, pages: { w1: { label: 'Passport', available: ['müsait'], none: ['randevu yok'], toldAt: 0 } } }));
+    const keepCmd = ST.commands().find(c => c.id === 'slottab:keep');
+    await keepCmd.action();
+    expect(ST.keep()).toEqual({});
+    expect(toasts.some(t => /Vex will read this tab/.test(t[0]))).toBe(false);   // it must not claim to read
+    expect(toasts.some(t => /switched off/.test(t[0]) && t[1] === 'error')).toBe(true);
+  });
+
   it('the commands act on the page open in the active tab', async () => {
     const cmds = ST.commands();
     expect(cmds.map(c => c.id)).toEqual(['slottab:look', 'slottab:keep']);

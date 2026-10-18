@@ -31,10 +31,24 @@ const VexWorkflow = {
     catch { return {}; }
   },
   pref(key, fallback) { const p = this._prefs(); return Object.prototype.hasOwnProperty.call(p, key) ? p[key] : fallback; },
-  // false when the write failed, so a caller never says it saved.
+  // false when the write failed, so a caller never says it saved. A module that must follow its own
+  // switch (its commands, its job) says so with onPref(): the hook runs on EVERY route that writes the
+  // preference, not only the Settings row (Library's Turn on, Discover, Feature usage and Minimal Vex
+  // reach the preference through setPref alone).
+  _hooks: {},
+  onPref(key, fn) { (this._hooks[key] = this._hooks[key] || []).push(fn); },
   setPref(key, value) {
     const p = this._prefs(); p[key] = value;
-    try { localStorage.setItem(this.PREFS_KEY, JSON.stringify(p)); return true; } catch { return false; }
+    try { localStorage.setItem(this.PREFS_KEY, JSON.stringify(p)); }
+    catch { return false; }
+    for (const fn of this._hooks[key] || []) {
+      try { fn(value); }
+      catch (err) {
+        console.error('[Workflow] following the "' + key + '" choice failed:', err);
+        if (typeof VexProblems !== 'undefined') VexProblems.note('Workflow', 'The "' + key + '" choice was saved but its feature did not follow it', err);
+      }
+    }
+    return true;
   },
 
   // ---- data hooks ---------------------------------------------------------
@@ -249,7 +263,6 @@ const VexWorkday = {
   render(box) {
     box.appendChild(VexWorkflow.toggleRow('Resume workday and End of day', 'Ctrl+K → "Resume yesterday"', this.enabled(), (on) => {
       if (!VexWorkflow.setPref('workday', on)) window.showToast?.('The choice could not be saved', 'error');
-      this.init();
     }));
     box.appendChild(VexWorkflow.toggleRow('Save the workday by itself', 'once a day, at the time below', this.autoOn(), (on) => {
       if (!VexWorkflow.setPref('workdayAuto', on)) window.showToast?.('The choice could not be saved', 'error');
@@ -285,6 +298,7 @@ const VexWorkday = {
   },
 };
 
+VexWorkflow.onPref('workday', () => VexWorkday.init());
 VexWorkflow.register({
   id: 'workday', title: 'Resume workday', icon: 'history',
   render: (box) => VexWorkday.render(box),

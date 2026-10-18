@@ -137,6 +137,11 @@ const VexSlotTab = {
       } },
       { id: 'slottab:keep', label: 'Slot watcher: keep looking at this tab', icon: 'calendar', hint: 'Read this open booking page every 15 minutes while the tab stays open (switch again to stop)', action: () => {
         try {
+          // Keeping a tab under watch does nothing while the watcher is off (lookAll returns at once), so
+          // it must not say it will read the tab. look() refuses the same way.
+          if (typeof VexSlotWatcher === 'undefined' || !VexSlotWatcher.enabled()) {
+            throw new Error((typeof VexUsage !== 'undefined' && VexUsage.offNotice('slot-watcher')) || 'The slot watcher is switched off');
+          }
           const page = this._active();
           const on = !this.keep()[page.watch.id];
           this.setKeep(page.watch.id, on);

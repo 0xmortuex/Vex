@@ -267,6 +267,9 @@ const LogReader = {
   async readTab() { this.open(await this.fromTab()); },
   async readFile() { const r = await this.fromFile(); if (r) this.open(r); },
 
+  // Runs on every route that flips the switch (DevDeskUtil.switchFor).
+  followEnabled() { this.registerCommands(); },
+
   registerCommands() {
     if (typeof VexModuleCommands === 'undefined') return false;
     const run = (fn) => () => { Promise.resolve().then(fn).catch(err => DevDeskUtil.fail('Log reader', err)); };
@@ -279,7 +282,7 @@ const LogReader = {
   settingsRows(body) {
     const S = VexSettingsGroup;
     body.appendChild(S.note('Log reader: Ctrl+K > "Read this page as a log" (a CI raw log, a .log file) folds sections, jumps to the first error, searches and shows colours. The text stays in this window.'));
-    body.appendChild(S.toggle('Log reader', this.enabled(), (on) => { this.setEnabled(on); this.registerCommands(); }));
+    body.appendChild(S.toggle('Log reader', this.enabled(), (on) => { this.setEnabled(on); }));
   },
 };
 

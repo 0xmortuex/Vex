@@ -25,7 +25,9 @@ const SRC = path.join(__dirname, '..', '..', 'src');
 // Flags are pairs of regional indicator letters, which are not
 // Extended_Pictographic: the language step's GB/TR flags got past the scan
 // (found 2026-09-29).
-const PICTO = /\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}]/u;
+// The copyright, registered and trade-mark signs are ordinary in prose (the AI panel's emoji remover keeps them
+// too): the OpenStreetMap credit and legal lines need them. Everything else pictographic is still a failure.
+const PICTO = /(?![©®™])\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}]/u;
 
 // `↔` and friends are typography, not emoji: they sit inside prose and code
 // comments ("group↔stack") and render as text on every platform.

@@ -30,9 +30,9 @@
     // ---- Brief actions (js/brief-actions.js) ---------------------------------
     { id: 'brief-mail-triage', title: 'Mail triage in the brief', ...brief, usesKeys: [], storageKeys: ['vex.briefActions.prefs'],
       commands: [], permissions: { reads: ['mail headers from your read-only inbox'], writes: ['its own switch'], sends: ['The text of a message to your AI backend, only when you ask for a drafted reply'] } },
-    { id: 'brief-github-desk', title: 'GitHub desk', ...brief, permissions: { reads: ['your GitHub username'], writes: ['its own switch'], sends: ['Requests to api.github.com with your username'] } },
-    { id: 'brief-snooze', title: 'Snooze anything', ...brief, permissions: quiet({ reads: ['snoozed items'], writes: ['snoozed items'] }) },
-    { id: 'brief-finder', title: 'Find a lost page', ...brief, permissions: quiet({ reads: ['your history'] }) },
+    { id: 'brief-github-desk', title: 'GitHub desk', ...brief, commands: ['github-desk'], permissions: { reads: ['your GitHub username'], writes: ['its own switch'], sends: ['Requests to api.github.com with your username'] } },
+    { id: 'brief-snooze', title: 'Snooze anything', ...brief, commands: ['snooze-current'], permissions: quiet({ reads: ['snoozed items'], writes: ['snoozed items'] }) },
+    { id: 'brief-finder', title: 'Find a lost page', ...brief, commands: ['find-lost-page'], permissions: quiet({ reads: ['your history'] }) },
     { id: 'brief-interests', title: 'Learn my interests', ...brief, permissions: quiet({ reads: ['your history'], writes: ['a list of interest words'] }) },
     { id: 'brief-day-layout', title: 'Order the brief by time of day', ...brief, permissions: quiet() },
     { id: 'brief-next-action', title: 'Suggest what I usually do next', ...brief, permissions: quiet({ reads: ['your command history'] }) },
@@ -49,8 +49,8 @@
     { id: 'workflow-ask-tabs', title: 'Ask across my tabs', ...workflow, usesKeys: [], storageKeys: ['vex.workflow.prefs'],
       permissions: { reads: ['the text of your open tabs'], writes: ['its own switch'], sends: [AI_ASK] } },
     { id: 'workflow-focus-auto', title: 'Switch focus profiles by itself', ...workflow, permissions: quiet({ writes: ['the active focus profile'] }) },
-    { id: 'workflow-release-radar', title: 'Release radar', ...workflow, permissions: quiet({ reads: ['the projects you follow'] }) },
-    { id: 'workflow-weekly-note', title: 'Weekly note', ...workflow, permissions: quiet({ reads: ['your week'], writes: ['one note per week'] }) },
+    { id: 'workflow-release-radar', title: 'Release radar', ...workflow, commands: ['release-radar'], permissions: quiet({ reads: ['the projects you follow'] }) },
+    { id: 'workflow-weekly-note', title: 'Weekly note', ...workflow, commands: ['weekly-note'], permissions: quiet({ reads: ['your week'], writes: ['one note per week'] }) },
     { id: 'workflow-resume-workday', title: 'Resume my workday', ...workflow, storageKeys: ['vex.workday'],
       jobs: ['Workday end-of-day save'], commands: ['workday-resume', 'workday-end'], permissions: quiet({ reads: ['your open tabs'], writes: ['one saved workday'] }) },
 
@@ -153,6 +153,9 @@
     { id: 'attention-inbox', title: 'Attention Inbox', group: 'Attention', storageKeys: ['vex.attention.inbox', 'vex.attention.inboxOn'],
       permissions: { reads: ['the notices that did not fit the cap'], writes: ['the notices that did not fit the cap'], sends: [] } },
     // The calm New Tab layout is a layout choice, not an extra: Minimal Vex keeps it (killSwitch 'none', not in the usage table).
+    // The place search behind the weather (js/geo-search.js: wizard, start page, Settings). A setting, not a feature to switch off.
+    { id: 'weather-place', title: 'Weather place search', group: 'Weather', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.weatherCountry'],
+      permissions: { reads: ['the country you chose for place searches'], writes: ['that country'], sends: ['the place or postcode you search for, to Open-Meteo (names) or OpenStreetMap (postcodes), only when you press Search'] } },
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
