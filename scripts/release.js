@@ -129,7 +129,7 @@ for (const file of ['package.json', 'package-lock.json']) {
 // 3. Commit only the release files (the pathspec ignores anything else that
 //    happens to be staged); push.
 run('git add package.json package-lock.json CHANGELOG.md');
-run(`git commit -m "v${version} — ${title.replace(/"/g, '\\"')}" -- package.json package-lock.json CHANGELOG.md`);
+run(`git commit -m "v${version} — ${title.replace(/"/g, '\\"')}" -m "Rank: none" -- package.json package-lock.json CHANGELOG.md`);
 run('git push origin main');
 
 // 4. Build + publish the GitHub release; postpublish moves the website badge.
