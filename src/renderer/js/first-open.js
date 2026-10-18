@@ -51,17 +51,24 @@ const VexFirstOpen = {
     const h = Number(next.awayHours);
     if (!Number.isFinite(h) || h < this.MIN_HOURS || h > this.MAX_HOURS) throw new Error('Away time is between ' + this.MIN_HOURS + ' and ' + this.MAX_HOURS + ' hours');
     if (typeof next.digest !== 'boolean') throw new Error('The reading digest choice is on or off');
-    try { localStorage.setItem(this.PREF, JSON.stringify({ mode: next.mode, awayHours: h, digest: next.digest })); }
+    // `prior` is the mode from before Minimal Vex switched this off, kept so it survives a restart.
+    const prior = next.prior !== undefined ? next.prior : this._storedPrior();
+    try { localStorage.setItem(this.PREF, JSON.stringify({ mode: next.mode, awayHours: h, digest: next.digest, ...(prior ? { prior } : {}) })); }
     catch (err) { throw new Error('Could not save that setting: ' + err.message); }
     return this.prefs();
   },
   enabled() { return this.prefs().mode !== 'off'; },
   // Minimal Vex: off, and back to what it was.
+  _storedPrior() {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(this.PREF) || 'null'); } catch { raw = null; }
+    return raw && (raw.prior === 'offer' || raw.prior === 'open') ? raw.prior : null;
+  },
   setEnabled(on) {
-    if (on) return this.setPrefs({ mode: this._priorMode || 'offer' });
+    if (on) return this.setPrefs({ mode: this._priorMode || this._storedPrior() || 'offer' });
     const cur = this.prefs().mode;
     if (cur !== 'off') this._priorMode = cur;
-    return this.setPrefs({ mode: 'off' });
+    return this.setPrefs({ mode: 'off', ...(cur !== 'off' ? { prior: cur } : {}) });
   },
 
   // ---- state ----------------------------------------------------------------------

@@ -52,6 +52,20 @@ describe('preferences', () => {
     F.setEnabled(true);
     expect(F.prefs().mode).toBe('open');
   });
+  it('switch back to the chosen mode after a restart, not to the default', () => {
+    F.setPrefs({ mode: 'open' });
+    F.setEnabled(false);
+    // A restart: the module is loaded again, only storage is left.
+    ({ VexFirstOpen: F } = fresh(JS + 'first-open.js'));
+    expect(F.prefs().mode).toBe('off');
+    F.setEnabled(true);
+    expect(F.prefs().mode).toBe('open');
+  });
+  it('keep prefs() the same shape, without the remembered mode', () => {
+    F.setPrefs({ mode: 'open' });
+    F.setEnabled(false);
+    expect(F.prefs()).toEqual({ mode: 'off', awayHours: 4, digest: false });
+  });
   it('clamp a hand-edited value into range when read', () => {
     localStorage.setItem(F.PREF, JSON.stringify({ mode: 'offer', awayHours: 999 }));
     expect(F.prefs().awayHours).toBe(48);
