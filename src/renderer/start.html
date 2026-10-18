@@ -2370,6 +2370,7 @@
         <select id="loc-pick" size="6" style="width:100%"></select>
       </div>
       <div class="loc-status" id="loc-status"></div>
+      <div class="loc-status" style="font-size:11px">Postcodes are looked up at OpenStreetMap (© OpenStreetMap contributors); names at Open-Meteo.</div>
       <div class="loc-actions">
         <button class="ghost" id="loc-cancel">Cancel</button>
         <button class="primary" id="loc-save">Search</button>
@@ -3187,16 +3188,12 @@
           return;
         }
 
-        if (!found.hits.length && found.elsewhere) {
-          status.textContent = 'No match in ' + VexGeo.countryName(country.value)
-            + '. There are ' + found.elsewhere + ' elsewhere — set Country to “Any country” to see them.';
-          return;
-        }
         if (!found.hits.length) {
-          status.textContent = 'No match for “' + q + '” — try the nearest town, another spelling, or the postcode.';
+          status.textContent = VexGeo.noMatchMessage(q, found, country.value);
           return;
         }
 
+        const credit = VexGeo.attribution(found.hits);
         hits = found.hits.slice(0, 60);
         pickList.innerHTML = hits.map((h, i) => {
           const opt = document.createElement('option');
@@ -3205,7 +3202,7 @@
           return opt.outerHTML;
         }).join('');
         results.style.display = 'block';
-        status.textContent = hits.length === 1 ? 'One match — select it.' : hits.length + ' matches. Pick the right one.';
+        status.textContent = (hits.length === 1 ? 'One match — select it.' : hits.length + ' matches. Pick the right one.') + (credit ? ' ' + credit : '');
         if (hits.length === 1) { pickList.selectedIndex = 0; pick(hits[0]); }
       };
 

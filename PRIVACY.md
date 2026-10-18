@@ -179,7 +179,7 @@ Choose "Prefer local" to keep requests on your PC while Ollama is running (a fai
 | Feature | Sent to | What is sent |
 |---|---|---|
 | Search | Your chosen search engine (Google by default; Bing, DuckDuckGo, Brave, Startpage or Ecosia) | Your search |
-| Weather city search, "Use my approximate location" | geocoding-api.open-meteo.com; ipapi.co (then ipwho.is or get.geojs.io if that fails) | What you type; your IP address, once, when you click |
+| Weather city search, "Use my approximate location" | geocoding-api.open-meteo.com for names; nominatim.openstreetmap.org for postcodes (OpenStreetMap, © OpenStreetMap contributors); ipapi.co (then ipwho.is or get.geojs.io if that fails) | What you type (a postcode goes to OpenStreetMap, once per press of Search, with no cookies); your IP address, once, when you click |
 | SponsorBlock (skip sponsor segments on YouTube) | sponsor.ajay.app | The ID of each YouTube video you open in an ordinary tab. Never for a video in a private window, a Tor, off-the-record, burner or container tab, or a site you route through Tor or a proxy. Off until you turn it on in first-run setup or Settings › Privacy & Security (profiles from before it was off by default kept it as they had it) |
 | Password breach check (off by default) | Have I Been Pwned (api.pwnedpasswords.com) | Only when you press "Check now" in Password Health with "Check my passwords against known breaches" on: the first 5 characters of the SHA-1 hash of each password. Your passwords and their full hashes never leave your PC |
 | Tor | archive.torproject.org (one-time download of Tor), then the Tor network; check.torproject.org to confirm the connection | Your Tor tab traffic goes through Tor |

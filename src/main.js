@@ -3013,6 +3013,7 @@ const CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
 // Chrome on Android, at the same real Chrome major as everything else.
 const MOBILE_UA = `Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Mobile Safari/537.36`;
 const _siteHeaders = require('./main/site-headers');
+const { applyGeoUserAgent: _applyGeoUserAgent } = require('./main/geo-user-agent');
 const CH_UA = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="99"`;
 const CH_UA_FULL = `"Chromium";v="${CHROME_FULL_VERSION}", "Google Chrome";v="${CHROME_FULL_VERSION}", "Not-A.Brand";v="99.0.0.0"`;
 // Add Access-Control-Allow-Origin to MEDIA responses so cross-origin <video>/
@@ -3059,6 +3060,8 @@ function wireClientHintsOnSession(ses) {
       tor: !!ses.__vexTor, pageUrl: () => _pageUrlOf(details.webContentsId), mobileUa: MOBILE_UA, hasUaRules: _hasUaRules,
       restoreUa: _siteUaOverridden.size ? _siteUaOverridden.get(details.webContentsId) : undefined,
     });
+    // The weather picker's postcode lookup tells OpenStreetMap who is asking (src/main/geo-user-agent.js).
+    _applyGeoUserAgent(h, details, 'Vex/' + app.getVersion() + ' (+https://github.com/0xmortuex/Vex)', _pageUrlOf(details.webContentsId));
     // That one navigation request has been put right; a site with its own
     // keeps the entry (its pages' requests are set by its rule).
     if (_siteUaOverridden.size && details.resourceType === 'mainFrame' && _siteUaOverridden.has(details.webContentsId)

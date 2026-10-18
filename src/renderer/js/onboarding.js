@@ -1501,29 +1501,25 @@ const Onboarding = {
       return;
     }
 
-    if (!found.hits.length && found.elsewhere) {
-      if (status) status.textContent = "No match for “" + q + "” in " + VexGeo.countryName(country)
-        + ". There are " + found.elsewhere + " elsewhere — set Country to “Any country” to see them.";
-      return;
-    }
     if (!found.hits.length) {
-      if (status) status.textContent = "No match for “" + q + "” — try the nearest town, another spelling, or the postcode.";
+      if (status) status.textContent = VexGeo.noMatchMessage(q, found, country);
       return;
     }
+    const credit = VexGeo.attribution(found.hits);
 
     const hits = found.hits.slice(0, 60);
     this._weatherHits = hits;
     select.innerHTML = hits.map((h, i) => "<option value=\"" + i + "\">" + this._esc(VexGeo.label(h)) + "</option>").join("");
     wrap.style.display = "block";
-    status.textContent = hits.length === 1
+    status.textContent = (hits.length === 1
       ? "One match — select it to confirm."
-      : hits.length + " matches. Pick the right one.";
+      : hits.length + " matches. Pick the right one.") + (credit ? " " + credit : "");
 
     const choose = () => {
       const hit = this._weatherHits[parseInt(select.value, 10)];
       if (!hit) return;
       this._pendingLoc = VexGeo.toLocation(hit);
-      status.textContent = "Using " + VexGeo.label(hit) + " — Save & continue to confirm.";
+      status.textContent = "Using " + VexGeo.label(hit) + " — Save & continue to confirm." + (credit ? " " + credit : "");
       status.style.color = "var(--text)";
     };
     select.addEventListener("change", choose);

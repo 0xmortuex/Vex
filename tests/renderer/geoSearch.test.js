@@ -23,7 +23,7 @@ const hit = (over) => Object.assign({
 }, over);
 
 beforeEach(() => {
-  globalThis.fetch = vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ results: [] }) }));
+  globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [] }) }));
   delete window.VexNet;
 });
 
@@ -37,9 +37,14 @@ describe('the query that actually goes out', () => {
     expect(url).not.toContain('language=tr');
   });
 
-  it('passes a postcode through untouched', async () => {
-    await VexGeo.search('34750', { lang: 'en' });
-    expect(fetch.mock.calls[0][0]).toContain('name=34750');
+  it('sends a postcode to the postcode lookup, untouched, not to the name search (which matches names only)', async () => {
+    VexGeo._cache.clear(); VexGeo._lastRequestAt = 0; VexGeo.MIN_GAP_MS = 0;
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) }));
+    await VexGeo.search('34750', { lang: 'en', country: 'TR' });
+    const url = fetch.mock.calls[0][0];
+    expect(url).toContain('nominatim.openstreetmap.org');
+    expect(url).toContain('postalcode=34750');
+    expect(url).not.toContain('geocoding-api.open-meteo.com');
   });
 
   it('takes only the two-letter part of a language tag', async () => {
@@ -53,7 +58,7 @@ describe('the query that actually goes out', () => {
   });
 
   it('goes through VexNet when the app provides it', async () => {
-    window.VexNet = { fetch: vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ results: [] }) })) };
+    window.VexNet = { fetch: vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [] }) })) };
     await VexGeo.search('x', {});
     expect(window.VexNet.fetch).toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
@@ -69,7 +74,7 @@ describe('the query that actually goes out', () => {
 
 describe('narrowing by country', () => {
   it('keeps only that country, and counts what it dropped', async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ results: [
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [
       hit(), hit({ country_code: 'US', admin1: 'New Hampshire' }), hit({ country_code: 'US', admin1: 'Connecticut' }),
     ] }) }));
     const found = await VexGeo.search('Manchester', { country: 'GB' });
@@ -79,14 +84,14 @@ describe('narrowing by country', () => {
   });
 
   it('returns everything when no country is chosen', async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ results: [hit(), hit({ country_code: 'US' })] }) }));
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [hit(), hit({ country_code: 'US' })] }) }));
     const found = await VexGeo.search('Manchester', {});
     expect(found.hits).toHaveLength(2);
     expect(found.elsewhere).toBe(0);
   });
 
   it('reports "none here, some elsewhere" distinctly from "none anywhere"', async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ results: [hit({ country_code: 'US' })] }) }));
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [hit({ country_code: 'US' })] }) }));
     const found = await VexGeo.search('Manchester', { country: 'TR' });
     expect(found.hits).toHaveLength(0);
     expect(found.elsewhere).toBe(1);

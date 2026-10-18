@@ -749,8 +749,15 @@ function vexOwnTextFocused(doc) {
         current.textContent = c ? `Current: ${c}` : 'No location set — start page uses your approximate IP location.';
       };
       showCurrent();
+      const countrySel = document.getElementById('setting-weather-country');
+      if (countrySel) {
+        let saved = '';
+        try { saved = localStorage.getItem('vex.weatherCountry') || ''; } catch { saved = ''; }
+        countrySel.innerHTML = VexGeo.optionsHtml(saved || VexGeo.guessCountry());
+        countrySel.addEventListener('change', () => { try { localStorage.setItem('vex.weatherCountry', countrySel.value || ''); } catch (err) { console.error('[Weather] could not remember the country:', err); } });
+      }
       const pick = (hit) => {
-        const loc = { lat: hit.latitude, lon: hit.longitude, city: hit.name + (hit.admin1 && hit.admin1 !== hit.name ? ', ' + hit.admin1 : '') + (hit.country_code ? ', ' + hit.country_code : '') };
+        const loc = VexGeo.toLocation(hit);
         if (typeof Onboarding !== 'undefined') Onboarding._setStart('vex.weatherLoc', JSON.stringify(loc));
         else { try { localStorage.setItem('vex.weatherLoc', JSON.stringify(loc)); } catch {} }
         if (typeof Onboarding !== 'undefined') Onboarding._reloadStartPages();
@@ -763,17 +770,19 @@ function vexOwnTextFocused(doc) {
         if (!q) { if (statusEl) statusEl.textContent = 'Type a city or district.'; return; }
         if (statusEl) statusEl.textContent = 'Searching…';
         if (results) results.innerHTML = '';
-        let list = [];
-        try {
-          const r = await (window.VexNet?.fetch || fetch)(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=tr`);
-          const d = await r.json();
-          list = (d && d.results) || [];
-        } catch { if (statusEl) statusEl.textContent = 'Lookup failed — check your connection.'; return; }
-        if (!list.length) { if (statusEl) statusEl.textContent = 'No matches. Try the nearest town or a different spelling.'; return; }
+        let lang = 'en';
+        try { lang = (localStorage.getItem('vex.lang') || 'en').slice(0, 2); } catch { lang = 'en'; }
+        const country = countrySel ? countrySel.value : '';
+        let found;
+        try { found = await VexGeo.search(q, { country, lang }); }
+        catch (err) { if (statusEl) statusEl.textContent = 'Lookup failed (' + ((err && err.message) || 'no connection') + ') — try again.'; return; }
+        const list = found.hits.slice(0, 30);
+        if (!list.length) { if (statusEl) statusEl.textContent = VexGeo.noMatchMessage(q, found, country); return; }
         if (list.length === 1) { pick(list[0]); return; }
-        if (statusEl) statusEl.textContent = 'Pick the right one:';
+        const credit = VexGeo.attribution(list);
+        if (statusEl) statusEl.textContent = 'Pick the right one:' + (credit ? ' ' + credit : '');
         results.innerHTML = list.map((hit, i) => {
-          const label = [hit.name, hit.admin1, hit.country].filter(Boolean).join(' · ').replace(/</g, '&lt;');
+          const label = VexGeo.label(hit).replace(/&/g, '&amp;').replace(/</g, '&lt;');
           return `<button data-i="${i}" class="btn-secondary" style="text-align:left;justify-content:flex-start">${label}</button>`;
         }).join('');
         results.querySelectorAll('[data-i]').forEach(btn => btn.addEventListener('click', () => pick(list[+btn.dataset.i])));
