@@ -23,6 +23,12 @@ async function main() {
   try {
     require('fs').writeFileSync(path.join(probe.userDataDir, 'vex-persist.json'), JSON.stringify(cdpLib.seededPreferences()));
     const target = await cdpLib.waitForTarget(probe.port, 60000); cdp = await cdpLib.connect(target.webSocketDebuggerUrl);
+    // Console from the very start (Runtime.enable replays what was already logged): a Settings section that cannot be built logs
+    // an error at every start and nothing else shows it.
+    const consoleErrors = [];
+    cdp.on('Runtime.consoleAPICalled', (p) => { if (p.type === 'error') consoleErrors.push((p.args || []).map(a => a.value || a.description || '').join(' ').slice(0, 300)); });
+    cdp.on('Runtime.exceptionThrown', (p) => consoleErrors.push('uncaught: ' + ((p.exceptionDetails.exception && p.exceptionDetails.exception.description) || p.exceptionDetails.text).slice(0, 300)));
+    await cdp.send('Runtime.enable', {});
     await cdpLib.waitForRenderer(cdp, 60000);
     const deadline = Date.now() + 90000;
     while (!await cdpLib.evaluate(cdp, '!!window.VexBoot?.marks.settled')) { if (Date.now() > deadline) throw new Error('Late modules did not settle'); await cdpLib.sleep(500); }
@@ -195,6 +201,11 @@ async function main() {
       return { calls, haveCommand: !!VexFeatures.command(f) };
     })()`);
     check('a Library button runs its command through CommandBar._execute (so the off-gate applies)', disp.calls === 1 && disp.haveCommand, disp);
+    // ---- console ----
+    const unbuilt = consoleErrors.filter(e => /could not be built|is not defined/.test(e));
+    check('no Settings section failed to build, and nothing reported a missing global, from start-up to the end of this run', unbuilt.length === 0, unbuilt.slice(0, 3));
+    const other = consoleErrors.filter(e => !unbuilt.includes(e) && !/favicon|Failed to load resource|net::ERR_/.test(e));
+    console.log('INFO other console errors: ' + (other.length ? '\n  ' + other.slice(0, 8).join('\n  ') : 'none'));
   } finally {
     if (cdp) cdp.close(); harness.dispose(probe);
   }

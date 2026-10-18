@@ -125,3 +125,28 @@ describe('a visible switch for the flag the feature really reads', () => {
     }
   });
 });
+
+// The Settings sections above build the moment they register (VexSettingsGroups.register injects at once), so the
+// helper they call, VexSettingsGroup.toggle, must already be defined when their script runs. It was not: settings-group.js
+// loaded after them, and Settings logged "section ... could not be built: VexSettingsGroup is not defined" at every start.
+describe('script order for sections that build as they register', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const html = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/index.html'), 'utf8');
+  const order = [...html.matchAll(/<script src="js\/([^"]+)"/g)].map(m => m[1]);
+  const at = (f) => order.indexOf(f);
+  it('settings-group.js comes before every module that uses VexSettingsGroup.toggle while registering', () => {
+    const users = ['post-update-selftest.js', 'master-volume.js', 'longdoc-engine.js', 'answer-citations.js', 'signout-why-ui.js',
+      'credential-interlock.js', 'release-checklist.js', 'feature-sheet.js', 'signed-in-ui.js', 'incident-playbooks.js'];
+    expect(at('settings-group.js')).toBeGreaterThan(-1);
+    for (const u of users) { if (at(u) === -1) continue; expect(at('settings-group.js'), u).toBeLessThan(at(u)); }
+  });
+  it('and in general: no script that names VexSettingsGroup (the helper, not the registry) loads before it', () => {
+    const JS = path.resolve(__dirname, '../../src/renderer/js');
+    const first = at('settings-group.js');
+    const early = order.slice(0, first).filter(f => f !== 'settings-group.js').filter((f) => {
+      try { return /\bVexSettingsGroup\b/.test(fs.readFileSync(path.join(JS, f), 'utf8')); } catch { return false; }
+    });
+    expect(early, 'these load before settings-group.js but use VexSettingsGroup').toEqual([]);
+  });
+});

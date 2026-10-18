@@ -2005,6 +2005,8 @@
   <script src="js/backup.js"></script>
   <!-- Platform tools: Settings sections they add themselves (js/vex-settings-groups.js). -->
   <script src="js/vex-settings-groups.js"></script>
+  <!-- Before every module whose Settings section builds as it registers (update-self-test, site volume, long documents...): they use VexSettingsGroup.toggle. -->
+  <script src="js/settings-group.js"></script>
   <script src="js/vex-minimal-mode.js"></script>
   <script src="js/vex-health.js"></script>
   <!-- Playfulness master level, Settings > Attention, the New Tab slot grid. -->
@@ -2246,7 +2248,6 @@
   <script src="js/fullscreen-notice.js"></script>
   <script src="js/popup-blocked.js"></script>
   <script src="js/site-panel.js"></script>
-  <script src="js/settings-group.js"></script>
   <script src="js/command-aliases.js"></script>
   <script src="js/time-of-day.js"></script>
   <script src="js/tab-reason.js"></script>
