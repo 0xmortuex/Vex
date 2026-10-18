@@ -66,6 +66,10 @@ const Bookmarks = {
       this.remove(b => b.url === url);
       return;
     } else {
+      // Saved bookmarks must be web addresses: the save is refused ("Invalid saved URL")
+      // for the New Tab page, Settings and other vex:// or file:// pages, and a refused save
+      // blocks every other setting written with it.
+      if (!/^https?:/i.test(url)) { window.showToast?.('Only web pages can be bookmarked', 'info'); return; }
       // Native prompt() is disabled in Electron's renderer (always returned
       // null here, silently skipping the folder question) — use the in-app
       // prompt. Cancel still bookmarks, just into Unsorted.
@@ -78,6 +82,8 @@ const Bookmarks = {
       window.showToast?.('Bookmarked');
     }
     this.save();
+    // "First bookmark" and the collector medals read the saved list; look now, not at the next timed check.
+    window.VexMedals?.runChecks?.();
   },
 
   _injectStar() {

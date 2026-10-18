@@ -153,7 +153,8 @@ const NowPlaying = {
       row.innerHTML = `<span style="display:inline-flex;color:var(--text-muted)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M6 12.2V3.4l7-1.4v8.8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="4.3" cy="12.3" r="1.9" stroke="currentColor" stroke-width="1.3"/><circle cx="11.3" cy="10.8" r="1.9" stroke="currentColor" stroke-width="1.3"/></svg></span>
         <span style="flex:1;min-width:0;font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((t && t.title) || title)}</span>
         <button data-pp style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M2.5 3.5v9l5-4.5z" fill="currentColor"/><path d="M10 3.5v9M13 3.5v9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-        <button data-mute style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M2.5 6h2L7.5 3.5v9L4.5 10h-2z" fill="currentColor"/><path d="M10 6.2l3.5 3.6M13.5 6.2L10 9.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>`;
+        <button data-mute style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M2.5 6h2L7.5 3.5v9L4.5 10h-2z" fill="currentColor"/><path d="M10 6.2l3.5 3.6M13.5 6.2L10 9.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
+        <button data-dismiss aria-label="Hide this" title="Hide this" style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>`;
       row.addEventListener('click', (e) => { if (e.target.closest('button')) return; TabManager.switchTab(tabId); });
       row.querySelector('[data-pp]').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -165,10 +166,21 @@ const NowPlaying = {
         const wv = WebviewManager.webviews.get(tabId);
         try { wv?.setAudioMuted(!wv.isAudioMuted()); } catch {}
       });
+      // Takes this row off the bar; it comes back if that tab starts playing again.
+      row.querySelector('[data-dismiss]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.playing.delete(tabId);
+        this._render();
+      });
       bar.appendChild(row);
     });
   },
 };
+// A tab closed while playing sends no pause or destroy event, so its row stayed with buttons that did nothing.
+document.addEventListener('vex:tab-closed', (e) => {
+  const id = e && e.detail && e.detail.tabId;
+  if (id != null && NowPlaying.playing.delete(id)) NowPlaying._render();
+});
 
 // ---- Resource Monitor — live per-process CPU / memory (GX-style, honest) ----
 const ResourceMonitor = {
