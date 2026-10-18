@@ -1,5 +1,20 @@
 # Changelog
 
+## v36.49.6 (2026-10-19) — Bookmarking the New Tab page no longer stops settings from saving, and plugin memory can run in the background
+
+### New
+- **Plugin memory: "Hide and keep running".** The measuring window used to cover Vex for up to an hour. The new button hides it and leaves a small chip with Show and Stop in the bottom right corner; the measurement carries on, and a message with "Show the result" appears when it finishes. Stop still turns every plugin back on. Checked with real clicks in Electron.
+
+### Fixed
+- **Bookmarking the New Tab page broke saving.** The star accepted the New Tab page, but a saved bookmark must be a web address, so every save was refused ("Invalid saved URL" and "Changes could not be saved") and the other settings saved with it were lost. The star now says "Only web pages can be bookmarked" for the New Tab page, Settings and other non-web pages. An existing bookmark of that kind can still be removed with the star.
+- **The "First bookmark" medal waited up to 2 minutes.** A saved bookmark now checks the medals at once. The medal pop-up is still shown only at Playfulness "Full", by design.
+- **The Now Playing bar kept a closed tab.** Its row stayed, with buttons that did nothing, after the tab was closed while playing. The row now goes when the tab closes, and each row has an X to hide it.
+- **First open: the earlier mode is kept across a restart.** Switching the feature off (for example with Minimal Vex) and back on gave "offer" after a restart, even if the choice had been "open".
+- **The release script** (`scripts/release.js`) now gives its commit the `Rank:` line the commit hook requires, so it no longer fails at the commit step.
+
+### Checked
+The full test suite on the Plugin memory, bookmark and Now Playing commits (1,225 files, 16,814 tests, on Node 22), plus the source, type and lint checks, and a 20-check real-Electron run of the plugin memory window. The first-open fix was checked by its tests, lint and the source check; the full suite has not been run since that last commit. Not exercised on a real profile: a full plugin memory run, because the run on the owner's profile was stopped before it measured anything.
+
 ## v36.44.1 (2026-10-18) — Switches that match, a way in for every feature, plugin memory in groups, and weather by postcode
 
 ### New
