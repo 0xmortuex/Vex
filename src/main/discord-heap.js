@@ -35,6 +35,17 @@ const nodePath = require('path');
 const ALLOWED = new Set(['Runtime.getHeapUsage', 'HeapProfiler.collectGarbage', 'HeapProfiler.startSampling', 'HeapProfiler.getSamplingProfile', 'HeapProfiler.stopSampling']);
 const SAMPLING_INTERVAL = 32768;
 const MAX_SESSION_MS = 6 * 60000;
+// Every debugger command waits on Discord's page. A page that does not answer (frozen, throttled, busy) used to leave the
+// measurement waiting for ever at "0 s left"; now each step has a limit and says which step it was.
+const STEP_TIMEOUT_MS = 90000;
+// Measured 2026-10-18 (a disposable profile, webContents.debugger, Electron 42): HeapProfiler.getSamplingProfile answers in
+// about 30 ms for call stacks up to 60 frames deep and NEVER answers once they are 100 frames deep or more, however small the
+// heap (100 MB, 600 MB, any sampling interval, visible or hidden; stopSampling, which returns the same profile, hangs too). The
+// profile is a tree that nests two JSON levels per frame, and Electron's debugger drops a message nested more than about 200
+// levels without an error. Discord's stacks (React, Vencord's patches) are that deep, so waiting longer cannot help: this step
+// gets a short limit and says why, and the person is pointed at the one-plugin-at-a-time test, which reads flat numbers only.
+const PROFILE_TIMEOUT_MS = 30000;
+const PROFILE_TOO_DEEP = 'Discord\u2019s allocation profile did not come back. Electron drops a profile whose call stacks are about 100 frames deep or more, and Discord\u2019s usually are, so this quick method cannot read it here. Use "One at a time..." instead: it measures each plugin by turning it off and does not need the profile.';
 const MAX_MANIFEST_BYTES = 4 * 1024 * 1024;
 const MAX_NAMES = 600;
 const MAX_NODES = 2000000;
@@ -102,7 +113,7 @@ function cleanNames(names) {
   if (!Array.isArray(names) || names.length > MAX_NAMES) throw new Error('The plugin name list is not valid');
   const out = [];
   for (const n of names) {
-    if (typeof n !== 'string' || !/^[A-Za-z0-9_$][A-Za-z0-9_$ .-]{0,63}$/.test(n)) throw new Error('A plugin name is not valid');
+    if (typeof n !== 'string' || !/^[A-Za-z0-9_$][A-Za-z0-9_$ .-]{0,63}$/.test(n)) throw new Error('A plugin name is not valid: ' + JSON.stringify(typeof n === 'string' ? n.slice(0, 40) : typeof n));
     out.push(n);
   }
   return out;
@@ -171,8 +182,16 @@ function attribute(profile, { manifest = null, names = [] } = {}) {
 }
 
 // ---- a session: begin, wait (the window checks for a call), end -------------------------------------------------------
-function createDiscordHeap({ webContents, isDiscordContents, loadManifest, setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout, now = Date.now }) {
+function createDiscordHeap({ webContents, isDiscordContents, loadManifest, setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout, now = Date.now, stepTimeoutMs = STEP_TIMEOUT_MS, profileTimeoutMs = PROFILE_TIMEOUT_MS, log = (line) => console.warn(line) }) {
   const sessions = new Map();
+
+  // Races one debugger command against the step limit. `label` is what the person is told.
+  const step = (label, promise, { ms = stepTimeoutMs, why = '' } = {}) => new Promise((resolve, reject) => {
+    const timer = setTimeoutFn(() => reject(new Error(why || ('Discord did not answer "' + label + '" within ' + Math.round(ms / 1000) + ' seconds, so nothing was kept. Try again with Discord left alone, or a shorter window.'))), ms);
+    Promise.resolve(promise)
+      .then((v) => { clearTimeoutFn(timer); resolve(v); })
+      .catch((e) => { clearTimeoutFn(timer); reject(e); });
+  });
 
   function attach(id) {
     const wc = Number.isInteger(id) ? webContents.fromId(id) : null;
@@ -212,9 +231,9 @@ function createDiscordHeap({ webContents, isDiscordContents, loadManifest, setTi
     let s = null;
     try {
       const send = sender(dbg);
-      await send('HeapProfiler.collectGarbage');
-      const before = await heapOf(send);
-      await send('HeapProfiler.startSampling', { samplingInterval: SAMPLING_INTERVAL, includeObjectsCollectedByMajorGC: false, includeObjectsCollectedByMinorGC: false });
+      await step('collecting memory', send('HeapProfiler.collectGarbage'));
+      const before = await step('reading the heap size', heapOf(send));
+      await step('starting the profiler', send('HeapProfiler.startSampling', { samplingInterval: SAMPLING_INTERVAL, includeObjectsCollectedByMajorGC: false, includeObjectsCollectedByMinorGC: false }));
       s = { id, wc, dbg, send, before, names: list, startedAt: now(), timer: null, over: false };
       s.timer = setTimeoutFn(() => { end(id, false).catch(err => console.error('[Discord heap] the unattended session could not be ended:', err)); }, MAX_SESSION_MS);
       if (s.timer && typeof s.timer.unref === 'function') s.timer.unref();
@@ -237,12 +256,17 @@ function createDiscordHeap({ webContents, isDiscordContents, loadManifest, setTi
       if (!keep) { try { await s.send('HeapProfiler.stopSampling'); } catch { /* vex-allow-empty-catch: discarding, and the page may be gone */ } return { ok: true, discarded: true }; }
       if (s.wc.isDestroyed()) throw new Error('Discord closed during the measurement');
       if (typeof s.wc.isCurrentlyAudible === 'function' && s.wc.isCurrentlyAudible()) throw new Error('Discord started playing sound (a call?) - the measurement was dropped');
-      await s.send('HeapProfiler.collectGarbage');
-      const got = await s.send('HeapProfiler.getSamplingProfile');
-      const after = await heapOf(s.send);
-      await s.send('HeapProfiler.stopSampling');
+      const t0 = now();
+      await step('collecting memory', s.send('HeapProfiler.collectGarbage'));
+      const t1 = now();
+      const got = await step('reading the allocation profile', s.send('HeapProfiler.getSamplingProfile'), { ms: profileTimeoutMs, why: PROFILE_TOO_DEEP });
+      const t2 = now();
+      const after = await step('reading the heap size', heapOf(s.send));
+      await step('stopping the profiler', s.send('HeapProfiler.stopSampling'));
+      const t3 = now();
       const ranges = loadManifest();
       const a = attribute(got && got.profile, { manifest: ranges.manifest, names: s.names });
+      log('[Discord heap] finished: collect ' + (t1 - t0) + ' ms, profile ' + (t2 - t1) + ' ms, size+stop ' + (t3 - t2) + ' ms, adding up ' + (now() - t3) + ' ms, ' + a.nodes + ' nodes');
       const kb = (b) => Math.round(b / 1024);
       const rows = [...a.plugins].map(([name, v]) => ({ name, kb: kb(v.stack), selfKB: kb(v.self) })).filter(r => r.kb > 0 || r.selfKB > 0).sort((x, y) => y.kb - x.kb);
       return {

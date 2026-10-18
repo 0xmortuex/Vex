@@ -106,9 +106,21 @@ describe('measuring for ten minutes', () => {
     expect(await drive(p, 10)).toBe(true);
     expect(stops).toBe(1);
   });
-  it('is refused while Discord is not loaded', async () => {
+  it('asks before loading an asleep Discord, and a no ends quietly with nothing opened or loaded', async () => {
     sb.panelWebviews = {};
-    await expect(DiscordMeasure.open({ ab: false })).rejects.toThrow(/not loaded/);
+    window.vexConfirm = vi.fn(async () => false);
+    sb._createPanelWebview = vi.fn();
+    await expect(DiscordMeasure.open({ ab: false })).resolves.toBeUndefined();
+    expect(window.vexConfirm).toHaveBeenCalledTimes(1);
+    expect(window.vexConfirm.mock.calls[0][0].message).toMatch(/asleep/);
+    expect(sb._createPanelWebview).not.toHaveBeenCalled();
+    expect(document.getElementById('vex-discord-measure')).toBeNull();
+  });
+  it('a yes that cannot be carried out is said plainly', async () => {
+    sb.panelWebviews = {};
+    delete sb._createPanelWebview;
+    window.vexConfirm = vi.fn(async () => true);
+    await expect(DiscordMeasure.open({ ab: false })).rejects.toThrow(/cannot be loaded in the background/);
   });
 });
 

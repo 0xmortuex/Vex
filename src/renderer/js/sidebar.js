@@ -1507,6 +1507,11 @@ const SidebarManager = {
   // Returns the reason, in words, or '' when it is safe to sleep.
   panelBusy(name) {
     if (this.isPanelCapturing(name)) return 'it is using the microphone or camera';
+    // A Discord memory measurement needs the page to stay loaded until it is done (js/discord-memory.js).
+    if (name === 'discord' && typeof DiscordMemory !== 'undefined' && typeof DiscordMemory.measurementHold === 'function') {
+      const held = DiscordMemory.measurementHold();
+      if (held) return held;
+    }
     const wv = this.panelWebviews[name];
     try { if (wv && typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) return 'it is making a sound'; }
     catch { /* a panel mid-teardown cannot be asked */ }
@@ -1564,7 +1569,9 @@ const SidebarManager = {
   async checkDiscordThrottle(now = Date.now()) {
     const wv = this.panelWebviews.discord;
     if (!wv) return null;
-    const visible = this.activePanel === 'discord' || this.sidePanel === 'discord';
+    // A Discord being measured is treated as in sight: not throttled, not rested (js/discord-memory.js measurementHold).
+    const held = typeof DiscordMemory !== 'undefined' && typeof DiscordMemory.measurementHold === 'function' && !!DiscordMemory.measurementHold();
+    const visible = this.activePanel === 'discord' || this.sidePanel === 'discord' || held;
     const prefs = this.discordRestPrefs();
     // The page learns whether it is in sight (preload-webview.js stops its video scan while it is not).
     this._tellDiscordHidden(wv, !visible);
@@ -1601,7 +1608,20 @@ const SidebarManager = {
   _tellDiscordHidden(wv, hidden) {
     if (typeof wv.send !== 'function') return;
     try { wv.send('vex-hidden', !!hidden); }
-    catch (err) { window.VexProblems?.note('Discord rest', 'Could not tell the page it is hidden', err); }
+    catch (err) {
+      // A page only just created (a refresh, or Discord loaded in the background for a measurement) cannot be sent to
+      // until it has emitted dom-ready. That is not a problem: look again once it has, and tell it then.
+      if (/dom-ready/.test(String(err && err.message))) {
+        if (wv.dataset && wv.dataset.hiddenRetry === '1') return;
+        if (wv.dataset) wv.dataset.hiddenRetry = '1';
+        wv.addEventListener('dom-ready', () => {
+          if (wv.dataset) delete wv.dataset.hiddenRetry;
+          this.checkDiscordThrottle().catch(e => window.VexProblems?.note('Discord rest', 'Could not tell the page it is hidden', e));
+        }, { once: true });
+        return;
+      }
+      window.VexProblems?.note('Discord rest', 'Could not tell the page it is hidden', err);
+    }
   },
 
   // A Discord notification just arrived: the page is awake for a while whatever the rest mode says.

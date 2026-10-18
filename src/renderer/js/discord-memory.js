@@ -166,6 +166,54 @@ const DiscordMemory = {
     return t && typeof WebviewManager !== 'undefined' ? WebviewManager.webviews.get(t.id) || null : null;
   },
 
+  // ---- measuring: keep Discord, and load it when it is asleep -------------------------
+  // The plugin-memory tools need Discord loaded and hidden for minutes. Two things used to take it away mid-way or
+  // before the start: the idle sleep and the automatic refresh both act on a hidden, idle Discord, and the tools just
+  // said "Discord is not loaded" when it was already asleep. So: while a measurement runs this says so
+  // (the sleepers ask panelBusy, check() asks here), and an asleep Discord is loaded in the background on a yes.
+  // Nothing here changes the person's sleep or keep-awake settings.
+  measurementHold() {
+    if (typeof DiscordPluginRam !== 'undefined' && (DiscordPluginRam._busy || DiscordPluginRam._windowOpen)) return 'the plugin memory window is open';
+    if (typeof DiscordMeasure !== 'undefined' && DiscordMeasure._run && !DiscordMeasure._run.finished) return 'a Discord memory measurement is running';
+    return '';
+  },
+
+  // Load Discord's page without showing the panel (the way a refresh does), and wait until it has loaded.
+  async loadHidden({ timeoutMs = 90000 } = {}) {
+    const have = this.webview();
+    if (have) return have;
+    if (this.mode() === 'tab') throw new Error('Discord is set to open as a tab (Settings > Performance). Open that tab first, then measure.');
+    const sb = this._sidebar();
+    const panelEl = document.getElementById('panel-discord');
+    if (!sb || !panelEl || typeof sb._createPanelWebview !== 'function') throw new Error('Discord cannot be loaded in the background here');
+    if (sb.activePanel === 'discord' || sb.sidePanel === 'discord') throw new Error('Discord is open but its page is not loaded. Close it and try again.');
+    const wv = sb._createPanelWebview('discord', panelEl);
+    if (!wv) throw new Error('Discord could not be loaded');
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { cleanup(); reject(new Error('Discord did not finish loading in ' + Math.round(timeoutMs / 1000) + ' seconds')); }, timeoutMs);
+      const done = () => { cleanup(); resolve(); };
+      const failed = (e) => { cleanup(); reject(new Error('Discord could not load' + (e && e.errorDescription ? ': ' + e.errorDescription : ''))); };
+      const cleanup = () => { clearTimeout(timer); wv.removeEventListener('did-finish-load', done); wv.removeEventListener('did-fail-load', failed); };
+      wv.addEventListener('did-finish-load', done);
+      wv.addEventListener('did-fail-load', failed);
+    });
+    return wv;
+  },
+
+  // The Discord page for a measurement: the loaded one, or (after a yes) one loaded in the background.
+  // -> the webview, or null when the person said no.
+  async ensureLoaded() {
+    const have = this.webview();
+    if (have) return have;
+    const ok = typeof window.vexConfirm === 'function' && await window.vexConfirm({
+      title: 'Load Discord in the background?',
+      message: 'Discord is asleep, so there is nothing to measure. Load it now, hidden, for the measurement? It uses about 1 GB while it is loaded, is kept loaded until the measurement ends, and then follows your normal sleep settings again.',
+      okLabel: 'Load Discord and continue',
+    });
+    if (!ok) return null;
+    return this.loadHidden();
+  },
+
   // ---- the heaviest Vencord plugins -------------------------------------------------
   // Measured in the plugin review (v2.32.18): MessageLoggerEnhanced keeps up to
   // 2,000 messages per server in memory, MessageLogger does the same work
@@ -491,6 +539,9 @@ const DiscordMemory = {
   // safe → refresh. Neither happens without a yes unless the user has asked
   // for it to be automatic. Returns what it did.
   async check(now = Date.now()) {
+    // A measurement needs the page exactly as it is: no sleep, no refresh until it is done.
+    const holding = this.measurementHold();
+    if (holding) return { action: 'holding', why: holding };
     const consent = this.consent();
     const idle = this.idleMinutes();
     const sb = this._sidebar();

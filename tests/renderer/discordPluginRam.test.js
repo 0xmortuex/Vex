@@ -158,6 +158,40 @@ describe('the code that runs inside Discord', () => {
     expect(w.hacked).toBeUndefined();
     expect(w.plugins['x"); window.hacked=1; ("'].enabled).toBe(false);
   });
+  it('with Vencord’s own plugin table it works out what is safe to turn off, without the helper plugin', () => {
+    const plugins = {
+      Free: { enabled: true }, Needed: { enabled: true }, NeedsIt: { enabled: true }, Core: { enabled: true }, _api: { enabled: true },
+      Gone: { enabled: true }, Off: { enabled: false }, OffNeeds: { enabled: false },
+    };
+    const defs = {
+      Free: {}, Needed: {}, NeedsIt: { dependencies: ['Needed'] }, Core: { required: true }, _api: {}, Off: {}, OffNeeds: { dependencies: ['Free'] },
+    };
+    const w = { Vencord: { Settings: { plugins }, Plugins: { plugins: defs } } };
+    const got = run(R.LIST_CODE, w);
+    expect(got.via).toBe('settings');
+    expect(got.deps).toBe(true);
+    const by = Object.fromEntries(got.rows.map(r => [r.name, r]));
+    expect(by.Free).toMatchObject({ canDisable: true, reason: '' });
+    expect(by.NeedsIt.canDisable).toBe(true);                          // nothing needs it
+    expect(by.Needed).toMatchObject({ canDisable: false, reason: 'these plugins need it: NeedsIt' });
+    expect(by.Core).toMatchObject({ canDisable: false, reason: 'Vencord needs it' });
+    expect(by._api.canDisable).toBe(false);
+    expect(by.Gone).toMatchObject({ canDisable: false, reason: 'it is not part of this Vencord build' });
+    expect(by.Free.canDisable).toBe(true);                             // a plugin that is OFF does not hold Free on
+    expect(by.Off.enabled).toBe(false);
+  });
+  it('listPlugins then offers every plugin it knows is safe, and tells the picker where that came from', async () => {
+    DiscordMemory.webview = () => ({});
+    window.vexGuestEval = vi.fn(async () => ({ via: 'settings', deps: true, rows: [
+      { name: 'Free', enabled: true, canDisable: true, reason: '' },
+      { name: 'Core', enabled: true, canDisable: false, reason: 'Vencord needs it' }] }));
+    const r = await R.listPlugins();
+    expect(r.via).toBe('settings-deps');
+    expect(r.rows.map(x => x.canDisable)).toEqual([true, false]);
+    const plan = R.planOrder(r.rows, { heavy: DiscordMemory.HEAVY_PLUGINS, max: R.MAX_LIMIT });
+    expect(plan.ordered).toEqual(['Free']);
+    expect(plan.skipped).toEqual([{ name: 'Core', reason: 'Vencord needs it' }]);
+  });
   it('no Vencord at all is null', () => {
     expect(run(R.LIST_CODE, { Vencord: undefined })).toBeNull();
   });
@@ -204,6 +238,17 @@ describe('measureFast', () => {
     expect(r.plugins[0].name).toBe('Alpha');
     expect(R.last.fast.windowSec).toBe(15);
     expect(c.now()).toBeGreaterThanOrEqual(15000);
+  });
+  it('sends only names main accepts, so one odd plugin name no longer fails the whole measurement, and says how many were left out', async () => {
+    const c = clock();
+    const long = 'x'.repeat(80);
+    window.vexGuestEval = vi.fn(async () => ({ via: 'api', rows: [{ name: 'Alpha' }, { name: 'Free Emoji-2' }, { name: 'My/Plugin' }, { name: 'Caf\u00e9' }, { name: long }, { name: '_api' }] }));
+    const said = [];
+    await R.measureFast({ windowSec: 15, ...c, say: (t) => said.push(t) });
+    expect(calls[0]).toEqual(['begin', 11, ['Alpha', 'Free Emoji-2', '_api']]);
+    expect(said.join(' ')).toMatch(/3 plugins with an unusual name cannot be followed by name/);
+    const { H } = { H: require('../../src/main/discord-heap.js') };
+    expect(() => H.cleanNames(calls[0][2])).not.toThrow();           // exactly what main accepts
   });
   it('refuses a window that is not one of the choices, and while Discord is open or in a call', async () => {
     await expect(R.measureFast({ windowSec: 7 })).rejects.toThrow(/one of 15, 30, 60, 120/);
@@ -481,5 +526,221 @@ describe('in the "Why is Discord big?" report and the measure window', () => {
     expect(DiscordMemory.care().pluginPending).toEqual([]);
     expect(R.last.slow.plugins.map(x => x.name)).toEqual(['MessageLoggerEnhanced', 'WhoReacted']);
     expect(results.join('\n')).toMatch(/Plugin memory \(/);
+  });
+});
+
+// ---- group tests: turn several plugins off together --------------------------------------------------------------------------
+describe('planGroups', () => {
+  const names = (n, p = 'P') => Array.from({ length: n }, (_, i) => p + (i + 1));
+  it('keeps the known heavy plugins alone, first, and puts the rest in groups of 8', () => {
+    const heavy = ['MessageLoggerEnhanced', 'WhoReacted'];
+    const units = R.planGroups([...heavy, ...names(20)], { heavy });
+    expect(units.slice(0, 2)).toEqual(heavy);
+    expect(units.slice(2).map(u => u.length)).toEqual([8, 8, 4]);
+    expect(units.slice(2).flat()).toEqual(names(20));
+  });
+  it('a small last group joins the one before it, so no step tests two or three plugins on their own', () => {
+    expect(R.planGroups(names(17)).map(u => u.length)).toEqual([8, 9]);
+    expect(R.planGroups(names(20)).map(u => u.length)).toEqual([8, 8, 4]);
+    expect(R.planGroups(names(18)).map(u => u.length)).toEqual([8, 10]);
+  });
+  it('is empty for nothing, and a single plugin is its own group', () => {
+    expect(R.planGroups([])).toEqual([]);
+    expect(R.planGroups(['Only'])).toEqual([['Only']]);
+  });
+  it('about 60 plugins take about an hour, not five', () => {
+    const units = R.planGroups([...['A', 'B', 'C', 'D'], ...names(55)], { heavy: ['A', 'B', 'C', 'D'] });
+    expect(units.length).toBe(4 + 7);                              // 55 others in groups of 8: seven groups
+    expect(R.estimateMinutes(units.length)).toBeLessThan(70);
+    expect(R.estimateMinutes(59)).toBeGreaterThan(300);
+  });
+});
+
+describe('runOneAtATime with groups', () => {
+  const CFG = { settleMs: 20000, samples: 3, gapMs: 30000, maxInUseMs: 90000 };
+  function harness(over = {}) {
+    const log = [];
+    const state = { off: new Set(), persisted: [], cancelled: false };
+    const deps = {
+      setEnabled: vi.fn(async (name, on) => { log.push(['set', name, on]); if (over.setFails && over.setFails(name, on)) throw new Error('cannot switch ' + name); if (on) state.off.delete(name); else state.off.add(name); return {}; }),
+      reload: vi.fn(async () => { log.push(['reload', [...state.off]]); }),
+      sample: vi.fn(async () => ({ heapMB: 400 - state.off.size * 10, wsMB: 1000 - state.off.size * 25 })),
+      wait: vi.fn(async () => {}),
+      guard: vi.fn(async () => null),
+      isCancelled: () => (over.cancelWhen ? over.cancelWhen(log) : state.cancelled),
+      persist: vi.fn((names) => { log.push(['persist', [...names]]); state.persisted = [...names]; }),
+      say: vi.fn(),
+    };
+    return { deps, log, state };
+  }
+
+  it('turns a group off together, reads the page once, and puts every member back', async () => {
+    const h = harness();
+    const plan = { chosen: ['Heavy', ['G1a', 'G1b', 'G1c'], ['G2a', 'G2b']], skipped: [] };
+    const st = await R.runOneAtATime(h.deps, plan, CFG);
+    expect(st.error).toBeNull();
+    expect(st.plugins.map(p => p.name)).toEqual(['Heavy', 'Group 1 (3 plugins: G1a, G1b, G1c)', 'Group 2 (2 plugins: G2a, G2b)']);
+    expect(st.plugins[1].members).toEqual(['G1a', 'G1b', 'G1c']);
+    expect(st.plugins[0].members).toBeUndefined();
+    const reloads = h.log.filter(l => l[0] === 'reload').map(l => l[1]);
+    expect(reloads).toEqual([[], ['Heavy'], ['G1a', 'G1b', 'G1c'], ['G2a', 'G2b'], []]);
+    expect(st.plugins[1].heap).toEqual([370, 370, 370]);
+    expect(h.state.off.size).toBe(0);
+    expect(h.state.persisted).toEqual([]);
+    const sum = R.summarize(st);
+    expect(sum.rows[1]).toMatchObject({ members: ['G1a', 'G1b', 'G1c'], heapDelta: 30, wsDelta: 75, sig: true });
+  });
+
+  it('writes every member down BEFORE switching any off', async () => {
+    const h = harness();
+    await R.runOneAtATime(h.deps, { chosen: [['A', 'B', 'C']], skipped: [] }, CFG);
+    const firstOff = h.log.findIndex(l => l[0] === 'set' && l[2] === false);
+    const record = h.log.slice(0, firstOff).filter(l => l[0] === 'persist').pop();
+    expect(record[1]).toEqual(['A', 'B', 'C']);
+  });
+
+  it('a switch that fails halfway through a group still puts back the ones already off', async () => {
+    const h = harness({ setFails: (name, on) => name === 'B' && !on });
+    const st = await R.runOneAtATime(h.deps, { chosen: [['A', 'B', 'C']], skipped: [] }, CFG);
+    expect(st.error).toBeInstanceOf(Error);
+    expect(st.partial).toBe(true);
+    expect(h.state.off.size).toBe(0);
+    expect(h.state.persisted).toEqual([]);
+  });
+
+  it('cancelling during a group puts every member back and says it stopped early', async () => {
+    const h = harness({ cancelWhen: (log) => log.filter(l => l[0] === 'reload').length >= 2 });
+    const st = await R.runOneAtATime(h.deps, { chosen: [['A', 'B'], ['C', 'D']], skipped: [] }, CFG);
+    expect(st.partial).toBe(true);
+    expect(h.state.off.size).toBe(0);
+    expect(h.state.persisted).toEqual([]);
+  });
+
+  it('a member that cannot be put back stays recorded for the next start', async () => {
+    const h = harness({ setFails: (name, on) => name === 'B' && on });
+    const st = await R.runOneAtATime(h.deps, { chosen: [['A', 'B']], skipped: [] }, CFG);
+    expect(st.restoreError).toBeInstanceOf(Error);
+    expect(h.state.persisted).toContain('B');
+  });
+});
+
+describe('what a group test reports', () => {
+  const slowOf = (rows) => ({ at: 1, partial: false, skipped: [], baselines: [{ heap: [400, 401, 400], ws: [1000, 1001, 1000] }, { heap: [401, 400, 401], ws: [1001, 1000, 1001] }], plugins: rows });
+  it('names the members of a group that made a difference, and says what to do next', () => {
+    const slow = slowOf([
+      { name: 'Group 1 (3 plugins: A, B, C)', members: ['A', 'B', 'C'], heap: [330, 331, 330], ws: [900, 901, 900] },
+      { name: 'Group 2 (2 plugins: D, E)', members: ['D', 'E'], heap: [400, 401, 400], ws: [1000, 1001, 1000] },
+    ]);
+    const t = R.sectionText({ fast: null, slow }, null);
+    expect(t).toMatch(/In groups: 5 plugins in 2 steps tested/);
+    expect(t).toMatch(/Groups that made a difference/);
+    expect(t).toMatch(/- Group 1: about 100 MB of process memory -> A, B, C/);
+    expect(t).not.toMatch(/- Group 2:/);
+  });
+  it('a plain one-at-a-time result reads as before', () => {
+    const slow = slowOf([{ name: 'A', heap: [330, 331, 330], ws: [900, 901, 900] }]);
+    const t = R.sectionText({ fast: null, slow }, null);
+    expect(t).toMatch(/One at a time: 1 plugin tested/);
+    expect(t).not.toMatch(/Groups that made a difference/);
+  });
+});
+
+describe('the picker', () => {
+  const full = { ordered: ['MessageLogger', 'WhoReacted', 'Alpha', 'Beta', 'Gamma', 'Delta', 'Eps', 'Zeta', 'Eta', 'Theta'], skipped: [] };
+  const open = (suggest) => {
+    document.body.innerHTML = '<div id="b"></div>';
+    VexSettingsGroups.note = (t) => { const d = document.createElement('div'); d.textContent = t; return d; };
+    R._suggest = suggest || null;
+    const run = { overlay: document.body, cancelled: false };
+    const p = R._pick(run, document.getElementById('b'), full, 'settings-deps');
+    return { p, boxes: () => [...document.querySelectorAll('#b input[type=checkbox]')], how: document.querySelector('#b select'), go: [...document.querySelectorAll('#b button')].find(b => b.textContent === 'Continue') };
+  };
+  it('offers one-at-a-time (the first six ticked) or groups, and groups tick everything and count steps, not plugins', async () => {
+    const ui = open();
+    expect(ui.boxes().filter(b => b.checked).length).toBe(6);
+    expect(document.querySelector('#b').textContent).toMatch(/6 selected, about \d+ minutes/);
+    ui.how.value = 'groups'; ui.how.dispatchEvent(new Event('change'));
+    expect(ui.boxes().every(b => b.checked)).toBe(true);
+    expect(document.querySelector('#b').textContent).toMatch(/10 selected in \d+ steps/);
+    ui.go.click();
+    const choice = await ui.p;
+    expect(choice.mode).toBe('groups');
+    expect(choice.names.length).toBe(10);
+  });
+  it('one at a time still stops at 20 ticks, groups do not', () => {
+    const many = { ordered: Array.from({ length: 30 }, (_, i) => 'Plugin' + i), skipped: [] };
+    document.body.innerHTML = '<div id="b"></div>';
+    R._suggest = null;
+    R._pick({ overlay: document.body, cancelled: false }, document.getElementById('b'), many, 'settings-deps');
+    const boxes = [...document.querySelectorAll('#b input[type=checkbox]')];
+    for (const b of boxes) { b.checked = true; b.dispatchEvent(new Event('change')); }
+    expect(boxes.filter(b => b.checked).length).toBe(R.MAX_LIMIT);
+    const how = document.querySelector('#b select');
+    how.value = 'groups'; how.dispatchEvent(new Event('change'));
+    expect(boxes.filter(b => b.checked).length).toBe(30);
+  });
+  it('after a group test the members of the groups that mattered are the ones ticked', () => {
+    const ui = open(['Alpha', 'Beta']);
+    expect(ui.boxes().filter(b => b.checked).map(b => b.value)).toEqual(['Alpha', 'Beta']);
+    expect(document.querySelector('#b').textContent).toMatch(/groups that made a difference last time are ticked/);
+  });
+});
+
+describe('group size', () => {
+  const names = (n, p = 'P') => Array.from({ length: n }, (_, i) => p + (i + 1));
+  it('smaller groups narrow a group down: 8 members are two steps of 4, or four steps of 2', () => {
+    expect(R.planGroups(names(8), { size: 4 }).map(u => u.length)).toEqual([4, 4]);
+    expect(R.planGroups(names(8), { size: 2 }).map(u => u.length)).toEqual([2, 2, 2, 2]);
+    expect(R.planGroups(names(9), { size: 4 }).map(u => u.length)).toEqual([4, 5]);     // a lone leftover joins the group before it
+    expect(R.GROUP_SIZES).toEqual([8, 4, 2]);
+  });
+  it('halving a group of 8 takes about 30 minutes, not 50 and not 40 for one at a time', () => {
+    expect(R.estimateMinutes(2)).toBe(20);
+    expect(R.estimateMinutes(8)).toBe(50);
+  });
+});
+
+describe('the picker’s group size', () => {
+  const full = { ordered: Array.from({ length: 30 }, (_, i) => 'Plugin' + String(i + 1).padStart(2, '0')), skipped: [] };
+  const open = (suggest) => {
+    document.body.innerHTML = '<div id="b"></div>';
+    VexSettingsGroups.note = (t) => { const d = document.createElement('div'); d.textContent = t; return d; };
+    R._suggest = suggest || null;
+    const p = R._pick({ overlay: document.body, cancelled: false }, document.getElementById('b'), full, 'settings-deps');
+    const sel = [...document.querySelectorAll('#b select')];
+    return { p, how: sel[0], size: sel[1], text: () => document.querySelector('#b').textContent, boxes: () => [...document.querySelectorAll('#b input[type=checkbox]')], go: [...document.querySelectorAll('#b button')].find(b => b.textContent === 'Continue') };
+  };
+  it('is only shown for groups, starts at 8, changes the number of steps, and is part of the choice', async () => {
+    const ui = open();
+    expect(ui.size.style.display).toBe('none');
+    ui.how.value = 'groups'; ui.how.dispatchEvent(new Event('change'));
+    expect(ui.size.style.display).toBe('');
+    expect(ui.size.value).toBe('8');
+    expect(ui.text()).toMatch(/30 selected in 4 steps/);
+    ui.size.value = '4'; ui.size.dispatchEvent(new Event('change'));
+    expect(ui.text()).toMatch(/30 selected in 8 steps/);
+    ui.go.click();
+    const choice = await ui.p;
+    expect(choice).toMatchObject({ mode: 'groups', size: 4 });
+    expect(choice.names.length).toBe(30);
+  });
+  it('arriving from a group result: groups of 4, only that group’s members ticked, so Continue halves it', async () => {
+    const members = full.ordered.slice(0, 8);
+    const ui = open(members);
+    expect(ui.how.value).toBe('groups');
+    expect(ui.size.value).toBe('4');
+    expect(ui.size.style.display).toBe('');
+    expect(ui.boxes().filter(b => b.checked).map(b => b.value)).toEqual(members);
+    expect(ui.text()).toMatch(/8 selected in 2 steps, about 20 minutes/);
+    ui.go.click();
+    expect(await ui.p).toMatchObject({ mode: 'groups', size: 4, names: members });
+  });
+  it('switching such a picker to one at a time keeps just those members ticked, and hides the size', () => {
+    const members = full.ordered.slice(0, 8);
+    const ui = open(members);
+    ui.how.value = 'one'; ui.how.dispatchEvent(new Event('change'));
+    expect(ui.size.style.display).toBe('none');
+    expect(ui.boxes().filter(b => b.checked).map(b => b.value)).toEqual(members);
+    expect(ui.text()).toMatch(/8 selected, about 50 minutes/);
   });
 });

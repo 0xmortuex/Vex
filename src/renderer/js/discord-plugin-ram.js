@@ -26,8 +26,16 @@ const DiscordPluginRam = {
   RESTORE_JOB: 'Discord plugin restore',
   WINDOWS: [15, 30, 60, 120],                // seconds of the allocation window
   DEFAULT_WINDOW_S: 60,
+  // The names main accepts for attribution (src/main/discord-heap.js cleanNames). A plugin whose name is outside it
+  // (a symbol, a very long name) cannot be followed by name: its allocations are counted as Discord's, and it is
+  // left out of the list sent, so one odd name no longer stops the whole measurement.
+  NAME_OK: /^[A-Za-z0-9_$][A-Za-z0-9_$ .-]{0,63}$/,
+  END_WAIT_MS: 150000,                       // how long the end of a window may take before it is given up
   MAX_DEFAULT: 6,                            // plugins per one-at-a-time session, unless chosen otherwise
   MAX_LIMIT: 20,
+  GROUP_SIZES: [8, 4, 2],                    // the choices; smaller groups narrow a group that made a difference down
+  GROUP_SIZE: 8,                             // plugins turned off together in one step of a group test
+  MAX_UNITS: 24,                             // steps in one group test
   SETTLE_MS: 3 * 60000,
   SAMPLES: 3,
   GAP_MS: 30000,
@@ -62,6 +70,22 @@ const DiscordPluginRam = {
     return Math.ceil(((n + 2) * perStep) / 60000);
   },
 
+  // ---- pure: groups -------------------------------------------------------------------------------------------------
+  // A group test turns several plugins off TOGETHER and reads the page once: most plugins are tiny, so testing them one by
+  // one spends five minutes each to learn nothing. The known-heavy plugins stay alone (they are the suspects); everything
+  // else goes in groups of `size`. A small last group joins the one before it. Returns units: a name, or an array of names.
+  planGroups(names, { heavy = [], size = this.GROUP_SIZE } = {}) {
+    const solo = names.filter(n => heavy.includes(n));
+    const rest = names.filter(n => !heavy.includes(n));
+    const groups = [];
+    for (let i = 0; i < rest.length; i += size) groups.push(rest.slice(i, i + size));
+    if (groups.length > 1 && groups[groups.length - 1].length < size / 2) { const last = groups.pop(); groups[groups.length - 1].push(...last); }
+    return [...solo, ...groups];
+  },
+  groupLabel(members, n) {
+    return 'Group ' + n + ' (' + members.length + ' plugins: ' + members.slice(0, 3).join(', ') + (members.length > 3 ? ', ...' : '') + ')';
+  },
+
   // ---- pure: one-at-a-time results ------------------------------------------------------------------------------
   _noiseText(noise) { return 'within noise (< ' + Math.max(1, Math.ceil(noise)) + ' MB)'; },
   _classify(delta, noise) {
@@ -83,7 +107,7 @@ const DiscordPluginRam = {
       if (w.sig) verdict = w.neg ? w.text : w.text + ' of process memory';
       else if (h.sig) verdict = h.neg ? h.text : h.text + ' of JavaScript heap; process memory ' + w.text;
       else verdict = this._noiseText(Math.max(heapNoise, wsNoise));
-      return { name: p.name, heapDelta: this._r1(heapDelta), wsDelta: this._r1(wsDelta), heapNoise: this._r1(heapNoise), wsNoise: this._r1(wsNoise),
+      return { name: p.name, members: p.members || null, heapDelta: this._r1(heapDelta), wsDelta: this._r1(wsDelta), heapNoise: this._r1(heapNoise), wsNoise: this._r1(wsNoise),
         verdict, sig: w.sig || h.sig, wsSig: w.sig, heapSig: h.sig };
     });
     let drift = null;
@@ -122,7 +146,9 @@ const DiscordPluginRam = {
     }
     if (last.slow) {
       const s = this.summarize(last.slow);
-      out.push('  One at a time: ' + last.slow.plugins.length + ' plugin' + VexPlural.s(last.slow.plugins.length) + ' tested (' + when(last.slow.at) + ')' + (last.slow.partial ? ' - STOPPED EARLY' : '') + '.' + (s.drift ? ' Baseline drift between the first and last run: heap ' + (s.drift.heap >= 0 ? '+' : '') + s.drift.heap + ' MB, process ' + (s.drift.ws >= 0 ? '+' : '') + s.drift.ws + ' MB.' : ' No second baseline was reached, so drift is unknown.'));
+      const tested = last.slow.plugins.reduce((n, p) => n + (p.members ? p.members.length : 1), 0);
+      const grouped = last.slow.plugins.some(p => p.members);
+      out.push('  ' + (grouped ? 'In groups' : 'One at a time') + ': ' + tested + ' plugin' + VexPlural.s(tested) + (grouped ? ' in ' + last.slow.plugins.length + ' steps' : '') + ' tested (' + when(last.slow.at) + ')' + (last.slow.partial ? ' - STOPPED EARLY' : '') + '.' + (s.drift ? ' Baseline drift between the first and last run: heap ' + (s.drift.heap >= 0 ? '+' : '') + s.drift.heap + ' MB, process ' + (s.drift.ws >= 0 ? '+' : '') + s.drift.ws + ' MB.' : ' No second baseline was reached, so drift is unknown.'));
       if (last.slow.skipped && last.slow.skipped.length) out.push('  Not tested (cannot be turned off): ' + last.slow.skipped.map(x => x.name).join(', ') + '.');
     }
     out.push('');
@@ -141,6 +167,11 @@ const DiscordPluginRam = {
       out.push('  ' + pad('Vencord core (not a plugin)', nameW) + pad(this._r1(last.fast.coreKB / 1024) + ' MB', 15));
       out.push('  ' + pad('Discord itself / unattributed', nameW) + pad(this._r1(last.fast.otherKB / 1024) + ' MB', 15));
     }
+    const bigGroups = last.slow ? this.summarize(last.slow).rows.filter(r => r.members && ((r.wsSig && r.wsDelta > 0) || (r.heapSig && r.heapDelta > 0))) : [];
+    if (bigGroups.length) {
+      out.push('', '  Groups that made a difference (the plugin is among the members; "One at a time..." will have them ticked for you):');
+      for (const g of bigGroups) out.push('  - ' + g.name.replace(/\s*\(.*$/, '') + ': ' + g.verdict + ' -> ' + g.members.join(', '));
+    }
     out.push('', ...this.limits().map(l => '  ' + l));
     return out.join('\n');
   },
@@ -149,6 +180,7 @@ const DiscordPluginRam = {
       'What the numbers mean:',
       '- "by allocation": MB of JavaScript objects the plugin’s code allocated during the window that were still alive at its end (Chromium’s sampling heap profiler, attributed through the Vencord build’s line map). It does not see memory allocated before the window. Code Vencord patches into Discord’s own modules counts as Discord’s. Native memory (images, emoji, video) is NOT attributed per plugin.',
       '- "one at a time": how much SMALLER the page is with that plugin off, after a reload, three minutes of settling and three readings (JavaScript heap after a garbage collection / the whole process). The ± is the largest spread among the readings and the two baselines; a smaller difference than that is "within noise". Noise is tens of MB and depends on the server and channel Discord has open.',
+      '- "in groups": several plugins are turned off together and the page is read once per group. A group that drops by more than the noise holds a costly plugin (its members are listed); a group that does not drop clears all of its plugins in one step.',
       '- JavaScript heap is only part of the process; the rest is the page tree, decoded images and the compositor. Patches stay in Discord until it reloads: the one-at-a-time test reloads for every plugin, the allocation method cannot undo patches.',
       '- "time score (old)": the PluginProfiler plugin’s time spent, not memory; shown only for comparison.',
     ];
@@ -162,7 +194,26 @@ const DiscordPluginRam = {
     if (api && typeof api.list === 'function') return { via: 'api', rows: api.list().map(r => ({ name: String(r.name), enabled: !!r.enabled, canDisable: !!r.canDisable, reason: String(r.reason || ''), requiresRestart: !!r.requiresRestart })) };
     const p = window.Vencord && Vencord.Settings && Vencord.Settings.plugins;
     if (!p) return null;
-    return { via: 'settings', rows: Object.keys(p).filter(n => p[n] && typeof p[n].enabled === 'boolean').map(n => ({ name: n, enabled: p[n].enabled, canDisable: null, reason: '', requiresRestart: true })) };
+    const names = Object.keys(p).filter(n => p[n] && typeof p[n].enabled === 'boolean');
+    // Vencord's own plugin table says which plugins are required and which need which, so the helper plugin is not needed
+    // to know what is safe to turn off. Without that table nothing is known about dependencies.
+    const defs = window.Vencord.Plugins && window.Vencord.Plugins.plugins;
+    if (!defs || typeof defs !== 'object') return { via: 'settings', rows: names.map(n => ({ name: n, enabled: p[n].enabled, canDisable: null, reason: '', requiresRestart: true })) };
+    const neededBy = {};
+    for (const n of names) {
+      if (!p[n].enabled) continue;
+      const d = defs[n] && defs[n].dependencies;
+      if (Array.isArray(d)) for (const dep of d) (neededBy[dep] = neededBy[dep] || []).push(n);
+    }
+    return { via: 'settings', deps: true, rows: names.map(n => {
+      const def = defs[n];
+      let canDisable = true, reason = '';
+      if (!def) { canDisable = false; reason = 'it is not part of this Vencord build'; }
+      else if (def.required) { canDisable = false; reason = 'Vencord needs it'; }
+      else if (n.charAt(0) === '_') { canDisable = false; reason = 'it is one of Vencord\u2019s own parts'; }
+      else if (neededBy[n] && neededBy[n].length) { canDisable = false; reason = 'these plugins need it: ' + neededBy[n].slice(0, 4).join(', '); }
+      return { name: n, enabled: p[n].enabled, canDisable, reason, requiresRestart: true };
+    }) };
   })()`,
   setCode(name, on) {
     return `((name, on) => {
@@ -182,8 +233,9 @@ const DiscordPluginRam = {
     if (!got) throw new Error('Vencord is not running in Discord, so it has no plugins to measure');
     const heavy = DiscordMemory.HEAVY_PLUGINS;
     // Without the plugin API nothing is known about dependencies: only the heavy plugins are offered.
-    const rows = got.rows.map(r => got.via === 'api' ? r : { ...r, canDisable: heavy.includes(r.name), reason: heavy.includes(r.name) ? '' : 'install the Vencord build with the VexPluginRam plugin to test every plugin' });
-    return { via: got.via, rows };
+    const known = got.via === 'api' || got.deps === true;
+    const rows = got.rows.map(r => known ? r : { ...r, canDisable: heavy.includes(r.name), reason: heavy.includes(r.name) ? '' : 'install the Vencord build with the VexPluginRam plugin to test every plugin' });
+    return { via: got.deps ? 'settings-deps' : got.via, rows };
   },
   async setPlugin(name, on) {
     const wv = DiscordMemory.webview();
@@ -229,8 +281,13 @@ const DiscordPluginRam = {
     let names = [];
     const wv = DiscordMemory.webview();
     const got = await window.vexGuestEval(wv, this.LIST_CODE, false, 8000);
-    if (got) names = got.rows.map(r => r.name).slice(0, 600);
-    say('Starting the allocation window (' + windowSec + ' s). Discord pauses for a moment while memory is collected...');
+    let skipped = 0;
+    if (got) {
+      const all = got.rows.map(r => r.name);
+      names = all.filter(n => this.NAME_OK.test(n)).slice(0, 600);
+      skipped = all.length - names.length;
+    }
+    say('Starting the allocation window (' + windowSec + ' s). Discord pauses for a moment while memory is collected...' + (skipped ? ' (' + skipped + ' plugin' + VexPlural.s(skipped) + ' with an unusual name cannot be followed by name and count as Discord\u2019s.)' : ''));
     await window.vex.discordHeapBegin(id, names);
     const started = now();
     let abort = null;
@@ -247,13 +304,22 @@ const DiscordPluginRam = {
       throw err;
     }
     if (abort) { await this._endQuietly(id); throw new Error(abort + '. Nothing was kept.'); }
-    const r = await window.vex.discordHeapEnd(id, true);
+    say('The window is over. Collecting memory and reading the profile; this can take up to a minute...');
+    let timer = null;
+    const giveUp = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Discord did not hand over the profile in ' + Math.round(this.END_WAIT_MS / 1000) + ' seconds, so nothing was kept.')), this.END_WAIT_MS); });
+    let r;
+    try { r = await Promise.race([window.vex.discordHeapEnd(id, true), giveUp]); }
+    catch (err) { await this._endQuietly(id); throw err; }
+    finally { clearTimeout(timer); }
     this.last.fast = { ...r, at: Date.now(), windowSec };
     return this.last.fast;
   },
   async _endQuietly(id) {
     try { await window.vex.discordHeapEnd(id, false); }
-    catch (err) { window.VexProblems?.note('Discord plugin RAM', 'The sampling window could not be closed cleanly (it ends by itself after six minutes)', err); }
+    catch (err) {
+      // Main closes the window itself when its end fails (a timeout, a page that went away): nothing left to end.
+      if (/No Discord measurement is running/.test(String(err && err.message))) return;
+      window.VexProblems?.note('Discord plugin RAM', 'The sampling window could not be closed cleanly (it ends by itself after six minutes)', err); }
   },
 
   // ---- method 2: one plugin at a time ------------------------------------------------------------------------------
@@ -299,15 +365,20 @@ const DiscordPluginRam = {
     };
     try {
       st.baselines.push(await step('Baseline (everything on)', null));
-      for (const name of plan.chosen) {
+      let groupNo = 0;
+      for (const unit of plan.chosen) {
         check();
-        // Written down BEFORE it is switched, so a crash in between still leaves a record to put it back from.
-        off.add(name); deps.persist([...off]);
-        await deps.setEnabled(name, false);
+        // A unit is one plugin, or (a group test) several that are turned off together.
+        const members = Array.isArray(unit) ? unit : [unit];
+        const name = Array.isArray(unit) ? this.groupLabel(unit, ++groupNo) : unit;
+        // Every name is written down BEFORE any is switched, so a crash in between still leaves a record to put them back from.
+        for (const m of members) off.add(m);
+        deps.persist([...off]);
+        for (const m of members) await deps.setEnabled(m, false);
         const r = await step(name + ' off', name);
-        st.plugins.push({ name, ...r });
-        await deps.setEnabled(name, true);
-        off.delete(name); deps.persist([...off]);
+        st.plugins.push({ name, ...(Array.isArray(unit) ? { members } : {}), ...r });
+        for (const m of members) { await deps.setEnabled(m, true); off.delete(m); }
+        deps.persist([...off]);
       }
       st.baselines.push(await step('Baseline again (everything on)', null));
     } catch (err) {
@@ -369,17 +440,23 @@ const DiscordPluginRam = {
     const full = this.planOrder(rows, { heavy, max: this.MAX_LIMIT });
     if (!full.ordered.length) throw new Error('No plugin can be tested: ' + (via === 'settings' ? 'none of the heavy plugins is on, and the VexPluginRam plugin is not installed' : 'none is both on and allowed to be turned off'));
     // The picker: heavy ones first and ticked, up to the cap; the person can tick others or untick these.
-    const picked = await this._pick(run, body, full, via);
-    if (!picked) { run.say('Cancelled before anything was changed.'); return null; }
-    const plan = { chosen: picked, skipped: full.skipped };
-    const minutes = this.estimateMinutes(picked.length);
-    const ok = await measure._confirm({ title: 'Measure plugin memory one at a time', okLabel: 'Start',
-      message: 'This takes about ' + minutes + ' minutes (' + (picked.length + 2) + ' fresh Discord pages, hidden; it stays signed in). For each of ' + picked.length + ' plugin' + VexPlural.s(picked.length) + ' (' + picked.slice(0, 6).join(', ') + (picked.length > 6 ? ', ...' : '') + ') it is turned off in Vencord, Discord reloads, and its memory is read after 3 minutes; then it is turned back on. Every plugin is put back when it ends, when you close this window, on an error, and at the next start of Vex. Do not use Discord meanwhile; a call pauses it.' });
+    const choice = await this._pick(run, body, full, via);
+    if (!choice) { run.say('Cancelled before anything was changed.'); return null; }
+    const grouped = choice.mode === 'groups';
+    const units = grouped ? this.planGroups(choice.names, { heavy, size: choice.size || this.GROUP_SIZE }).slice(0, this.MAX_UNITS) : choice.names;
+    const plan = { chosen: units, skipped: full.skipped };
+    const minutes = this.estimateMinutes(units.length);
+    const members = units.reduce((n, u) => n + (Array.isArray(u) ? u.length : 1), 0);
+    const what = units.slice(0, 4).map(u => Array.isArray(u) ? u.length + ' plugins' : u).join(', ') + (units.length > 4 ? ', ...' : '');
+    const ok = await measure._confirm({ title: grouped ? 'Measure plugin memory in groups' : 'Measure plugin memory one at a time', okLabel: 'Start',
+      message: 'This takes about ' + minutes + ' minutes (' + (units.length + 2) + ' fresh Discord pages, hidden; it stays signed in). ' + (grouped ? members + ' plugins in ' + units.length + ' steps (' + what + '): each step turns its plugins off together in Vencord, ' : 'For each of ' + units.length + ' plugin' + VexPlural.s(units.length) + ' (' + what + ') it is turned off in Vencord, ') + 'Discord reloads, and its memory is read after 3 minutes; then they are turned back on. Every plugin is put back when it ends, when you close this window, on an error, and at the next start of Vex. Do not use Discord meanwhile; a call pauses it.' });
     if (!ok) { run.say('Cancelled before anything was changed.'); return null; }
     this._busy = true;
     try {
       const st = await this.runOneAtATime(this.realDeps(run), plan);
       this.last.slow = st;
+      // The members of any group that made a difference are ticked for the next, one-at-a-time, run.
+      this._suggest = this.summarize(st).rows.filter(r => r.members && ((r.wsSig && r.wsDelta > 0) || (r.heapSig && r.heapDelta > 0))).flatMap(r => r.members);
       run.results.push(this.sectionText({ fast: null, slow: st }, null));
       if (st.restoreError) {
         window.VexProblems?.note('Discord plugin RAM', 'A plugin could not be turned back on; Vex will try again at its next start', st.restoreError);
@@ -395,21 +472,58 @@ const DiscordPluginRam = {
   _pick(run, body, full, via) {
     return new Promise((resolve) => {
       const wrap = document.createElement('div');
-      const intro = VexSettingsGroups.note('Pick the plugins to test (the known heavy ones first). ' + (via === 'settings' ? 'Only the heavy plugins are offered because the VexPluginRam plugin is not installed in this Vencord. ' : '') + 'Up to ' + this.MAX_LIMIT + ' per session; each takes about ' + Math.round((this.RELOAD_MS + this.SETTLE_MS + (this.SAMPLES - 1) * this.GAP_MS) / 60000) + ' minutes.');
+      const intro = VexSettingsGroups.note('Pick the plugins to test (the known heavy ones first). ' + (via === 'settings' ? 'Only the heavy plugins are offered because the VexPluginRam plugin is not installed in this Vencord. ' : via === 'settings-deps' ? 'Every plugin that is on, that Vencord does not require and that no other plugin needs is offered (read from Vencord itself). ' : '') + 'Up to ' + this.MAX_LIMIT + ' per session; each takes about ' + Math.round((this.RELOAD_MS + this.SETTLE_MS + (this.SAMPLES - 1) * this.GAP_MS) / 60000) + ' minutes.');
       wrap.appendChild(intro);
+      // How to test: the ticked plugins one by one, or in groups (much faster: most plugins cost nothing).
+      const suggested = Array.isArray(this._suggest) && this._suggest.length ? this._suggest.slice() : null;
+      const how = document.createElement('select');
+      how.setAttribute('aria-label', 'How to test');
+      for (const [v, t] of [['one', 'One at a time: the ticked plugins (about 5 minutes each)'], ['groups', 'In groups: every ticked plugin, the known heavy ones alone (much faster)']]) {
+        const o = document.createElement('option'); o.value = v; o.textContent = t; how.appendChild(o);
+      }
+      wrap.appendChild(how);
+      // How many plugins go off together in one step. Smaller groups narrow a group that made a difference down.
+      const sizeSel = document.createElement('select');
+      sizeSel.setAttribute('aria-label', 'Group size');
+      for (const n of this.GROUP_SIZES) {
+        const o = document.createElement('option');
+        o.value = String(n);
+        o.textContent = 'Groups of ' + n + (n === this.GROUP_SIZE ? ' (to find the costly ones)' : n === 4 ? ' (to narrow a group of 8 down)' : ' (to narrow a group of 4 down)');
+        sizeSel.appendChild(o);
+      }
+      sizeSel.value = String(suggested ? 4 : this.GROUP_SIZE);
+      wrap.appendChild(sizeSel);
+      const showSize = () => { sizeSel.style.display = how.value === 'groups' ? '' : 'none'; };
+      if (suggested) {
+        how.value = 'groups';
+        wrap.appendChild(VexSettingsGroups.note('The members of the groups that made a difference last time are ticked, to be tested in smaller groups (halving a group of 8 takes 2 steps). Choose "One at a time" to test each member alone.'));
+      }
+      showSize();
       const boxes = [];
       full.ordered.forEach((name, i) => {
         const label = document.createElement('label');
         label.style.display = 'block';
         const cb = document.createElement('input');
-        cb.type = 'checkbox'; cb.checked = i < this.MAX_DEFAULT; cb.value = name;
+        cb.type = 'checkbox'; cb.checked = suggested ? suggested.includes(name) : i < this.MAX_DEFAULT; cb.value = name;
         label.append(cb, document.createTextNode(' ' + name));
         wrap.appendChild(label);
         boxes.push(cb);
       });
       const est = VexSettingsGroups.note('');
-      const upd = () => { const n = boxes.filter(b => b.checked).length; est.textContent = n + ' selected, about ' + this.estimateMinutes(n) + ' minutes in all (' + (n + 2) + ' page loads of ' + Math.round((this.RELOAD_MS + this.SETTLE_MS + (this.SAMPLES - 1) * this.GAP_MS) / 60000) + ' minutes each).'; };
-      boxes.forEach(b => b.addEventListener('change', () => { if (boxes.filter(x => x.checked).length > this.MAX_LIMIT) b.checked = false; upd(); }));
+      const upd = () => {
+        const ticked = boxes.filter(b => b.checked).map(b => b.value);
+        const grouped = how.value === 'groups';
+        const units = grouped ? Math.min(this.MAX_UNITS, this.planGroups(ticked, { heavy: DiscordMemory.HEAVY_PLUGINS, size: Number(sizeSel.value) }).length) : ticked.length;
+        est.textContent = ticked.length + ' selected' + (grouped ? ' in ' + units + ' steps' : '') + ', about ' + this.estimateMinutes(units) + ' minutes in all (' + (units + 2) + ' page loads of ' + Math.round((this.RELOAD_MS + this.SETTLE_MS + (this.SAMPLES - 1) * this.GAP_MS) / 60000) + ' minutes each).';
+      };
+      how.addEventListener('change', () => {
+        // Groups: everything is ticked, or just the leads when arriving from a group result. One at a time: the usual few.
+        boxes.forEach((b, i) => { b.checked = how.value === 'groups' ? (suggested ? suggested.includes(b.value) : true) : (suggested ? suggested.includes(b.value) : i < this.MAX_DEFAULT); });
+        showSize();
+        upd();
+      });
+      sizeSel.addEventListener('change', upd);
+      boxes.forEach(b => b.addEventListener('change', () => { if (how.value !== 'groups' && boxes.filter(x => x.checked).length > this.MAX_LIMIT) b.checked = false; upd(); }));
       upd();
       wrap.appendChild(est);
       let poll = null;
@@ -417,7 +531,8 @@ const DiscordPluginRam = {
         const names = boxes.filter(b => b.checked).map(b => b.value);
         if (poll) poll.disconnect();
         wrap.remove();
-        resolve(names.length ? names : null);
+        this._suggest = null;
+        resolve(names.length ? { mode: how.value, names, size: Number(sizeSel.value) } : null);
       }, { primary: true });
       wrap.appendChild(go);
       body.prepend(wrap);
@@ -465,8 +580,13 @@ const DiscordPluginRam = {
   async openFast() {
     if (typeof VexSettingsGroups === 'undefined') throw new Error('The measuring window is not loaded');
     if (this._busy) throw new Error('A plugin memory measurement is already running');
-    if (!DiscordMemory.webview()) throw new Error('Discord is not loaded (asleep, or not opened yet), so there is nothing to measure');
+    if (!(await DiscordMemory.ensureLoaded())) return;           // asleep: offered to load it in the background; a no ends here
     const { overlay, body } = VexSettingsGroups.dialog({ id: 'vex-discord-plugin-ram', title: 'Plugin memory', sub: 'Memory numbers only, on this computer. Discord must be hidden and not in a call.' });
+    // While this window is open Discord is kept as it is (js/discord-memory.js measurementHold): it must not sleep or
+    // refresh between opening the window and pressing Start, or during the run.
+    this._windowOpen = true;
+    const gone = new MutationObserver(() => { if (!overlay.isConnected) { this._windowOpen = false; gone.disconnect(); } });
+    gone.observe(document.body, { childList: true });
     const status = VexSettingsGroups.note('Choose how long to watch Discord, then press Start. Use Discord normally in the background if you like: only memory that stays allocated is counted.');
     const sel = document.createElement('select');
     sel.setAttribute('aria-label', 'Length of the allocation window');

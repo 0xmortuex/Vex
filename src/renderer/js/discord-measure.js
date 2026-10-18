@@ -187,7 +187,7 @@ const DiscordMeasure = {
   async open({ ab = false, plugins = false } = {}) {
     if (typeof VexSettingsGroups === 'undefined') throw new Error('The measuring window is not loaded');
     if (this._run && !this._run.finished) throw new Error('A measurement is already running');
-    if (!DiscordMemory.webview()) throw new Error('Discord is not loaded (asleep, or not opened yet), so there is nothing to measure');
+    if (!(await DiscordMemory.ensureLoaded())) return;           // asleep: offered to load it in the background; a no ends here
     const { overlay, body } = VexSettingsGroups.dialog({ id: 'vex-discord-measure', title: plugins ? 'Measure plugin memory, one plugin at a time' : (ab ? 'Measure Discord with and without Vencord' : 'Measure Discord for 10 minutes'),
       sub: plugins ? 'Memory only, on this computer. Closing this window stops it and turns every plugin back on.' : 'Memory only, on this computer. Samples every 30 seconds while Discord is hidden. Closing this window stops it' + (ab ? ' and turns Vencord back on.' : '.') });
     const status = VexSettingsGroups.note('Starting...');

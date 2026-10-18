@@ -95,6 +95,7 @@ describe('cleanNames / makeNameMatcher', () => {
     expect(H.cleanNames(['MessageLogger', 'Free Emoji-2'])).toEqual(['MessageLogger', 'Free Emoji-2']);
     expect(() => H.cleanNames('x')).toThrow(/not valid/);
     expect(() => H.cleanNames(['a/b'])).toThrow(/not valid/);
+    expect(() => H.cleanNames(['Fine', 'My/Plugin'])).toThrow('A plugin name is not valid: "My/Plugin"');   // says WHICH one
     expect(() => H.cleanNames([5])).toThrow(/not valid/);
     expect(() => H.cleanNames(new Array(601).fill('Abc'))).toThrow(/not valid/);
   });
@@ -141,7 +142,7 @@ describe('checkManifest / loadRanges', () => {
 });
 
 // ---- a session over a fake debugger ----------------------------------------------------------------------------------------
-function fake({ attached = false, audible = false, discord = true, profile = { head: TREE }, failOn = null } = {}) {
+function fake({ attached = false, audible = false, discord = true, profile = { head: TREE }, failOn = null, hangOn = null, stepTimeoutMs, profileTimeoutMs } = {}) {
   const sent = [];
   const listeners = {};
   const dbg = {
@@ -153,6 +154,7 @@ function fake({ attached = false, audible = false, discord = true, profile = { h
     async sendCommand(method, params) {
       sent.push([method, params]);
       if (method === failOn) throw new Error('boom ' + method);
+      if (method === hangOn) return new Promise(() => {});          // a page that never answers
       if (method === 'Runtime.getHeapUsage') return { usedSize: 100 * 1048576 + sent.length * 1048576, totalSize: 150 * 1048576 };
       if (method === 'HeapProfiler.getSamplingProfile') return { profile };
       return {};
@@ -167,9 +169,44 @@ function fake({ attached = false, audible = false, discord = true, profile = { h
     setTimeoutFn: (fn, ms) => { const t = { fn, ms }; timers.push(t); return t; },
     clearTimeoutFn: (t) => { t.cleared = true; },
     now: (() => { let n = 1000; return () => (n += 30000); })(),
+    log: () => {},
+    ...(stepTimeoutMs ? { stepTimeoutMs } : {}),
+    ...(profileTimeoutMs ? { profileTimeoutMs } : {}),
   });
   return { heap, dbg, sent, timers, wc };
 }
+
+describe('a page that does not answer', () => {
+  const fireStep = (f, ms) => { const t = f.timers.find(x => x.ms === ms && !x.cleared); expect(t, 'a step timer of ' + ms + ' ms is running').toBeTruthy(); t.fn(); };
+  it('the end of a window gives up, explains why (Electron drops a profile with deep call stacks) and points at One at a time, detaches, and leaves nothing running', async () => {
+    const f = fake({ hangOn: 'HeapProfiler.getSamplingProfile', stepTimeoutMs: 9999, profileTimeoutMs: 4321 });
+    await f.heap.begin(7, ['Alpha']);
+    const ended = f.heap.end(7, true);
+    const outcome = expect(ended).rejects.toThrow(/allocation profile did not come back\. Electron drops a profile whose call stacks are about 100 frames deep.*One at a time/);
+    await new Promise(r => setTimeout(r, 0)); await new Promise(r => setTimeout(r, 0));
+    fireStep(f, 4321);
+    await outcome;
+    expect(f.dbg.attached).toBe(false);
+    expect(f.heap.active()).toBe(0);
+  });
+  it('starting a window on a page that does not answer is refused the same way, and detaches', async () => {
+    const f = fake({ hangOn: 'HeapProfiler.startSampling', stepTimeoutMs: 4321 });
+    const begun = f.heap.begin(7, ['Alpha']);
+    const outcome = expect(begun).rejects.toThrow(/did not answer "starting the profiler"/);
+    for (let i = 0; i < 6; i++) await new Promise(r => setTimeout(r, 0));
+    fireStep(f, 4321);
+    await outcome;
+    expect(f.dbg.attached).toBe(false);
+    expect(f.heap.active()).toBe(0);
+  });
+  it('a page that answers in time is not affected, and its step timers are cleared', async () => {
+    const f = fake({ stepTimeoutMs: 4321 });
+    await f.heap.begin(7, ['Alpha']);
+    const r = await f.heap.end(7, true);
+    expect(r.ok).toBe(true);
+    expect(f.timers.filter(t => (t.ms === 4321 || t.ms === 9999) && !t.cleared)).toEqual([]);
+  });
+});
 
 describe('a measuring window', () => {
   it('collects garbage, samples live objects only, then reads, detaches and returns numbers and names', async () => {
@@ -262,8 +299,9 @@ describe('a measuring window', () => {
   it('ends an unattended window by itself after six minutes', async () => {
     const f = fake();
     await f.heap.begin(7, []);
-    expect(f.timers[0].ms).toBe(6 * 60000);
-    f.timers[0].fn();
+    const session = f.timers.find(t => t.ms === 6 * 60000 && !t.cleared);        // the step timers of begin() are cleared already
+    expect(session).toBeTruthy();
+    session.fn();
     await new Promise(r => setTimeout(r, 0));
     expect(f.dbg.attached).toBe(false);
     expect(f.heap.active()).toBe(0);
