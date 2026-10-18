@@ -181,8 +181,17 @@ async function main() {
     await waitFor(`/off: (reloading|settling|reading)/.test((document.getElementById('vex-discord-measure') || {}).textContent || '') && DiscordMemory.care().pluginPending.length > 0`, 'a group to be switched off');
     const midOff = (await pending()).length;
     check('while a group is off its members are recorded as pending (so a crash can put them back)', midOff >= 1, midOff);
-    await press('Stop', '#vex-discord-measure');
+    // "Hide and keep running": the window goes away, the run goes on, and the rest of Vex can be clicked.
+    await press('Hide and keep running', '#vex-discord-measure');
+    const hid = await ev(`(() => { const o = document.getElementById('vex-discord-measure'); const at = document.elementFromPoint(innerWidth / 2, innerHeight / 2); return { overlayShown: !!o && o.style.display !== 'none', chip: !!document.getElementById('vex-measure-chip'), busy: !!DiscordPluginRam._busy, blocked: !!(at && at.closest('#vex-discord-measure')) }; })()`);
+    check('Hide: the window is gone, a small chip is shown, the run is still going and does not block the page', !hid.overlayShown && hid.chip && hid.busy && !hid.blocked, hid);
+    await press('Show', '#vex-measure-chip');
+    const shown = await ev(`(() => { const o = document.getElementById('vex-discord-measure'); return { overlayShown: !!o && o.style.display !== 'none', chip: !!document.getElementById('vex-measure-chip') }; })()`);
+    check('Show: the window comes back and the chip goes', shown.overlayShown && !shown.chip, shown);
+    await press('Hide and keep running', '#vex-discord-measure');
+    await press('Stop', '#vex-measure-chip');
     await waitFor(`/Stopped/.test((document.getElementById('vex-discord-measure') || {}).textContent || '')`, 'the run to stop', 120000);
+    check('Stop from the chip: the chip is gone', await ev(`!document.getElementById('vex-measure-chip')`));
     await sleep(1500);
     check('Stop: every plugin is back on and nothing is left pending', (await fakeState()).length === 12 && (await pending()).length === 0, { on: await fakeState(), pending: await pending() });
 

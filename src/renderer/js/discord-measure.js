@@ -194,12 +194,30 @@ const DiscordMeasure = {
     const pre = document.createElement('pre');
     pre.className = 'vex-platform-note';
     pre.style.whiteSpace = 'pre-wrap';
+    // "Hide and keep running": this window is a blocking dialog and a measurement takes many minutes, so it can go away
+    // while the measurement carries on, leaving a small bar in the corner with the progress, Show and Stop. Hiding does
+    // not stop anything; closing the window still does.
+    const chip = document.createElement('div');
+    chip.id = 'vex-measure-chip';
+    chip.setAttribute('role', 'status');
+    chip.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99000;max-width:380px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface,#1b1b24);color:var(--text,#e9e9ee);border:1px solid var(--border,rgba(255,255,255,0.2));border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,0.4);font-size:12px';
+    const chipText = document.createElement('span');
+    chipText.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    chip.appendChild(chipText);
+    let hidden = false;
+    const showWindow = () => { hidden = false; overlay.style.display = ''; chip.remove(); };
+    const hideWindow = () => { hidden = true; overlay.style.display = 'none'; chipText.textContent = status.textContent; chip.title = status.textContent; document.body.appendChild(chip); if (typeof VexLayer !== 'undefined') VexLayer.track(chip, { tier: 'panel', id: 'discord-measure-chip', keep: true }); };
     const run = { overlay, cancelled: false, finished: false, results: [], vencordOff: null,
-      say: (t) => { status.textContent = t; },
+      say: (t) => { status.textContent = t; chipText.textContent = t; chip.title = t; },
       show: () => { pre.textContent = run.results.join('\n\n'); } };
     this._run = run;
     body.append(status, pre);
-    body.appendChild(VexSettingsGroups.button('Stop', () => { run.cancelled = true; status.textContent = 'Stopping...'; }));
+    const stopRun = () => { run.cancelled = true; run.say('Stopping...'); };
+    body.appendChild(VexSettingsGroups.button('Stop', stopRun));
+    body.appendChild(VexSettingsGroups.button('Hide and keep running', hideWindow));
+    const chipShow = VexSettingsGroups.button('Show', showWindow);
+    const chipStop = VexSettingsGroups.button('Stop', stopRun);
+    chip.append(chipShow, chipStop);
     body.appendChild(VexSettingsGroups.button('Copy result', async () => {
       try { await navigator.clipboard.writeText(pre.textContent); window.showToast?.('Result copied'); }
       catch (err) { window.showToast?.('Could not copy: ' + err.message, 'error'); }
@@ -229,6 +247,9 @@ const DiscordMeasure = {
       await this._restoreVencord(run);
       run.finished = true;
       run.show();
+      chip.remove();
+      // Finished while hidden: say so, and offer the result (the window comes back on that button).
+      if (hidden && overlay.isConnected) window.showToast?.(run.cancelled ? 'The measurement stopped' : 'The measurement finished', 'info', 30000, { action: { label: 'Show the result', run: showWindow } });
     }
     return run.results;
   },

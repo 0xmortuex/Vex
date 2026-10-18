@@ -440,6 +440,7 @@ const DiscordPluginRam = {
     const full = this.planOrder(rows, { heavy, max: this.MAX_LIMIT });
     if (!full.ordered.length) throw new Error('No plugin can be tested: ' + (via === 'settings' ? 'none of the heavy plugins is on, and the VexPluginRam plugin is not installed' : 'none is both on and allowed to be turned off'));
     // The picker: heavy ones first and ticked, up to the cap; the person can tick others or untick these.
+    run.say('Waiting for you to choose the plugins...');
     const choice = await this._pick(run, body, full, via);
     if (!choice) { run.say('Cancelled before anything was changed.'); return null; }
     const grouped = choice.mode === 'groups';

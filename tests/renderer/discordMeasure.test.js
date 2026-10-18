@@ -175,3 +175,82 @@ describe('with Vencord, then without', () => {
     expect(window.vex.extensionsSetEnabled).not.toHaveBeenCalled();
   });
 });
+
+describe('hide and keep running', () => {
+  const button = (root, text) => [...root.querySelectorAll('button')].find(b => b.textContent === text);
+  const windowEl = () => document.getElementById('vex-discord-measure');
+
+  it('hides the window, keeps the measurement going, shows the progress in a small bar, and Show brings the window back', async () => {
+    const p = DiscordMeasure.open({ ab: false });
+    await drive(p, 3);
+    const w = windowEl();
+    button(w, 'Hide and keep running').click();
+    expect(w.style.display).toBe('none');
+    expect(w.isConnected).toBe(true);                                  // hidden, not closed: closing stops the run
+    const chip = document.getElementById('vex-measure-chip');
+    expect(chip).toBeTruthy();
+    expect(chip.textContent).toMatch(/Measuring|sample|Starting/i);
+    expect(DiscordMeasure._run.cancelled).toBe(false);
+    await drive(p, 6);
+    expect(stops).toBe(0);                                             // still running
+    button(chip, 'Show').click();
+    expect(w.style.display).toBe('');
+    expect(document.getElementById('vex-measure-chip')).toBeNull();
+    expect(await drive(p, 600)).toBe(true);                            // and it still finishes by itself
+    expect(DiscordMeasure._run.cancelled).toBe(false);
+  });
+
+  it('the bar follows the progress while the window is hidden', async () => {
+    const p = DiscordMeasure.open({ ab: false });
+    await drive(p, 3);
+    button(windowEl(), 'Hide and keep running').click();
+    const chip = document.getElementById('vex-measure-chip');
+    await drive(p, 40);
+    DiscordMeasure._run.say('Reading 3 of 3');
+    expect(chip.textContent).toContain('Reading 3 of 3');
+    expect(chip.title).toBe('Reading 3 of 3');
+    button(chip, 'Stop').click();
+    await drive(p, 600);
+  });
+
+  it('Stop in the bar stops the measurement', async () => {
+    const p = DiscordMeasure.open({ ab: false });
+    await drive(p, 3);
+    button(windowEl(), 'Hide and keep running').click();
+    button(document.getElementById('vex-measure-chip'), 'Stop').click();
+    expect(DiscordMeasure._run.cancelled).toBe(true);
+    expect(await drive(p, 600)).toBe(true);
+    expect(DiscordMeasure._run.finished).toBe(true);
+    expect(document.getElementById('vex-measure-chip')).toBeNull();
+  });
+
+  it('a measurement that finishes while hidden says so and offers the result', async () => {
+    const p = DiscordMeasure.open({ ab: false });
+    await drive(p, 3);
+    button(windowEl(), 'Hide and keep running').click();
+    expect(await drive(p, 800)).toBe(true);
+    expect(document.getElementById('vex-measure-chip')).toBeNull();
+    const call = window.showToast.mock.calls.find(c => /measurement (finished|stopped)/.test(c[0]));
+    expect(call, 'a toast').toBeTruthy();
+    expect(call[3].action.label).toBe('Show the result');
+    expect(windowEl().style.display).toBe('none');                     // still hidden until asked
+    call[3].action.run();
+    expect(windowEl().style.display).toBe('');
+  });
+
+  it('a measurement that finishes while the window is showing says nothing extra', async () => {
+    const p = DiscordMeasure.open({ ab: false });
+    expect(await drive(p, 800)).toBe(true);
+    expect(window.showToast.mock.calls.some(c => /measurement (finished|stopped)/.test(c[0]))).toBe(false);
+  });
+
+  it('closing the window while it is hidden still stops the run and removes the bar', async () => {
+    const p = DiscordMeasure.open({ ab: false });
+    await drive(p, 3);
+    button(windowEl(), 'Hide and keep running').click();
+    windowEl().remove();
+    expect(await drive(p, 20)).toBe(true);
+    expect(stops).toBe(1);
+    expect(document.getElementById('vex-measure-chip')).toBeNull();
+  });
+});
