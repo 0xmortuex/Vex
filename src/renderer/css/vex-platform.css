@@ -32,3 +32,26 @@
 .vex-sync-differs th,
 .vex-sync-differs td { background: var(--vex-hover-fill, rgba(127, 127, 127, .12)); }
 .vex-sync-missing { color: var(--text-muted); font-style: italic; }
+
+/* Fields inside platform dialogs look like the ones in Settings. Built by VexMediaKit and the group helpers, they carry
+   Settings' class names, but Settings styles them only under .settings-content, so in a dialog they were the browser's
+   own tiny, unstyled boxes (Chores, Timezone helper, Moderator kit, Writing desk, Reset timers). The values are Settings':
+   a text box or dropdown 9px 12px with 10px corners, a .set-input 8px 12px with the theme radius. Checkboxes, ranges and
+   buttons are left alone. */
+.vex-platform-body :is(input.set-input, input[type="text"], input[type="number"], input[type="time"], input[type="search"], input[type="url"], select, textarea) {
+  background: var(--bg, var(--vex-glass-input));
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+.vex-platform-body :is(input[type="text"], select):not(.set-input) { border-radius: 10px; padding: 9px 12px; }
+.vex-platform-body :is(input.set-input, input[type="text"], input[type="number"], input[type="time"], input[type="search"], input[type="url"], select, textarea):focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+}
