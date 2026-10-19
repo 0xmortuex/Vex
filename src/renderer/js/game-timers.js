@@ -226,7 +226,10 @@ const VexGameTimers = {
     tz.appendChild(new Option('UTC', 'utc')); tz.appendChild(new Option('My clock', 'local'));
     const lead = K.input('Remind me this many minutes before (0 for none)', { type: 'number', value: '0', max: 6 });
     lead.min = '0'; lead.max = '10080';
-    const sync = () => { dow.hidden = kind.value !== 'weekly'; time.hidden = kind.value === 'once'; when.hidden = kind.value !== 'once'; };
+    // Hide the whole row, label included: only the control was hidden, which left "Day" and "Moment" with nothing beside them.
+    const dowRow = K.row('Day', dow), timeRow = K.row('Time', time), whenRow = K.row('Moment', when);
+    const show = (row, on) => { row.style.display = on ? '' : 'none'; };
+    const sync = () => { show(dowRow, kind.value === 'weekly'); show(timeRow, kind.value !== 'once'); show(whenRow, kind.value === 'once'); };
     kind.addEventListener('change', sync); sync();
     const tpl = document.createElement('select'); tpl.setAttribute('aria-label', 'Start from a template');
     tpl.appendChild(new Option('Start from a template (check your game)...', ''));
@@ -247,7 +250,7 @@ const VexGameTimers = {
       name.value = ''; when.value = '';
       redraw();
     }, { primary: true });
-    box.append(tpl, K.row('Name', name), K.row('How often', kind), K.row('Day', dow), K.row('Time', time), K.row('Moment', when), K.row('Clock', tz), K.row('Reminder (minutes before)', lead), add);
+    box.append(tpl, K.row('Name', name), K.row('How often', kind), dowRow, timeRow, whenRow, K.row('Clock', tz), K.row('Reminder (minutes before)', lead), add);
     body.appendChild(box);
   },
   open() {

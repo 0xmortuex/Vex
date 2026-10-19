@@ -126,3 +126,26 @@ describe('the reminder', () => {
     await expect(VexGameTimers.remind(t, NOW)).rejects.toThrow(/Reminders are not available/);
   });
 });
+
+describe('the add-a-timer form', () => {
+  const rowShown = (body, label) => {
+    const row = [...body.querySelectorAll('.setting-row')].find(r => r.firstElementChild && r.firstElementChild.textContent === label);
+    expect(row, label).toBeTruthy();
+    return row.style.display !== 'none';
+  };
+  const pick = (body, value) => {
+    const kind = body.querySelector('select[aria-label="How often"]');
+    kind.value = value;
+    kind.dispatchEvent(new Event('change'));
+  };
+  it('shows only the rows that apply to how often it happens, label and control together', () => {
+    const body = document.createElement('div');
+    VexGameTimers._form(body, () => {});
+    // every day: a time, no weekday, no one-off moment
+    expect([rowShown(body, 'Day'), rowShown(body, 'Time'), rowShown(body, 'Moment')]).toEqual([false, true, false]);
+    pick(body, 'weekly');
+    expect([rowShown(body, 'Day'), rowShown(body, 'Time'), rowShown(body, 'Moment')]).toEqual([true, true, false]);
+    pick(body, 'once');
+    expect([rowShown(body, 'Day'), rowShown(body, 'Time'), rowShown(body, 'Moment')]).toEqual([false, false, true]);
+  });
+});
