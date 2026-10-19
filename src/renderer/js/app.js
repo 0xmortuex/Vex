@@ -1878,10 +1878,11 @@ function vexOwnTextFocused(doc) {
     const wvEl = document.getElementById('about-widevine');
     if (!wvEl) return;
     const retryBtn = document.getElementById('btn-widevine-retry');
-    const paint = (s) => {
+    const paint = (s, packaged) => {
       const ok = /ready|loaded/.test(s);
       const failed = /failed|timed out/i.test(s);
-      wvEl.textContent = s;
+      // Run from source (npm start) the app is not signed, so protected video can fail here without anything being wrong.
+      wvEl.textContent = failed && packaged === false ? s + ' (expected when run from source: this build is not signed; the installed Vex is)' : s;
       wvEl.style.color = ok ? 'var(--success)' : 'var(--danger)';
       // Offer the button ONLY when the CDM actually failed/timed out — never on a
       // healthy CDM. Resetting a working CDM is destructive (it clears/reprovisions
@@ -1896,7 +1897,7 @@ function vexOwnTextFocused(doc) {
     };
     try {
       const r = await window.vex.widevineStatus?.();
-      paint(r?.status || 'unknown');
+      paint(r?.status || 'unknown', r?.packaged);
     } catch { paint('unknown'); }
     if (retryBtn && !retryBtn._wired) {
       retryBtn._wired = true;
@@ -1922,7 +1923,7 @@ function vexOwnTextFocused(doc) {
       try {
         const r = await window.vex.widevineStatus?.();
         const s = r?.status || 'unknown';
-        paint(s);
+        paint(s, r?.packaged);
         if (/ready|loaded/.test(s)) t.stop();
       } catch (err) { window.VexProblems?.note('Widevine', 'Could not read the Widevine status', err); }
     });
