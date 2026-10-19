@@ -48,6 +48,22 @@ describe('parse', () => {
     expect(fixed.doThis).toMatch(/^Repeat what used to go wrong\./);
     expect(fixed.expect).toMatch(/^It no longer happens: /);
   });
+  it('uses the steps after "Try:" as the do-this line, exactly as written, and keeps them out of the expect line', () => {
+    const [mem, fix] = V.parse([
+      '### New',
+      '- **Plugin memory: Hide.** The window can be hidden while it runs. Try: Press Ctrl+K, run "Plugin memory", pick plugins, press Start, then press Hide and keep running.',
+      '### Fixed',
+      '- **The star refused the New Tab page.** Saving no longer fails. Try: Open a new tab, click the star, then check there is no error box.',
+    ].join('\n'));
+    expect(mem.doThis).toBe('Press Ctrl+K, run "Plugin memory", pick plugins, press Start, then press Hide and keep running.');
+    expect(mem.expect).toBe('The window can be hidden while it runs.');
+    expect(fix.doThis).toBe('Repeat what used to go wrong: Open a new tab, click the star, then check there is no error box.');
+    expect(fix.expect).toBe('It no longer happens: Saving no longer fails.');
+    expect(fix.manual).toBe(true);
+  });
+  it('still builds the generic line for a bullet with no "Try:"', () => {
+    expect(V.parse('- **Patch radar:** give a game a patch notes page.')[0].doThis).toMatch(/^Find "Patch radar"/);
+  });
   it('joins a bullet continued on an indented line', () => {
     const fixed = V.parse(BODY).at(-1);
     expect(fixed.expect).toContain('Vex\'s share picker refused your choice whenever');

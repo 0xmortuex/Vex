@@ -18,6 +18,8 @@ A release is two commands: `scripts/release.js` prepares and pushes the version,
 
 Add a `## vX.Y.Z (YYYY-MM-DD) — Title` entry at the top of `CHANGELOG.md`. Neither script invents notes: `release.js` refuses to run without the entry, and `write-release-notes.js` copies it onto the GitHub release page.
 
+The hand-check list (Settings › Release check, or `node scripts/release-checklist.js X.Y.Z`) is built from the bullets. Without help it can only say "Find <name> and use it". End a bullet with `Try: <the exact steps>` (for example `Try: Open a new tab, click the star, check there is no error box.`) and those words become its "Do this" line as written; the `Try:` part is not shown as what to expect. A route such as `Ctrl+K › Label` or `Settings › Section` in the bullet also works. Because the changelog is copied onto the release page, write the entry before publishing; changing it afterwards leaves the two different.
+
 ## 2. Bump, commit and push
 
 ```

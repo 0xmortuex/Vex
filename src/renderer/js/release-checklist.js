@@ -83,18 +83,24 @@ const VexReleaseChecklist = {
     let cur = null;
     const flush = () => {
       if (!cur) return;
-      const raw = cur.text.trim();
+      const full = cur.text.trim();
+      // "Try: ..." at the end of a bullet is the exact steps to do, written by whoever wrote the entry. It becomes the
+      // "Do this" line as written and is not part of what to expect.
+      const tryM = /\s*\bTry:\s*(\S.*)$/.exec(full);
+      const steps = tryM ? this._plain(tryM[1]) : '';
+      const raw = tryM ? full.slice(0, tryM.index).trim() : full;
       const m = /^\*\*(.+?)\*\*\s*(.*)$/.exec(raw);
       // A trailing "(Settings › X, off until...)" in the bold lead is where to go, not the name.
       const title = this._plain(m ? m[1] : this._firstSentence(raw)).replace(/\s*\((?:[^()]*(?:Settings\s*›|Ctrl\+K)[^()]*)\)\s*[.:;,]?\s*$/, '').replace(/[\s.:;,—-]+$/, '');
       const rest = this._plain(m ? m[2] : raw.slice(this._firstSentence(raw).length));
-      const route = this._routes(this._plain(raw));
+      const route = this._routes(this._plain(full));
       const fixed = /^fix/i.test(cur.section);
       let doThis;
-      if (route.command) doThis = 'Press Ctrl+K and run "' + route.command + '".';
+      if (steps) doThis = (fixed ? 'Repeat what used to go wrong: ' : '') + steps;
+      else if (route.command) doThis = 'Press Ctrl+K and run "' + route.command + '".';
       else if (route.settings) doThis = 'Open Settings › ' + route.settings.join(' › ') + '.';
       else doThis = 'Find "' + title.replace(/"/g, '') + '" (Settings, or Ctrl+K and type its name) and use it.';
-      if (fixed) doThis = 'Repeat what used to go wrong. ' + doThis;
+      if (fixed && !steps) doThis = 'Repeat what used to go wrong. ' + doThis;
       const expectText = this._clip(this._firstSentence(rest) || title, this.MAX_EXPECT);
       items.push({
         id: this._slug(title, taken),
