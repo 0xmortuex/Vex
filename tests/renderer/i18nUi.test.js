@@ -246,3 +246,29 @@ describe('the bookmarks bar and its shortcut editor', () => {
     expect(VexI18nUI.lookup('That is not a link Vex can save. Use a web address such as example.com')).toMatch(/^Bu, Vex’in kaydedebileceği/);
   });
 });
+
+describe('a tooltip built from parts', () => {
+  it('translates each part of "title · Ctrl+K: command" and keeps the rest', () => {
+    tr();
+    expect(VexI18nUI.lookup('Downloads · Ctrl+K: Downloads')).toBe('İndirilenler · Ctrl+K: İndirilenler');
+    expect(VexI18nUI.lookup('Split Screen (Ctrl+Shift+S) · Ctrl+K: Split Screen')).toBe('Bölünmüş ekran (Ctrl+Shift+S) · Ctrl+K: Bölünmüş ekran');
+  });
+  it('translates the AI button\'s real tooltip, which carries the Ctrl+K suffix', () => {
+    tr();
+    document.body.innerHTML = '<div id="top-bar"><button id="ai" title="Toggle AI Panel (Ctrl+Shift+A) · Quick ask: Ctrl+J · Ctrl+K: Vex AI"></button></div>';
+    VexI18nUI.apply();
+    expect(document.getElementById('ai').getAttribute('title')).toBe('Yapay zekâ panelini aç veya kapat (Ctrl+Shift+A) · Hızlı soru: Ctrl+J · Ctrl+K: Vex Yapay Zekâ');
+  });
+  it('translates a part it knows and leaves one it does not', () => {
+    tr();
+    expect(VexI18nUI.lookup('Downloads · Something nobody translated')).toBe('İndirilenler · Something nobody translated');
+  });
+  it('gives up on a tooltip where no part is known', () => {
+    tr();
+    expect(VexI18nUI.lookup('Nothing known · Nor this')).toBeNull();
+  });
+  it('is not applied in English', () => {
+    en();
+    expect(VexI18nUI.lookup('Downloads · Ctrl+K: Downloads')).toBeNull();
+  });
+});

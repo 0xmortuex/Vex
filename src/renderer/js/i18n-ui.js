@@ -179,8 +179,10 @@ const VexI18nUI = {
       'Userscripts running on this page': 'Bu sayfada çalışan kullanıcı betikleri',
       'Cloud': 'Bulut', 'About': 'Hakkında', 'AI': 'Yapay zekâ',
       'Search settings…': 'Ayarlarda arayın…',
-      'Toggle AI Panel (Ctrl+Shift+A) · Quick ask: Ctrl+J': 'Yapay zekâ panelini aç veya kapat (Ctrl+Shift+A) · Hızlı soru: Ctrl+J',
+      'Toggle AI Panel': 'Yapay zekâ panelini aç veya kapat', 'Quick ask: Ctrl+J': 'Hızlı soru: Ctrl+J',
       'Welcome back: what changed since I last used Vex': 'Tekrar hoş geldiniz: Vex’i en son kullandığımdan beri ne değişti',
+      'Vex AI': 'Vex Yapay Zekâ',
+      'New Tor tab — maximum-security private browsing over Tor': 'Yeni Tor sekmesi — Tor üzerinden azami güvenlikli gizli gezinme',
       // The shortcuts bar and its editor.
       'Add shortcut': 'Kısayol ekle', 'Edit shortcut': 'Kısayolu düzenle', 'Link (URL)': 'Bağlantı (adres)', 'Color': 'Renk',
       '— optional, overrides the logo': '— isteğe bağlı, logonun yerine geçer', 'e.g. Reddit': 'örn. Reddit', 'Use logo instead': 'Bunun yerine logoyu kullan',
@@ -1023,6 +1025,19 @@ const VexI18nUI = {
     // holds "… for {}" and the host goes where {} is.
     const f = /^(.+ for) (\S+)$/.exec(key);
     if (f && table[f[1] + ' {}'] != null) return table[f[1] + ' {}'].replace('{}', f[2]);
+    // A tooltip built from parts: a button's own title plus " · Ctrl+K: <command>" (js/command.js, nameTips). The whole string
+    // is never in the table, so each part is looked up on its own; the parts with no entry stay as they are.
+    if (key.includes(' · ')) {
+      let any = false;
+      const parts = key.split(' · ').map((part) => {
+        const cmd = /^Ctrl\+K: (.+)$/.exec(part);
+        const hit = this.lookup(cmd ? cmd[1] : part, lang);
+        if (hit == null) return part;
+        any = true;
+        return cmd ? 'Ctrl+K: ' + hit : hit;
+      });
+      if (any) return parts.join(' · ');
+    }
     return null;
   },
 
