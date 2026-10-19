@@ -45,6 +45,14 @@ describe('recording a visit', () => {
     expect(stored()).toEqual([]);
   });
 
+  it('does not record an address longer than the saved list accepts (it would make every save fail)', () => {
+    const H = load();
+    H.addEntry('https://long.example/?q=' + 'x'.repeat(8200), 'Long');
+    expect(stored()).toEqual([]);
+    H.addEntry('https://ok.example/?q=' + 'x'.repeat(100), 'Fine');
+    expect(stored().length).toBe(1);
+  });
+
   it('a repeat visit today moves the row up instead of duplicating it', () => {
     const H = load();
     H.addEntry('https://a.example/', 'A');

@@ -70,6 +70,8 @@ const Bookmarks = {
       // for the New Tab page, Settings and other vex:// or file:// pages, and a refused save
       // blocks every other setting written with it.
       if (!/^https?:/i.test(url)) { window.showToast?.('Only web pages can be bookmarked', 'info'); return; }
+      // The same limits the saved list enforces (js/data-contracts.js): 8192 characters for the address, 4096 for the title.
+      if (url.length > 8192) { window.showToast?.('That page address is too long to bookmark', 'info'); return; }
       // Native prompt() is disabled in Electron's renderer (always returned
       // null here, silently skipping the folder question) — use the in-app
       // prompt. Cancel still bookmarks, just into Unsorted.
@@ -78,7 +80,7 @@ const Bookmarks = {
       // route): no list here asks its site for an icon (found 2026-09-30).
       const from = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
       const own = !!from && from.url === url && !TabManager.windowMayAsk(from.partition);
-      this.items.unshift({ id: vexId('bm'), url, title: title || url, folder: folder.trim(), at: Date.now(), ...(own ? { ownSession: true } : {}) });
+      this.items.unshift({ id: vexId('bm'), url, title: String(title || url).slice(0, 4096), folder: folder.trim(), at: Date.now(), ...(own ? { ownSession: true } : {}) });
       window.showToast?.('Bookmarked');
     }
     this.save();

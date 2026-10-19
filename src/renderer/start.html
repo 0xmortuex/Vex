@@ -2808,6 +2808,16 @@
         // "example.com" saved as typed is not an address a tab can load
         // (ERR_INVALID_URL, and the tile did nothing — found 2026-09-29).
         const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(typed) || /^(about|mailto|vex):/i.test(typed) ? typed : 'https://' + typed;
+        // The saved list takes web, about:, file: and vex: addresses only (js/data-contracts.js). Anything else
+        // (text with spaces, javascript:, ftp://, mailto:) is refused here, because one such tile makes every later save fail.
+        let savable = false;
+        try { savable = /^(https?|about|file|vex):$/.test(new URL(url).protocol) && url.length <= 8192 && !/[\x00-\x1f]/.test(url); } catch (e) { savable = false; }
+        if (!savable) {
+          preview.textContent = 'That is not a link Vex can save. Use a web address such as example.com';
+          preview.setAttribute('role', 'alert');
+          urlInput.focus();
+          return;
+        }
         if (existing) { shortcuts[idx] = { ...existing, name, url }; }
         else { shortcuts.push({ name, url }); }
         saveShortcuts(shortcuts);

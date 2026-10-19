@@ -67,6 +67,23 @@ describe('the shortcut editor is a dialog', () => {
     expect(JSON.stringify(localStorage)).toMatch(/example\.com/);
   });
 
+  it('refuses a link the saved list would reject, and saves nothing', () => {
+    // Anything that is not an http, https, about, file or vex address makes the whole preferences save fail
+    // ("Invalid saved URL"), so it must be stopped here.
+    for (const typed of ['my favourite site', 'javascript:alert(1)', 'about:blank', 'http://']) {
+      const before = localStorage.getItem('vex.shortcuts');
+      window.showToast.mockClear();
+      const { ov } = openEditor();
+      ov.querySelector('.gsc-ed-name').value = 'Bad';
+      ov.querySelector('.gsc-ed-url').value = typed;
+      ov.querySelector('.gsc-ed-save').click();
+      expect(document.querySelector('.gsc-ed-ov'), typed).not.toBeNull();   // still open so it can be corrected
+      expect(window.showToast, typed).toHaveBeenCalledWith(expect.stringMatching(/not a link Vex can save/), 'error');
+      expect(localStorage.getItem('vex.shortcuts'), typed).toBe(before);
+      ov.remove();
+    }
+  });
+
   it('the bar\'s chips are reached from the keyboard: Enter on Add opens the editor', () => {
     const add = document.querySelector('#gui-shortcuts-bar .gsc-add');
     expect(add.getAttribute('role')).toBe('button');

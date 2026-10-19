@@ -32,6 +32,16 @@ describe('bookmarking only saves web pages', () => {
     expect(Bookmarks.items).toEqual([]);
   });
 
+  it('refuses an address or title longer than the saved list accepts', async () => {
+    const { Bookmarks } = await import('../../src/renderer/js/bookmarks.js');
+    Bookmarks.init();
+    await Bookmarks.toggle('https://a.test/?q=' + 'x'.repeat(8200), 'Long address');
+    expect(Bookmarks.items).toEqual([]);
+    expect(window.showToast).toHaveBeenCalledWith('That page address is too long to bookmark', 'info');
+    await Bookmarks.toggle('https://b.test/', 'T'.repeat(5000));
+    expect(Bookmarks.items[0].title.length).toBe(4096);
+  });
+
   it('saves a web page and checks the medals at once', async () => {
     const { Bookmarks } = await import('../../src/renderer/js/bookmarks.js');
     window.VexMedals = { runChecks: vi.fn() };

@@ -187,14 +187,14 @@ const VexTabSelect = {
   async bookmark() {
     const tabs = this.tabs();
     // Not a Tor, private or other session-only tab: its address would be written into a list that outlives it.
-    const keep = tabs.filter(t => /^https?:/i.test(t.url || '') && !(t.partition && !String(t.partition).startsWith('persist:')) && !Bookmarks.has(t.url));
+    const keep = tabs.filter(t => /^https?:/i.test(t.url || '') && t.url.length <= 8192 && !(t.partition && !String(t.partition).startsWith('persist:')) && !Bookmarks.has(t.url));
     const skipped = tabs.length - keep.length;
     if (!keep.length) { window.showToast?.('Nothing new to bookmark in these tabs', 'info'); return; }
     const folder = await vexPrompt({ title: 'Bookmark ' + keep.length + ' tab' + VexPlural.s(keep.length), label: 'Folder (blank = Unsorted)', okLabel: 'Bookmark' });
     if (folder === null || folder === undefined) return;
     for (const t of keep.slice().reverse()) {
       const own = typeof TabManager.windowMayAsk === 'function' && !TabManager.windowMayAsk(t.partition);
-      Bookmarks.items.unshift({ id: vexId('bm'), url: t.url, title: t.title || t.url, folder: String(folder).trim(), at: Date.now(), ...(own ? { ownSession: true } : {}) });
+      Bookmarks.items.unshift({ id: vexId('bm'), url: t.url, title: String(t.title || t.url).slice(0, 4096), folder: String(folder).trim(), at: Date.now(), ...(own ? { ownSession: true } : {}) });
     }
     Bookmarks.save();
     window.showToast?.('Bookmarked ' + keep.length + (skipped ? ' (' + skipped + ' skipped: private, already saved or not a web page)' : ''), 'success');

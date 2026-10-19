@@ -137,6 +137,11 @@
     if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
     return u;
   }
+  // What the saved list accepts for a shortcut (js/data-contracts.js). Anything else is refused at the
+  // source: the save is refused for the whole preferences batch ("Invalid saved URL"), not just this entry.
+  function isSavableLink(u) {
+    try { return /^(https?|about|file|vex):$/.test(new URL(u).protocol) && u.length <= 8192 && !/[\x00-\x1f]/.test(u); } catch { return false; }
+  }
   function escAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 
   function navigate(url) {
@@ -277,6 +282,7 @@
       const name = ov.querySelector('.gsc-ed-name').value.trim();
       const url = normalizeUrl(ov.querySelector('.gsc-ed-url').value);
       if (!url) { try { window.showToast?.('Enter a link', 'error'); } catch {} return; }
+      if (!isSavableLink(url)) { window.showToast?.('That is not a link Vex can save. Use a web address such as example.com', 'error'); return; }
       const entry = { url, name, color: useColor ? colorInput.value : '' };
       if (isNew) arr.push(entry); else arr[index] = entry;
       saveShortcuts(arr); close();

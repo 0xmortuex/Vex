@@ -271,6 +271,7 @@ const HistoryPanel = {
 
   addEntry(url, title, favicon, { ownSession = false } = {}) {
     if (!url || !/^https?:\/\//i.test(url)) return;   // file://, about:, vex://, data:
+    if (url.length > 8192) return;   // the saved list refuses an address longer than this (js/data-contracts.js) and then every save fails
     // Always read what is saved first. The stored list can arrive AFTER this
     // module loads — PersistentStorage restores localStorage from its own file
     // during start-up — so writing a cached copy would drop the history that
