@@ -53,7 +53,13 @@
     if (['groups', 'stacks'].includes(key)) groups(value);
     // startTiles: the New Tab page's grid, the same shape as the shortcut tiles.
     if (['history', 'bookmarks', 'shortcuts', 'startTiles'].includes(key)) {
-      array(value); for (const item of value) { record(item); if (!url(item.url, key !== 'shortcuts' && key !== 'startTiles')) throw new Error('Invalid saved URL'); }
+      // Name the list and the entry: one bad entry makes the whole save fail, and "Invalid saved URL" alone gave no way to find it.
+      array(value);
+      value.forEach((item, i) => {
+        const where = ' (' + key + ', entry ' + (i + 1) + ')';
+        try { record(item); } catch (err) { throw new Error(err.message + where, { cause: err }); }
+        if (!url(item.url, key !== 'shortcuts' && key !== 'startTiles')) throw new Error('Invalid saved URL' + where);
+      });
     }
     if (key === 'sessions') sessions(value);
     if (key === 'workspaces') {
