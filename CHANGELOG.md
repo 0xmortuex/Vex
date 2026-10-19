@@ -1,5 +1,21 @@
 # Changelog
 
+## v36.56.9 (2026-10-19) — A bad shortcut or bookmark can no longer stop settings from saving, and dialog fields look like the rest of Vex
+
+### Fixed
+- **A shortcut, bookmark or history entry the saved list refuses can no longer block every save.** The New Tab page's tile editor accepted text with spaces, `javascript:`, `ftp://` and `mailto:`, the shortcuts bar editor accepted `about:` and the same kinds of text, and bookmarks and history accepted an address over 8192 characters or a bookmark title over 4096. Each of those made every later settings save fail with "Invalid saved URL". Both editors, the bookmark star, "bookmark selected tabs" and history now stop it at the source with a clear message. Try: Click "Add shortcut" at the right end of the bookmarks bar, type a name and `my favourite site` as the link, press Save, and check that it says "That is not a link Vex can save" and keeps the box open.
+- **A refused save now says where the problem is.** "Invalid saved URL" gave no way to find the entry; it now ends with the list and the entry number, for example "(bookmarks, entry 2)".
+- **Fields in dialogs were the browser's own tiny unstyled boxes.** Chores and bills, Timezone helper, Moderator kit, Writing desk, Syllabus coverage and Reset timers now use the same text boxes and dropdowns as Settings. Checked in real Chromium in the default look; the Firefox look has not been looked at. Try: Press Ctrl+K, run "Timezone helper", and check that the text box has rounded corners and a visible outline when you click it.
+- **Reset timers: empty "Day" and "Moment" rows are gone.** Only the control was hidden, so the labels stayed on screen. Try: Press Ctrl+K, run "Reset and season timers", and check that choosing "Every day" shows only Name, How often, Time, Clock and Reminder.
+- **Settings > About explains "DRM failed" when Vex is run from source.** That build is not signed, so protected video can fail with nothing wrong; the line now says so. The installed Vex is unchanged.
+
+### New
+- **The release hand-check list can carry exact steps.** A changelog bullet ending in `Try: <steps>` shows those words as its "Do this" line in Settings > Release check and in `scripts/release-checklist.js`.
+- **The memory gate says what is using the memory when it refuses a build or a full test run.** It lists the five programs holding the most memory, still read-only.
+
+### Checked
+The related tests for each change, the source, type and lint checks, and a real-Chromium read-back of the dialog field styles. The full test suite has not been run on these commits locally (the memory gate refused); CI runs it after the push. Not checked: the dialog fields in the Firefox look, and the DRM note on screen.
+
 ## v36.49.6 (2026-10-19) — Bookmarking the New Tab page no longer stops settings from saving, and plugin memory can run in the background
 
 ### New
