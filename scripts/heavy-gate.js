@@ -61,6 +61,23 @@ function evaluate({ processNames, mem, minPhysGB = 6, minCommitGB = 10, extraGam
   return { ok: reasons.length === 0, reasons, physGB: phys, commitGB: commit };
 }
 
+// Memory per program from `tasklist /FO CSV /NH` rows ("Image","PID","Session","Session#","1,234 K"): the programs
+// holding the most working-set memory, each summed over its processes, so a refusal can say what to close.
+function topMemoryUsers(tasklistText, n = 5) {
+  const byName = new Map();
+  for (const line of String(tasklistText).split(/\r?\n/)) {
+    const f = line.match(/"([^"]*)"/g);
+    if (!f || f.length < 5) continue;
+    const name = f[0].slice(1, -1), kb = Number(f[4].replace(/[^\d]/g, ''));
+    if (!name || !Number.isFinite(kb)) continue;
+    const cur = byName.get(name) || { name, kb: 0, count: 0 };
+    cur.kb += kb; cur.count += 1;
+    byName.set(name, cur);
+  }
+  return [...byName.values()].sort((a, b) => b.kb - a.kb).slice(0, n)
+    .map(p => `${p.name} ${(p.kb / GB).toFixed(1)} GB${p.count > 1 ? ' (' + p.count + ' processes)' : ''}`);
+}
+
 function listProcessNames() {
   const r = spawnSync('tasklist', ['/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
   if (r.error || r.status !== 0) throw new Error('heavy-gate: could not list processes: ' + ((r.error && r.error.message) || r.stderr));
@@ -99,12 +116,16 @@ function main(argv = process.argv.slice(2), env = process.env) {
   const msg = `heavy-gate: ${label} refused: ${verdict.reasons.join('; ')}.`;
   if (force) { console.warn(msg + ' --force given: running anyway.'); return 0; }
   console.error(msg);
+  if (verdict.reasons.some(r => /memory/.test(r))) {
+    const r = spawnSync('tasklist', ['/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
+    if (!r.error && r.status === 0) console.error('heavy-gate: using the most memory now: ' + topMemoryUsers(r.stdout).join(', ') + '. Closing some of these frees memory; this gate never closes anything.');
+  }
   console.error('heavy-gate: a build or full test run beside a game can crash it or the PC (BSOD 2026-10-14). Wait until the game is closed.');
   console.error('heavy-gate: to run anyway: add --force (npm run <script> --force), or set VEX_HEAVY_FORCE=1.');
   return 2;
 }
 
-module.exports = { evaluate, gamesRunning, wantsForce, GAMES };
+module.exports = { evaluate, gamesRunning, wantsForce, topMemoryUsers, GAMES };
 
 if (require.main === module) {
   try { process.exitCode = main(); }

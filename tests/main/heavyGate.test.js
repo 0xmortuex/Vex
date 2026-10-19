@@ -9,6 +9,24 @@ const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package
 
 const roomy = { freePhysKB: 16 * 1024 * 1024, freeCommitKB: 30 * 1024 * 1024 };
 
+describe('topMemoryUsers', () => {
+  const csv = [
+    '"idea64.exe","1000","Console","1","3,137,536 K"',
+    '"Vex.exe","2000","Console","1","1,048,576 K"',
+    '"Vex.exe","2001","Console","1","1,048,576 K"',
+    '"svchost.exe","4","Services","0","10,240 K"',
+    'not a csv line',
+    '"broken.exe","9","Console"',
+  ].join('\r\n');
+  it('adds the memory of every process of one program and puts the biggest first', () => {
+    expect(G.topMemoryUsers(csv, 3)).toEqual(['idea64.exe 3.0 GB', 'Vex.exe 2.0 GB (2 processes)', 'svchost.exe 0.0 GB']);
+  });
+  it('ignores lines that are not tasklist rows and respects the limit', () => {
+    expect(G.topMemoryUsers(csv, 1)).toEqual(['idea64.exe 3.0 GB']);
+    expect(G.topMemoryUsers('', 5)).toEqual([]);
+  });
+});
+
 describe('evaluate', () => {
   it('passes with no game and enough memory', () => {
     expect(G.evaluate({ processNames: ['explorer.exe', 'Code.exe'], mem: roomy }).ok).toBe(true);
