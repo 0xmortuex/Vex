@@ -180,6 +180,7 @@ const VexI18nUI = {
       'Cloud': 'Bulut', 'About': 'Hakkında', 'AI': 'Yapay zekâ',
       'Search settings…': 'Ayarlarda arayın…',
       'Toggle AI Panel (Ctrl+Shift+A) · Quick ask: Ctrl+J': 'Yapay zekâ panelini aç veya kapat (Ctrl+Shift+A) · Hızlı soru: Ctrl+J',
+      'Welcome back: what changed since I last used Vex': 'Tekrar hoş geldiniz: Vex’i en son kullandığımdan beri ne değişti',
       // The shortcuts bar and its editor.
       'Add shortcut': 'Kısayol ekle', 'Edit shortcut': 'Kısayolu düzenle', 'Link (URL)': 'Bağlantı (adres)', 'Color': 'Renk',
       '— optional, overrides the logo': '— isteğe bağlı, logonun yerine geçer', 'e.g. Reddit': 'örn. Reddit', 'Use logo instead': 'Bunun yerine logoyu kullan',

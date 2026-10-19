@@ -321,6 +321,14 @@ const VexUpdateNotes = {
     }
     if (_card || readPending() === null) return null;   // closed or turned off meanwhile
 
+    // Many updates skipped (someone coming back after a long time): the welcome-back guide, which asks which version they
+    // last used and offers Simple mode, takes the place of the card. The pending mark goes, so it is shown once.
+    if (typeof VexWhatsNewMe !== 'undefined' && typeof VexWhatsNewMe.wantsGuide === 'function' && VexWhatsNewMe.wantsGuide(entries.length)) {
+      localStorage.removeItem(PENDING_KEY);
+      VexWhatsNewMe.welcomeBack({ from: pending.from, automatic: true }).catch(err => problem('Could not show the welcome-back guide', err));
+      return null;
+    }
+
     const newest = entries[0];
     const version = String(pending.to).replace(/^v/i, '');
     const title = VexUpdateNotes.title(newest) || `What's new in Vex ${version}`;
