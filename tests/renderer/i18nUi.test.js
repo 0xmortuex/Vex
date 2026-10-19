@@ -178,3 +178,39 @@ describe('labels that carry their shortcut', () => {
     expect(document.querySelector('button').getAttribute('title')).toBe('Geri (Alt+Left)');
   });
 });
+
+describe('an element with its own Turkish text', () => {
+  const BTN = '<div id="top-bar"><button id="ai" title="Toggle AI Panel (Ctrl+Shift+A) · Quick ask: Ctrl+J"><svg></svg><span id="lbl" data-tr-text="YZ">AI</span></button><span id="plain">AI</span></div>';
+  it('shows it in Turkish, so the toolbar AI button does not wrap "Yapay zekâ" onto two lines', () => {
+    tr();
+    document.body.innerHTML = BTN;
+    VexI18nUI.apply();
+    expect(document.getElementById('lbl').textContent).toBe('YZ');
+  });
+  it('leaves every other "AI" on its normal Turkish translation', () => {
+    tr();
+    document.body.innerHTML = BTN;
+    VexI18nUI.apply();
+    expect(document.getElementById('plain').textContent).toBe('Yapay zekâ');
+  });
+  it('gives the English back when the language goes back to English', () => {
+    tr();
+    document.body.innerHTML = BTN;
+    VexI18nUI.apply();
+    en();
+    VexI18nUI.apply();
+    expect(document.getElementById('lbl').textContent).toBe('AI');
+  });
+  it('is not touched in English at all', () => {
+    en();
+    document.body.innerHTML = BTN;
+    VexI18nUI.apply();
+    expect(document.getElementById('lbl').textContent).toBe('AI');
+  });
+  it('translates the button\'s tooltip and keeps its shortcuts', () => {
+    tr();
+    document.body.innerHTML = BTN;
+    VexI18nUI.apply();
+    expect(document.getElementById('ai').getAttribute('title')).toBe('Yapay zekâ panelini aç veya kapat (Ctrl+Shift+A) · Hızlı soru: Ctrl+J');
+  });
+});

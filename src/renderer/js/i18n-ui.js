@@ -177,6 +177,7 @@ const VexI18nUI = {
       'Userscripts running on this page': 'Bu sayfada çalışan kullanıcı betikleri',
       'Cloud': 'Bulut', 'About': 'Hakkında', 'AI': 'Yapay zekâ',
       'Search settings…': 'Ayarlarda arayın…',
+      'Toggle AI Panel (Ctrl+Shift+A) · Quick ask: Ctrl+J': 'Yapay zekâ panelini aç veya kapat (Ctrl+Shift+A) · Hızlı soru: Ctrl+J',
       'Default Browser': 'Varsayılan tarayıcı', 'Sidebar Buttons': 'Kenar çubuğu düğmeleri',
       'Privacy & Security': 'Gizlilik ve güvenlik', 'Privacy Hardening': 'Gizlilik sıkılaştırma',
       'Vex Sync': 'Vex eşitleme', 'AI Backend': 'Yapay zekâ altyapısı',
@@ -1029,11 +1030,13 @@ const VexI18nUI = {
   // labels while Turkish is on (a download's Pause becomes Resume), and that
   // fresh English must be translated in turn, and be what comes back on
   // switching to English — not the English the element started with.
-  _swap(el, key, current, set, lang) {
+  _swap(el, key, current, set, lang, override) {
     const shownKey = key + 'Shown';
     const cur = String(current).trim();
     if (el.dataset[shownKey] != null && el.dataset[shownKey] === cur) return false;   // still ours
-    const hit = this.lookup(cur, lang);
+    // An element can carry its own Turkish text (data-tr-text) where the shared dictionary entry does not fit,
+    // for example the toolbar's AI button, where "Yapay zekâ" wrapped onto two lines.
+    const hit = override || this.lookup(cur, lang);
     if (!hit) return false;
     el.dataset[key] = cur;
     el.dataset[shownKey] = hit;
@@ -1051,8 +1054,9 @@ const VexI18nUI = {
       if (!value) continue;
       if (this._swap(el, 'i18n' + attr.replace(/-/g, ''), value, (v) => el.setAttribute(attr, v), lang)) changed = true;
     }
+    const own = lang === 'tr' && el.dataset && el.dataset.trText ? el.dataset.trText : null;
     if (el.children.length === 0) {
-      if (el.textContent && this._swap(el, 'i18nText', el.textContent, (v) => { el.textContent = v; }, lang)) changed = true;
+      if (el.textContent && this._swap(el, 'i18nText', el.textContent, (v) => { el.textContent = v; }, lang, own)) changed = true;
     } else {
       const node = this._firstText(el);
       if (node && this._swap(el, 'i18nFirst', node.textContent, (v) => { node.textContent = node.textContent.replace(node.textContent.trim(), v); }, lang)) changed = true;
