@@ -155,7 +155,7 @@ const VexToday = {
     // The Morning Brief's sections (js/brief.js), built from what was just
     // read above. A failure here is the brief's own, never the snapshot's.
     try {
-      if (typeof VexBrief !== 'undefined') snap.morning = await VexBrief.build({ now, force: !!VexBrief._force, snap });
+      if (typeof VexBrief !== 'undefined') snap.morning = VexBrief.localize(await VexBrief.build({ now, force: !!VexBrief._force, snap }));
     } catch (err) { snap.errors.push('morning brief: ' + ((err && err.message) || 'unavailable')); }
 
     // The New Tab slot grid (js/newtab-slots.js): which blocks the page shows, by

@@ -22,6 +22,8 @@ const VexI18nUI = {
   // web page, and must never be rewritten.
   SCOPES: [
     '#top-bar', '#icon-sidebar', '#tabs-sidebar', '#nav-buttons', '#pip-btn',
+    // The bookmarks bar's "Add shortcut" and the box that edits a shortcut (js/gui-style.js).
+    '#gui-shortcuts-bar', '.gsc-ed-ov',
     '.panel-header', '#panel-settings', '#panel-shortcuts', '#panel-memory',
     '#panel-downloads', '#panel-history', '#panel-bookmarks', '#panel-notes',
     '#command-bar', '.vexd-card', '#vex-archive', '.slad-card',
@@ -178,6 +180,11 @@ const VexI18nUI = {
       'Cloud': 'Bulut', 'About': 'Hakkında', 'AI': 'Yapay zekâ',
       'Search settings…': 'Ayarlarda arayın…',
       'Toggle AI Panel (Ctrl+Shift+A) · Quick ask: Ctrl+J': 'Yapay zekâ panelini aç veya kapat (Ctrl+Shift+A) · Hızlı soru: Ctrl+J',
+      // The shortcuts bar and its editor.
+      'Add shortcut': 'Kısayol ekle', 'Edit shortcut': 'Kısayolu düzenle', 'Link (URL)': 'Bağlantı (adres)', 'Color': 'Renk',
+      '— optional, overrides the logo': '— isteğe bağlı, logonun yerine geçer', 'e.g. Reddit': 'örn. Reddit', 'Use logo instead': 'Bunun yerine logoyu kullan',
+      'Will use the site logo': 'Sitenin logosu kullanılacak', 'Enter a link': 'Bir bağlantı yazın',
+      'That is not a link Vex can save. Use a web address such as example.com': 'Bu, Vex’in kaydedebileceği bir bağlantı değil. example.com gibi bir web adresi yazın',
       'Default Browser': 'Varsayılan tarayıcı', 'Sidebar Buttons': 'Kenar çubuğu düğmeleri',
       'Privacy & Security': 'Gizlilik ve güvenlik', 'Privacy Hardening': 'Gizlilik sıkılaştırma',
       'Vex Sync': 'Vex eşitleme', 'AI Backend': 'Yapay zekâ altyapısı',

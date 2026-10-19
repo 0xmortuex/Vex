@@ -214,3 +214,35 @@ describe('an element with its own Turkish text', () => {
     expect(document.getElementById('ai').getAttribute('title')).toBe('Yapay zekâ panelini aç veya kapat (Ctrl+Shift+A) · Hızlı soru: Ctrl+J');
   });
 });
+
+describe('the bookmarks bar and its shortcut editor', () => {
+  it('translates "Add shortcut" and the editor box when Vex is set to Turkish', () => {
+    tr();
+    document.body.innerHTML = '<div id="gui-shortcuts-bar" aria-label="Shortcuts"><div class="gsc gsc-add"><span class="ic"><svg></svg></span>Add shortcut</div></div>'
+      + '<div class="gsc-ed-ov"><div class="gsc-ed"><div id="t">Add shortcut</div><label>Name</label><input placeholder="e.g. Reddit">'
+      + '<label>Link (URL)</label><label>Color <span id="opt">— optional, overrides the logo</span></label>'
+      + '<button id="clr">Use logo instead</button><button id="d">Delete</button><button id="c">Cancel</button><button id="s">Save</button></div></div>';
+    VexI18nUI.apply();
+    const text = (sel) => document.querySelector(sel).textContent.trim();
+    expect(text('.gsc-add')).toBe('Kısayol ekle');
+    expect(document.getElementById('gui-shortcuts-bar').getAttribute('aria-label')).toBe('Kısayollar');
+    expect(text('#t')).toBe('Kısayol ekle');
+    expect(document.querySelector('.gsc-ed input').getAttribute('placeholder')).toBe('örn. Reddit');
+    expect(document.querySelectorAll('.gsc-ed label')[1].textContent).toBe('Bağlantı (adres)');
+    expect(document.querySelectorAll('.gsc-ed label')[2].firstChild.textContent.trim()).toBe('Renk');
+    expect(text('#opt')).toBe('— isteğe bağlı, logonun yerine geçer');
+    expect([text('#clr'), text('#d'), text('#c'), text('#s')]).toEqual(['Bunun yerine logoyu kullan', 'Sil', 'İptal', 'Kaydet']);
+  });
+  it('leaves them in English in English', () => {
+    en();
+    document.body.innerHTML = '<div id="gui-shortcuts-bar"><div class="gsc gsc-add">Add shortcut</div></div>';
+    VexI18nUI.apply();
+    expect(document.querySelector('.gsc-add').textContent).toBe('Add shortcut');
+  });
+  it('looks up the toast words for the editor', () => {
+    tr();
+    expect(VexI18nUI.lookup('Enter a link')).toBe('Bir bağlantı yazın');
+    expect(VexI18nUI.lookup('Will use the site logo')).toBe('Sitenin logosu kullanılacak');
+    expect(VexI18nUI.lookup('That is not a link Vex can save. Use a web address such as example.com')).toMatch(/^Bu, Vex’in kaydedebileceği/);
+  });
+});

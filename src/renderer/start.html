@@ -2103,6 +2103,11 @@
   <script>
     (function () {
       function send(o) { console.log('VEX_CMD:' + JSON.stringify(o)); }
+      // The page's own words in Turkish when Vex is set to it. The words the browser hands in (titles, messages, buttons) are
+      // translated before they arrive (VexBrief.localize in js/brief.js); these are the ones this page writes itself.
+      var TRL = false; try { TRL = localStorage.getItem('vex.lang') === 'tr'; } catch (e) { TRL = false; }
+      var STR = { 'Refresh': 'Yenile', 'Sections': 'Bölümler', 'Read everything again': 'Her şeyi yeniden oku', 'Choose and reorder the sections': 'Bölümleri seç ve sırala', 'Today': 'Bugün', 'Could not read this section: ': 'Bu bölüm okunamadı: ' };
+      function T(s) { return TRL && STR[s] ? STR[s] : s; }
       function icon(name, size) { return (window.VexIcons && VexIcons.svg) ? VexIcons.svg(name, { size: size || 16 }) : ''; }
       function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null && text !== '') e.textContent = text; return e; }
       var BAD = /^(failed|problem|overdue|down)$/i;
@@ -2153,7 +2158,7 @@
         var c = el('article', 'brief-card');
         c.dataset.section = s.id;
         var h = el('h3'); h.innerHTML = icon(s.icon, 14); h.appendChild(el('span', '', s.title)); c.appendChild(h);
-        if (s.status === 'error') { c.appendChild(el('p', 'brief-error', 'Could not read this section: ' + s.error)); return c; }
+        if (s.status === 'error') { c.appendChild(el('p', 'brief-error', T('Could not read this section: ') + s.error)); return c; }
         if (s.status === 'hint') { c.appendChild(el('p', 'brief-hint', s.hint)); return c; }
         if (s.summary) c.appendChild(el('p', 'brief-summary', s.summary));
         if (s.stats && s.stats.length) {
@@ -2173,7 +2178,7 @@
         var m = window.__vexToday && window.__vexToday.morning;
         grid.innerHTML = '';
         if (!m || !m.enabled) { sec.hidden = true; return; }
-        document.getElementById('brief-greeting').textContent = m.greeting ? m.greeting.text : 'Today';
+        document.getElementById('brief-greeting').textContent = m.greeting ? m.greeting.text : T('Today');
         document.getElementById('brief-date').textContent = m.greeting ? m.greeting.date : '';
         (m.sections || []).forEach(function (s) { if (s.status !== 'empty') grid.appendChild(card(s)); });
         var refresh = document.getElementById('brief-refresh');
@@ -2181,8 +2186,9 @@
         sec.hidden = false;
       }
       var r = document.getElementById('brief-refresh'), s = document.getElementById('brief-settings');
-      r.innerHTML = icon('refresh', 14) + '<span>Refresh</span>';
-      s.innerHTML = icon('sliders', 14) + '<span>Sections</span>';
+      r.innerHTML = icon('refresh', 14) + '<span>' + T('Refresh') + '</span>';
+      s.innerHTML = icon('sliders', 14) + '<span>' + T('Sections') + '</span>';
+      r.title = T('Read everything again'); s.title = T('Choose and reorder the sections');
       r.addEventListener('click', function () { r.disabled = true; send({ type: 'brief-refresh' }); setTimeout(function () { r.disabled = false; }, 15000); });
       s.addEventListener('click', function () { send({ type: 'brief-settings' }); });
       render();
@@ -2496,6 +2502,67 @@
       applyStartTheme(q.get('theme'), q.get('tc'));
     } catch (err) { console.error('[Start] theme:', err); applyStartTheme(null); }
 
+    // Turkish, when Vex is set to it (vex.lang). The page's own words; the browser translates what it hands in (js/brief.js).
+    const START_TR = (() => { try { return localStorage.getItem('vex.lang') === 'tr'; } catch (e) { return false; } })();
+    function trShortcutDialog(root) {
+      if (!START_TR) return;
+      const words = { 'Add Shortcut': 'Kısayol ekle', 'Edit Shortcut': 'Kısayolu düzenle', 'Name': 'Ad', 'URL': 'Adres', 'Cancel': 'İptal', 'Save': 'Kaydet' };
+      root.querySelectorAll('h3, label, button').forEach((n) => { const t = n.textContent.trim().replace(/\s+/g, ' '); if (words[t]) n.textContent = words[t]; });
+      root.querySelectorAll('input[placeholder]').forEach((i) => { if (i.placeholder === 'Shortcut name...') i.placeholder = 'Kısayol adı...'; });
+    }
+    // The page's fixed words in Turkish. The New Tab page is its own document, so the app's dictionary cannot reach it; this
+    // table covers what the page writes itself (the Brief's words are translated before they arrive, in js/brief.js).
+    // Whole-text matches only. A few common single words are not translated inside the areas that show your own content
+    // (history rows, shortcut names, Brief cards), so a page or a shortcut that happens to be called "Search" stays as it is.
+    const START_STR = {
+      'My Tools': 'Araçlarım', 'Weather': 'Hava durumu', 'Set your city': 'Şehrinizi seçin', 'Set your city to see its weather': 'Hava durumunu görmek için şehrinizi seçin',
+      'Use my approximate location': 'Yaklaşık konumumu kullan', 'Repos': 'Depolar', 'Followers': 'Takipçiler', 'Recent': 'Son açılanlar',
+      'No recent history yet': 'Henüz geçmiş yok', 'Recent GitHub Activity': 'Son GitHub etkinliği', 'Loading...': 'Yükleniyor...',
+      'Set your location': 'Konumunuzu belirleyin', 'Any country': 'Herhangi bir ülke', 'Pick the exact place': 'Tam yeri seçin',
+      'Pick your country, then search for a city, district or postcode and choose the exact place. Stored only on this device.': 'Ülkenizi seçin, sonra bir şehir, ilçe veya posta kodu arayıp tam yeri seçin. Yalnızca bu cihazda saklanır.',
+      'Postcodes are looked up at OpenStreetMap (© OpenStreetMap contributors); names at Open-Meteo.': 'Posta kodları OpenStreetMap’te (© OpenStreetMap katkıda bulunanlar), yer adları Open-Meteo’da aranır.',
+      'Cancel': 'İptal', 'Search': 'Ara', 'Country': 'Ülke', 'Change theme': 'Temayı değiştir', 'Sent to this computer': 'Bu bilgisayara gönderilenler',
+      'e.g. Ataşehir · Manchester · 34750': 'örn. Ataşehir · Manchester · 34750',
+      'Looks up your IP address once (ipapi.co) and saves the town it finds': 'IP adresinize bir kez bakar (ipapi.co) ve bulduğu şehri kaydeder',
+    };
+    const START_SHORT = new Set(['Weather', 'Recent', 'Search', 'Cancel', 'Repos', 'Followers', 'Loading...', 'Country']);
+    const START_USER = '.recent-item, .shortcut-card:not(.add), #today-list, .brief-card';
+    function startWord(text, inUserArea) {
+      const t = String(text).trim();
+      if (!t) return null;
+      if (Object.prototype.hasOwnProperty.call(START_STR, t)) return inUserArea && START_SHORT.has(t) ? null : START_STR[t];
+      const engine = /^Search engine: (.+)$/.exec(t);
+      if (engine && !inUserArea) return 'Arama motoru: ' + engine[1];
+      return null;
+    }
+    function startTranslate(root) {
+      if (!START_TR || !root || root.nodeType !== 1) return;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const p = node.parentElement;
+        if (!p || /^(SCRIPT|STYLE)$/.test(p.tagName)) continue;
+        const hit = startWord(node.nodeValue, !!p.closest(START_USER));
+        if (hit != null) node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), hit);
+      }
+      for (const el of [root, ...root.querySelectorAll('[placeholder], [title], [aria-label]')]) {
+        for (const a of ['placeholder', 'title', 'aria-label']) {
+          const v = el.getAttribute(a);
+          if (!v) continue;
+          const hit = startWord(v, !!el.closest(START_USER));
+          if (hit != null) el.setAttribute(a, hit);
+        }
+      }
+    }
+    if (START_TR) {
+      // Parts of the page are drawn later (the weather text, the location box, the recent list): translate what they add.
+      new MutationObserver((muts) => {
+        for (const m of muts) {
+          if (m.type === 'childList') m.addedNodes.forEach((n) => { if (n.nodeType === 1) startTranslate(n); else if (n.parentElement) startTranslate(n.parentElement); });
+          else if (m.type === 'characterData' && m.target.parentElement) startTranslate(m.target.parentElement);
+        }
+      }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
     // Clock
     function updateClock() {
       const now = new Date();
@@ -2504,7 +2571,7 @@
       document.getElementById('clock').textContent = `${h}:${m}`;
 
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-      document.getElementById('date-text').textContent = now.toLocaleDateString('en-US', options);
+      document.getElementById('date-text').textContent = now.toLocaleDateString(START_TR ? 'tr-TR' : 'en-US', options);
 
       // Update greeting (localized via vex.lang — set in the setup wizard)
       const hour = now.getHours();
@@ -2683,7 +2750,7 @@
       // Add button
       const addCard = document.createElement('div');
       addCard.className = 'shortcut-card add';
-      addCard.innerHTML = '<div class="shortcut-icon"><span style="font-size:22px">+</span></div><div class="shortcut-label">Add</div>';
+      addCard.innerHTML = '<div class="shortcut-icon"><span style="font-size:22px">+</span></div><div class="shortcut-label">' + (START_TR ? 'Ekle' : 'Add') + '</div>';
       addCard.addEventListener('click', () => showShortcutModal(-1));
       grid.appendChild(addCard);
     }
@@ -2789,6 +2856,7 @@
         </div>
       </div>`;
       document.body.appendChild(modal);
+      trShortcutDialog(modal);
 
       const urlInput = modal.querySelector('#sc-url');
       const preview = modal.querySelector('#sc-preview');
@@ -2813,7 +2881,7 @@
         let savable = false;
         try { savable = /^(https?|about|file|vex):$/.test(new URL(url).protocol) && url.length <= 8192 && !/[\x00-\x1f]/.test(url); } catch (e) { savable = false; }
         if (!savable) {
-          preview.textContent = 'That is not a link Vex can save. Use a web address such as example.com';
+          preview.textContent = START_TR ? 'Bu, Vex’in kaydedebileceği bir bağlantı değil. example.com gibi bir web adresi yazın' : 'That is not a link Vex can save. Use a web address such as example.com';
           preview.setAttribute('role', 'alert');
           urlInput.focus();
           return;
@@ -2890,7 +2958,7 @@
           if (e.own) engineGlyph.style.removeProperty('--engine-color');
           else engineGlyph.style.setProperty('--engine-color', e.color);
         }
-        if (input) input.placeholder = 'Search with ' + e.name + '…';
+        if (input) input.placeholder = START_TR ? e.name + ' ile ara…' : 'Search with ' + e.name + '…';
         if (engineBtn) engineBtn.title = 'Search engine: ' + e.name;
       }
       function buildEngineMenu() {
@@ -3152,6 +3220,12 @@
       try { chosenCountry = localStorage.getItem('vex.weatherCountry') || VexGeo.guessCountry(); }
       catch { chosenCountry = VexGeo.guessCountry(); }
       country.innerHTML = VexGeo.optionsHtml(chosenCountry);
+      if (START_TR) {
+        try {
+          const names = new Intl.DisplayNames(['tr'], { type: 'region' });
+          [...country.options].forEach((o) => { if (o.value) o.textContent = names.of(o.value) || o.textContent; });
+        } catch (err) { console.error('[start] country names could not be shown in Turkish:', err && err.message); }
+      }
 
       const open = () => {
         modal.classList.add('show');
@@ -3422,6 +3496,9 @@
       if (s) s.placeholder = 'İnternette ara...';
       const qa = document.getElementById('qa-label');
       if (qa) qa.textContent = 'Hızlı Erişim';
+      const todayH = document.querySelector('#today-section h3');
+      if (todayH && todayH.textContent.trim() === 'Today') todayH.textContent = 'Bugün';
+      startTranslate(document.body);
       const th = document.getElementById('theme-toggle-btn');
       if (th) {
         for (const n of th.childNodes) {

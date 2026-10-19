@@ -139,6 +139,8 @@
   }
   // What the saved list accepts for a shortcut (js/data-contracts.js). Anything else is refused at the
   // source: the save is refused for the whole preferences batch ("Invalid saved URL"), not just this entry.
+  // A toast's words in the language Vex is set to (the shared dictionary does not scan toasts); English when there is no entry.
+  const L = (s) => (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup(s)) || s;
   function isSavableLink(u) {
     try { return /^(https?|about|file|vex):$/.test(new URL(u).protocol) && u.length <= 8192 && !/[\x00-\x1f]/.test(u); } catch { return false; }
   }
@@ -259,7 +261,7 @@
     let useColor = !!cur.color;
     const colorInput = ov.querySelector('.gsc-ed-color');
     colorInput.addEventListener('input', () => { useColor = true; });
-    ov.querySelector('.gsc-ed-clearcolor').addEventListener('click', () => { useColor = false; try { window.showToast?.('Will use the site logo'); } catch {} });
+    ov.querySelector('.gsc-ed-clearcolor').addEventListener('click', () => { useColor = false; try { window.showToast?.(L('Will use the site logo')); } catch {} });
     const close = () => {
       ov.remove();
       try { if (prevFocus && document.contains(prevFocus)) prevFocus.focus(); } catch {}
@@ -281,8 +283,8 @@
     ov.querySelector('.gsc-ed-save').addEventListener('click', () => {
       const name = ov.querySelector('.gsc-ed-name').value.trim();
       const url = normalizeUrl(ov.querySelector('.gsc-ed-url').value);
-      if (!url) { try { window.showToast?.('Enter a link', 'error'); } catch {} return; }
-      if (!isSavableLink(url)) { window.showToast?.('That is not a link Vex can save. Use a web address such as example.com', 'error'); return; }
+      if (!url) { try { window.showToast?.(L('Enter a link'), 'error'); } catch {} return; }
+      if (!isSavableLink(url)) { window.showToast?.(L('That is not a link Vex can save. Use a web address such as example.com'), 'error'); return; }
       const entry = { url, name, color: useColor ? colorInput.value : '' };
       if (isNew) arr.push(entry); else arr[index] = entry;
       saveShortcuts(arr); close();

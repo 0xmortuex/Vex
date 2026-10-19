@@ -100,7 +100,8 @@ const VexBrief = {
     const h = d.getHours();
     const word = h < 5 ? 'Still up' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
     let date = '';
-    try { date = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }); } catch { date = d.toDateString(); }
+    // The date follows the language Vex was set to, not only the computer's: a Turkish-only person on an English Windows got an English date.
+    try { date = d.toLocaleDateString(this._lang() === 'tr' ? 'tr-TR' : undefined, { weekday: 'long', day: 'numeric', month: 'long' }); } catch { date = d.toDateString(); }
     return { text: word, date };
   },
 
@@ -326,6 +327,79 @@ const VexBrief = {
       try { return await VexToday.refresh(); } finally { this._force = false; }
     }
     return this.build({ force });
+  },
+
+  // ---- Turkish --------------------------------------------------------------
+  // The cards are drawn by the New Tab page, a separate document that neither the shared dictionary (js/i18n-ui.js,
+  // which never reaches into a page) nor the page's own tiny word list covers, so the section data is translated
+  // once, here, on its way to the page. Only the fixed words are translated: a page title, a task or a name a person
+  // wrote is left exactly as it is unless it happens to be one of these exact strings.
+  TR: {
+    // greeting
+    'Still up': 'Hâlâ ayaktasınız', 'Good morning': 'Günaydın', 'Good afternoon': 'İyi günler', 'Good evening': 'İyi akşamlar',
+    // section titles
+    'Needs you': 'Sizi bekleyenler', 'AI news': 'Yapay zekâ haberleri', 'Mail': 'E-posta', 'GitHub': 'GitHub',
+    'Today\'s schedule': 'Bugünün programı', 'Watched pages': 'İzlenen sayfalar', 'Release radar': 'Sürüm radarı',
+    'Resume yesterday': 'Dünkü işe devam et', 'Saved for later': 'Sonrası için kaydedilenler', 'Yesterday in numbers': 'Dün sayılarla',
+    'Focus today': 'Bugünün odağı', 'This time yesterday': 'Dün bu saatte', 'What slowed Vex down since yesterday': 'Dünden beri Vex’i yavaşlatanlar',
+    'Renewals coming up': 'Yaklaşan yenilemeler', 'Meeting in progress': 'Süren toplantı', 'Winding down': 'Günü bitirirken',
+    'Streaks': 'Seriler', 'One new thing': 'Yeni bir şey', 'News about what you use': 'Kullandıklarınızla ilgili haberler',
+    'Listen to your day': 'Gününüzü dinleyin', 'Do you remember?': 'Hatırlıyor musunuz?', 'A service is down': 'Bir hizmet çalışmıyor',
+    'Weather and transit changes': 'Hava durumu ve ulaşım değişiklikleri', 'Permission audit': 'İzin denetimi',
+    'Community': 'Topluluk', 'Status line': 'Durum satırı', 'Discord mentions': 'Discord anmaları',
+    // messages shown on a profile that has not set things up
+    'Nothing is waiting on you.': 'Sizi bekleyen bir şey yok.',
+    'Mail is not included. Turn it on in Autopilot to rank your unread mail too.': 'E-posta dahil değil. Okunmamış e-postalarınızı da sıralamak için Otopilot’tan açın.',
+    'AI news is off. Turn it on in Settings › AI news to see the top stories here.': 'Yapay zekâ haberleri kapalı. Öne çıkan haberleri burada görmek için Ayarlar › Yapay zekâ haberleri bölümünden açın.',
+    'AI news is not loaded in this window.': 'Yapay zekâ haberleri bu pencerede yüklenmedi.',
+    'Mail is not available in this window.': 'E-posta bu pencerede kullanılamıyor.',
+    'Choose which mail accounts to summarise in Settings › Morning Brief. Nothing is read until you do.': 'Özetlenecek e-posta hesaplarını Ayarlar › Sabah özeti bölümünden seçin. Siz seçene kadar hiçbir şey okunmaz.',
+    'The accounts chosen for the brief are no longer connected. Choose again in Settings › Morning Brief.': 'Özet için seçilen hesapların bağlantısı kesildi. Ayarlar › Sabah özeti bölümünden yeniden seçin.',
+    'The working day is over. Nothing more to plan.': 'Çalışma günü bitti. Planlanacak başka bir şey yok.',
+    'Nothing left undone today': 'Bugün yapılmadan kalan bir şey yok',
+    'Nothing scheduled to start tomorrow': 'Yarın başlamak üzere planlanmış bir şey yok',
+    // buttons and labels
+    'Open Autopilot': 'Otopilotu aç', 'Open': 'Aç', 'Open changelog': 'Değişiklik günlüğünü aç', 'Remind me tomorrow': 'Yarın hatırlat',
+    'Dismiss': 'Kapat', 'Not today': 'Bugün değil', 'Never show this one': 'Bunu bir daha gösterme', 'Play digest': 'Özeti dinle',
+    'Pause': 'Duraklat', 'Resume': 'Sürdür', 'Stop': 'Durdur', 'Review': 'İncele', 'Stop these': 'Bunları durdur',
+    'A spoken summary of today': 'Bugünün sesli özeti',
+    'pages visited': 'ziyaret edilen sayfa', 'trackers blocked': 'engellenen izleyici', 'reminders fired': 'çalan hatırlatıcı',
+    'Reminder': 'Hatırlatıcı',
+  },
+  // Fixed words around a number or a name.
+  PATTERNS: [
+    [/^1 thing left undone$/, () => '1 iş yapılmadan kaldı'],
+    [/^(\d+) things left undone$/, (n) => n + ' iş yapılmadan kaldı'],
+    [/^1 saved page to read$/, () => '1 kayıtlı sayfa okunacak'],
+    [/^(\d+) saved pages to read$/, (n) => n + ' kayıtlı sayfa okunacak'],
+    [/^and (\d+) more$/, (n) => n + ' tane daha'],
+    [/^Tomorrow starts with (.+)$/, (x) => 'Yarın şununla başlıyor: ' + x],
+    [/^Reminder, due (.+)$/, (x) => 'Hatırlatıcı, zamanı: ' + x],
+  ],
+  translate(text) {
+    const s = String(text == null ? '' : text);
+    if (Object.prototype.hasOwnProperty.call(this.TR, s)) return this.TR[s];
+    for (const [re, fn] of this.PATTERNS) { const m = re.exec(s); if (m) return fn(...m.slice(1)); }
+    return s;
+  },
+  _lang() { return typeof VexI18nUI !== 'undefined' ? VexI18nUI.locale() : 'en'; },
+  // A copy of the morning snapshot with its fixed words in Turkish. English, or no brief, comes back untouched.
+  localize(morning, lang) {
+    if (!morning || (lang || this._lang()) !== 'tr') return morning;
+    const m = JSON.parse(JSON.stringify(morning));
+    if (m.greeting && m.greeting.text) m.greeting.text = this.translate(m.greeting.text);
+    for (const s of m.sections || []) {
+      if (s.title) s.title = this.translate(s.title);
+      for (const k of ['summary', 'hint', 'note']) if (typeof s[k] === 'string') s[k] = this.translate(s[k]);
+      if (s.action && s.action.label) s.action.label = this.translate(s.action.label);
+      for (const st of s.stats || []) if (st && st.label) st.label = this.translate(st.label);
+      for (const it of s.items || []) {
+        if (typeof it.text === 'string') it.text = this.translate(it.text);
+        if (typeof it.badge === 'string') it.badge = this.translate(it.badge);
+        for (const a of it.actions || []) if (a && a.label) a.label = this.translate(a.label);
+      }
+    }
+    return m;
   },
 };
 
