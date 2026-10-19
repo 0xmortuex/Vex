@@ -1,5 +1,20 @@
 # Changelog
 
+## v36.69.1 (2026-10-19) — A Welcome back guide, Settings is a gear, and the New Tab page speaks Turkish
+
+### New
+- **Welcome back: say which version you used last and see what changed since.** For someone returning after a long time, or on a new computer. It lists the most important changes since the version you pick (or the newest ten if you do not remember), with a Try it button where there is a Settings section to open, a link to the full notes, and an offer (never forced) of Simple mode and, on a Turkish computer, Turkish. It also opens once by itself, in place of the update card, when an update skips eight or more releases, even if "What's new for me" is switched off. In Turkish the whole guide is Turkish except the release notes, which it says are written in English. Try: Press Ctrl+K, run "Welcome back: what changed since I last used Vex", choose a version from the list, and press Show what changed.
+
+### Fixed
+- **The Settings icon was a sun.** A long-time user could not find Settings because its rail icon was a circle with rays, the sign for brightness. It is a gear now, in the rail, the shared icon library and the Settings panel's default icon. Try: Look at the bottom of the left rail and check that the Settings button is a gear.
+- **Icons that looked alike.** History and Clock and schedules were both clock faces, Privacy and Authenticator were both shields, and Recall looked like a zoom-in. History is now a clock with a back-arrow, Clock and schedules an alarm clock, Authenticator a key, and Recall a magnifier with text lines. Try: Look at the left rail and check that History, Clock, Privacy and Authenticator are four different pictures.
+- **The toolbar's AI button wrapped "Yapay zekâ" onto two lines in Turkish.** Its Turkish label is now `YZ`, and its tooltip is translated. Try: Open Settings, set the language to Türkçe, and check that the toolbar's AI button reads YZ on one line.
+- **Turkish toolbar tooltips that carry a Ctrl+K hint stayed English.** Eight toolbar buttons have titles like "Downloads · Ctrl+K: Downloads"; each part is now translated. Try: With the language on Türkçe, hold the mouse over the toolbar's Split button and check that the tooltip is Turkish.
+- **The New Tab page, its Brief cards and the shortcuts bar were mostly English in Turkish.** The date (it was always English), the weather box, the recent list, the location dialog (country names come from the browser's own Turkish data), the Brief cards ("Sizi bekleyenler", "Günü bitirirken", the "off" messages and their buttons), Yenile and Bölümler, the Add tile, the search box, the shortcut dialog, and the bookmarks bar's "Kısayol ekle" and its editor. Your own content (history rows, shortcut names, page titles) is left exactly as it is. Try: Set the language to Türkçe, open a new tab, and check the date, the weather box and the Brief cards are Turkish. Not every Brief section or Settings page is translated yet.
+
+### Checked
+The related tests for each change, the source, type and lint checks, and the real app in Electron: the Welcome back guide with the app's real release list (345 releases) in English and Turkish, the New Tab page in Turkish and English with no console errors, the AI button measured (95 px wide with the old label, 58 px with `YZ`), and the icons drawn and looked at. The toolbar, rail and Welcome back guide were also looked at in the Firefox look in Turkish; the New Tab page and the rail icons at full size were checked in the default look only. The full test suite has not been run on these commits locally; CI runs it after the push.
+
 ## v36.56.9 (2026-10-19) — A bad shortcut or bookmark can no longer stop settings from saving, and dialog fields look like the rest of Vex
 
 ### Fixed
