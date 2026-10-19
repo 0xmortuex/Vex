@@ -133,12 +133,20 @@ function powershell(command) {
   return r.stdout;
 }
 
+// Windows PowerShell's ConvertTo-Json escapes \t \n \r but not the other control characters, and any program on the
+// machine can have one in its command line (a BEL from a mangled script was enough to fail a publish at its boot check,
+// 2026-10-20). They can never be valid raw in JSON, so they become spaces before parsing.
+function parseProcessJson(out) {
+  const rows = JSON.parse(String(out).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, ' '));
+  return Array.isArray(rows) ? rows : [rows];
+}
+
 // [{ pid, ppid, exe, cmd }] for every process. Windows (CIM); elsewhere `ps`.
 function processTable() {
   if (process.platform === 'win32') {
     const out = powershell('Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress').trim();
     if (!out) return [];
-    const rows = JSON.parse(out);
+    const rows = parseProcessJson(out);
     return (Array.isArray(rows) ? rows : [rows]).map(r => ({ pid: r.ProcessId, ppid: r.ParentProcessId, exe: r.ExecutablePath || '', cmd: r.CommandLine || '' }));
   }
   const r = spawnSync('ps', ['-axo', 'pid=,ppid=,args='], { encoding: 'utf8' });
@@ -211,4 +219,4 @@ function dispose(handle, { keepProfile = false } = {}) {
   return r;
 }
 
-module.exports = { launch, launchWithPort, freePort, stopOwned, removeProfile, dispose, processTable, descendantsOf, isOwned, assertTempProfile, assertNotOwnersCopy, assertLaunchable, forbiddenProfileRoots, PID_LOG, REPO };
+module.exports = { launch, launchWithPort, freePort, stopOwned, removeProfile, dispose, processTable, parseProcessJson, descendantsOf, isOwned, assertTempProfile, assertNotOwnersCopy, assertLaunchable, forbiddenProfileRoots, PID_LOG, REPO };

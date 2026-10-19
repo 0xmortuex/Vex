@@ -106,3 +106,27 @@ describe('scripts/ never kills by name or pattern and never sends OS input', () 
     });
   }
 });
+
+describe('reading the process list', () => {
+  const row = (cmd) => ({ ProcessId: 7, ParentProcessId: 4, ExecutablePath: 'C:/x.exe', CommandLine: cmd });
+  it('copes with a control character in another program\'s command line', () => {
+    // PowerShell 5.1 ConvertTo-Json leaves a raw BEL (0x07) inside the string; JSON.parse refuses it.
+    const text = JSON.stringify([row('node -e "Rebase from Here\u0007*"'), row('plain')]).replace(/\\u0007/g, '\u0007');
+    expect(() => JSON.parse(text)).toThrow(/control character/);
+    const rows = H.parseProcessJson(text);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].CommandLine).toBe('node -e "Rebase from Here *"');
+    expect(rows[1].CommandLine).toBe('plain');
+  });
+  it('still reads a normal list, and a single process that comes back as one object', () => {
+    expect(H.parseProcessJson(JSON.stringify([row('a'), row('b')]))).toHaveLength(2);
+    expect(H.parseProcessJson(JSON.stringify(row('only')))).toEqual([row('only')]);
+  });
+  it('keeps the escaped tab, newline and quote of a command line as they were', () => {
+    const rows = H.parseProcessJson(JSON.stringify([row('a\tb\nc "d"')]));
+    expect(rows[0].CommandLine).toBe('a\tb\nc "d"');
+  });
+  it('reads this computer\'s real process list', () => {
+    expect(H.processTable().length).toBeGreaterThan(10);
+  });
+});
