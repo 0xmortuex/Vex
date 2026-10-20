@@ -265,12 +265,15 @@
     SidebarManager.showPanel(choices.some(c => c.panel === last) ? last : choices[0].panel);
   }
 
-  // Safari keeps its sidebar button at the far left of the toolbar; Chrome and
-  // IE keep theirs with the other tool buttons on the right.
+  // Safari keeps its sidebar button at the far left of the toolbar, and so does a look whose sidebar is the icon rail on the
+  // left (Firefox, as Firefox itself does): the button sits right above the rail it opens and closes, not far away among the
+  // tool buttons on the right, where a returning user could not tell it belonged to the rail. Chrome and IE keep theirs with
+  // the other tool buttons on the right.
   function placeButton(btn) {
+    const leftEnd = document.body.dataset.guiStyle === 'safari' || (railLook() && side() === 'left');
     const host = side() === 'right'
       ? document.getElementById('top-bar-right')
-      : (document.body.dataset.guiStyle === 'safari' ? document.getElementById('top-bar-left') : document.getElementById('top-bar-right'));
+      : (leftEnd ? document.getElementById('top-bar-left') : document.getElementById('top-bar-right'));
     if (!host) throw new Error('Toolbar not found for the sidebar button');
     const anchor = host.id === 'top-bar-left' ? host.firstChild : document.getElementById('btn-command');
     if (anchor && anchor.parentElement === host) host.insertBefore(btn, anchor);

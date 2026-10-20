@@ -114,6 +114,32 @@ describe('look sidebar', () => {
     expect(btn.parentElement.firstElementChild).toBe(btn);
   });
 
+  // A long-time user could not tell that the sidebar button, far over among the tool buttons on the right, belonged to the rail it
+  // opens and closes. In the Firefox look (an icon rail on the left) it sits at the left end of the toolbar, right above the rail.
+  it('puts the button right above the rail in a look whose sidebar is the icon rail on the left', async () => {
+    setupDom('firefox', 'left', 'rail');
+    await load();
+    const btn = document.getElementById('btn-look-sidebar');
+    expect(btn.parentElement.id).toBe('top-bar-left');
+    expect(btn.parentElement.firstElementChild).toBe(btn);
+    expect(document.getElementById('top-bar-right').contains(btn)).toBe(false);
+  });
+  it('still hides and shows the rail from there', async () => {
+    setupDom('firefox', 'left', 'rail');
+    const S = await load();
+    const btn = document.getElementById('btn-look-sidebar');
+    btn.click();
+    expect(document.body.classList.contains('look-rail-hidden')).toBe(true);
+    expect(S.railHidden()).toBe(true);
+    btn.click();
+    expect(document.body.classList.contains('look-rail-hidden')).toBe(false);
+  });
+  it('keeps the button on the right when the rail is on the right', async () => {
+    setupDom('firefox', 'right', 'rail');
+    await load();
+    expect(document.getElementById('btn-look-sidebar').parentElement.id).toBe('top-bar-right');
+  });
+
   // Discord, Claude, Prime… are whole apps: a panel opens taking the whole
   // page area, and the header button puts it back in the sidebar.
   it('a panel opens maximized; Restore puts it in the sidebar; closing ends it', async () => {
