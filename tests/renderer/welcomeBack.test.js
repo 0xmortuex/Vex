@@ -229,6 +229,6 @@ describe('when it opens by itself', () => {
 describe('the command', () => {
   it('is listed in the feature manifest', () => {
     const src = fs.readFileSync('src/renderer/js/feature-manifests.js', 'utf8');
-    expect(src).toContain("commands: ['whatsnew-me', 'welcome-back']");
+    expect(src).toContain("commands: ['whatsnew-me', 'welcome-back', 'update-tour']");
   });
 });

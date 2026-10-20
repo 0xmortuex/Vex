@@ -97,6 +97,20 @@ body:has(#ai-panel.open.expanded) .whatsnew-tip { bottom: 150px; }
 .whatsnew-feat-text strong { font-size: 13px; color: var(--text, var(--vex-text-primary)); }
 .whatsnew-feat-text span { font-size: 12px; line-height: 1.4; color: var(--text-muted, var(--vex-text-muted)); }
 .whatsnew-switch { flex: 0 0 auto; }
+/* The pop-up after an update: one block per new feature (js/update-tour.js). */
+.vex-tour-feat { padding: 12px 14px; margin: 0 0 10px; border: 1px solid var(--border, var(--vex-border-medium)); border-radius: 10px; }
+.vex-tour-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.vex-tour-name { margin: 0; font-size: 14px; font-weight: 650; color: var(--text, var(--vex-text-primary)); }
+.vex-tour-fixed { font-size: 11px; color: var(--text-muted, var(--vex-text-muted)); }
+.vex-tour-sec { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text, var(--vex-text-primary)); }
+.vex-tour-sec strong { color: var(--primary, var(--vex-accent)); }
+.vex-tour-status { margin: 6px 0 0; min-height: 0; font-size: 12px; color: var(--text-muted, var(--vex-text-muted)); }
+.vex-tour-status:empty { display: none; }
+.vex-tour-feat .btn-secondary { margin-top: 8px; }
+.vex-tour-fixes-h { margin: 16px 0 6px; }
+.vex-tour-fix { margin: 3px 0; font-size: 12.5px; }
+.vex-tour-fix summary { cursor: pointer; }
+.vex-tour-fix p { margin: 4px 0 6px 16px; color: var(--text-muted, var(--vex-text-muted)); line-height: 1.45; }
 @media (max-width: 480px) {
   .whatsnew-tip { right: 16px; bottom: 16px; }
   .whatsnew-tip-body { padding-left: 16px; }

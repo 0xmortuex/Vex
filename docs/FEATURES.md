@@ -1418,7 +1418,7 @@ Features no other browser has, built out of the parts above.
   - Open: Settings > What each feature touches.
   - Default: New: starts off on an existing profile until you switch it on.
 - **What's new for me** (`whats-new-me`): Lists every change released since the version you last looked at, newest first, with a Try it button that opens the matching Settings section. Open it from Ctrl+K, What's new for me. If you are coming back after a long time, Ctrl+K, Welcome back asks which version you used last and shows what changed since, and offers Simple mode and Turkish. On an existing profile it starts off; turn it on in Settings > What's new for me.
-  - Open: Ctrl+K: "What's new for me", "Welcome back: what changed since I last used Vex"; Settings > What's new for me.
+  - Open: Ctrl+K: "What's new for me", "Welcome back: what changed since I last used Vex", "Show the new features of this update"; Settings > What's new for me.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Timezone helper** (`tz-helper`): Turns a time like 21:00 Istanbul into your time and a list of zones you keep, plus a Discord timestamp text that each reader sees in their own zone. Open it with Ctrl+K: Timezone helper. On an existing profile it starts off; turn it on in Settings > Community and chat tools.
   - Open: Ctrl+K: "Timezone helper"; Settings > Community and chat tools.

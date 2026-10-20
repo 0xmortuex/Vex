@@ -427,6 +427,14 @@ const VexUpdateNotes = {
     catch (err) { problem('Could not read the release notes for the update card', err); return null; }
     await settled();
     const entries = VexUpdateNotes.between(list, pending.from, pending.to);
+    // An update that added features gets the pop-up that lists every one of them, each with its switch, why and how (js/update-tour.js).
+    // An update that only fixed things keeps the small card below. Closing the pop-up any way is final, as closing the card is.
+    if (window.VexUpdateTour && !_card && readPending() !== null) {
+      let shown = false;
+      try { shown = await window.VexUpdateTour.open({ entries, version: pending.to, onClose: () => localStorage.removeItem(PENDING_KEY) }); }
+      catch (err) { problem('Could not show the new features of this update', err); }
+      if (shown) return null;
+    }
     const groups = VexUpdateNotes.highlights(entries);
     // The features these releases name that have a switch here, and each point's explanation (shown when it is opened).
     const feats = VexUpdateNotes.features(entries, switchable, 4);

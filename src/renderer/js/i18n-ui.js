@@ -1508,6 +1508,17 @@ const VexI18nUI = {
       'Notes and highlights as Markdown…': 'Notlar ve vurgular Markdown olarak…',
       'Bring back the ticked sections': 'İşaretli bölümleri geri getir',
       'Open Your data': 'Verilerinizi aç',
+      // The pop-up after an update: every new feature with its switch, why and how (js/update-tour.js).
+      'Vex {v} is here: what is new, feature by feature': 'Vex {v} geldi: yenilikler, özellik özellik',
+      'What is new, feature by feature': 'Yenilikler, özellik özellik',
+      'Each new feature has a switch: turn it on or off right here, and change your mind any time in Settings › Feature usage. A new feature starts off on a profile that existed before, so nothing changes until you choose.': 'Her yeni özelliğin bir anahtarı var: burada açın ya da kapatın ve istediğiniz zaman Ayarlar › Özellik kullanımı bölümünden fikrinizi değiştirin. Yeni bir özellik, daha önce var olan bir profilde kapalı başlar; siz seçene kadar hiçbir şey değişmez.',
+      'Part of Vex: no switch': 'Vex’in parçası: anahtarı yok', 'Why': 'Neden', 'How': 'Nasıl', 'What it touches': 'Neye dokunur',
+      'Open its settings': 'Ayarlarını aç', 'Settings is not available in this window': 'Ayarlar bu pencerede kullanılamıyor',
+      'and {n} more new features. Ctrl+K › What\'s new for me lists them all.': 've {n} yeni özellik daha. Ctrl+K › Bana yenilikler hepsini listeler.',
+      'Fixes and changes in this update': 'Bu güncellemedeki düzeltmeler ve değişiklikler', 'Turn all on': 'Hepsini aç', 'Turn all off': 'Hepsini kapat',
+      'No new features to show.': 'Gösterilecek yeni özellik yok.',
+      'Show the new features of this update': 'Bu güncellemenin yeni özelliklerini göster',
+      'Every new feature of the last updates, each with a switch, why it is there and how to use it': 'Son güncellemelerin her yeni özelliği; her birinin anahtarı, neden var olduğu ve nasıl kullanılacağıyla',
       // The update card: the new things you can turn on, with their switches (js/update-log.js).
       'New things you can turn on': 'Açabileceğiniz yeni şeyler', 'Turn {title} on or off': '{title} özelliğini aç ya da kapat',
       '{title} is on': '{title} açık', '{title} is off': '{title} kapalı', 'Could not change {title}:': '{title} değiştirilemedi:',
