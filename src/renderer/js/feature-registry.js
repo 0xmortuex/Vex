@@ -166,10 +166,14 @@ const VexRegistry = {
   // One sentence per kind of access, for the permission sheet (feature-details.js).
   permissionLines(id) {
     const p = this._need(id).permissions;
+    // Each phrase is looked up on its own (they contain commas); English, and any phrase with no entry, stays as written.
+    const ui = typeof VexI18nUI !== 'undefined' ? VexI18nUI : null;
+    const tr = (s) => { const hit = ui && ui.locale() !== 'en' ? ui.lookup(s) : null; return hit == null ? s : hit; };
+    const list = (a) => a.map(tr).join(', ');
     const out = [];
-    if (p.reads.length) out.push('Reads: ' + p.reads.join(', '));
-    if (p.writes.length) out.push('Writes: ' + p.writes.join(', '));
-    out.push(p.sends.length ? 'Sends off this computer: ' + p.sends.join(', ') : 'Sends nothing off this computer');
+    if (p.reads.length) out.push(tr('Reads:') + ' ' + list(p.reads));
+    if (p.writes.length) out.push(tr('Writes:') + ' ' + list(p.writes));
+    out.push(p.sends.length ? tr('Sends off this computer:') + ' ' + list(p.sends) : tr('Sends nothing off this computer'));
     return out;
   },
 
