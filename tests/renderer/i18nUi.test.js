@@ -65,6 +65,23 @@ describe('what it translates', () => {
     expect(document.getElementById('wrap').innerHTML).toContain('<b>!</b>');
   });
 
+  it('translates every piece of a sentence that a <kbd> breaks up, and puts each back in English', () => {
+    document.body.innerHTML = '<div id="top-bar"><p id="p">Select text on any page, then <kbd>Ctrl+K</kbd> (or right-click). Highlights reappear when you revisit the page.</p></div>';
+    const p = document.getElementById('p');
+    // Each piece has its own entry, as in the real Settings text.
+    VexI18nUI.TABLE.tr['Select text on any page, then'] = 'Herhangi bir sayfada metin seçin, sonra';
+    VexI18nUI.TABLE.tr['(or right-click). Highlights reappear when you revisit the page.'] = '(ya da sağ tıklayın). Vurgular sayfayı yeniden ziyaret ettiğinizde tekrar görünür.';
+    VexI18nUI.apply();
+    expect(p.textContent).toContain('Herhangi bir sayfada metin seçin, sonra');
+    expect(p.textContent).toContain('(ya da sağ tıklayın). Vurgular');
+    expect(p.querySelector('kbd').textContent).toBe('Ctrl+K');
+    en();
+    VexI18nUI.apply();
+    expect(p.textContent).toBe('Select text on any page, then Ctrl+K (or right-click). Highlights reappear when you revisit the page.');
+    delete VexI18nUI.TABLE.tr['Select text on any page, then'];
+    delete VexI18nUI.TABLE.tr['(or right-click). Highlights reappear when you revisit the page.'];
+  });
+
   it('translates placeholders and aria-labels', () => {
     document.body.innerHTML = '<div id="top-bar"><input placeholder="Search or enter address" aria-label="Search"></div>';
     VexI18nUI.apply();

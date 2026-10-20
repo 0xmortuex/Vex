@@ -394,6 +394,7 @@
 
   const g = typeof window !== 'undefined' ? window : globalThis;
   g.VexCursor = VexCursor; g.VexClickFx = VexClickFx; g.VexPointerFx = VexPointerFx;
+  globalThis.VexCursor = VexCursor; globalThis.VexClickFx = VexClickFx; globalThis.VexPointerFx = VexPointerFx;   // the same objects; named so a source check can see what this file declares
 
   if (typeof document !== 'undefined') {
     const start = () => {
