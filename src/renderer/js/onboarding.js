@@ -349,6 +349,41 @@ const Onboarding = {
     else if (key === 'search')  this._session.engine = this._pendingEngine;
   },
 
+  // English | Türkçe on the first step. English is selected until someone picks otherwise: nothing reads the Windows language, because Turkish
+  // is for the people who choose it (told 2026-10-20). A new profile used to meet the agreement and the whole short setup in English with no
+  // way to change that, since the language step is only in the long path.
+  _langSwitch(overlay) {
+    const row = overlay.querySelector('#ob-progress-label') && overlay.querySelector('#ob-progress-label').parentElement;
+    if (!row) return null;
+    const cur = window.VexI18n && window.VexI18n.locale && window.VexI18n.locale() === 'tr' ? 'tr' : 'en';
+    const box = document.createElement('div');
+    box.id = 'ob-lang';
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', 'Language · Dil');
+    box.style.cssText = 'margin-left:auto;display:flex;gap:4px';
+    for (const [id, name] of [['en', 'English'], ['tr', 'Türkçe']]) {
+      const on = id === cur;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.lang = id;
+      b.textContent = name;
+      b.setAttribute('aria-pressed', String(on));
+      b.style.cssText = 'padding:3px 11px;font-family:inherit;font-size:11.5px;border-radius:999px;cursor:pointer;border:1px solid ' + (on ? 'var(--primary)' : 'var(--border)') + ';background:' + (on ? 'var(--primary)' : 'var(--bg)') + ';color:' + (on ? 'var(--on-primary,#fff)' : 'var(--text)');
+      b.addEventListener('click', () => {
+        if (id === cur) return;
+        try { this.setLanguage(id, { reloadStartPages: false }); }
+        catch (err) { window.showToast?.(err.message, 'error'); return; }
+        this._session.lang = id;
+        this._render();
+        const now = document.querySelector('#ob-lang button[aria-pressed="true"]');
+        if (now) now.focus();
+      });
+      box.appendChild(b);
+    }
+    row.appendChild(box);
+    return box;
+  },
+
   _render() {
     const steps = this.activeSteps || this.STEPS();
     const s = this.STEPS().find(item => item.key === steps[this.step]?.key);
@@ -389,6 +424,8 @@ const Onboarding = {
     for (const [id, [key, fallback]] of Object.entries(labels)) { const button = overlay.querySelector('#' + id); if (button) button.textContent = window.VexI18n?.t(key, fallback) || fallback; }
     overlay.querySelector('#ob-progress-label').textContent =
       `${window.VexI18n?.t('step', 'Step') || 'Step'} ${this.step + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${steps.length} · ${this._timeLeft(steps)}`;
+    // The language comes first, above the agreement: everything after it, the agreement included, is in the language chosen here.
+    if (this.step === 0) this._langSwitch(overlay);
     // The agreement: "I agree" or "Quit Vex", and nothing that skips past it.
     const legal = s.key === 'legal';
     if (legal) {
