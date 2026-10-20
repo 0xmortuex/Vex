@@ -200,28 +200,36 @@
     read() {
       const v = store.get(this.KEY);
       if (!v || !this.EFFECTS.includes(v.effect)) return null;
-      return { effect: v.effect, color: (v.color === 'rainbow' || /^#[0-9a-f]{6}$/i.test(String(v.color))) ? v.color : 'theme' };
+      return { effect: v.effect, color: (v.color === 'rainbow' || /^#[0-9a-f]{6}$/i.test(String(v.color))) ? v.color : 'theme', force: v.force === true };
     },
     enabled() { return !!this.read(); },
     save(choice) {
       if (!choice) store.set(this.KEY, null);
       else {
         if (!this.EFFECTS.includes(choice.effect)) throw new Error('There is no click effect called "' + choice.effect + '"');
-        store.set(this.KEY, { effect: choice.effect, color: choice.color || 'theme' });
+        store.set(this.KEY, { effect: choice.effect, color: choice.color || 'theme', force: choice.force === true });
       }
       this.apply();
       if (typeof VexPointerFx !== 'undefined') VexPointerFx.paintStartPages();
     },
     setEnabled(on) { this.save(on ? (this.read() || { effect: 'fireflies', color: 'theme' }) : null); return !!on; },
 
-    // Still: Reduce motion in Vex, "Show animations" off in Windows, a hidden window, or Game mode holding the interface still.
-    stillNow(doc) {
+    // Why nothing is drawn right now, or '' when it is fine: a hidden window, Reduce motion in Vex, Game mode holding the interface still, or
+    // "Animation effects" off in Windows (found 2026-10-21: on a PC with it off the effect looked broken, so Settings now says why).
+    whyStill(doc) {
       doc = doc || document;
-      if (doc.hidden) return true;
-      if (doc.documentElement.hasAttribute('data-reduce-motion')) return true;
-      if (doc.body && doc.body.classList.contains('game-still')) return true;
-      if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
-      return false;
+      if (doc.hidden) return 'hidden';
+      if (doc.documentElement.hasAttribute('data-reduce-motion')) return 'vex';
+      if (doc.body && doc.body.classList.contains('game-still')) return 'game';
+      if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return 'windows';
+      return '';
+    },
+    // Someone who switched the effect on has asked for it, so "show it even though Windows has animations off" can be ticked; it overrides
+    // only Windows' setting, never Vex's own Reduce motion, a hidden window or Game mode.
+    stillNow(doc, choice) {
+      const why = this.whyStill(doc);
+      if (why === 'windows' && choice && choice.force) return false;
+      return !!why;
     },
 
     _colorFor(choice, i) {
@@ -304,7 +312,7 @@
       if (e.button !== 0 || e.isPrimary === false) return;
       const now = Date.now();
       if (now - VexClickFx._last < VexClickFx.MIN_GAP_MS) return;
-      if (VexClickFx.stillNow()) return;
+      if (VexClickFx.stillNow(undefined, choice)) return;
       VexClickFx._last = now;
       try { VexClickFx.burst(e.clientX, e.clientY, choice); }
       catch (err) { console.error('[click-effect] could not draw the effect:', err); }
@@ -345,7 +353,16 @@
       col.value = cur.color;
       col.addEventListener('change', () => { try { this.save({ ...this.read(), color: col.value }); } catch (err) { window.showToast?.(err.message, 'error'); } });
       body.append(G.field(L('Effect colour'), col));
-      body.append(G.note(L('Click anywhere in Vex to see it.')));
+      // Say plainly when nothing will show, and why, instead of leaving it to look broken.
+      const why = this.whyStill();
+      if (why === 'windows') {
+        body.append(G.note(L('Windows has animations turned off (Settings › Accessibility › Visual effects › Animation effects), so no animation shows.')));
+        body.append(G.toggle(L('Show it even though Windows has animations off'), !!cur.force, (on) => { try { this.save({ ...this.read(), force: on }); } catch (err) { window.showToast?.(err.message, 'error'); } }));
+      } else if (why === 'vex') {
+        body.append(G.note(L('Reduce motion is on in Vex (Settings › Appearance), so no animation shows.')));
+      } else {
+        body.append(G.note(L('Click anywhere in Vex to see it.')));
+      }
     },
   };
 

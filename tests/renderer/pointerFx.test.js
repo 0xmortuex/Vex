@@ -185,9 +185,76 @@ describe('the click effect', () => {
   });
   it('is switched on and off by the feature switch', () => {
     expect(VexClickFx.setEnabled(true)).toBe(true);
-    expect(VexClickFx.read()).toEqual({ effect: 'fireflies', color: 'theme' });
+    expect(VexClickFx.read()).toEqual({ effect: 'fireflies', color: 'theme', force: false });
     VexClickFx.setEnabled(false);
     expect(VexClickFx.enabled()).toBe(false);
+  });
+});
+
+// Found in the real app 2026-10-21: on a PC with "Animation effects" off in Windows the effect drew nothing and looked broken.
+describe('when Windows has animations turned off', () => {
+  const windowsAnimations = (reduce) => { globalThis.matchMedia = vi.fn(() => ({ matches: reduce })); };
+  const down = () => document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 9, clientY: 9 }));
+  const live = () => (document.getElementById('vex-clickfx-layer') || { childElementCount: 0 }).childElementCount;
+  afterEach(() => { delete globalThis.matchMedia; document.body.classList.remove('game-still'); document.documentElement.removeAttribute('data-reduce-motion'); });
+
+  it('draws nothing, and knows why', () => {
+    windowsAnimations(true);
+    VexClickFx.save({ effect: 'ripple', color: 'theme' });
+    expect(VexClickFx.whyStill()).toBe('windows');
+    down();
+    expect(live()).toBe(0);
+  });
+  it('draws it when the person said to show it even so', () => {
+    windowsAnimations(true);
+    VexClickFx.save({ effect: 'ripple', color: 'theme', force: true });
+    expect(VexClickFx.read().force).toBe(true);
+    down();
+    expect(live()).toBe(2);
+  });
+  it('is the person\'s choice only for Windows\' setting, never over Vex\'s own Reduce motion, a hidden window or Game mode', () => {
+    windowsAnimations(true);
+    VexClickFx.save({ effect: 'ripple', color: 'theme', force: true });
+    document.documentElement.setAttribute('data-reduce-motion', '');
+    expect(VexClickFx.whyStill()).toBe('vex');
+    expect(VexClickFx.stillNow(undefined, VexClickFx.read())).toBe(true);
+    document.documentElement.removeAttribute('data-reduce-motion');
+    document.body.classList.add('game-still');
+    expect(VexClickFx.stillNow(undefined, VexClickFx.read())).toBe(true);
+  });
+  it('is fine when Windows has them on', () => {
+    windowsAnimations(false);
+    VexClickFx.save({ effect: 'ripple', color: 'theme' });
+    expect(VexClickFx.whyStill()).toBe('');
+    down();
+    expect(live()).toBe(2);
+  });
+  it('Settings says why nothing shows, and offers the switch, instead of leaving it to look broken', () => {
+    globalThis.VexSettingsGroup = {
+      note: (t) => Object.assign(document.createElement('p'), { textContent: t }),
+      field: (l, c) => c,
+      toggle: (label, on, fn) => { const d = document.createElement('div'); d.dataset.toggle = label; d.checked = on; d.fn = fn; return d; },
+    };
+    windowsAnimations(true);
+    VexClickFx.save({ effect: 'ripple', color: 'theme' });
+    const body = document.createElement('div');
+    VexClickFx.render(body);
+    expect(body.textContent).toContain('Windows has animations turned off');
+    const sw = body.querySelector('[data-toggle="Show it even though Windows has animations off"]');
+    expect(sw).not.toBeNull();
+    sw.fn(true);
+    expect(VexClickFx.read().force).toBe(true);
+    delete globalThis.VexSettingsGroup;
+  });
+  it('says nothing about it when animations are on', () => {
+    globalThis.VexSettingsGroup = { note: (t) => Object.assign(document.createElement('p'), { textContent: t }), field: (l, c) => c, toggle: () => document.createElement('div') };
+    windowsAnimations(false);
+    VexClickFx.save({ effect: 'ripple', color: 'theme' });
+    const body = document.createElement('div');
+    VexClickFx.render(body);
+    expect(body.textContent).not.toContain('Windows has animations turned off');
+    expect(body.textContent).toContain('Click anywhere in Vex to see it.');
+    delete globalThis.VexSettingsGroup;
   });
 });
 
@@ -258,7 +325,7 @@ describe('the New Tab page', () => {
     const events = [];
     new Function('localStorage', 'window', 'console', 'Event', 'return ' + js)(fake, { dispatchEvent: (e) => events.push(e.type) }, console, function (t) { this.type = t; });
     expect(JSON.parse(kept['vex.cursor'])).toEqual({ style: 'dot', color: '#06b6d4', size: 'small' });
-    expect(JSON.parse(kept['vex.clickFx'])).toEqual({ effect: 'confetti', color: 'rainbow' });
+    expect(JSON.parse(kept['vex.clickFx'])).toEqual({ effect: 'confetti', color: 'rainbow', force: false });
     expect(events).toEqual(['vex-pointer-fx']);
   });
   it('is handed an off choice as removal, so a page does not keep an old cursor', () => {
