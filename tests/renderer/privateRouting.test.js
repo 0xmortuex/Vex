@@ -111,3 +111,90 @@ describe('the screen', () => {
     expect(document.querySelector('#vexroute-result').textContent).toBe('no network');
   });
 });
+
+describe('asking before everything goes through Tor or a proxy', () => {
+  const click = (el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  const wait = () => new Promise((r) => setTimeout(r, 20));
+
+  it('a click on the Tor card changes nothing until it is confirmed', async () => {
+    window.vexConfirm = vi.fn(async () => false);
+    const el = await PrivateRouting.open();
+    click(el.querySelector('.vexroute-opt[data-mode="tor"]'));
+    await wait();
+    expect(window.vexConfirm).toHaveBeenCalledTimes(1);
+    expect(window.vexConfirm.mock.calls[0][0].title).toBe('Send everything through Tor?');
+    expect(window.vexConfirm.mock.calls[0][0].message).toMatch(/remembered after a restart/);
+    expect(calls).toEqual([]);
+    expect(el.querySelector('#vexroute-result').textContent).toBe('Nothing was changed.');
+    expect(document.getElementById('btn-routing').hidden).toBe(true);
+  });
+  it('goes through Tor once it is confirmed', async () => {
+    window.vexConfirm = vi.fn(async () => true);
+    const el = await PrivateRouting.open();
+    click(el.querySelector('.vexroute-opt[data-mode="tor"]'));
+    await wait();
+    expect(calls).toEqual([['tor', null]]);
+  });
+  it('asks about a proxy in its own words, and does nothing when declined', async () => {
+    window.vexConfirm = vi.fn(async () => false);
+    const el = await PrivateRouting.open();
+    el.querySelector('#vexroute-proxy').value = 'socks5://127.0.0.1:1080';
+    click(el.querySelector('button[data-mode="proxy"]'));
+    await wait();
+    expect(window.vexConfirm.mock.calls[0][0].title).toBe('Send everything through your proxy?');
+    expect(window.vexConfirm.mock.calls[0][0].okLabel).toBe('Use the proxy');
+    expect(calls).toEqual([]);
+  });
+  it('going back to direct needs no question', async () => {
+    window.vexConfirm = vi.fn(async () => false);
+    window.vex.routingGetAll = async () => ({ mode: 'tor' });
+    const el = await PrivateRouting.open();
+    click(el.querySelector('.vexroute-opt[data-mode="direct"]'));
+    await wait();
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    expect(calls).toEqual([['direct', null]]);
+  });
+  it('says so when the confirmation box is missing, and does not switch', async () => {
+    delete window.vexConfirm;
+    const el = await PrivateRouting.open();
+    click(el.querySelector('.vexroute-opt[data-mode="tor"]'));
+    await wait();
+    expect(calls).toEqual([]);
+    expect(el.querySelector('#vexroute-result').textContent).toMatch(/confirmation box is not available/);
+  });
+});
+
+describe('a saved route is announced at every start', () => {
+  beforeEach(() => { window.showToast = vi.fn(); localStorage.clear(); delete globalThis.VexI18nUI; });
+  it('says everything is going through Tor, since when, and offers the way back', async () => {
+    window.vex.routingGetAll = async () => ({ mode: 'tor', at: new Date(2026, 9, 12).getTime() });
+    await PrivateRouting.init();
+    expect(window.showToast).toHaveBeenCalledTimes(1);
+    const [text, kind, ms, opts] = window.showToast.mock.calls[0];
+    expect(text).toMatch(/^Everything in Vex is going through Tor, as you set it on .*12/);
+    expect(kind).toBe('info');
+    expect(ms).toBeGreaterThanOrEqual(10000);
+    expect(opts.action.label).toBe('Go direct');
+    opts.action.run();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls).toEqual([['direct', null]]);
+  });
+  it('names a proxy as a proxy', async () => {
+    window.vex.routingGetAll = async () => ({ mode: 'proxy', custom: 'socks5://127.0.0.1:1080' });
+    await PrivateRouting.init();
+    expect(window.showToast.mock.calls[0][0]).toBe('Everything in Vex is going through your proxy, as you set it.');
+  });
+  it('says nothing when nothing is routed', async () => {
+    await PrivateRouting.init();
+    expect(window.showToast).not.toHaveBeenCalled();
+  });
+  it('speaks Turkish when Vex is set to Turkish', async () => {
+    localStorage.setItem('vex.lang', JSON.stringify('tr'));
+    globalThis.VexI18nUI = require('../../src/renderer/js/i18n-ui.js').VexI18nUI;
+    window.vex.routingGetAll = async () => ({ mode: 'tor' });
+    await PrivateRouting.init();
+    const [text, , , opts] = window.showToast.mock.calls[0];
+    expect(text).toBe('Vex’teki her şey, sizin ayarladığınız gibi Tor üzerinden gidiyor.');
+    expect(opts.action.label).toBe('Doğrudan bağlan');
+  });
+});

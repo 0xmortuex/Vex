@@ -51,11 +51,50 @@ const PrivateRouting = {
       : 'Private routing';
   },
 
+  // Words in the language Vex is set to (the shared dictionary does not scan toasts or confirm boxes); {name} fills in.
+  L(s, vars) {
+    let t = (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup(s)) || s;
+    for (const k of Object.keys(vars || {})) t = t.split('{' + k + '}').join(String(vars[k]));
+    return t;
+  },
+
   async init() {
     const st = await this.state();
     this.mark(st.mode);
     document.getElementById('btn-routing')?.addEventListener('click', () => this.open());
+    this.remind(st);
     return st;
+  },
+
+  // The route for all of Vex is remembered across restarts, and Tor starts by itself on the first page that needs it, so
+  // someone who did not mean to have it on (or forgot) was connected to Tor by their next search with no word about why.
+  // Say so at every start, with the way back one click away.
+  remind(st) {
+    if (!st || !st.mode || st.mode === 'direct') return;
+    const tor = st.mode === 'tor';
+    let date = '';
+    if (st.at) {
+      const lang = typeof VexI18nUI !== 'undefined' && VexI18nUI.locale() === 'tr' ? 'tr-TR' : undefined;
+      date = new Date(st.at).toLocaleDateString(lang, { day: 'numeric', month: 'long' });
+    }
+    const key = 'Everything in Vex is going through ' + (tor ? 'Tor' : 'your proxy') + ', as you set it' + (date ? ' on {date}.' : '.');
+    window.showToast?.(this.L(key, { date }), 'info', 15000, {
+      action: { label: this.L('Go direct'), run: () => this.set('direct').catch(err => window.showToast?.(err.message, 'error')) },
+    });
+  },
+
+  // One click on a big card used to send every tab, window and app in Vex through Tor or a proxy, for good: it is remembered
+  // after a restart. So it is asked first.
+  async confirmRoute(mode) {
+    if (typeof window.vexConfirm !== 'function') throw new Error('The confirmation box is not available');
+    const tor = mode === 'tor';
+    return window.vexConfirm({
+      title: this.L(tor ? 'Send everything through Tor?' : 'Send everything through your proxy?'),
+      message: this.L(tor
+        ? 'Every tab, window and sidebar app in Vex will go through Tor. It is slow, some sites will not work, and Tor starts as soon as you open a page. This is remembered after a restart, and you can switch back here at any time.'
+        : 'Every tab, window and sidebar app in Vex will go through the proxy you named. If it is wrong or down, pages will not load. This is remembered after a restart, and you can switch back here at any time.'),
+      okLabel: this.L(tor ? 'Use Tor' : 'Use the proxy'),
+    });
   },
 
   // ---- The screen ---------------------------------------------------------
@@ -109,8 +148,9 @@ const PrivateRouting = {
       const mode = b.dataset.mode;
       const custom = el.querySelector('#vexroute-proxy')?.value;
       const said = el.querySelector('#vexroute-result');
-      said.textContent = mode === 'tor' ? 'Starting Tor — this takes a few seconds…' : 'Applying…';
       try {
+        if (mode !== 'direct' && !(await this.confirmRoute(mode))) { said.textContent = this.L('Nothing was changed.'); return; }
+        said.textContent = mode === 'tor' ? 'Starting Tor — this takes a few seconds…' : 'Applying…';
         await this.set(mode, custom);
         el.querySelectorAll('.vexroute-opt').forEach(o => o.classList.remove('on'));
         (mode === 'proxy' ? el.querySelector('.vexroute-proxy') : b).classList.add('on');
