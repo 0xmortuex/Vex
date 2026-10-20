@@ -124,6 +124,22 @@ describe('what it must never touch', () => {
   });
 });
 
+describe('dates and times', () => {
+  const d = new Date(2026, 9, 20, 22, 36);
+  it('a date written without a language follows Vex in Turkish, and a named language is kept', () => {
+    VexI18nUI.followLanguageForDates();
+    tr();
+    expect(d.toLocaleDateString([], { month: 'long' })).toBe('Ekim');
+    expect(d.toLocaleDateString(undefined, { month: 'long' })).toBe('Ekim');
+    expect(d.toLocaleDateString('en-US', { month: 'long' })).toBe('October');
+  });
+  it('is untouched in English', () => {
+    VexI18nUI.followLanguageForDates();
+    en();
+    expect(d.toLocaleDateString([], { month: 'long' })).not.toBe('Ekim');
+  });
+});
+
 describe('switching back', () => {
   it('restores the exact English it started from', () => {
     tr();

@@ -6046,6 +6046,69 @@ const VexI18nUI = {
       'Hide Privacy — trackers & ads blocked': 'Gizlilik — engellenen izleyiciler ve reklamlar öğesini gizle',
       'Hide History (Ctrl+H)': 'Geçmiş (Ctrl+H) öğesini gizle',
       'Hide Developer': 'Geliştirici öğesini gizle',
+      // Rows with a changing number, round 3.
+      '{1} summaries kept.': '{1} özet tutuluyor.',
+      '{1} prompts': '{1} istem',
+      '{1} pages remembered': '{1} sayfa hatırlanıyor',
+      '{1} saved words.': '{1} kayıtlı sözcük.',
+      '{1} pinned.': '{1} sabitlenmiş.',
+      '{1} sites remembered.': '{1} site hatırlanıyor.',
+      'Your reviews ({1})': 'Değerlendirmeleriniz ({1})',
+      'Open collected links ({1})': 'Toplanan bağlantıları aç ({1})',
+      'Open noise tools ({1} rules)': 'Gürültü araçlarını aç ({1} kural)',
+      '{1} quotes on the board': 'Panoda {1} alıntı',
+      'Version {1}': 'Sürüm {1}',
+      '{1} of {2} medals earned for real. Level {3}.': '{2} madalyanın {1} tanesi gerçekten kazanıldı. Düzey {3}.',
+      '{1} processes': '{1} işlem',
+      'resident {1}': 'yerleşik {1}',
+      'private {1}': 'özel {1}',
+      '{1} utilities · {2}': '{1} yardımcı · {2}',
+      '{1} interface · {2}': '{1} arayüz · {2}',
+      '{1} other · {2}': '{1} diğer · {2}',
+      '{1} · asleep': '{1} · uyuyor',
+      'Browser storage: {1} MB of about {2} MB used ({3}%)': 'Tarayıcı depolaması: yaklaşık {2} MB’ın {1} MB’ı kullanıldı (%{3})',
+      'Background jobs: {1} on one timer': 'Arka plan işleri: tek zamanlayıcıda {1}',
+      'Updater: up-to-date {1} (just now)': 'Güncelleyici: güncel {1} (az önce)',
+      '{1} requests in the last 24 hours: {2} sent, {3} received.': 'Son 24 saatte {1} istek: {2} gönderildi, {3} alındı.',
+      '{1} · {2} out, {3} in': '{1} · {2} çıkış, {3} giriş',
+      'Anything in the command bar can have one — there are {1} without one now. Find it, then press the keys you want.': 'Komut çubuğundaki her şeyin bir tuşu olabilir — şu an {1} tanesinin yok. Onu bulun, sonra istediğiniz tuşlara basın.',
+      'and {1} more — keep typing to narrow it down.': 've {1} tane daha — daraltmak için yazmaya devam edin.',
+      'Very strong · {1} bits · a stolen database: longer than the universe has existed': 'Çok güçlü · {1} bit · çalınmış bir veri tabanı: evrenin var oluşundan daha uzun',
+      '{1} of {2} indexed ({3}%)': '{2} sayfanın {1} tanesi dizinlendi (%{3})',
+      'Action sequence: {1} step pairs remembered on this PC.': 'Eylem dizisi: bu bilgisayarda {1} adım çifti hatırlanıyor.',
+      'Time-of-day habits: {1} uses counted (needs 10 before the order changes).': 'Günün saatine göre alışkanlıklar: {1} kullanım sayıldı (sıranın değişmesi için 10 gerekir).',
+      'Today: asked {1}, left {2}, skipped {3}.': 'Bugün: {1} soruldu, {2} bırakıldı, {3} atlandı.',
+      'Today: {1} taken, {2} skipped, {3} let go.': 'Bugün: {1} alındı, {2} atlandı, {3} bırakıldı.',
+      'In use: {1} MB of {2} MB.': 'Kullanımda: {2} MB’ın {1} MB’ı.',
+      'No cap. {1} cloud calls so far today.': 'Sınır yok. Bugün şimdiye kadar {1} bulut çağrısı.',
+      'No monthly budget. {1} cloud calls this month.': 'Aylık bütçe yok. Bu ay {1} bulut çağrısı.',
+      'About {1} USD spent on the cloud AI this month (an estimate: {2} calls, {3} tokens in and {4} out, counted as one per four characters). No money budget.': 'Bu ay bulut yapay zekâya yaklaşık {1} USD harcandı (bir tahmin: {2} çağrı, {3} giriş ve {4} çıkış belirteci, dört karakter için bir sayılır). Para bütçesi yok.',
+      '{1} products saved. Add one from a product page with Ctrl+K › Add This Product to Comparison.': '{1} ürün kaydedildi. Bir ürün sayfasından Ctrl+K › Bu ürünü karşılaştırmaya ekle ile bir tane ekleyin.',
+      '{1} features tracked. The list of unused ones appears after 30 days ({2} to go). Kept on this computer only.': '{1} özellik izleniyor. Kullanılmayanların listesi 30 gün sonra görünür ({2} kaldı). Yalnızca bu bilgisayarda tutulur.',
+      'English: {1} known words': 'İngilizce: {1} bilinen sözcük',
+      'Turkish: {1} known words': 'Türkçe: {1} bilinen sözcük',
+      'Solved so far: {1}. It counts days you solved and nothing else.': 'Şimdiye kadar çözülen: {1}. Yalnızca çözdüğünüz günleri sayar.',
+      'Banners rejected for you in the last 7 days: {1}.': 'Son 7 günde sizin için reddedilen bantlar: {1}.',
+      'Recall index: {1} pages, {2} KB of {3} MB, kept {4} days. No second copy is written.': 'Recall dizini: {1} sayfa, {3} MB’ın {2} KB’ı, {4} gün saklanır. İkinci bir kopya yazılmaz.',
+      'Browser storage used: {1}% of about 5 million characters.': 'Kullanılan tarayıcı depolaması: yaklaşık 5 milyon karakterin %{1}’i.',
+      '{1} GB · needs about {2} GB': '{1} GB · yaklaşık {2} GB gerekir',
+      '{1} GB · needs about {2} GB · will not fit until the card frees up': '{1} GB · yaklaşık {2} GB gerekir · kart boşalana kadar sığmaz',
+      '{1} — {2} GB of {3} GB in use, {4}% busy': '{1} — {3} GB’ın {2} GB’ı kullanımda, %{4} meşgul',
+      'Last check: Vex {1}, {2} - all good.': 'Son denetim: Vex {1}, {2} - her şey yolunda.',
+      '{1} tabs with a reason noted. Kept on this computer only, and never for private, off-the-record or Tor tabs.': '{1} sekme için neden not edildi. Yalnızca bu bilgisayarda tutulur ve gizli, kayıt dışı ya da Tor sekmeleri için asla.',
+      'Remembers {1} threads (short fingerprints only, no text).': '{1} konuyu hatırlar (yalnızca kısa parmak izleri, metin yok).',
+      'AI: local only · Sync: off': 'Yapay zekâ: yalnızca yerel · Eşitleme: kapalı',
+      'Minimal Vex switches off all {1} optional features and hides their Settings sections, leaving the browser itself. Switching it off again puts each one back exactly as it was.': 'En az Vex, isteğe bağlı {1} özelliğin hepsini kapatır ve Ayarlar bölümlerini gizler; yalnızca tarayıcının kendisi kalır. Yeniden kapatmak her birini tam olduğu gibi geri koyar.',
+      'Model releases from the big labs': 'Büyük laboratuvarlardan model sürümleri',
+      'Rule enabled: {1}': 'Kural açık: {1}',
+      'Running ({1})': 'Çalışıyor ({1})',
+      'Sunucu (host name)': 'Sunucu (ana bilgisayar adı)',
+      'Ad (optional)': 'Ad (isteğe bağlı)',
+      'PageDown': 'Sayfa Aşağı',
+      'PageUp': 'Sayfa Yukarı',
+      'Previous tab': 'Önceki sekme',
+      'Group tabs': 'Sekmeleri grupla',
+      'Extract action items': 'Eylem maddelerini çıkar',
       // Settings > Mouse cursor and Click effect (js/pointer-fx.js).
       'Mouse cursor': 'Fare imleci', 'Click effect': 'Tıklama efekti',
       'Arrow': 'Ok', 'Dot': 'Nokta', 'Ring': 'Halka', 'Crosshair': 'Artı işareti', 'Star': 'Yıldız',
@@ -6947,7 +7010,7 @@ const VexI18nUI = {
       const parts = key.split(/\{\d\}/);
       const order = [...key.matchAll(/\{(\d)\}/g)].map(m => m[1]);
       const re = new RegExp('^' + parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('(.*?)') + '$');   // a hole may be empty: a plural ending is, for one
-      const item = { re, order, value: table[key], leading: parts[0] === '' && !/^\s*[:,·—]/.test(parts[1]) };
+      const item = { re, order, value: table[key], leading: parts[0] === '' && !/^\s*[:,·—]/.test(parts[1]), countFirst: /^\{\d\}.*[A-Za-z]\{\d\}/.test(key) };
       const head = parts[0];
       if (head.length >= 8) { const b = head.slice(0, 8); if (!bucket.has(b)) bucket.set(b, []); bucket.get(b).push(item); }
       else open.push(item);
@@ -6967,6 +7030,8 @@ const VexI18nUI = {
       // Otherwise "Copied the selection to the clipboard" would half-translate through "Copied {1}", the rest left in English.
       if (m.slice(1).some(piece => piece && /\s/.test(piece) && !/^["“'‘]?[A-Z0-9]/.test(piece) && this.lookup(piece, lang) == null)) continue;
       // A template that opens with a hole is for a count or a name ("3 tabs opened"); "Reload all tabs" is not "Reload all" + "tabs".
+      // "{1} tab{3}" is a count with its plural ending ("3 tabs"): "Previous tab" is not "Previous" + "tab".
+      if (t.countFirst && m[1] && !/\d/.test(m[1])) continue;
       if (t.leading && m[1] && /\s/.test(m[1]) && !/\d/.test(m[1]) && this.lookup(m[1], lang) == null) continue;
       return t.value.replace(/\{(\d)\}/g, (all, n) => {
         const piece = m[t.order.indexOf(n) + 1];
@@ -7169,7 +7234,25 @@ const VexI18nUI = {
     this._observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: this.ATTRS });
   },
 
+  // A date or time that Vex's own code writes without naming a language (the Privacy log's "Oct 20, 10:36 PM", a reminder's
+  // time) follows Windows' language, so a Turkish Vex on an English Windows showed English months. While Vex is in Turkish those
+  // calls get tr-TR; a call that names a language keeps it, and English is untouched.
+  _dateLocaleOn: false,
+  followLanguageForDates() {
+    if (this._dateLocaleOn) return;
+    this._dateLocaleOn = true;
+    const self = this;
+    for (const name of ['toLocaleString', 'toLocaleDateString', 'toLocaleTimeString']) {
+      const original = Date.prototype[name];
+      Date.prototype[name] = function (locales, options) {
+        const unnamed = locales === undefined || (Array.isArray(locales) && locales.length === 0);
+        return original.call(this, unnamed && self.locale() === 'tr' ? 'tr-TR' : locales, options);
+      };
+    }
+  },
+
   init() {
+    this.followLanguageForDates();
     this.watch();
     this.apply();
   },
