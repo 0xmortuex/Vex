@@ -1,5 +1,18 @@
 # Changelog
 
+## v36.98.2 (2026-10-20) — After an update, every new feature with its switch, a cursor of your own, and much more Turkish
+
+### New
+- **After an update, a pop-up lists every new feature with its switch.** Each one has an on/off switch, why it is there and what it does, how to use it, and what it reads and sends, with a way into its Settings; the fixes of the update are listed below, each opening to its explanation. Nothing is switched on for you. Try: Press Ctrl+K, run "Show the new features of this update", and flip a switch. (feature: whats-new-me)
+- **A cursor of your own.** Pick an arrow, dot, ring, crosshair or star, a colour and a size. It changes Vex's own screens and the New Tab page; a website keeps its own cursors. Off until you choose. Try: Open Settings, find Mouse cursor, pick Ring and a colour, and move the mouse over the left rail. (feature: custom-cursor)
+- **A click effect, off until you want it.** Fireflies, ripples, confetti, a shockwave, or Surprise me, which picks a different one each click. It stays still when Reduce motion is on, and Settings says so when Windows has animations turned off (you can show it anyway). Try: Open Settings, find Click effect, switch it on and click anywhere in Vex. (feature: click-effect)
+- **The setup wizard comes back by itself.** A short version with a Skip on every step, a month after it last ran (a switch in Settings), and after Vex was uninstalled by hand and installed again. An update never starts it. Try: Open Settings and look for "Offer the setup again every month". (feature: setup-again)
+
+### Fixed
+- **Typing in the New Tab search box can no longer lead to Tor without you knowing why.** Searching never started Tor; the route for all of Vex did, and it is remembered after a restart. Clicking Tor or a proxy in Private routing now asks first, and a saved route is announced at every start with a Go direct button. Try: Open Private routing, click Through Tor, and check that a question appears and nothing changes until you confirm.
+- **The sidebar button is above the rail it opens and closes.** In the Firefox look it sat far over among the tool buttons on the right; it is now at the left end of the toolbar, right above the rail. Try: Use the Firefox look and look at the top-left of the window.
+- **Much more of Vex is Turkish.** Panels such as Clock and Developer, every dialog, menu and toast, and text a panel draws later are now translated, along with about 1,400 more strings in Settings and the modules. Text with a changing part (a count or a name inside a sentence), the long descriptions of each feature and websites are not yet. Try: Set the language to Türkçe and open Settings, the Clock panel and a dialog.
+
 ## v36.69.1 (2026-10-19) — A Welcome back guide, Settings is a gear, and the New Tab page speaks Turkish
 
 ### New
