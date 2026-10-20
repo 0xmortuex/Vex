@@ -84,6 +84,8 @@ const UI_ONLY_CHANNELS = new Set([
   // The agreement at start (js/legal.js): its documents, its "Quit Vex", and
   // whether it is up (main holds its keys back meanwhile).
   'legal:read', 'app:quit', 'legal:gate',
+  // Whether Vex was uninstalled by hand and installed again (the note build/installer.nsh leaves in the profile folder): Vex's own window only.
+  'setup:take-uninstall-marker',
   // Starting the owner's Game Control Center and choosing where it is
   // (main/game-control-center.js): launching a program is never a page's call.
   'gcc:launch', 'gcc:get', 'gcc:pick', 'gcc:clear',

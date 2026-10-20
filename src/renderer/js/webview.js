@@ -374,6 +374,8 @@ const WebviewManager = {
           try { window.VexFonts?.paintStartPages(); } catch (err) { console.error('[fonts] start page failed:', err); }
           // And Settings › Appearance › Reduce motion (js/appearance-prefs.js).
           window.ReduceMotion?.paintStartPage(webview);
+          // And the cursor and click effect (js/pointer-fx.js), which it draws itself.
+          window.VexPointerFx?.paintStartPage(webview);
           // The search engine chosen now, a search engine of your own too
           // (js/search-engine-custom.js): the page's own copy can be stale.
           webview.executeJavaScript(VexTypedAddress.startPageEngineJs())

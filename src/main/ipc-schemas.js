@@ -16,6 +16,8 @@ define('extensions:install-catalog', [string(60)]);
 // The documents Vex ships, by name (src/main/legal-docs.js), and "Quit Vex".
 define('legal:read', [oneOf(['PRIVACY.md', 'TERMS.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'])]);
 define('app:quit', []);
+// "Was Vex uninstalled by hand?" (setup wizard, js/onboarding.js): no arguments, the answer is read once and the note is removed.
+define('setup:take-uninstall-marker', []);
 // Feature isolation in safe mode (main/safe-mode.js) and the ledger of what left this computer (main/egress-ledger.js).
 define('app:boot-feature', [string(64), oneOf(['start', 'done'])]);
 define('app:boot-disabled', []);

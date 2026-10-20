@@ -156,6 +156,8 @@
     // The place search behind the weather (js/geo-search.js: wizard, start page, Settings). A setting, not a feature to switch off.
     { id: 'weather-place', title: 'Weather place search', group: 'Weather', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.weatherCountry'],
       permissions: { reads: ['the country you chose for place searches'], writes: ['that country'], sends: ['the place or postcode you search for, to Open-Meteo (names) or OpenStreetMap (postcodes), only when you press Search'] } },
+    { id: 'setup-again', title: 'Setup offered again', group: 'Setup wizard', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.setupLastAt', 'vex.setupAgainOff'],
+      permissions: { reads: ['a note the uninstaller leaves in the profile folder when someone uninstalls Vex by hand'], writes: ['when the setup wizard last ran, and whether to offer it again every month'], sends: [] } },
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
@@ -494,6 +496,10 @@
       permissions: { reads: ['your Settings switches and dropdowns and which features are on'], writes: ['a setting, only when you press Revert'], sends: [] } },
     { id: 'whats-new-me', title: "What's new for me", group: "What's new for me", maturity: 'new', storageKeys: ['vex.whatsNewMe.seen', 'vex.whatsNewMe.enabled'], commands: ['whatsnew-me', 'welcome-back'],
       permissions: { reads: ['the release notes that ship inside the app'], writes: ['the version you last looked at'], sends: [] } },
+    { id: 'custom-cursor', title: 'Mouse cursor', group: 'Mouse cursor', maturity: 'new', storageKeys: ['vex.cursor'],
+      permissions: { reads: [], writes: ['the cursor style, colour and size you chose'], sends: [] } },
+    { id: 'click-effect', title: 'Click effect', group: 'Click effect', maturity: 'new', storageKeys: ['vex.clickFx'],
+      permissions: { reads: [], writes: ['the click effect and colour you chose'], sends: [] } },
     { id: 'revisit-watch', title: 'Watch suggestions', group: 'Watch suggestions', maturity: 'new', storageKeys: ['vex.revisit', 'vex.revisit.enabled'],
       permissions: { reads: ['the address and title of the pages you open (never a private or Tor tab)', 'the words of a page you open often, once per visit, only to tell whether it changed'], writes: ['the address, title and open times of up to 200 pages, and up to 6 short fingerprints of each (not the words), here'], sends: [] } },
     { id: 'workspace-archive', title: 'Idle workspaces', group: 'Idle workspaces', maturity: 'new',

@@ -9933,6 +9933,14 @@ ipcMain.handle('routing:set-all', (event, mode, custom) => {
   return operation.catch(e => ({ ok: false, error: e && e.message }));
 });
 
+// The note the uninstaller leaves in the profile folder when someone uninstalls Vex themselves (build/installer.nsh: never during an
+// update, which runs the uninstaller silently and with --updated). Read once and removed, so the setup wizard is offered once.
+ipcMain.handle('setup:take-uninstall-marker', async () => {
+  const file = path.join(app.getPath('userData'), 'vex-uninstalled.flag');
+  try { await fs.promises.unlink(file); return true; }
+  catch (err) { if (err && err.code === 'ENOENT') return false; throw err; }
+});
+
 ipcMain.handle('routing:get-all', () => {
   try { return readRouting()[_ALL_ROUTE_KEY] || { mode: 'direct' }; }
   catch { return { mode: 'direct' }; }

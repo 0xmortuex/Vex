@@ -33,4 +33,17 @@
   DeleteRegKey HKCU "Software\Classes\VexHTML"
   DeleteRegKey HKCU "Software\Clients\StartMenuInternet\Vex"
   DeleteRegValue HKCU "Software\RegisteredApplications" "Vex"
+
+  ; A note for the next install: someone uninstalled Vex themselves, so Vex offers its setup wizard again.
+  ; An update runs this uninstaller silently and with --updated (src/main/updates.js INSTALLER_ARGS), and so does an installer
+  ; replacing an older one, so only a visible uninstall (Settings > Apps, or the Start menu) writes it. It goes in the profile folder,
+  ; which is kept (deleteAppDataOnUninstall is false); the app reads it once and removes it (setup:take-uninstall-marker).
+  ${ifNot} ${isUpdated}
+  ${ifNot} ${Silent}
+    CreateDirectory "$APPDATA\vex"
+    FileOpen $0 "$APPDATA\vex\vex-uninstalled.flag" w
+    FileWrite $0 "uninstalled by hand"
+    FileClose $0
+  ${endIf}
+  ${endIf}
 !macroend

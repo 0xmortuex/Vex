@@ -827,7 +827,7 @@ function vexOwnTextFocused(doc) {
     'vex.skinStrength', 'vex.skinShape', 'vex.skinPattern', 'vex.skinGlow',
     'vex.font', 'vex.fontMono', 'vex.fontCss', 'vex.uiScale', 'vex.uiDensity', 'vex.sitePanels',
     // Settings > Appearance (js/appearance-prefs.js).
-    'vex.websiteAppearance', 'vex.reduceMotion',
+    'vex.websiteAppearance', 'vex.reduceMotion', 'vex.cursor', 'vex.clickFx', 'vex.setupAgainOff',
     // The sleep model (js/sleep-consent.js) and Discord's memory rows.
     'vex.sleepConsent', 'vex.sleepAlways', 'vex.panelAutoSleep', 'vex.panelSleepMinutes',
     'vex.panelSleepExempt', 'vex.panelKeepAwake', 'vex.memoryNoticeMB',
@@ -1297,6 +1297,10 @@ function vexOwnTextFocused(doc) {
   const whatsNewCard = document.getElementById('setting-whats-new-card');
   if (whatsNewCard && window.VexWhatsNew) { whatsNewCard.checked = window.VexWhatsNew.cardEnabled(); whatsNewCard.addEventListener('change', () => window.VexWhatsNew.setCardEnabled(whatsNewCard.checked)); }
 
+  // Offer the setup again every month (js/onboarding.js).
+  const setupAgain = document.getElementById('setting-setup-again');
+  if (setupAgain && typeof Onboarding !== 'undefined') { setupAgain.checked = Onboarding.againOn(); setupAgain.addEventListener('change', () => { try { Onboarding.setAgainOn(setupAgain.checked); } catch (err) { window.showToast?.(err.message, 'error'); } }); }
+
   // Downloads: subscribe to events at startup so downloads before panel-open
   // still register (toast + badge).
   if (typeof DownloadsPanel !== 'undefined') DownloadsPanel.bootstrap?.();
@@ -1581,6 +1585,8 @@ function vexOwnTextFocused(doc) {
 
   // First-run setup wizard (shows once on a fresh install only)
   if (typeof Onboarding !== 'undefined') Onboarding.maybeStart();
+  // A month on, or Vex uninstalled by hand and installed again: the setup is offered again (js/onboarding.js).
+  if (typeof Onboarding !== 'undefined') Onboarding.maybeOfferAgain().catch(err => window.VexProblems?.note('Setup', 'could not check whether to offer the setup again', err));
   // The privacy policy and terms, for a profile past first run that has not
   // accepted this version (a new profile is asked by the wizard's first step).
   if (typeof VexLegal !== 'undefined') VexLegal.maybeAsk();

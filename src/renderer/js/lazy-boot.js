@@ -66,6 +66,7 @@ const VexBoot = {
     { src: 'js/receipt-locker.js', usage: ['receipt-locker'] },
     { src: 'js/day-shape.js', usage: ['day-shape'] },
     { src: 'js/whats-new-me.js', usage: ['whats-new-me'] },
+    { src: 'js/pointer-fx.js', usage: ['custom-cursor', 'click-effect'] },
     { src: 'js/media-control.js', usage: ['media-control'] },
     { src: 'js/pdf-highlights.js', usage: ['pdf-highlights'] },
     { src: 'js/pdf-tools-ui.js', usage: ['pdf-tools'] },

@@ -25,6 +25,7 @@ const Onboarding = {
   done() { try { return localStorage.getItem(this.KEY) === 'true'; } catch { return true; } },
   finish() {
     try { localStorage.setItem(this.KEY, 'true'); } catch {}
+    try { this.noteRan(); } catch (err) { window.VexProblems?.note('Setup', 'could not remember when setup finished', err); }
     // A new profile that left setup before the starting-point step gets what
     // that step pre-selects. One that chose, or that existed before Simple
     // mode (marked Full by VexSimpleMode.migrate), keeps its mode.
@@ -55,6 +56,48 @@ const Onboarding = {
   _usedBefore() {
     const EVIDENCE = ['vex.tabs', 'vex.sessions', 'vex.bookmarks', 'vex.notes', 'vex.history', 'vex.aiWorkerUrl', 'vex.userName', 'vex.githubUsername', 'vex.weatherLoc', 'vex.personas'];
     return EVIDENCE.some(k => { try { return localStorage.getItem(k) != null; } catch { return false; } });
+  },
+
+  // === Coming back by itself ==============================================
+  //
+  // Someone returning to Vex after a long time is the one who most needs the setup, and a browser that has been used for a year has
+  // drifted from what it was set to. It is offered again, by itself, with a Skip on every step:
+  //   * a month after it last ran or was last offered (Settings > General can turn this off), and
+  //   * when Vex was uninstalled by hand and installed again. The uninstaller leaves a note in the profile folder, and only when a person
+  //     uninstalls it: an update runs the uninstaller silently and with --updated, and never leaves one (build/installer.nsh).
+  // An update never starts it, and a profile that predates this starts its month on its first start here, so no one is surprised.
+  LAST_KEY: 'vex.setupLastAt',
+  AGAIN_OFF_KEY: 'vex.setupAgainOff',
+  AGAIN_DAYS: 30,
+  againOn() { try { return localStorage.getItem(this.AGAIN_OFF_KEY) !== '1'; } catch { return true; } },
+  setAgainOn(on) {
+    try { localStorage.setItem(this.AGAIN_OFF_KEY, on ? '0' : '1'); }
+    catch (err) { throw new Error('Could not save that choice: ' + err.message); }
+    return !!on;
+  },
+  lastRan() { try { const n = Number(localStorage.getItem(this.LAST_KEY)); return Number.isFinite(n) && n > 0 ? n : 0; } catch { return 0; } },
+  noteRan(now = Date.now()) {
+    try { localStorage.setItem(this.LAST_KEY, String(now)); }
+    catch (err) { throw new Error('Could not remember when setup last ran: ' + err.message); }
+  },
+  // Pure: is a month up?
+  monthDue(now = Date.now(), last = this.lastRan()) { return !!last && now - last >= this.AGAIN_DAYS * 86400000; },
+  // -> 'uninstall' | 'month' | null. Opens the short wizard (the whole of it is one click away on its first step).
+  async maybeOfferAgain({ now = Date.now() } = {}) {
+    if (window.VexTabPolicy?.isPrivateWindow) return null;
+    if (!this.done()) return null;                                   // a first run is maybeStart's
+    let reason = null;
+    if (window.vex && typeof window.vex.takeUninstallMarker === 'function') {
+      if (await window.vex.takeUninstallMarker()) reason = 'uninstall';
+    }
+    if (!reason) {
+      if (!this.lastRan()) { this.noteRan(now); return null; }       // a profile from before this: its month starts now
+      if (this.againOn() && this.monthDue(now)) reason = 'month';
+    }
+    if (!reason) return null;
+    this.noteRan(now);
+    setTimeout(() => this.relaunch({ pace: 'quick' }), 1200);
+    return reason;
   },
 
   // === Privacy defaults ==================================================
@@ -129,12 +172,12 @@ const Onboarding = {
   // Re-open the wizard on demand (the top-bar setup button). Shows ALL steps,
   // each pre-filled with whatever's already saved and tagged "✓ already set" so
   // nothing is hidden but you're not redoing anything from scratch.
-  relaunch() {
+  relaunch(opts = {}) {
     this._returnFocus = document.activeElement;
     // Coming back to the wizard on purpose means you want the whole thing:
     // the short path is still one click away on the first step. (A first run
     // starts the other way round — see start().)
-    this._pace = 'full';
+    this._pace = opts.pace === 'quick' ? 'quick' : 'full';
     this.activeSteps = this._stepsForPace();
     this.step = 0;
     this._pendingLoc = null;
