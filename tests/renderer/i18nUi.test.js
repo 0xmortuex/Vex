@@ -346,3 +346,59 @@ describe('text drawn after the page is up', () => {
     expect(document.getElementById('z').textContent).toBe('Ayarlar');
   });
 });
+
+describe('the toolbar AI button', () => {
+  // Turkish speakers call it AI; "Yapay zekâ" wrapped onto two lines, and "YZ" is not what people say (told 2026-10-20).
+  it('keeps the word AI in Turkish, on one line', () => {
+    const html = require('fs').readFileSync('src/renderer/index.html', 'utf8');
+    const m = /<span[^>]*id="?[^>]*data-tr-text="([^"]*)"[^>]*>AI<\/span>/.exec(html.replace(/\r\n/g, '\n')) || /white-space:nowrap" data-tr-text="([^"]*)">AI<\/span>/.exec(html);
+    expect(m).not.toBeNull();
+    expect(m[1]).toBe('AI');
+    document.body.innerHTML = '<div id="top-bar"><button><span id="x" data-tr-text="AI">AI</span></button></div>';
+    tr();
+    VexI18nUI.apply();
+    expect(document.getElementById('x').textContent).toBe('AI');
+  });
+});
+
+describe('messages with a changing part (templates)', () => {
+  beforeEach(tr);
+  const look = (s) => VexI18nUI.lookup(s, 'tr');
+
+  it('matches a message with a number, one or many, and a plural ending that is empty', () => {
+    expect(look('Backed up 3 accounts')).toBe('3 hesap yedeklendi');
+    expect(look('Backed up 1 account')).toBe('1 hesap yedeklendi');
+    expect(look('Snoozed for 15 minutes')).toBe('15 dakika ertelendi');
+  });
+  it('keeps an error\'s own words and translates the frame around them', () => {
+    expect(look('Could not copy: Permission denied')).toBe('Kopyalanamadı: Permission denied');
+  });
+  it('translates a known phrase inside the message, such as a feature\'s name', () => {
+    expect(look('New in Vex: Text snippets. It is off until you try it.')).toBe('Vex’te yeni: Metin parçaları. Siz deneyene kadar kapalı.');
+    expect(look('Vex updated to 36.69.1. Your settings from before the update are saved.')).toBe('Vex 36.69.1 sürümüne güncellendi. Güncelleme öncesi ayarlarınız kaydedildi.');
+  });
+  it('does not half-translate a sentence that only starts like a template', () => {
+    expect(look('Copied the selection to the clipboard')).toBeNull();
+    expect(look('Back (Alt+Left) and more')).toBeNull();
+    expect(look('Opened the page you were on yesterday')).toBeNull();
+  });
+  it('does nothing in English', () => {
+    en();
+    expect(VexI18nUI.lookup('Backed up 3 accounts', 'en')).toBeNull();
+  });
+  it('a toast that appears is translated, whatever its changing part', async () => {
+    document.body.innerHTML = '<div id="toast-container"></div>';
+    document.getElementById('toast-container').innerHTML = '<div class="toast"><span id="t">Backed up 2 accounts</span><button id="b">If it misbehaves</button></div>';
+    await new Promise((r) => setTimeout(r, 80));
+    expect(document.getElementById('t').textContent).toBe('2 hesap yedeklendi');
+    expect(document.getElementById('b').textContent).toBe('Sorun çıkarırsa');
+  });
+  it('can be rebuilt when the table changes', () => {
+    VexI18nUI.TABLE.tr['Zzz test {1} done'] = 'Zzz sınama {1} bitti';
+    VexI18nUI.resetTemplates();
+    expect(look('Zzz test 7 done')).toBe('Zzz sınama 7 bitti');
+    delete VexI18nUI.TABLE.tr['Zzz test {1} done'];
+    VexI18nUI.resetTemplates();
+    expect(look('Zzz test 7 done')).toBeNull();
+  });
+});
