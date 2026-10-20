@@ -272,3 +272,77 @@ describe('a tooltip built from parts', () => {
     expect(VexI18nUI.lookup('Downloads · Ctrl+K: Downloads')).toBeNull();
   });
 });
+
+describe('text drawn after the page is up', () => {
+  const settle = () => new Promise((r) => setTimeout(r, 80));
+  it('translates a panel that draws itself again (the Clock and Developer panels did not)', async () => {
+    tr();
+    document.body.innerHTML = '<div id="panels-container"><div id="clock"></div></div>';
+    document.getElementById('clock').innerHTML = '<span id="a">Settings</span><button id="b" title="Downloads">x</button>';
+    await settle();
+    expect(document.getElementById('a').textContent).toBe('Ayarlar');
+    expect(document.getElementById('b').getAttribute('title')).toBe('İndirilenler');
+  });
+  it('translates a dialog or overlay when it opens, whatever its class is called', async () => {
+    tr();
+    document.body.innerHTML = '';
+    const ov = document.createElement('div');
+    ov.className = 'some-new-thing-overlay';
+    ov.innerHTML = '<p id="p">Settings</p>';
+    document.body.appendChild(ov);
+    const dlg = document.createElement('div');
+    dlg.setAttribute('role', 'dialog');
+    dlg.innerHTML = '<p id="q">Settings</p>';
+    document.body.appendChild(dlg);
+    await settle();
+    expect(document.getElementById('p').textContent).toBe('Ayarlar');
+    expect(document.getElementById('q').textContent).toBe('Ayarlar');
+  });
+  it('translates a toast', async () => {
+    tr();
+    document.body.innerHTML = '<div id="toast-container"></div>';
+    document.getElementById('toast-container').innerHTML = '<div class="toast"><span id="t">Settings</span></div>';
+    await settle();
+    expect(document.getElementById('t').textContent).toBe('Ayarlar');
+  });
+  it('translates text that changes in place', async () => {
+    tr();
+    document.body.innerHTML = '<div id="panels-container"><span id="s">nothing yet</span></div>';
+    await settle();
+    document.getElementById('s').textContent = 'Settings';
+    await settle();
+    expect(document.getElementById('s').textContent).toBe('Ayarlar');
+  });
+  it('leaves a page, and anything outside the scopes, exactly as it is', async () => {
+    tr();
+    document.body.innerHTML = '<div id="some-page"><span id="o">Settings</span></div>';
+    document.getElementById('some-page').appendChild(Object.assign(document.createElement('b'), { id: 'o2', textContent: 'Settings' }));
+    await settle();
+    expect(document.getElementById('o').textContent).toBe('Settings');
+    expect(document.getElementById('o2').textContent).toBe('Settings');
+  });
+  it('does nothing at all in English', async () => {
+    en();
+    document.body.innerHTML = '<div id="panels-container"></div>';
+    document.getElementById('panels-container').innerHTML = '<span id="e">Settings</span>';
+    await settle();
+    expect(document.getElementById('e').textContent).toBe('Settings');
+  });
+  it('only ever replaces a text that is, whole, one of the dictionary\'s phrases', async () => {
+    tr();
+    document.body.innerHTML = '<div id="panels-container"></div>';
+    document.getElementById('panels-container').innerHTML = '<p id="long">My Settings and other notes about Downloads</p><p id="same">Settings</p>';
+    await settle();
+    expect(document.getElementById('long').textContent).toBe('My Settings and other notes about Downloads');
+    expect(document.getElementById('same').textContent).toBe('Ayarlar');
+  });
+  it('does not undo a Turkish label it wrote itself, or loop on its own edits', async () => {
+    tr();
+    document.body.innerHTML = '<div id="panels-container"><span id="z">Settings</span></div>';
+    VexI18nUI.apply();
+    await settle();
+    expect(document.getElementById('z').textContent).toBe('Ayarlar');
+    await settle();
+    expect(document.getElementById('z').textContent).toBe('Ayarlar');
+  });
+});
