@@ -84,6 +84,19 @@ body:has(#ai-panel.open.expanded) .whatsnew-tip { bottom: 150px; }
 .whatsnew-tip button:focus-visible {
   outline: 2px solid var(--primary, var(--vex-accent)); outline-offset: 2px;
 }
+/* A point that has its explanation opens in place; a new thing you can turn on has its switch beside it. */
+.whatsnew-more summary { cursor: pointer; list-style: revert; }
+.whatsnew-more summary:focus-visible { outline: 2px solid var(--primary, var(--vex-accent)); outline-offset: 2px; border-radius: 3px; }
+.whatsnew-more p { margin: 4px 0 6px; font-size: 12px; line-height: 1.45; color: var(--text-muted, var(--vex-text-muted)); }
+.whatsnew-feats { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; }
+.whatsnew-feat {
+  display: flex; align-items: center; gap: 12px; padding: 9px 10px;
+  border: 1px solid var(--border, var(--vex-border-medium)); border-radius: 9px;
+}
+.whatsnew-feat-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.whatsnew-feat-text strong { font-size: 13px; color: var(--text, var(--vex-text-primary)); }
+.whatsnew-feat-text span { font-size: 12px; line-height: 1.4; color: var(--text-muted, var(--vex-text-muted)); }
+.whatsnew-switch { flex: 0 0 auto; }
 @media (max-width: 480px) {
   .whatsnew-tip { right: 16px; bottom: 16px; }
   .whatsnew-tip-body { padding-left: 16px; }

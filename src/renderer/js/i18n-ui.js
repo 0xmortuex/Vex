@@ -1508,6 +1508,9 @@ const VexI18nUI = {
       'Notes and highlights as Markdown…': 'Notlar ve vurgular Markdown olarak…',
       'Bring back the ticked sections': 'İşaretli bölümleri geri getir',
       'Open Your data': 'Verilerinizi aç',
+      // The update card: the new things you can turn on, with their switches (js/update-log.js).
+      'New things you can turn on': 'Açabileceğiniz yeni şeyler', 'Turn {title} on or off': '{title} özelliğini aç ya da kapat',
+      '{title} is on': '{title} açık', '{title} is off': '{title} kapalı', 'Could not change {title}:': '{title} değiştirilemedi:',
       'Offer the setup again every month': 'Kurulumu her ay yeniden öner',
       '· a short version with a Skip on every step; it also comes back after Vex is uninstalled by hand and installed again, never after an update': '· her adımında Atla bulunan kısa bir sürüm; Vex elle kaldırılıp yeniden kurulduktan sonra da gelir, güncellemeden sonra asla gelmez',
       // Settings > Mouse cursor and Click effect (js/pointer-fx.js).

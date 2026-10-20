@@ -20,6 +20,8 @@ Add a `## vX.Y.Z (YYYY-MM-DD) — Title` entry at the top of `CHANGELOG.md`. Nei
 
 The hand-check list (Settings › Release check, or `node scripts/release-checklist.js X.Y.Z`) is built from the bullets. Without help it can only say "Find <name> and use it". End a bullet with `Try: <the exact steps>` (for example `Try: Open a new tab, click the star, check there is no error box.`) and those words become its "Do this" line as written; the `Try:` part is not shown as what to expect. A route such as `Ctrl+K › Label` or `Settings › Section` in the bullet also works. Because the changelog is copied onto the release page, write the entry before publishing; changing it afterwards leaves the two different.
 
+When a bullet is about a feature that can be switched on and off, end it with `(feature: <id>)`, the id of its manifest in `src/renderer/js/feature-manifests.js` (for example `... Try: Settings › Mouse cursor. (feature: custom-cursor)`). The update card, What's new for me and the Welcome back guide then show the bullet explained, with that feature's own on/off switch beside it, so a person can turn the new thing on from the news of it. The tag is never shown, a feature with no switch in the build gets no switch, and a test fails if a tag names a feature that does not exist. Tag a bullet only when the feature is new or changed in that release, not every time it is mentioned.
+
 ## 2. Bump, commit and push
 
 ```

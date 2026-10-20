@@ -83,7 +83,13 @@ const VexWhatsNewMe = {
     const entries = from ? VexUpdateNotes.between(list, from, to) : list.filter(e => e && VexUpdateNotes.cmp(e.version, to) === 0);
     const releases = entries.slice(0, this.MAX_RELEASES).map(e => ({
       version: e.version, title: VexUpdateNotes.title(e),
-      points: VexUpdateNotes.points(e.body).slice(0, this.MAX_POINTS).map(text => ({ text, section: this.tryItFor(text) })),
+      points: (() => {
+        const items = VexUpdateNotes.items(e.body);
+        return VexUpdateNotes.points(e.body).slice(0, this.MAX_POINTS).map(text => {
+          const it = items.find(i => i.lead === text) || {};
+          return { text, section: this.tryItFor(text), feature: it.feature || '', detail: it.detail || '' };
+        });
+      })(),
     })).filter(r => r.points.length);
     return { from, to, releases };
   },
@@ -97,6 +103,7 @@ const VexWhatsNewMe = {
       this.markSeen(p.to);
       return p;
     }
+    const switched = new Set();   // one switch for a feature, even when two points name it
     for (const r of p.releases) {
       const h = document.createElement('div');
       h.className = 'vexsr-rule';
@@ -115,6 +122,8 @@ const VexWhatsNewMe = {
         if (pt.section) {
           row.appendChild(VexSettingsGroups.button('Try it', () => { close(); if (typeof SettingsUI !== 'undefined') SettingsUI.openSection(pt.section); }, { label: 'Try it: ' + pt.text }));
         }
+        // A feature the release names, with a real switch in this build: turned on or off right here.
+        if (pt.feature && !switched.has(pt.feature) && window.VexUpdateFeatureSwitch && window.VexUpdateFeatureSwitch.usable(pt.feature)) { switched.add(pt.feature); row.appendChild(window.VexUpdateFeatureSwitch.control(pt.feature)); }
         body.appendChild(row);
       }
     }
@@ -198,6 +207,9 @@ const VexWhatsNewMe = {
       results.appendChild(VexSettingsGroups.note(from ? t('Since v{from}: {n} releases. The most important changes:', { from, n: entries.length }) : t('The {n} newest releases. The most important changes:', { n: entries.length })));
       // The release notes are written in English only; say so rather than leave a Turkish reader wondering.
       if (typeof VexI18nUI !== 'undefined' && VexI18nUI.locale() === 'tr') results.appendChild(VexSettingsGroups.note(t('The release notes are written in English.')));
+      const switched = new Set();   // one switch for a feature, even when two points name it
+      const byLead = new Map();
+      for (const e of entries) for (const it of VexUpdateNotes.items(e.body)) if (!byLead.has(it.lead)) byLead.set(it.lead, it);
       for (const g of VexUpdateNotes.highlights(entries, 14)) {
         const h = document.createElement('div');
         h.className = 'vexsr-rule';
@@ -215,6 +227,8 @@ const VexWhatsNewMe = {
           row.appendChild(span);
           const section = this.tryItFor(text);
           if (section) row.appendChild(VexSettingsGroups.button(t('Try it'), () => { close(); if (typeof SettingsUI !== 'undefined') SettingsUI.openSection(section); }, { label: t('Try it') + ': ' + text }));
+          const named = byLead.get(text);
+          if (named && named.feature && !switched.has(named.feature) && window.VexUpdateFeatureSwitch && window.VexUpdateFeatureSwitch.usable(named.feature)) { switched.add(named.feature); row.appendChild(window.VexUpdateFeatureSwitch.control(named.feature)); }
           results.appendChild(row);
         }
       }

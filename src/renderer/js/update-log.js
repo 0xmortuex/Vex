@@ -14,6 +14,9 @@
 // --- Pure helpers (unit-tested in tests/renderer/updateLogCard.test.js) ------
 const VexUpdateNotes = {
   MAX_POINTS: 8,
+  // A bullet can say which feature it is about with a trailing "(feature: id)" (RELEASING.md). The card and What's new for me then show the
+  // fix or feature explained, with a switch that turns that feature on or off right there. The tag is never shown.
+  FEATURE_TAG: /\s*\(feature:\s*([a-z0-9][a-z0-9._:-]*)\)\s*$/i,
 
   _parts(v) {
     return String(v == null ? '' : v).trim().replace(/^v/i, '').split(/[-+]/)[0].split('.').map(n => parseInt(n, 10) || 0);
@@ -36,6 +39,7 @@ const VexUpdateNotes = {
   // Markdown inline marks out: the card shows plain text.
   plain(md) {
     return String(md || '')
+      .replace(this.FEATURE_TAG, '')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
       .replace(/`([^`]+)`/g, '$1')
       .replace(/\*\*([^*]+)\*\*/g, '$1')
@@ -74,6 +78,44 @@ const VexUpdateNotes = {
       .filter(Boolean);
     const leads = bullets.map(b => this.lead(b)).filter(Boolean);
     return leads.length ? leads : bullets.map(b => this.firstSentence(b)).filter(Boolean);
+  },
+
+  _bullets(body) {
+    return String(body || '').replace(/\r/g, '').split('\n')
+      .map(line => /^\s*[-*]\s+(.*)$/.exec(line))
+      .filter(Boolean)
+      .map(m => m[1].trim())
+      .filter(Boolean);
+  },
+  // The feature a bullet names with its trailing tag, or null.
+  featureOf(bullet) {
+    const m = this.FEATURE_TAG.exec(String(bullet || '').trim());
+    return m ? m[1].toLowerCase() : null;
+  },
+  // What follows the bold lead: the explanation of the fix or the feature, in plain text.
+  detail(bullet) {
+    const m = /^\*\*(.+?)\*\*[\s.:;,—-]*([\s\S]*)$/.exec(String(bullet || '').trim());
+    return m ? this._clip(this.plain(m[2]), 420) : '';
+  },
+  // Every point with its lead, its explanation and the feature it names (if it does).
+  items(body) {
+    return this._bullets(body)
+      .map(b => ({ lead: this.lead(b) || this.firstSentence(b), detail: this.detail(b), feature: this.featureOf(b) }))
+      .filter(i => i.lead);
+  },
+  // The features the releases name that can be turned on or off from the card. usable(id) says whether there is a real switch for one
+  // here: there are no buttons that do nothing. Each feature once, newest release first.
+  features(entries, usable = () => true, max = 4) {
+    const out = [], seen = new Set();
+    for (const e of entries || []) {
+      for (const it of this.items(e && e.body)) {
+        if (!it.feature || seen.has(it.feature) || !usable(it.feature)) continue;
+        seen.add(it.feature);
+        out.push({ id: it.feature, version: e.version, lead: it.lead, detail: it.detail });
+        if (out.length >= max) return out;
+      }
+    }
+    return out;
   },
 
   // "v2.37.0 — A full check-up" -> "A full check-up"
@@ -287,6 +329,79 @@ const VexUpdateNotes = {
     else { localStorage.setItem(CARD_KEY, 'off'); localStorage.removeItem(PENDING_KEY); closeCard(); }
   }
 
+  // --- A switch for a feature a release names -------------------------------------------------------------------------------------------
+  //
+  // "Try it" used to open Settings; for the features a release tags with (feature: id) the card and What's new for me now carry the switch
+  // itself, with the fix explained beside it, so turning a new thing on (or off again) is one click from the news of it.
+  const L = (s) => (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup && VexI18nUI.lookup(s)) || s;
+  const fill = (s, title) => s.replace('{title}', title);
+  const manifestOf = (id) => {
+    try { return (typeof VexRegistry !== 'undefined' && VexRegistry.all().find(m => m.id === id)) || null; }
+    catch (err) { problem('Could not read the feature list', err); return null; }
+  };
+  // There is a real switch for it in this build: it has a manifest, it can be switched, and it is running.
+  function switchable(id) {
+    const m = manifestOf(id);
+    return !!(m && m.killSwitch !== 'none' && typeof VexUsage !== 'undefined' && VexUsage.get(id));
+  }
+  function isOn(id) {
+    try { return !!VexUsage.isEnabled(id); }
+    catch (err) { problem('Could not read the switch of ' + id, err); return false; }
+  }
+  // The switch alone. onChange(on) after it has been flipped; a refusal puts it back and says why.
+  function featureSwitch(id, onChange) {
+    const m = manifestOf(id);
+    if (!m) throw new Error('There is no feature called "' + id + '"');
+    const wrap = document.createElement('label');
+    wrap.className = 'toggle whatsnew-switch';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.setAttribute('role', 'switch');
+    input.checked = isOn(id);
+    input.setAttribute('aria-label', fill(L('Turn {title} on or off'), m.title));
+    const slider = document.createElement('span');
+    slider.className = 'toggle-slider';
+    wrap.append(input, slider);
+    input.addEventListener('change', async () => {
+      const want = input.checked;
+      input.disabled = true;
+      try {
+        await (want ? VexRegistry.switchOn(id) : VexRegistry.switchOff(id));
+        window.showToast?.(fill(L(want ? '{title} is on' : '{title} is off'), m.title), 'info');
+        if (onChange) onChange(want);
+      } catch (err) {
+        input.checked = !want;
+        problem('Could not switch ' + id + (want ? ' on' : ' off'), err);
+        window.showToast?.(fill(L('Could not change {title}:'), m.title) + ' ' + ((err && err.message) || err), 'error');
+      } finally { input.disabled = false; }
+    });
+    return wrap;
+  }
+  // A row: the fix or feature in words, and its switch.
+  function featureRow(item) {
+    const row = document.createElement('div');
+    row.className = 'whatsnew-feat';
+    const text = document.createElement('div');
+    text.className = 'whatsnew-feat-text';
+    const lead = document.createElement('strong');
+    lead.textContent = item.lead;
+    text.appendChild(lead);
+    if (item.detail) {
+      const d = document.createElement('span');
+      d.textContent = item.detail;
+      text.appendChild(d);
+    }
+    row.append(text, featureSwitch(item.id));
+    return row;
+  }
+  // The card is built once the late modules have loaded, so a switch is never made for a feature that is about to appear.
+  function settled() {
+    const boot = typeof VexBoot !== 'undefined' ? VexBoot : null;
+    if (!boot || typeof boot.whenSettled !== 'function') return Promise.resolve();
+    return Promise.race([boot.whenSettled(), new Promise(r => setTimeout(r, 12000))]);
+  }
+  window.VexUpdateFeatureSwitch = { usable: switchable, control: featureSwitch, row: featureRow };
+
   let _card = null;
   function closeCard() {
     if (!_card) return;
@@ -310,8 +425,13 @@ const VexUpdateNotes = {
     let list;
     try { list = await window.vex.getReleaseList(); }
     catch (err) { problem('Could not read the release notes for the update card', err); return null; }
+    await settled();
     const entries = VexUpdateNotes.between(list, pending.from, pending.to);
     const groups = VexUpdateNotes.highlights(entries);
+    // The features these releases name that have a switch here, and each point's explanation (shown when it is opened).
+    const feats = VexUpdateNotes.features(entries, switchable, 4);
+    const explain = new Map();
+    for (const e of entries) for (const it of VexUpdateNotes.items(e.body)) if (it.detail && !explain.has(it.lead)) explain.set(it.lead, it.detail);
     if (!groups.length) {
       // Nothing in the bundled CHANGELOG for these versions: said, and the
       // card is not kept waiting for notes that will never be there.
@@ -352,12 +472,18 @@ const VexUpdateNotes = {
       <div class="whatsnew-tip-body">
         ${groups.map(g => `
           ${several ? `<h3 class="whatsnew-tip-ver" title="${esc(g.version)}${g.title ? ' — ' + esc(g.title) : ''}">${esc(g.version)}${g.title ? ' — ' + esc(g.title) : ''}</h3>` : ''}
-          <ul class="whatsnew-tip-list">${g.points.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`).join('')}
+          <ul class="whatsnew-tip-list">${g.points.map(p => explain.has(p)
+            ? `<li><details class="whatsnew-more"><summary>${esc(p)}</summary><p>${esc(explain.get(p))}</p></details></li>`
+            : `<li>${esc(p)}</li>`).join('')}</ul>`).join('')}
+        ${feats.length ? `<h3 class="whatsnew-tip-ver">${esc(L('New things you can turn on'))}</h3><div class="whatsnew-feats" data-feats></div>` : ''}
       </div>
       <div class="whatsnew-tip-foot">
         <button type="button" class="whatsnew-tip-btn whatsnew-tip-btn-quiet" data-act="close">Got it</button>
         <button type="button" class="whatsnew-tip-btn whatsnew-tip-btn-main" data-act="all">See everything ${icon('arrow-right', 14)}</button>
       </div>`;
+
+    const featsHost = el.querySelector('[data-feats]');
+    if (featsHost) for (const f of feats) featsHost.appendChild(featureRow(f));
 
     el.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;

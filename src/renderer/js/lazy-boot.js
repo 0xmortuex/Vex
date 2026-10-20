@@ -76,6 +76,9 @@ const VexBoot = {
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)
+  _settledWaiters: [],
+  // Resolves once every late module has loaded (or failed): what builds a switch for a feature waits for this, so the feature exists.
+  whenSettled() { return this.marks.settled ? Promise.resolve() : new Promise(resolve => { this._settledWaiters.push(resolve); }); },
 
   mark(name) {
     if (typeof performance === 'undefined') return null;
@@ -121,6 +124,7 @@ const VexBoot = {
     Promise.all(loads).then((results) => {
       this.failed = this.LATE_MODULES.filter((_, i) => !results[i]).map(m => m.src);
       this.mark('settled');
+      this._settledWaiters.splice(0).forEach(resolve => resolve());
       try { this.record(); }
       catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Start-up', 'Could not keep the boot marks', err); else console.error('[Boot]', err); }
     });
