@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v37.33.9 (2026-10-21) — Türkçe sürüm notları, sekmelerinizin yanında yeni sekme düğmesi ve kurulum sihirbazının Türkçe ilk adımı
+## v37.34.9 (2026-10-21) — Türkçe sürüm notları, sekmelerinizin yanında yeni sekme düğmesi ve kurulum sihirbazının Türkçe ilk adımı
 
 ### Yeni
 - **Sürüm notları Türkçe.** Vex Türkçe olduğunda güncelleme kapağı, “Yenilikler” kartı ve penceresi, Tekrar hoş geldiniz rehberi ve yeni özellikler penceresi notları Türkçe gösterir. Türkçe notu olmayan bir sürüm İngilizce notlarını gösterir. En yeni beş sürüm çevrildi ve bundan sonraki her sürüm çevrilecek. Deneyin: Dili Türkçe yapın, Ctrl+K’ye basın, “Yenilikler”i çalıştırın ve en yeni sürümlerin Türkçe olduğunu görün.

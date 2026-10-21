@@ -1,6 +1,6 @@
 # Changelog
 
-## v37.33.9 (2026-10-21) — Release notes in Turkish, the new-tab button next to your tabs, and a Turkish first step in the setup wizard
+## v37.34.9 (2026-10-21) — Release notes in Turkish, the new-tab button next to your tabs, and a Turkish first step in the setup wizard
 
 ### New
 - **Release notes in Turkish.** When Vex is in Turkish, the update cover, the "What's new" card and window, the Welcome back guide and the new-features pop-up show the notes in Turkish. A release with no Turkish notes shows its English ones. The newest five releases are translated and every release from now on will be. Try: Set the language to Türkçe, press Ctrl+K and run "What's New", and check the newest releases are Turkish.
