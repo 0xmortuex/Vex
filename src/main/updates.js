@@ -111,6 +111,7 @@ function resolveFeed(env = process.env) {
       installer: (version, name) => `${REPO}/releases/download/v${version}/${encodeURIComponent(name)}`,
       blockmap: (version, name) => `${REPO}/releases/download/v${version}/${encodeURIComponent(name)}.blockmap`,
       changelog: version => `https://raw.githubusercontent.com/0xmortuex/Vex/v${version}/CHANGELOG.md`,
+      changelogTr: version => `https://raw.githubusercontent.com/0xmortuex/Vex/v${version}/CHANGELOG.tr.md`,
       page: version => `${REPO}/releases/tag/v${version}`,
     };
   }
@@ -124,6 +125,7 @@ function resolveFeed(env = process.env) {
     // Blockmaps of two versions sit side by side: v<version>/<name>.blockmap.
     blockmap: (version, name) => raw + 'v' + encodeURIComponent(version) + '/' + encodeURIComponent(name) + '.blockmap',
     changelog: () => raw + 'CHANGELOG.md',
+    changelogTr: () => raw + 'CHANGELOG.tr.md',
     page: version => `${REPO}/releases/tag/v${version}`,
   };
 }
@@ -161,7 +163,7 @@ function pickInstaller(yml, { allowScript = false } = {}) {
   return { url: file.url, sha512: file.sha512, size };
 }
 
-function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spawn, log = console, now = () => Date.now(), parseChangelogList, platform = process.platform }) {
+function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spawn, log = console, now = () => Date.now(), parseChangelogList, addTurkishNotes = (list) => list, platform = process.platform }) {
   if (typeof fetch !== 'function') throw new Error('createUpdater needs fetch');
   let release = null;       // { version, releasedAt, file, notes } from the last good check
   let active = null;        // { version, controller } while downloading
@@ -230,10 +232,14 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     try {
       const { text } = await readText(f.changelog(version), { maxBytes: 4 * 1024 * 1024, timeoutMs: 10000 });
       if (text && parseChangelogList) {
-        const entries = parseChangelogList(text)
+        // The Turkish notes of the same version, when that release has them. An older tag has no such file: that is not an error.
+        let turkish = '';
+        try { turkish = (await readText(f.changelogTr(version), { maxBytes: 4 * 1024 * 1024, timeoutMs: 10000 })).text || ''; }
+        catch (err) { log.warn('[Updates] the Turkish release notes could not be read:', err && err.message); }
+        const entries = addTurkishNotes(parseChangelogList(text), turkish)
           .filter(e => cmpVersion(e.version.replace(/^v/, ''), currentVersion) > 0 && cmpVersion(e.version.replace(/^v/, ''), version) <= 0)
           .slice(0, 25)
-          .map(e => ({ version: e.version, name: e.name, body: String(e.body || '').slice(0, 20000) }));
+          .map(e => ({ version: e.version, name: e.name, body: String(e.body || '').slice(0, 20000), ...(e.tr ? { tr: { name: e.tr.name, body: String(e.tr.body || '').slice(0, 20000) } } : {}) }));
         if (entries.length) return { source: 'changelog', entries, url: f.page(version) };
       }
     } catch (err) { changelogError = err; }

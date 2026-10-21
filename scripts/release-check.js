@@ -19,6 +19,7 @@ function buildReport(deps = {}) {
   const gh = deps.gh || guard.defaultGh;
   const git = deps.git || guard.defaultGit;
   const changelog = deps.changelog !== undefined ? deps.changelog : fs.readFileSync(path.join(guard.REPO, 'CHANGELOG.md'), 'utf8');
+  const changelogTr = deps.changelogTr !== undefined ? deps.changelogTr : (fs.existsSync(path.join(guard.REPO, 'CHANGELOG.tr.md')) ? fs.readFileSync(path.join(guard.REPO, 'CHANGELOG.tr.md'), 'utf8') : '');
   const packageVersion = deps.packageVersion || JSON.parse(fs.readFileSync(path.join(guard.REPO, 'package.json'), 'utf8')).version;
   const plan = deps.plan ? deps.plan() : points.plan();
   const lines = [];
@@ -46,6 +47,9 @@ function buildReport(deps = {}) {
     const has = changelog.includes(`## v${next} `);
     lines.push(`CHANGELOG      ${has ? `has a "## v${next} " entry` : `NO entry for v${next} yet`}`);
     if (!has) blockers.push(`CHANGELOG.md has no "## v${next} " entry`);
+    const hasTr = changelogTr.includes(`## v${next} `);
+    lines.push(`CHANGELOG.tr   ${hasTr ? `has a "## v${next} " entry (Turkish release notes)` : `NO Turkish entry for v${next} yet`}`);
+    if (!hasTr) blockers.push(`CHANGELOG.tr.md has no "## v${next} " entry (the Turkish release notes)`);
     if (tags.includes('v' + next)) blockers.push(`v${next} is already published`);
   }
 

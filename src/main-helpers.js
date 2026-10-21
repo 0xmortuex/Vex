@@ -543,6 +543,19 @@ function parseChangelogList(md) {
   return out;
 }
 
+// Turkish release notes (CHANGELOG.tr.md, the same layout as CHANGELOG.md). Each English entry that has a Turkish one of the same version
+// gets it as `tr: { name, body }`; the screen shows it when Vex is in Turkish and the English otherwise. An entry with no Turkish
+// version is returned as it was, so the notes for an old release stay English instead of disappearing.
+function addTurkishNotes(entries, turkishMd) {
+  const list = Array.isArray(entries) ? entries : [];
+  const byVersion = new Map(parseChangelogList(turkishMd).map(e => [e.version, e]));
+  if (!byVersion.size) return list;
+  return list.map(e => {
+    const t = e && byVersion.get(e.version);
+    return t ? { ...e, tr: { name: t.name, body: t.body } } : e;
+  });
+}
+
 module.exports = {
   EXTERNAL_PROTOCOLS,
   farbleSite,
@@ -557,6 +570,7 @@ module.exports = {
   GESTURE_INPUT_TYPES,
   parseChangelogEntry,
   parseChangelogList,
+  addTurkishNotes,
   resolveAndReplaceMisspelling,
   OAUTH_POPUP_HOSTS,
   isOAuthPopupUrl,

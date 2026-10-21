@@ -274,7 +274,7 @@ const VexUpdateTour = {
   // Ctrl+K "Show the new features of this update": the pop-up again, without changing what counts as seen.
   async preview() {
     if (typeof VexUpdateNotes === 'undefined' || !window.vex || typeof window.vex.getReleaseList !== 'function') throw new Error('The release notes are not available in this window');
-    const list = await window.vex.getReleaseList();
+    const list = VexUpdateNotes.localizedList(await window.vex.getReleaseList());
     if (!Array.isArray(list) || !list.length) throw new Error('The release list could not be read');
     const version = window.vex.getAppVersion ? String(await window.vex.getAppVersion()).replace(/^v/i, '') : '';
     const entries = list.slice(0, 3);

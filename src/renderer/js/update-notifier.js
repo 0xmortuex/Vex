@@ -285,8 +285,9 @@ const UpdateNotifier = {
       body.appendChild(p);
       return;
     }
-    for (const entry of r.entries) {
-      if (r.entries.length > 1) {
+    const shown = typeof VexUpdateNotes !== 'undefined' ? VexUpdateNotes.localizedList(r.entries) : r.entries;
+    for (const entry of shown) {
+      if (shown.length > 1) {
         const h = document.createElement('h3');
         h.className = 'update-cover-version';
         h.textContent = entry.name || entry.version;

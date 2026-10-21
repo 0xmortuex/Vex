@@ -77,7 +77,7 @@ const VexWhatsNewMe = {
     if (typeof VexUpdateNotes === 'undefined') throw new Error('The release notes reader is not loaded');
     if (!window.vex || typeof window.vex.getReleaseList !== 'function') throw new Error('The release notes are not available in this window');
     const to = String(await this._version()).replace(/^v/i, '');
-    const list = await window.vex.getReleaseList();
+    const list = VexUpdateNotes.localizedList(await window.vex.getReleaseList());
     if (!Array.isArray(list)) throw new Error('The release list could not be read');
     const from = this.seen();
     const entries = from ? VexUpdateNotes.between(list, from, to) : list.filter(e => e && VexUpdateNotes.cmp(e.version, to) === 0);
@@ -170,7 +170,7 @@ const VexWhatsNewMe = {
     if (typeof VexUpdateNotes === 'undefined') throw new Error('The release notes reader is not loaded');
     if (!window.vex || typeof window.vex.getReleaseList !== 'function') throw new Error('The release notes are not available in this window');
     const to = String(await this._version()).replace(/^v/i, '');
-    const list = await window.vex.getReleaseList();
+    const list = VexUpdateNotes.localizedList(await window.vex.getReleaseList());
     if (!Array.isArray(list)) throw new Error('The release list could not be read');
     const releases = list.filter(e => e && e.version);
     const t = (en, vars) => this._t(en, vars);

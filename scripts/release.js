@@ -89,6 +89,13 @@ if (!flags.has('--any-version')) {
 //    2.36.1 from matching "## v2.36.10" (same check as write-release-notes.js).
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');
 if (!changelog.includes(`## v${version} `)) fail(`CHANGELOG.md has no "## v${version} " entry — write the release notes first`);
+// The Turkish notes (CHANGELOG.tr.md) have the same version: a Turkish Vex shows them in the update card and cover.
+{
+  let tr = '';
+  try { tr = fs.readFileSync(path.join(REPO, 'CHANGELOG.tr.md'), 'utf8'); }
+  catch (err) { if (err.code !== 'ENOENT') throw err; }
+  if (!tr.includes(`## v${version} `)) fail(`CHANGELOG.tr.md has no "## v${version} " entry — write the Turkish release notes first (same layout as CHANGELOG.md)`);
+}
 // A draft from --prepare still carries its marker comments: reword them away first.
 {
   const start = changelog.indexOf(`## v${version} `);

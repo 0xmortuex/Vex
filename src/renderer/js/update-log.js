@@ -30,6 +30,15 @@ const VexUpdateNotes = {
     return 0;
   },
 
+  // The Turkish version of a release's notes (entry.tr, from CHANGELOG.tr.md) when Vex is in Turkish and that release has one; the
+  // entry as it is otherwise, so a release with no Turkish notes still shows its English ones.
+  localized(entry) {
+    const tr = entry && entry.tr;
+    const turkish = typeof window !== 'undefined' && window.VexI18n && window.VexI18n.locale() === 'tr';
+    return turkish && tr && tr.body ? { ...entry, name: tr.name || entry.name, body: tr.body } : entry;
+  },
+  localizedList(list) { return Array.isArray(list) ? list.map(e => this.localized(e)) : list; },
+
   // The CHANGELOG entries after `from`, up to and including `to` (newest first,
   // as the list comes).
   between(list, from, to) {
@@ -220,7 +229,7 @@ const VexUpdateNotes = {
     if (_open) return;
     _open = true;
     let notes = null;
-    try { notes = await window.vex.getReleaseNotes(); }
+    try { notes = VexUpdateNotes.localized(await window.vex.getReleaseNotes()); }
     catch (err) {
       // Said, not swallowed: a silent failure here hid "What's new" after every
       // update for two weeks.
@@ -230,7 +239,7 @@ const VexUpdateNotes = {
 
     // Full history for the version picker (local CHANGELOG, newest-first).
     let list = [];
-    try { if (typeof window.vex.getReleaseList === 'function') list = await window.vex.getReleaseList(); }
+    try { if (typeof window.vex.getReleaseList === 'function') list = VexUpdateNotes.localizedList(await window.vex.getReleaseList()); }
     catch (err) { problem('Could not read the list of releases', err); }
     if (!Array.isArray(list) || !list.length) list = notes ? [notes] : [];
 
@@ -423,7 +432,7 @@ const VexUpdateNotes = {
   async function showCard(pending) {
     if (_card) return null;
     let list;
-    try { list = await window.vex.getReleaseList(); }
+    try { list = VexUpdateNotes.localizedList(await window.vex.getReleaseList()); }
     catch (err) { problem('Could not read the release notes for the update card', err); return null; }
     await settled();
     const entries = VexUpdateNotes.between(list, pending.from, pending.to);

@@ -12,7 +12,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const { createUpdater, parseLatestYml, pickInstaller, resolveFeed, cmpVersion, INSTALLER_ARGS, state } = require('../../src/main/updates.js');
-const { parseChangelogList } = require('../../src/main-helpers.js');
+const { parseChangelogList, addTurkishNotes } = require('../../src/main-helpers.js');
 
 const sha = buf => crypto.createHash('sha512').update(buf).digest('base64');
 const INSTALLER = Buffer.alloc(300 * 1024, 7);
@@ -49,7 +49,7 @@ const respond = (body, { status = 200, length, url } = {}) => {
   if (url) Object.defineProperty(res, 'url', { value: url });
   return res;
 };
-const make = (over = {}) => createUpdater({ fetch, fs, dir, currentVersion: '2.34.5', env: {}, spawn: vi.fn(), log, parseChangelogList, platform: 'win32', ...over });
+const make = (over = {}) => createUpdater({ fetch, fs, dir, currentVersion: '2.34.5', env: {}, spawn: vi.fn(), log, parseChangelogList, addTurkishNotes, platform: 'win32', ...over });
 const GH_YML = 'https://github.com/0xmortuex/Vex/releases/latest/download/latest.yml';
 const GH_EXE = 'https://github.com/0xmortuex/Vex/releases/download/v2.35.0/Vex-Setup.exe';
 
@@ -262,6 +262,23 @@ describe('what is new', () => {
     expect(n.source).toBe('changelog');
     expect(n.entries.map(e => e.version)).toEqual(['v2.35.0', 'v2.34.6']);
     expect(n.entries[0].body).toMatch(/\*\*A\*\* fix/);
+  });
+  it('carries the Turkish notes of a version that has them, and leaves the others English', async () => {
+    routes.set('https://raw.githubusercontent.com/0xmortuex/Vex/v2.35.0/CHANGELOG.md', () => respond(changelog));
+    routes.set('https://raw.githubusercontent.com/0xmortuex/Vex/v2.35.0/CHANGELOG.tr.md', () => respond('# Değişiklik günlüğü\n\n## v2.35.0 (2026-10-02) — Yeni\n\n### Düzeltildi\n- **A** düzeltme\n'));
+    const u = make(); await u.check();
+    const n = await u.notes('2.35.0');
+    expect(n.entries.map(e => e.version)).toEqual(['v2.35.0', 'v2.34.6']);
+    expect(n.entries[0].tr).toEqual({ name: 'v2.35.0 — Yeni', body: expect.stringContaining('**A** düzeltme') });
+    expect(n.entries[0].body).toMatch(/\*\*A\*\* fix/);
+    expect(n.entries[1].tr).toBeUndefined();
+  });
+  it('is the English notes alone when the release has no CHANGELOG.tr.md (an older tag)', async () => {
+    routes.set('https://raw.githubusercontent.com/0xmortuex/Vex/v2.35.0/CHANGELOG.md', () => respond(changelog));
+    const u = make(); await u.check();
+    const n = await u.notes('2.35.0');
+    expect(n.source).toBe('changelog');
+    expect(n.entries.every(e => e.tr === undefined)).toBe(true);
   });
   it('falls back to the release notes latest.yml carries', async () => {
     const u = make(); await u.check();

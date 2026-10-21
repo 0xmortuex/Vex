@@ -6,10 +6,13 @@ const { buildReport } = require('../../scripts/release-check.js');
 const CL = '# Changelog\n\n## v1.1.0 (2026-10-11) — Second\n## v1.0.0 (2026-10-10) — First\n';
 const OLD = CL;
 
-function deps({ releases = ['v1.1.0', 'v1.0.0'], runs, rows, changelog = CL, packageVersion = '1.1.0' } = {}) {
+const TR = '## v1.2.0 (2026-10-13) — Yeni\n';
+
+function deps({ releases = ['v1.1.0', 'v1.0.0'], runs, rows, changelog = CL, changelogTr = TR, packageVersion = '1.1.0' } = {}) {
   return {
     packageVersion,
     changelog,
+    changelogTr,
     gh: args => JSON.stringify(args[0] === 'release' ? releases.map(t => ({ tagName: t, isDraft: false })) : (runs || [
       { databaseId: 7, headSha: 'c3', status: 'completed', conclusion: 'success', createdAt: '2026-10-12T10:00:00Z', workflowName: 'Verify Vex' },
     ])),
@@ -22,6 +25,16 @@ function deps({ releases = ['v1.1.0', 'v1.0.0'], runs, rows, changelog = CL, pac
 }
 
 describe('release-check', () => {
+  it('is blocked until the next version has Turkish release notes too', () => {
+    const cl = '## v1.2.0 (2026-10-13) — New\n' + CL;
+    const without = buildReport(deps({ changelog: cl, changelogTr: '## v1.1.0 (x) — Eski\n' }));
+    expect(without.blockers.join('\n')).toMatch(/CHANGELOG\.tr\.md has no "## v1\.2\.0 " entry/);
+    expect(without.lines.join('\n')).toMatch(/NO Turkish entry for v1\.2\.0/);
+    const withIt = buildReport(deps({ changelog: cl }));
+    expect(withIt.blockers.join('\n')).not.toMatch(/CHANGELOG\.tr\.md/);
+    expect(withIt.lines.join('\n')).toMatch(/has a "## v1\.2\.0 " entry \(Turkish release notes\)/);
+  });
+
   it('is blocked until the next version has a CHANGELOG entry', () => {
     const r = buildReport(deps());
     expect(r.next).toBe('1.2.0');

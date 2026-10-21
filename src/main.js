@@ -10172,7 +10172,7 @@ ipcMain.handle('open-guest-window', (_e, look, uiMode) => openPrivateWindow({ lo
 const _updater = require('./main/updates').createUpdater({
   fetch: (url, init) => _egress.wrap((u, i) => net.fetch(u, i), { feature: 'Vex updates', kind: 'update' })(url, init),
   fs, dir: path.join(app.getPath('userData'), 'updates'), currentVersion: app.getVersion(),
-  spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList,
+  spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList, addTurkishNotes: _mainHelpers.addTurkishNotes,
 });
 // Only Vex's own main window may download or install an update: not a private
 // window, not a page, not another window of Vex's.
@@ -10416,6 +10416,15 @@ ipcMain.handle('open-external', (_e, url) => {
   try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}
   return { ok: false };
 });
+// CHANGELOG.tr.md ships beside CHANGELOG.md. A missing file is normal (a build from before it existed); anything else that
+// goes wrong is said, and the notes stay English.
+function _readTurkishChangelog() {
+  try { return fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.tr.md'), 'utf8'); }
+  catch (err) {
+    if (err && err.code !== 'ENOENT') console.warn('[WhatsNew] the Turkish release notes could not be read:', err.message);
+    return '';
+  }
+}
 // Release notes for the "What's New" update log. LOCAL-FIRST: the bundled
 // CHANGELOG.md always has the running version's notes, needs no network, and
 // can't 404, rate-limit, or return an empty body — all three of which the
@@ -10428,7 +10437,7 @@ ipcMain.handle('updates:notes', async (_e, tag) => {
   try {
     const md = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
     const local = _mainHelpers.parseChangelogEntry(md, ver.replace(/^v/, ''));
-    if (local) return { ...local, url: 'https://github.com/0xmortuex/Vex/releases' };
+    if (local) return { ..._mainHelpers.addTurkishNotes([local], _readTurkishChangelog())[0], url: 'https://github.com/0xmortuex/Vex/releases' };
   } catch (err) {
     console.warn('[WhatsNew] local changelog unavailable, falling back to GitHub:', err.message);
   }
@@ -10454,7 +10463,7 @@ ipcMain.handle('updates:notes', async (_e, tag) => {
 ipcMain.handle('updates:list', async () => {
   try {
     const md = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
-    const list = _mainHelpers.parseChangelogList(md);
+    const list = _mainHelpers.addTurkishNotes(_mainHelpers.parseChangelogList(md), _readTurkishChangelog());
     if (list && list.length) {
       return list.map((e) => ({ ...e, url: 'https://github.com/0xmortuex/Vex/releases/tag/' + e.version }));
     }
