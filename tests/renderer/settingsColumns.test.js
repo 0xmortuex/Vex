@@ -48,6 +48,8 @@ describe('SettingsUI.columnsFor', () => {
 describe('SettingsUI._layout', () => {
   let panel, root;
   beforeEach(() => {
+    // These test the automatic multi-column engine; Settings opens one full-width column since 2026-10-21.
+    localStorage.setItem('vex.settingsLayout', JSON.stringify({ columns: 'auto', nav: 'chips', density: 'comfortable' }));
     document.body.innerHTML = `
       <div class="panel" id="panel-settings">
         <div class="settings-content">
@@ -227,6 +229,8 @@ describe('SettingsUI._layout with a group\'s chip row', () => {
 describe('SettingsUI._watchLayout', () => {
   let observers, frames, root, panel, heights;
   beforeEach(() => {
+    // These test the automatic multi-column engine; Settings opens one full-width column since 2026-10-21.
+    localStorage.setItem('vex.settingsLayout', JSON.stringify({ columns: 'auto', nav: 'chips', density: 'comfortable' }));
     observers = [];
     frames = [];
     globalThis.ResizeObserver = class { constructor(cb) { this.cb = cb; this.els = []; observers.push(this); } observe(el) { this.els.push(el); } unobserve() {} disconnect() {} };
