@@ -121,7 +121,7 @@ body[data-gui-family="browser"] .tab-bar-trailing { flex: 0 0 auto; align-self: 
 body[data-gui-family="browser"] .tab-bar-trailing > * { -webkit-app-region: no-drag; }
 body[data-gui-family="browser"] .tab-bar-trailing #window-controls { margin-left: 40px; }
 body[data-gui-family="browser"] .top-tab {
-  flex: var(--b-tab-flex, 1 1 0); max-width: var(--b-tab-max, none); height: var(--b-tab-h);
+  flex: var(--b-tab-flex, 1 1 0); max-width: var(--b-tab-max, 160px); height: var(--b-tab-h);
   background: var(--b-tab); border: var(--b-tab-border-w, 0) solid var(--b-tab-border, transparent); border-bottom: none;
   border-radius: var(--b-tab-radius); box-shadow: var(--b-tab-rest-shadow, none);
   color: var(--b-tab-text); font: var(--b-tab-font); padding: 0 10px; margin: 0;

@@ -513,7 +513,7 @@ const SettingsUI = {
   // the category menu is, and how tightly the rows are packed. Kept on this
   // device and never synced (sync is an allow-list, js/sync-engine.js): it is
   // about this screen. Reset to Defaults clears it (app.js), which is the
-  // layout Settings had before: automatic columns, chips, comfortable.
+  // layout in LAYOUT_DEFAULTS (before 2026-10-21: automatic columns, chips, comfortable).
   LAYOUT_KEY: 'vex.settingsLayout',
   LAYOUT_CHOICES: {
     columns: [['auto', 'Automatic'], ['1', 'One column'], ['wide', 'One column, full width'], ['2', 'Two columns'], ['3', 'Three columns']],
@@ -527,6 +527,9 @@ const SettingsUI = {
     nav: ['Settings category menu', 'Category menu', 'On a narrow window the list becomes chips again.'],
     density: ['Settings density', 'Density', 'Compact fits more on the screen: tighter rows, the same text size.'],
   },
+  // What Settings looks like until a person changes it (the owner, 2026-10-21): one column using the whole width, the
+  // category list down the left side, comfortable rows. A profile that already saved a choice keeps it.
+  LAYOUT_DEFAULTS: { columns: 'wide', nav: 'side', density: 'comfortable' },
   // The least width of a column the user asked for: narrower than the
   // automatic choice's COL_MIN, wide enough for a label beside its switch.
   COL_MIN_CHOSEN: 480,
@@ -534,7 +537,7 @@ const SettingsUI = {
   SIDE_MIN: 900,
 
   layoutPrefs() {
-    const out = { columns: 'auto', nav: 'chips', density: 'comfortable' };
+    const out = { ...this.LAYOUT_DEFAULTS };
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(this.LAYOUT_KEY) || 'null'); }
     catch (err) { console.warn('[settings] the saved Settings layout is unreadable; showing the default:', err && err.message); }
@@ -558,7 +561,7 @@ const SettingsUI = {
   },
 
   _isDefaultLayout(prefs) {
-    return prefs.columns === 'auto' && prefs.nav === 'chips' && prefs.density === 'comfortable';
+    return Object.keys(this.LAYOUT_DEFAULTS).every(k => prefs[k] === this.LAYOUT_DEFAULTS[k]);
   },
 
   // Every choice back to its default (the saved layout dropped), on screen at once.

@@ -41,13 +41,13 @@ const setup = ({ panelWidth = 1920, rootWidth = 1868 } = {}) => {
 beforeEach(() => { localStorage.clear(); });
 
 describe('the choices', () => {
-  it('are automatic columns, chips and comfortable until changed (the layout Settings had)', () => {
-    expect(SettingsUI.layoutPrefs()).toEqual({ columns: 'auto', nav: 'chips', density: 'comfortable' });
+  it('are one full-width column, the list on the left and comfortable until changed (the default since 2026-10-21)', () => {
+    expect(SettingsUI.layoutPrefs()).toEqual({ columns: 'wide', nav: 'side', density: 'comfortable' });
   });
 
   it('keep each saved choice, and ignore one that is not a choice', () => {
     localStorage.setItem('vex.settingsLayout', JSON.stringify({ columns: '3', nav: 'sideways', density: 'compact' }));
-    expect(SettingsUI.layoutPrefs()).toEqual({ columns: '3', nav: 'chips', density: 'compact' });
+    expect(SettingsUI.layoutPrefs()).toEqual({ columns: '3', nav: 'side', density: 'compact' });
   });
 
   it('refuse a name or value that does not exist, out loud', () => {
@@ -223,6 +223,7 @@ describe('the list down the left side', () => {
     const { panel, root } = setup();
     const nav = panel.querySelector('.set-nav');
     const chips = () => [...nav.querySelectorAll('.set-nav-chip')];
+    SettingsUI.setLayoutPref('nav', 'chips');
     for (const c of chips()) c.getClientRects = () => [{}];
     SettingsUI._markCurrent(root);
     expect(chips().every(c => !c.hasAttribute('tabindex'))).toBe(true);   // chips: untouched
@@ -282,16 +283,16 @@ describe('the layout button\'s "Back to the default layout"', () => {
     expect(btn).toBeTruthy();
     expect(btn.disabled).toBe(true);
     SettingsUI.setLayoutPref('columns', '3');
-    SettingsUI.setLayoutPref('nav', 'side');
+    SettingsUI.setLayoutPref('nav', 'chips');
     SettingsUI.setLayoutPref('density', 'compact');
     expect(btn.disabled).toBe(false);
     btn.click();
     expect(localStorage.getItem('vex.settingsLayout')).toBeNull();
-    expect(SettingsUI.layoutPrefs()).toEqual({ columns: 'auto', nav: 'chips', density: 'comfortable' });
-    expect(panel.dataset.setNav).toBeUndefined();
+    expect(SettingsUI.layoutPrefs()).toEqual({ columns: 'wide', nav: 'side', density: 'comfortable' });
+    expect(panel.dataset.setNav).toBe('side');
     expect(panel.dataset.setDensity).toBeUndefined();
     expect(btn.disabled).toBe(true);
-    for (const sel of panel.querySelectorAll('.set-layout-pop select')) expect(sel.selectedIndex).toBe(0);
+    for (const sel of panel.querySelectorAll('.set-layout-pop select')) expect(sel.value).toBe(SettingsUI.LAYOUT_DEFAULTS[sel.dataset.setLayout]);
   });
 });
 

@@ -64,9 +64,10 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   padding: 0 10px;
   height: 34px;
   min-width: 44px;            /* hard minimum = favicon only */
-  max-width: none;            /* no upper cap — tabs always fill the bar */
-  /* basis:0 + grow:1 makes every tab share free space equally, so with
-     no cap above they expand all the way to the trailing +-button. */
+  /* A short tab: with one or two tabs open the close button used to sit
+     half a screen from the title (asked for 2026-10-21). Tabs still share
+     the bar equally and shrink as before, but stop growing at 160px. */
+  max-width: 160px;
   flex: 1 1 0;
   background: var(--vex-glass-tab-inactive);
   border: 1px solid var(--vex-border-subtle);
