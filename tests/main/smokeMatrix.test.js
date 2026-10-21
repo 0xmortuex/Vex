@@ -72,6 +72,16 @@ describe('findings', () => {
   });
   it('flags growth over budget only', () => {
     expect(M.leakBreaches({ nodes: 1000, listeners: 100, intervals: 4 }, { nodes: 1100, listeners: 120, intervals: 4 })).toEqual([]);
+    // A suspected leak is only a leak if the same counter is over its budget again in the longer second window.
+    const first = ['nodes grew by 8119 (budget 200)', 'listeners grew by 1190 (budget 60)'];
+    expect(M.confirmedBreaches(first, [])).toEqual([]);
+    expect(M.confirmedBreaches(first, ['listeners grew by 900 (budget 60)'])).toEqual(['listeners grew by 1190 (budget 60)']);
+    expect(M.confirmedBreaches(first, ['nodes grew by 5000 (budget 200)', 'listeners grew by 70 (budget 60)'])).toEqual(first);
+    expect(M.confirmedBreaches(undefined, undefined)).toEqual([]);
+    // The second window is longer, so its allowance is the same rate: 200 nodes a cycle over 3 cycles is 600, not 200.
+    expect(M.scaledBudgets({ nodes: 200, listeners: 60, intervals: 0 }, 3)).toEqual({ nodes: 600, listeners: 180, intervals: 0 });
+    expect(M.leakBreaches({ nodes: 0, listeners: 0, intervals: 0 }, { nodes: 216, listeners: 33, intervals: 0 }, M.scaledBudgets(M.BUDGETS, 3))).toEqual([]);   // 72 nodes a cycle: the Settings baseline, not a leak
+    expect(M.leakBreaches({ nodes: 0, listeners: 0, intervals: 0 }, { nodes: 24000, listeners: 3500, intervals: 0 }, M.scaledBudgets(M.BUDGETS, 3)).length).toBe(2);   // thousands a cycle: a leak
     const b = M.leakBreaches({ nodes: 1000, listeners: 100, intervals: 4 }, { nodes: 1500, listeners: 400, intervals: 6 });
     expect(b).toHaveLength(3);
     expect(b[0]).toMatch(/nodes grew by 500/);

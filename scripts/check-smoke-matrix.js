@@ -49,6 +49,8 @@ const SERVICE_PANELS = new Set(['whatsapp', 'claude', 'spotify', 'discord', 'rob
 const CONSOLE_IGNORE = [/Failed to load resource/i, /net::ERR_/i, /favicon/i, /ERR_BLOCKED_BY_CLIENT/i, /DevTools/i, /Autofill\.(?:enable|setAddresses)/i];
 
 const BUDGETS = { nodes: 200, listeners: 60, intervals: 0 };
+// How many more cycles a suspected leak must keep growing through before it counts.
+const CONFIRM_CYCLES = 3;
 
 // ---- pure parts (unit-tested) -------------------------------------------------
 
@@ -112,6 +114,20 @@ function leakBreaches(before, after, budgets = BUDGETS) {
     if (grew > budgets[k]) out.push(`${k} grew by ${grew} (budget ${budgets[k]})`);
   }
   return out;
+}
+
+// A breach in the first window is a LEAK only if the same counter keeps growing past its budget in a second, longer window. A page that
+// finishes building lazy parts late (readings of +3,000, +8,600 and +8,119 nodes that settled to +64 a cycle) breaches once and then stops;
+// a real leak grows every cycle. `first` and `second` are the lists leakBreaches returned; returns the breaches of `first` that `second` repeats.
+function confirmedBreaches(first, second) {
+  const kind = (b) => String(b).split(' ')[0];
+  const again = new Set((second || []).map(kind));
+  return (first || []).filter(b => again.has(kind(b)));
+}
+
+// The budgets are per window; a longer window gets a longer allowance, so the rate stays the same (200 nodes a cycle, as in CI's one-cycle window).
+function scaledBudgets(budgets, cycles) {
+  return Object.fromEntries(Object.entries(budgets).map(([k, v]) => [k, v * cycles]));
 }
 
 function newLayers(before, after) {
@@ -293,7 +309,17 @@ async function main(argv = process.argv.slice(2)) {
           await cdpLib.evaluate(cdp, `window.__smoke.open(${JSON.stringify(plan)})`); await cdpLib.sleep(120); await closeAll();
           const before = await counters();
           for (let i = 1; i < opts.cycles; i++) { await cdpLib.evaluate(cdp, `window.__smoke.open(${JSON.stringify(plan)})`); await cdpLib.sleep(120); await closeAll(); }
-          for (const b of leakBreaches(before, await counters(), opts.budgets)) findings.push({ at, kind: 'leak', detail: `${b} over ${opts.cycles - 1} more cycles` });
+          const afterFirst = await counters();
+          let breaches = leakBreaches(before, afterFirst, opts.budgets);
+          let span = opts.cycles - 1;
+          if (breaches.length) {
+            // Prove it: three more cycles. Only a counter that is over its budget again is a leak (see confirmedBreaches).
+            for (let i = 0; i < CONFIRM_CYCLES; i++) { await cdpLib.evaluate(cdp, `window.__smoke.open(${JSON.stringify(plan)})`); await cdpLib.sleep(120); await closeAll(); }
+            const again = leakBreaches(afterFirst, await counters(), scaledBudgets(opts.budgets, CONFIRM_CYCLES));
+            if (again.length) { breaches = confirmedBreaches(breaches, again).map(b => `${b} (and again: ${again.find(a => a.split(' ')[0] === b.split(' ')[0])})`); span = opts.cycles - 1; }
+            else { notes.push({ at, note: `a one-time build of ${breaches.join('; ')} over ${span} cycle(s), then under ${opts.budgets.nodes} nodes a cycle over ${CONFIRM_CYCLES} more: not a leak` }); breaches = []; }
+          }
+          for (const b of breaches) findings.push({ at, kind: 'leak', detail: `${b} over ${span} more cycles` });
         }
 
         for (const text of errors.slice(mark)) if (!consoleIsIgnorable(text)) findings.push({ at, kind: 'console-error', detail: String(text).slice(0, 300) });
@@ -318,7 +344,7 @@ async function main(argv = process.argv.slice(2)) {
   }
 }
 
-module.exports = { parseArgs, planItem, selectItems, consoleIsIgnorable, leakBreaches, newLayers, PAGE_SETUP, DENY, SERVICE_PANELS, BUDGETS, LOOKS, TIERS };
+module.exports = { parseArgs, planItem, selectItems, consoleIsIgnorable, leakBreaches, confirmedBreaches, scaledBudgets, newLayers, PAGE_SETUP, DENY, SERVICE_PANELS, BUDGETS, LOOKS, TIERS };
 
 if (require.main === module) {
   main().then(code => { process.exitCode = code; }, err => { console.error('smoke matrix: harness failure: ' + err.message); process.exitCode = 2; });
