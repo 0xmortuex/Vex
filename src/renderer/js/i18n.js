@@ -7,6 +7,13 @@
   };
   Object.assign(strings.en, { skipSetupAsk: 'Skip the rest of setup? What you have chosen so far is kept, everything else keeps its default, and Settings has all of it.' });
   Object.assign(strings.tr, { skipSetupAsk: 'Kurulumun geri kalanı atlansın mı? Şimdiye kadar seçtikleriniz korunur, geri kalan her şey varsayılan ayarında kalır ve hepsi Ayarlar’da bulunur.' });
+  // The first step's two choices (js/onboarding.js, _renderWelcome): {n} is the minutes.
+  Object.assign(strings.en, { paceQuick: 'Just the essentials — about {n} minutes', paceQuickSub: 'How Vex looks, which panels you keep, your name, your search engine, three privacy choices, and whether links open here. Everything else has a sensible default and lives in Settings.',
+    paceFull: 'Everything — about {n} minutes', paceFullSub: 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync, passwords and notifications.',
+    paceNote: 'Either way, every step has a <b>Skip</b>, nothing here is permanent, and <b>Skip setup</b> leaves the whole thing. Vex works before you answer a single question.' });
+  Object.assign(strings.tr, { paceQuick: 'Yalnızca gerekenler — yaklaşık {n} dakika', paceQuickSub: 'Vex’in görünümü, hangi panelleri tutacağınız, adınız, arama motorunuz, üç gizlilik seçimi ve bağlantıların burada açılıp açılmayacağı. Geri kalan her şeyin makul bir varsayılanı vardır ve Ayarlar’da durur.',
+    paceFull: 'Her şey — yaklaşık {n} dakika', paceFullSub: 'Aynısı, ayrıca hız ve bellek, Vex’in nelere bakabileceği, iş araçlarınız, dil, günün ayeti, hava durumu, GitHub, üç tür yapay zekâ, Eşitleme, parolalar ve bildirimler.',
+    paceNote: 'Hangisini seçerseniz seçin, her adımda <b>Atla</b> vardır, buradaki hiçbir şey kalıcı değildir ve <b>Kurulumu atla</b> hepsini bırakır. Vex tek bir soruyu yanıtlamadan da çalışır.' });
   Object.assign(strings.en, { skipSetup: 'Skip setup', getStarted: 'Get started', finish: 'Finish', saveContinue: 'Save & continue', configured: 'Already set', confirm: 'Confirm', step: 'Step', of: 'of' });
   Object.assign(strings.tr, { skipSetup: 'Kurulumu atla', getStarted: 'Başlayalım', finish: 'Bitir', saveContinue: 'Kaydet ve devam et', configured: 'Zaten ayarlandı', confirm: 'Onayla', step: 'Adım', of: '/',
     'welcome.sub': 'Vex’i size göre ayarlayalım. İstemediğiniz adımları atlayabilir ve kurulumu daha sonra yeniden açabilirsiniz.',
