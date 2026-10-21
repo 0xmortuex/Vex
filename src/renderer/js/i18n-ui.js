@@ -6109,6 +6109,19 @@ const VexI18nUI = {
       'Previous tab': 'Önceki sekme',
       'Group tabs': 'Sekmeleri grupla',
       'Extract action items': 'Eylem maddelerini çıkar',
+      // Bracket notes.
+      '(needs your permission)': '(izniniz gerekir)',
+      '(clear cache)': '(önbelleği temizle)',
+      '(second key)': '(ikinci tuş)',
+      '(third key)': '(üçüncü tuş)',
+      '(speak, and it is typed)': '(konuşun, yazılsın)',
+      '(off by default)': '(varsayılan olarak kapalı)',
+      '(export and import)': '(dışa ve içe aktarma)',
+      '(the bell)': '(zil)',
+      '(host name)': '(ana bilgisayar adı)',
+      '(optional)': '(isteğe bağlı)',
+      '(set it in your profile first)': '(önce profilinizde ayarlayın)',
+      'Name (set it in your profile first)': 'Ad (önce profilinizde ayarlayın)',
       // Settings > Mouse cursor and Click effect (js/pointer-fx.js).
       'Mouse cursor': 'Fare imleci', 'Click effect': 'Tıklama efekti',
       'Arrow': 'Ok', 'Dot': 'Nokta', 'Ring': 'Halka', 'Crosshair': 'Artı işareti', 'Star': 'Yıldız',
@@ -6974,7 +6987,8 @@ const VexI18nUI = {
     if (!key) return null;
     if (table[key] != null) return table[key];
     const m = /^(.+?)\s*\(([^()]*)\)$/.exec(key);
-    if (m && table[m[1].trim()] != null) return table[m[1].trim()] + ' (' + m[2] + ')';
+    // The bracket part is a shortcut ("Ctrl+K") or a note ("needs your permission"): a note with an entry of its own, "(…)", is translated too.
+    if (m && table[m[1].trim()] != null) return table[m[1].trim()] + ' ' + (table['(' + m[2] + ')'] != null ? table['(' + m[2] + ')'] : '(' + m[2] + ')');
     // "… for example.com": the site's name is not language either. The table
     // holds "… for {}" and the host goes where {} is.
     const f = /^(.+ for) (\S+)$/.exec(key);
