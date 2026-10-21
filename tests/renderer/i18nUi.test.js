@@ -124,6 +124,16 @@ describe('what it must never touch', () => {
   });
 });
 
+describe('templates', () => {
+  const look = (t) => VexI18nUI.lookup(t, 'tr');
+  it('the template with the most fixed text wins over a general one', () => {
+    expect(look('0 summaries kept')).toBe('0 özet tutuluyor');   // not the general "{1} kept{2}"
+  });
+  it('a number written with a plus sign is a changing part like any other', () => {
+    expect(look('2.34 GB now · +1.57 GB over 1 min · low 793 MB, high 2.34 GB')).toBe('2.34 GB şu an · 1 dakikada +1.57 GB · en düşük 793 MB, en yüksek 2.34 GB');
+  });
+});
+
 describe('dates and times', () => {
   const d = new Date(2026, 9, 20, 22, 36);
   it('a date written without a language follows Vex in Turkish, and a named language is kept', () => {

@@ -6122,6 +6122,21 @@ const VexI18nUI = {
       '(optional)': '(isteğe bağlı)',
       '(set it in your profile first)': '(önce profilinizde ayarlayın)',
       'Name (set it in your profile first)': 'Ad (önce profilinizde ayarlayın)',
+      // Last residue.
+      'Reading the models…': 'Modeller okunuyor…',
+      'Duplicate tab': 'Sekmeyi çoğalt',
+      'Next tab': 'Sonraki sekme',
+      'Recall Days kept': 'Recall saklanan gün',
+      'links saved': 'bağlantı kaydedildi',
+      '{1} KB, 1 key': '{1} KB, 1 anahtar',
+      '{1} KB, {2} keys': '{1} KB, {2} anahtar',
+      'Vex updates → github.com': 'Vex güncellemeleri → github.com',
+      '{1} now · {2} over {3} min · low {4}, high {5}': '{1} şu an · {3} dakikada {2} · en düşük {4}, en yüksek {5}',
+      'Startup: app ready {1} s · window shown {2} s · interface loaded {3} s · first page loaded {4} s': 'Başlangıç: uygulama hazır {1} sn · pencere gösterildi {2} sn · arayüz yüklendi {3} sn · ilk sayfa yüklendi {4} sn',
+      'Interface: reading saved data {1} ms · restoring tabs {2} ms · the rest of the interface {3} s': 'Arayüz: kayıtlı veriyi okuma {1} ms · sekmeleri geri yükleme {2} ms · arayüzün geri kalanı {3} sn',
+      'Vex {1} · Electron {2} · Chromium {3} · up {4} min': 'Vex {1} · Electron {2} · Chromium {3} · çalışma süresi {4} dk',
+      'Right now it fits: {1}. Next: {2} at {3}. It is off, so the New Tab page keeps its own layout.': 'Şu an uyan: {1}. Sonraki: {2}, saat {3}. Kapalı, bu yüzden Yeni Sekme sayfası kendi düzenini korur.',
+      '{1} summaries kept': '{1} özet tutuluyor',
       // Settings > Mouse cursor and Click effect (js/pointer-fx.js).
       'Mouse cursor': 'Fare imleci', 'Click effect': 'Tıklama efekti',
       'Arrow': 'Ok', 'Dot': 'Nokta', 'Ring': 'Halka', 'Crosshair': 'Artı işareti', 'Star': 'Yıldız',
@@ -7024,11 +7039,15 @@ const VexI18nUI = {
       const parts = key.split(/\{\d\}/);
       const order = [...key.matchAll(/\{(\d)\}/g)].map(m => m[1]);
       const re = new RegExp('^' + parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('(.*?)') + '$');   // a hole may be empty: a plural ending is, for one
-      const item = { re, order, value: table[key], leading: parts[0] === '' && !/^\s*[:,·—]/.test(parts[1]), countFirst: /^\{\d\}.*[A-Za-z]\{\d\}/.test(key) };
+      const item = { re, order, value: table[key], leading: parts[0] === '' && !/^\s*[:,·—]/.test(parts[1]), countFirst: /^\{\d\}.*[A-Za-z]\{\d\}/.test(key), weight: parts.join('').length };
       const head = parts[0];
       if (head.length >= 8) { const b = head.slice(0, 8); if (!bucket.has(b)) bucket.set(b, []); bucket.get(b).push(item); }
       else open.push(item);
     }
+    // The template with the most fixed text is tried first: "{1} summaries kept" before the general "{1} kept{2}".
+    const bySpecific = (a, b) => b.weight - a.weight;
+    open.sort(bySpecific);
+    for (const list of bucket.values()) list.sort(bySpecific);
     return { bucket, open };
   },
   _template(key, lang) {
@@ -7042,7 +7061,7 @@ const VexI18nUI = {
       if (!m) continue;
       // A changing part has to look like one: empty, a single word, or starting with a capital, a digit or a quote, or be a known phrase.
       // Otherwise "Copied the selection to the clipboard" would half-translate through "Copied {1}", the rest left in English.
-      if (m.slice(1).some(piece => piece && /\s/.test(piece) && !/^["“'‘]?[A-Z0-9]/.test(piece) && this.lookup(piece, lang) == null)) continue;
+      if (m.slice(1).some(piece => piece && /\s/.test(piece) && !/^["“'‘+\-−]?[A-Z0-9]/.test(piece) && this.lookup(piece, lang) == null)) continue;
       // A template that opens with a hole is for a count or a name ("3 tabs opened"); "Reload all tabs" is not "Reload all" + "tabs".
       // "{1} tab{3}" is a count with its plural ending ("3 tabs"): "Previous tab" is not "Previous" + "tab".
       if (t.countFirst && m[1] && !/\d/.test(m[1])) continue;
