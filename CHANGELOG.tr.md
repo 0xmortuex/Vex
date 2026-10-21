@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v37.34.9 (2026-10-21) — Türkçe sürüm notları, sekmelerinizin yanında yeni sekme düğmesi ve kurulum sihirbazının Türkçe ilk adımı
+## v37.34.9 (2026-10-21) — Türkçe sürüm notları, sekmelerinizin yanında yeni sekme düğmesi ve tamamı Türkçe kurulum sihirbazı
 
 ### Yeni
 - **Sürüm notları Türkçe.** Vex Türkçe olduğunda güncelleme kapağı, “Yenilikler” kartı ve penceresi, Tekrar hoş geldiniz rehberi ve yeni özellikler penceresi notları Türkçe gösterir. Türkçe notu olmayan bir sürüm İngilizce notlarını gösterir. En yeni beş sürüm çevrildi ve bundan sonraki her sürüm çevrilecek. Deneyin: Dili Türkçe yapın, Ctrl+K’ye basın, “Yenilikler”i çalıştırın ve en yeni sürümlerin Türkçe olduğunu görün.
@@ -11,11 +11,11 @@ Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler
 - **Yeni sekme düğmesi son sekmenizi izler.** Eskiden çubuğun en sağında dururdu. Çubuğun boş kısmı pencereyi sürüklemek için kullanılmaya devam eder ve pencere düğmeleri sağda kalır. Safari görünümü sekmelerini çubuğu dolduracak şekilde korur. Deneyin: Üç sekme açın ve + işaretinin üçüncüden hemen sonra olduğunu görün.
 
 ### Düzeltildi
-- **Kurulum sihirbazının ilk adımı Türkçede yarı İngilizceydi.** Türkçe seçildikten sonra iki seçenek (“Yalnızca gerekenler”, “Her şey”) ve altındaki cümle İngilizce kalıyordu. Deneyin: Ctrl+K’ye basın, “Kurulum sihirbazı”nı çalıştırın, Türkçe’yi seçin ve ilk adımı okuyun.
+- **Kurulum sihirbazı Türkçede yarı İngilizceydi.** Türkçe seçildikten sonra başlıkların altındaki açıklamalar 23 adımın çoğunda İngilizce kalıyordu (görünüm seçenekleri, bellek ve gizlilik, oturum açma kodları, Bulut yapay zekâ, Eşitleme, parolalar, bildirimler ve son adım) ve ilk adımdaki iki seçenek de öyleydi. Hepsi artık Türkçe. Deneyin: Ctrl+K’ye basın, “Kurulum sihirbazı”nı çalıştırın, Türkçe’yi seçin ve sihirbazın tamamını adım adım gezin.
 - **Parantez içinde not olan metinler Türkçede yarı İngilizce kalıyordu.** “Posta (needs your permission)” gibi etiketlerde artık not da çevriliyor. Deneyin: Dili Türkçe yapın, Ayarlar’ı açın, Özet’i bulun ve Posta satırına bakın.
 
 ### Denetlendi
-Her değişikliğin testleri, kaynak, tür ve lint denetimleri, dört görünümde 1, 3 ve 30 sekmeyle gerçek Chromium’da ölçülen sekme çubuğu (+ son sekmeyi izler, pencere düğmeleri sağ kenarda kalır, sürükleme alanı kalır), gerçek uygulamada Türkçe sürüm listesi ve “Yenilikler” penceresi ve gerçek uygulamada sihirbazın ilk adımı İngilizce ve Türkçe.
+Her değişikliğin testleri, kaynak, tür ve lint denetimleri, dört görünümde 1, 3 ve 30 sekmeyle gerçek Chromium’da ölçülen sekme çubuğu (+ son sekmeyi izler, pencere düğmeleri sağ kenarda kalır, sürükleme alanı kalır), gerçek uygulamada Türkçe sürüm listesi ve “Yenilikler” penceresi ve gerçek uygulamada tam sihirbazın 23 adımının tamamı Türkçe gezildi (ilk adım İngilizce de).
 
 ## v37.26.6 (2026-10-21) — Daha kısa sekmeler ve Ayarlar sol tarafta basit bir liste olarak açılıyor
 
