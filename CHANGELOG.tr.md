@@ -2,15 +2,18 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v37.36.4 (2026-10-21) — Türkçe sürüm notları, sekmelerinizin yanında yeni sekme düğmesi ve tamamı Türkçe kurulum sihirbazı
+## v37.43.9 (2026-10-21) — Kurulum sihirbazında başka bir tarayıcıdan eşyalarınızı getirme, Türkçe sürüm notları ve tamamı Türkçe sihirbaz
 
 ### Yeni
+- **Kurulum sihirbazı, başka bir tarayıcıdan eşyalarınızı getirmeyi önerir.** Karşılamanın hemen ardından gelen yeni bir adım (kısa sürümde de) yer imleri, geçmiş ve kayıtlı parolalar için içe aktarma penceresini açar ve web sitelerinin neden yine de bir kez oturum açmanızı istediğini söyler: tarayıcılar açık oturumlarını kendilerine saklar ve Vex başka bir tarayıcının çerezlerini ya da parola deposunu asla okumaz; ama parolalarınız içe aktarıldığında bu oturum açma tek tıktır. Deneyin: Ctrl+K’ye basın, “Kurulum sihirbazı”nı çalıştırın ve 2. adıma bakın.
+- **Opera GX ve Opera’dan parolalar.** İçe aktarma penceresinin parola bölümü onları dışa aktarma adımlarıyla listeler (opera://settings/passwords, sonra Parolaları dışa aktar). Dışa aktarılan her dosya zaten kabul ediliyordu; liste onları sunmuyordu. Deneyin: Ctrl+K’ye basın, “Başka bir tarayıcıdan içe aktar”ı çalıştırın ve Parolalar altındaki listeyi açın.
 - **Sürüm notları Türkçe.** Vex Türkçe olduğunda güncelleme kapağı, “Yenilikler” kartı ve penceresi, Tekrar hoş geldiniz rehberi ve yeni özellikler penceresi notları Türkçe gösterir. Türkçe notu olmayan bir sürüm İngilizce notlarını gösterir. En yeni beş sürüm çevrildi ve bundan sonraki her sürüm çevrilecek. Deneyin: Dili Türkçe yapın, Ctrl+K’ye basın, “Yenilikler”i çalıştırın ve en yeni sürümlerin Türkçe olduğunu görün.
 
 ### Değişti
 - **Yeni sekme düğmesi son sekmenizi izler.** Eskiden çubuğun en sağında dururdu. Çubuğun boş kısmı pencereyi sürüklemek için kullanılmaya devam eder ve pencere düğmeleri sağda kalır. Safari görünümü sekmelerini çubuğu dolduracak şekilde korur. Deneyin: Üç sekme açın ve + işaretinin üçüncüden hemen sonra olduğunu görün.
 
 ### Düzeltildi
+- **İçe aktarma penceresi Türkçede İngilizceydi.** Metni, sayıları (“3 yer imi”) ve iletileri artık Türkçe. Deneyin: Dili Türkçe yapın, Ctrl+K’ye basın ve “Başka bir tarayıcıdan içe aktar”ı çalıştırın.
 - **Kurulum sihirbazı Türkçede yarı İngilizceydi.** Türkçe seçildikten sonra başlıkların altındaki açıklamalar 23 adımın çoğunda İngilizce kalıyordu (görünüm seçenekleri, bellek ve gizlilik, oturum açma kodları, Bulut yapay zekâ, Eşitleme, parolalar, bildirimler ve son adım) ve ilk adımdaki iki seçenek de öyleydi. Hepsi artık Türkçe. Deneyin: Ctrl+K’ye basın, “Kurulum sihirbazı”nı çalıştırın, Türkçe’yi seçin ve sihirbazın tamamını adım adım gezin.
 - **Parantez içinde not olan metinler Türkçede yarı İngilizce kalıyordu.** “Posta (needs your permission)” gibi etiketlerde artık not da çevriliyor. Deneyin: Dili Türkçe yapın, Ayarlar’ı açın, Özet’i bulun ve Posta satırına bakın.
 
