@@ -219,6 +219,7 @@ const Onboarding = {
       case 'github':         return this._has('vex.githubUsername');
       case 'search':         return this._has('vex.searchEngine');
       case 'privacy':        return this._flag('vex.privacyChosen');
+      case 'import':         return this._flag('vex.importOffered');
       case 'defaultbrowser': return this._flag('vex.defaultBrowserConfigured');
       case 'aicloud':        return this._has('vex.aiWorkerUrl');
       case 'ollama':         return this._route() === 'local';
@@ -303,6 +304,7 @@ const Onboarding = {
       // left out once this version of the documents is accepted.
       ...(this._legalNeeded() ? [{ key: 'legal', title: 'Before you start', sub: 'Vex does some things by itself. Read what they are, then agree to the privacy policy and terms to use Vex.', quick: true, secs: 30 }] : []),
       { key: 'welcome',       title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
+      { key: 'import',         title: 'Bring your things over',   sub: 'Bookmarks, history and saved passwords from Chrome, Edge, Brave, Firefox and others, so you do not start from nothing. Optional.', quick: true, secs: 45 },
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; Simple mode is a switch in Settings › General, and the panels are in Settings › Sidebar.' , quick: true, secs: 40},
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
       { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape, or a Fluent, Glossy, Neobrutal or Terminal style. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
@@ -931,6 +933,33 @@ const Onboarding = {
       }));
     } else if (key === 'privacy') {
       this._renderPrivacy(body);
+    } else if (key === 'import') {
+      body.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <p style="font-size:12.5px;color:var(--text);margin:0;line-height:1.55">Coming from Chrome, Edge, Brave, Firefox or another browser? Vex can bring over your bookmarks, your recent history and your saved passwords, so you do not start from nothing.</p>
+          <button id="ob-import-btn" style="padding:11px 18px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Import from another browser…</button>
+          <span id="ob-import-status" role="status" style="font-size:12.5px;color:var(--text-muted)"></span>
+          <div style="background:rgba(127,127,127,.09);border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.6">
+            <div style="color:var(--text);font-weight:600">About staying signed in</div>
+            <div>Browsers keep your signed-in sessions to themselves, and Vex never reads another browser’s cookies or password store. So each website asks you to sign in once. With your passwords imported that is one click: Vex fills them in.</div>
+          </div>
+          <p style="font-size:11.5px;color:var(--text-muted);margin:0">For passwords, first export them from your old browser (in Chrome: chrome://password-manager/settings, then Export passwords). The import window shows the steps for each browser and asks for that file.</p>
+        </div>`;
+      body.querySelector('#ob-import-btn')?.addEventListener('click', () => {
+        const st = body.querySelector('#ob-import-status');
+        try { localStorage.setItem('vex.importOffered', 'true'); }
+        catch (err) { console.warn('[Onboarding] could not remember that the import was offered:', err.message); }
+        if (!window.BrowserImport || typeof window.BrowserImport.open !== 'function') {
+          console.error('[Onboarding] the importer is not loaded');
+          if (st) st.textContent = 'The importer could not be opened. It is also in Ctrl+K, Import from Another Browser.';
+          return;
+        }
+        if (st) st.textContent = 'The import window is open. When you are done, press Next.';
+        window.BrowserImport.open().catch((err) => {
+          console.error('[Onboarding] the importer could not be opened:', err);
+          if (st) st.textContent = 'The importer could not be opened: ' + err.message;
+        });
+      });
     } else if (key === 'defaultbrowser') {
       body.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px">

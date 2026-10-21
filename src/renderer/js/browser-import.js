@@ -32,6 +32,8 @@ const BrowserImport = {
     edge: 'In Edge, open edge://wallet/passwords (older versions: edge://settings/passwords). Open Settings — or the "…" menu next to Saved passwords — and choose "Export passwords".',
     brave: 'In Brave, open brave://password-manager/settings, choose "Export passwords", then "Download file".',
     firefox: 'In Firefox, open about:logins, click the "…" menu at the top right, choose "Export passwords…" and confirm.',
+    'opera-gx': 'In Opera GX, open opera://settings/passwords, click the "⋮" menu next to Saved passwords, choose "Export passwords", then "Download file". Opera asks for your Windows password first.',
+    opera: 'In Opera, open opera://settings/passwords, click the "⋮" menu next to Saved passwords, choose "Export passwords", then "Download file". Opera asks for your Windows password first.',
   },
 
   _id(prefix) {
@@ -240,22 +242,25 @@ const BrowserImport = {
     return { removed, failed: failed.length, kept };
   },
 
-  _n(n, one, many) { return n.toLocaleString() + ' ' + (n === 1 ? one : many); },
+  // Vex's language: each sentence this dialog writes has a Turkish version beside the English one (a Turkish noun has no plural after a number).
+  _tr() { return !!(window.VexI18n && window.VexI18n.locale && window.VexI18n.locale() === 'tr'); },
+  _L(en, tr) { return this._tr() ? tr : en; },
+  _n(n, one, many, tr) { return this._tr() && tr ? n.toLocaleString('tr-TR') + ' ' + tr : n.toLocaleString() + ' ' + (n === 1 ? one : many); },
 
   _when(at) {
-    return at ? new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'an earlier version of Vex';
+    return at ? new Date(at).toLocaleString(this._tr() ? 'tr-TR' : undefined, { dateStyle: 'medium', timeStyle: 'short' }) : this._L('an earlier version of Vex', 'Vex’in eski bir sürümü');
   },
 
   // One line per import: where from, what, when, how much.
   describeImport(r) {
     const a = r.added || { bookmarks: (r.bookmarks || []).length, history: (r.history || []).length };
-    const kind = a.bookmarks && a.history ? 'Bookmarks and history' : a.bookmarks ? 'Bookmarks' : 'History';
-    const counts = [a.bookmarks ? this._n(a.bookmarks, 'bookmark', 'bookmarks') : '', a.history ? this._n(a.history, 'visit', 'visits') : ''].filter(Boolean).join(', ');
-    return kind + ' from ' + r.browserName + (r.profileName ? ' (' + r.profileName + ')' : '') + ' · ' + this._when(r.at) + ' · ' + counts;
+    const kind = this._L(a.bookmarks && a.history ? 'Bookmarks and history' : a.bookmarks ? 'Bookmarks' : 'History', a.bookmarks && a.history ? 'Yer imleri ve geçmiş' : a.bookmarks ? 'Yer imleri' : 'Geçmiş');
+    const counts = [a.bookmarks ? this._n(a.bookmarks, 'bookmark', 'bookmarks', 'yer imi') : '', a.history ? this._n(a.history, 'visit', 'visits', 'ziyaret') : ''].filter(Boolean).join(', ');
+    return kind + this._L(' from ', ' — ') + r.browserName + (r.profileName ? ' (' + r.profileName + ')' : '') + ' · ' + this._when(r.at) + ' · ' + counts;
   },
 
   describeLoginImport(r) {
-    return 'Passwords' + (r.browserName ? ' from ' + r.browserName : '') + ' (' + r.file + ') · ' + this._when(r.at) + ' · ' + this._n((r.logins || []).length, 'login', 'logins');
+    return this._L('Passwords', 'Parolalar') + (r.browserName ? this._L(' from ', ' — ') + r.browserName : '') + ' (' + r.file + ') · ' + this._when(r.at) + ' · ' + this._n((r.logins || []).length, 'login', 'logins', 'giriş');
   },
 
   async open() {
@@ -282,7 +287,7 @@ const BrowserImport = {
       + '<div class="vexsr-note"><div style="display:flex;align-items:center;gap:6px;font-weight:600;color:var(--text);font-size:12.5px">' + VexIcons.svg('key', { size: 13 }) + 'Passwords</div>'
       + '<div style="margin-top:4px">Vex does not read another browser\'s saved passwords. Export them from that browser yourself, then choose the file here — Vex adds every login it does not already have.</div>'
       + '<div class="vexsr-row" style="margin-top:8px"><select id="bi-pw-browser" class="vexsr-input" aria-label="Export passwords from">'
-      + '<option value="chrome">Chrome</option><option value="edge">Edge</option><option value="brave">Brave</option><option value="firefox">Firefox</option></select>'
+      + '<option value="chrome">Chrome</option><option value="edge">Edge</option><option value="brave">Brave</option><option value="opera-gx">Opera GX</option><option value="opera">Opera</option><option value="firefox">Firefox</option></select>'
       + '<button id="bi-pw-go" class="vexsr-go">Choose the exported file…</button></div>'
       + '<div id="bi-pw-steps" style="margin-top:8px"></div>'
       + '<div id="bi-pw-msg" class="vexsr-msg" role="status"></div>'
@@ -325,7 +330,7 @@ const BrowserImport = {
         const btn = document.createElement('button');
         btn.className = 'vexsr-x';
         btn.innerHTML = VexIcons.svg('undo', { size: 12 }) + ' Undo';
-        btn.setAttribute('aria-label', 'Undo: ' + what.textContent);
+        btn.setAttribute('aria-label', this._L('Undo: ', 'Geri al: ') + what.textContent);
         btn.addEventListener('click', () => onUndo(r));
         row.append(what, btn);
         rows.appendChild(row);
@@ -340,24 +345,32 @@ const BrowserImport = {
 
     const undoImport = async (r) => {
       const a = r.added || {};
-      const ok = await vexConfirm({ title: 'Undo this import?', message: 'This removes the ' + this._n(a.bookmarks || 0, 'bookmark', 'bookmarks') + ' and ' + this._n(a.history || 0, 'visit', 'visits') + ' brought over from ' + r.browserName + ' on ' + this._when(r.at) + '. Any you have changed since stay, and nothing else is touched.', okLabel: 'Undo import' });
+      const ok = await vexConfirm(this._tr()
+        ? { title: 'Bu içe aktarma geri alınsın mı?', message: this._when(r.at) + ' tarihinde ' + r.browserName + ' tarayıcısından getirilen ' + this._n(a.bookmarks || 0, '', '', 'yer imi') + ' ve ' + this._n(a.history || 0, '', '', 'ziyaret') + ' kaldırılır. Sonradan değiştirdikleriniz kalır ve başka hiçbir şeye dokunulmaz.', okLabel: 'İçe aktarmayı geri al' }
+        : { title: 'Undo this import?', message: 'This removes the ' + this._n(a.bookmarks || 0, 'bookmark', 'bookmarks') + ' and ' + this._n(a.history || 0, 'visit', 'visits') + ' brought over from ' + r.browserName + ' on ' + this._when(r.at) + '. Any you have changed since stay, and nothing else is touched.', okLabel: 'Undo import' });
       if (!ok) return;
       try {
         const done = this.undo(r.id);
-        msg('Removed ' + this._n(done.bookmarks, 'bookmark', 'bookmarks') + ' and ' + this._n(done.history, 'visit', 'visits') + '.'
-          + (done.kept ? ' Kept ' + this._n(done.kept, 'item', 'items') + ' you changed since.' : ''));
+        msg(this._tr()
+          ? 'Kaldırıldı: ' + this._n(done.bookmarks, '', '', 'yer imi') + ' ve ' + this._n(done.history, '', '', 'ziyaret') + '.' + (done.kept ? ' Sonradan değiştirdiğiniz ' + this._n(done.kept, '', '', 'öğe') + ' korundu.' : '')
+          : 'Removed ' + this._n(done.bookmarks, 'bookmark', 'bookmarks') + ' and ' + this._n(done.history, 'visit', 'visits') + '.' + (done.kept ? ' Kept ' + this._n(done.kept, 'item', 'items') + ' you changed since.' : ''));
       } catch (err) { msg(err.message, true); }
       showUndo();
     };
 
     const undoLogins = async (r) => {
       const exact = (r.logins || []).every(l => l.updatedAt !== undefined);
-      const ok = await vexConfirm({ title: 'Undo this passwords import?', message: 'This deletes the ' + this._n((r.logins || []).length, 'login', 'logins') + ' added from ' + r.file + ' on ' + this._when(r.at)
+      const ok = await vexConfirm(this._tr()
+        ? { title: 'Bu parola içe aktarması geri alınsın mı?', message: this._when(r.at) + ' tarihinde ' + r.file + ' dosyasından eklenen ' + this._n((r.logins || []).length, '', '', 'giriş') + ' silinir'
+          + (exact ? '. Sonradan değiştirdiğiniz ve zaten Vex’te olan girişler korunur.' : ' — sonradan değiştirdikleriniz de dahil. Zaten Vex’te olan girişlere dokunulmaz.'), okLabel: 'Sil' }
+        : { title: 'Undo this passwords import?', message: 'This deletes the ' + this._n((r.logins || []).length, 'login', 'logins') + ' added from ' + r.file + ' on ' + this._when(r.at)
         + (exact ? '. Logins you have changed since, and those that were already in Vex, are kept.' : ' — including any you have changed since. Logins that were already in Vex are not touched.'), okLabel: 'Delete them' });
       if (!ok) return;
       try {
         const done = await this.undoPasswords(r.id);
-        pwMsg('Removed ' + this._n(done.removed, 'login', 'logins') + '.'
+        pwMsg(this._tr()
+          ? 'Kaldırıldı: ' + this._n(done.removed, '', '', 'giriş') + '.' + (done.kept ? ' Sonradan değiştirdiğiniz ' + this._n(done.kept, '', '', 'giriş') + ' korundu.' : '') + (done.failed ? ' ' + this._n(done.failed, '', '', 'giriş') + ' kaldırılamadı — Geri al’ı yeniden deneyin.' : '')
+          : 'Removed ' + this._n(done.removed, 'login', 'logins') + '.'
           + (done.kept ? ' Kept ' + this._n(done.kept, 'login', 'logins') + ' you changed since.' : '')
           + (done.failed ? ' ' + this._n(done.failed, 'could not be removed', 'could not be removed') + ' — try Undo again.' : ''), !!done.failed);
       } catch (err) { pwMsg(err.message, true); }
@@ -385,35 +398,39 @@ const BrowserImport = {
     steps();
 
     try { sources = await window.vex.browserImportSources(); }
-    catch (err) { msg('Could not look for other browsers: ' + err.message, true); sources = []; }
+    catch (err) { msg(this._L('Could not look for other browsers: ', 'Diğer tarayıcılar aranamadı: ') + err.message, true); sources = []; }
     if (!m.isConnected) return;
     for (const s of sources) $('#bi-browser').appendChild(new Option(s.name, s.id));
     if (!sources.length) {
       $('#bi-browser').disabled = $('#bi-profile').disabled = $('#bi-look').disabled = true;
-      if (!$('#bi-msg').textContent) msg('No profile of a browser Vex can import from (Chrome, Edge, Brave, Opera, Vivaldi, Chromium, Firefox or LibreWolf) was found on this PC.');
+      if (!$('#bi-msg').textContent) msg(this._L('No profile of a browser Vex can import from (Chrome, Edge, Brave, Opera, Vivaldi, Chromium, Firefox or LibreWolf) was found on this PC.', 'Vex’in içe aktarabileceği bir tarayıcının (Chrome, Edge, Brave, Opera, Vivaldi, Chromium, Firefox ya da LibreWolf) profili bu bilgisayarda bulunamadı.'));
     } else fillProfiles();
 
     $('#bi-look').addEventListener('click', async () => {
       const browser = $('#bi-browser').value, profile = $('#bi-profile').value;
       if (!browser || !profile) return;
-      msg('Reading…');
+      msg(this._L('Reading…', 'Okunuyor…'));
       $('#bi-look').disabled = true;
       try { data = await window.vex.browserImportRead(browser, profile); }
       catch (err) { data = null; msg(err.message, true); return; }
       finally { $('#bi-look').disabled = false; }
       HistoryPanel._hydrate();
       const p = this.plan(data, { bookmarks: Bookmarks.items, history: HistoryPanel.entries });
-      $('#bi-bm-count').textContent = this._n(p.bookmarks.length, 'bookmark', 'bookmarks') + ' to add'
+      $('#bi-bm-count').textContent = this._tr()
+        ? this._n(p.bookmarks.length, '', '', 'yer imi') + ' eklenecek' + (p.bookmarkDupes ? ' (' + p.bookmarkDupes.toLocaleString('tr-TR') + ' tanesi zaten Vex’te)' : '') + ', “' + this.folderFor(data.browserName) + '” klasörüne'
+        : this._n(p.bookmarks.length, 'bookmark', 'bookmarks') + ' to add'
         + (p.bookmarkDupes ? ' (' + this._n(p.bookmarkDupes, 'is', 'are') + ' already in Vex)' : '')
         + ', into "' + this.folderFor(data.browserName) + '"';
-      const shownOf = p.historyTotal > (data.history.items || []).length ? ' — the latest ' + (data.history.items || []).length.toLocaleString() + ' of ' + p.historyTotal.toLocaleString() : '';
-      $('#bi-hist-count').textContent = this._n(p.history.length, 'page', 'pages') + ' from history to add' + shownOf
+      const shownOf = p.historyTotal > (data.history.items || []).length ? this._L(' — the latest ' + (data.history.items || []).length.toLocaleString() + ' of ' + p.historyTotal.toLocaleString(), ' — ' + p.historyTotal.toLocaleString('tr-TR') + ' içinden en yeni ' + (data.history.items || []).length.toLocaleString('tr-TR')) : '';
+      $('#bi-hist-count').textContent = this._tr()
+        ? this._n(p.history.length, '', '', 'sayfa') + ' geçmişten eklenecek' + shownOf + (p.historyDupes ? ' (' + p.historyDupes.toLocaleString('tr-TR') + ' tanesi zaten Vex’te)' : '')
+        : this._n(p.history.length, 'page', 'pages') + ' from history to add' + shownOf
         + (p.historyDupes ? ' (' + this._n(p.historyDupes, 'is', 'are') + ' already in Vex)' : '');
       $('#bi-take-bm').disabled = !p.bookmarks.length;
       $('#bi-take-hist').disabled = !p.history.length;
       $('#bi-go').disabled = !p.bookmarks.length && !p.history.length;
       $('#bi-plan').hidden = false;
-      msg(p.bookmarks.length || p.history.length ? '' : 'Vex already has everything in this profile.');
+      msg(p.bookmarks.length || p.history.length ? '' : this._L('Vex already has everything in this profile.', 'Bu profildeki her şey zaten Vex’te.'));
     });
 
     $('#bi-go').addEventListener('click', () => {
@@ -422,7 +439,9 @@ const BrowserImport = {
         const r = this.apply(data, { bookmarks: $('#bi-take-bm').checked, history: $('#bi-take-hist').checked });
         $('#bi-plan').hidden = true;
         data = null;
-        msg('Added ' + this._n(r.bookmarkIds.length, 'bookmark', 'bookmarks') + ' and ' + this._n(r.historyIds.length, 'visit', 'visits') + ' from ' + r.browserName + '.'
+        msg(this._tr()
+          ? r.browserName + ' tarayıcısından ' + this._n(r.bookmarkIds.length, '', '', 'yer imi') + ' ve ' + this._n(r.historyIds.length, '', '', 'ziyaret') + ' eklendi.' + (r.historyDropped ? ' ' + this._n(r.historyDropped, '', '', 'eski ziyaret') + ' dışarıda bırakıldı — Vex en yeni ' + HistoryPanel.MAX_ENTRIES.toLocaleString('tr-TR') + ' ziyaretinizi tutar.' : '')
+          : 'Added ' + this._n(r.bookmarkIds.length, 'bookmark', 'bookmarks') + ' and ' + this._n(r.historyIds.length, 'visit', 'visits') + ' from ' + r.browserName + '.'
           + (r.historyDropped ? ' ' + this._n(r.historyDropped, 'older visit was', 'older visits were') + ' left out — Vex keeps your latest ' + HistoryPanel.MAX_ENTRIES.toLocaleString() + '.' : ''));
         showUndo();
       } catch (err) { msg(err.message, true); }
@@ -435,18 +454,23 @@ const BrowserImport = {
         const r = await this.importPasswords({ browserName: sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '' });
         if (!r) return;
         const left = [];
-        if (r.duplicates) left.push(this._n(r.duplicates, 'was', 'were') + ' already saved');
-        if (r.noUsername) left.push(this._n(r.noUsername, 'had', 'had') + ' no username');
-        if (r.notWeb) left.push(this._n(r.notWeb, 'was not for a website', 'were not for a website'));
-        let text = 'Added ' + this._n(r.added.length, 'login', 'logins') + ' from ' + r.file + '.' + (left.length ? ' Left out: ' + left.join(', ') + '.' : '');
+        const tr = this._tr();
+        if (r.duplicates) left.push(tr ? r.duplicates.toLocaleString('tr-TR') + ' tanesi zaten kayıtlıydı' : this._n(r.duplicates, 'was', 'were') + ' already saved');
+        if (r.noUsername) left.push(tr ? r.noUsername.toLocaleString('tr-TR') + ' tanesinde kullanıcı adı yoktu' : this._n(r.noUsername, 'had', 'had') + ' no username');
+        if (r.notWeb) left.push(tr ? r.notWeb.toLocaleString('tr-TR') + ' tanesi bir web sitesi için değildi' : this._n(r.notWeb, 'was not for a website', 'were not for a website'));
+        let text = tr
+          ? r.file + ' dosyasından ' + this._n(r.added.length, '', '', 'giriş') + ' eklendi.' + (left.length ? ' Dışarıda bırakılanlar: ' + left.join(', ') + '.' : '')
+          : 'Added ' + this._n(r.added.length, 'login', 'logins') + ' from ' + r.file + '.' + (left.length ? ' Left out: ' + left.join(', ') + '.' : '');
         // 2FA keys that were saved next to the logins in the file.
         if (r.totp) {
           const t = r.totp, notes = [];
-          if (t.duplicates) notes.push(t.duplicates + ' already in the Authenticator');
-          if (t.invalid) notes.push(this._n(t.invalid, 'was', 'were') + ' not a valid key');
-          if (t.unsupported) notes.push(this._n(t.unsupported, 'was', 'were') + ' not a standard 6-digit code key (counter or Steam)');
-          text += ' ' + (t.error ? 'The 2FA keys could not be added: ' + t.error + '.'
-            : 'Added ' + this._n(t.added, '2FA key', '2FA keys') + ' to the Authenticator' + (notes.length ? ' (' + notes.join(', ') + ')' : '') + '.');
+          if (t.duplicates) notes.push(tr ? t.duplicates + ' tanesi zaten Kimlik doğrulayıcı’da' : t.duplicates + ' already in the Authenticator');
+          if (t.invalid) notes.push(tr ? t.invalid.toLocaleString('tr-TR') + ' tanesi geçerli bir anahtar değildi' : this._n(t.invalid, 'was', 'were') + ' not a valid key');
+          if (t.unsupported) notes.push(tr ? t.unsupported.toLocaleString('tr-TR') + ' tanesi standart 6 haneli kod anahtarı değildi (sayaç ya da Steam)' : this._n(t.unsupported, 'was', 'were') + ' not a standard 6-digit code key (counter or Steam)');
+          text += ' ' + (tr
+            ? (t.error ? '2FA anahtarları eklenemedi: ' + t.error + '.' : 'Kimlik doğrulayıcı’ya ' + this._n(t.added, '', '', '2FA anahtarı') + ' eklendi' + (notes.length ? ' (' + notes.join(', ') + ')' : '') + '.')
+            : (t.error ? 'The 2FA keys could not be added: ' + t.error + '.'
+            : 'Added ' + this._n(t.added, '2FA key', '2FA keys') + ' to the Authenticator' + (notes.length ? ' (' + notes.join(', ') + ')' : '') + '.'));
         }
         pwMsg(text);
         showUndo();

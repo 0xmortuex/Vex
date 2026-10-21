@@ -156,7 +156,7 @@
     // The place search behind the weather (js/geo-search.js: wizard, start page, Settings). A setting, not a feature to switch off.
     { id: 'weather-place', title: 'Weather place search', group: 'Weather', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.weatherCountry'],
       permissions: { reads: ['the country you chose for place searches'], writes: ['that country'], sends: ['the place or postcode you search for, to Open-Meteo (names) or OpenStreetMap (postcodes), only when you press Search'] } },
-    { id: 'setup-again', title: 'Setup offered again', group: 'Setup wizard', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.setupLastAt', 'vex.setupAgainOff'],
+    { id: 'setup-again', title: 'Setup offered again', group: 'Setup wizard', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.setupLastAt', 'vex.setupAgainOff', 'vex.importOffered'],
       permissions: { reads: ['a note the uninstaller leaves in the profile folder when someone uninstalls Vex by hand'], writes: ['when the setup wizard last ran, and whether to offer it again every month'], sends: [] } },
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },

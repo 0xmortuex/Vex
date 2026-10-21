@@ -35,7 +35,7 @@ const VexI18nUI = {
     // there are dozens of classes. Only a text that is, whole, one of the dictionary's phrases is ever replaced.
     '#panels-container', '#toast-container', '.whatsnew-tip', '.vexroute-backdrop',
     // The tab strip's two buttons (not its tabs, whose titles are pages) and the two update dialogs, whose classes carry no 'overlay'.
-    '#btn-new-tab-top', '#btn-list-all-tabs', '.whatsnew-ov', '#vex-welcome-back', '#vex-onboarding',
+    '#btn-new-tab-top', '#btn-list-all-tabs', '.whatsnew-ov', '#vex-welcome-back', '#vex-onboarding', '.vexsr-ov',
     '[role="dialog"]', '[role="menu"]', '[class*="overlay"]', '[class*="backdrop"]', '[class*="modal"]',
   ],
 
@@ -6223,6 +6223,28 @@ const VexI18nUI = {
       // Default browser status.
       'Vex is not your default browser yet.': 'Vex henüz varsayılan tarayıcınız değil.',
       'Vex is your default browser.': 'Vex varsayılan tarayıcınız.',
+      // Import step and importer window.
+      'Coming from Chrome, Edge, Brave, Firefox or another browser? Vex can bring over your bookmarks, your recent history and your saved passwords, so you do not start from nothing.': 'Chrome, Edge, Brave, Firefox ya da başka bir tarayıcıdan mı geliyorsunuz? Vex yer imlerinizi, son geçmişinizi ve kayıtlı parolalarınızı getirebilir; böylece sıfırdan başlamazsınız.',
+      'Import from another browser…': 'Başka bir tarayıcıdan içe aktar…',
+      'About staying signed in': 'Oturumların açık kalması hakkında',
+      'Browsers keep your signed-in sessions to themselves, and Vex never reads another browser’s cookies or password store. So each website asks you to sign in once. With your passwords imported that is one click: Vex fills them in.': 'Tarayıcılar açık oturumlarınızı kendilerine saklar ve Vex başka bir tarayıcının çerezlerini ya da parola deposunu asla okumaz. Bu yüzden her web sitesi bir kez oturum açmanızı ister. Parolalarınızı içe aktardıysanız bu tek tıktır: Vex onları doldurur.',
+      'For passwords, first export them from your old browser (in Chrome: chrome://password-manager/settings, then Export passwords). The import window shows the steps for each browser and asks for that file.': 'Parolalar için önce eski tarayıcınızdan dışa aktarın (Chrome’da: chrome://password-manager/settings, sonra Parolaları dışa aktar). İçe aktarma penceresi her tarayıcı için adımları gösterir ve o dosyayı ister.',
+      'The import window is open. When you are done, press Next.': 'İçe aktarma penceresi açık. Bitirdiğinizde İleri’ye basın.',
+      'The importer could not be opened. It is also in Ctrl+K, Import from Another Browser.': 'İçe aktarma penceresi açılamadı. Ayrıca Ctrl+K’de, Başka bir tarayıcıdan içe aktar altında da var.',
+      'The importer could not be opened: {1}': 'İçe aktarma penceresi açılamadı: {1}',
+      'Bookmarks with their folders, and your recent history, from Chrome, Edge, Brave, Opera, Vivaldi, Firefox, LibreWolf or another Chromium or Firefox browser on this PC. The browser can stay open — Vex reads a copy.': 'Bu bilgisayardaki Chrome, Edge, Brave, Opera, Vivaldi, Firefox, LibreWolf ya da başka bir Chromium veya Firefox tarayıcısından klasörleriyle yer imleri ve son geçmişiniz. Tarayıcı açık kalabilir — Vex bir kopyayı okur.',
+      'Profile': 'Profil',
+      'Vex does not read another browser\'s saved passwords. Export them from that browser yourself, then choose the file here — Vex adds every login it does not already have.': 'Vex başka bir tarayıcının kayıtlı parolalarını okumaz. Onları o tarayıcıdan kendiniz dışa aktarın, sonra dosyayı burada seçin — Vex henüz sahip olmadığı her girişi ekler.',
+      'Choose the exported file…': 'Dışa aktarılan dosyayı seçin…',
+      'Export passwords from': 'Parolaların dışa aktarıldığı tarayıcı',
+      'The exported file holds every password in plain text. Delete it once Vex has them, and empty the Recycle Bin.': 'Dışa aktarılan dosya her parolayı düz metin olarak tutar. Vex onları aldıktan sonra silin ve Geri Dönüşüm Kutusu’nu boşaltın.',
+      'Your imports — the last {1} can be undone': 'İçe aktarmalarınız — son {1} tanesi geri alınabilir',
+      'In Chrome, open chrome://password-manager/settings, choose "Export passwords", then "Download file". Chrome asks for your Windows password first.': 'Chrome’da chrome://password-manager/settings adresini açın, “Parolaları dışa aktar”ı, sonra “Dosyayı indir”i seçin. Chrome önce Windows parolanızı ister.',
+      'In Edge, open edge://wallet/passwords (older versions: edge://settings/passwords). Open Settings — or the "…" menu next to Saved passwords — and choose "Export passwords".': 'Edge’de edge://wallet/passwords adresini açın (eski sürümlerde: edge://settings/passwords). Ayarlar’ı — ya da Kayıtlı parolalar’ın yanındaki “…” menüsünü — açın ve “Parolaları dışa aktar”ı seçin.',
+      'In Brave, open brave://password-manager/settings, choose "Export passwords", then "Download file".': 'Brave’de brave://password-manager/settings adresini açın, “Parolaları dışa aktar”ı, sonra “Dosyayı indir”i seçin.',
+      'In Firefox, open about:logins, click the "…" menu at the top right, choose "Export passwords…" and confirm.': 'Firefox’ta about:logins adresini açın, sağ üstteki “…” menüsüne tıklayın, “Parolaları dışa aktar…”ı seçin ve onaylayın.',
+      'In Opera GX, open opera://settings/passwords, click the "⋮" menu next to Saved passwords, choose "Export passwords", then "Download file". Opera asks for your Windows password first.': 'Opera GX’te opera://settings/passwords adresini açın, Kayıtlı parolalar’ın yanındaki “⋮” menüsüne tıklayın, “Parolaları dışa aktar”ı, sonra “Dosyayı indir”i seçin. Opera önce Windows parolanızı ister.',
+      'In Opera, open opera://settings/passwords, click the "⋮" menu next to Saved passwords, choose "Export passwords", then "Download file". Opera asks for your Windows password first.': 'Opera’da opera://settings/passwords adresini açın, Kayıtlı parolalar’ın yanındaki “⋮” menüsüne tıklayın, “Parolaları dışa aktar”ı, sonra “Dosyayı indir”i seçin. Opera önce Windows parolanızı ister.',
       // Settings > Mouse cursor and Click effect (js/pointer-fx.js).
       'Mouse cursor': 'Fare imleci', 'Click effect': 'Tıklama efekti',
       'Arrow': 'Ok', 'Dot': 'Nokta', 'Ring': 'Halka', 'Crosshair': 'Artı işareti', 'Star': 'Yıldız',

@@ -7,6 +7,9 @@
   };
   Object.assign(strings.en, { skipSetupAsk: 'Skip the rest of setup? What you have chosen so far is kept, everything else keeps its default, and Settings has all of it.' });
   Object.assign(strings.tr, { skipSetupAsk: 'Kurulumun geri kalanı atlansın mı? Şimdiye kadar seçtikleriniz korunur, geri kalan her şey varsayılan ayarında kalır ve hepsi Ayarlar’da bulunur.' });
+  // The import step (js/onboarding.js, key 'import').
+  Object.assign(strings.en, { import: 'Bring your things over', 'import.sub': 'Bookmarks, history and saved passwords from Chrome, Edge, Brave, Firefox and others, so you do not start from nothing. Optional.' });
+  Object.assign(strings.tr, { import: 'Eşyalarınızı getirin', 'import.sub': 'Chrome, Edge, Brave, Firefox ve diğerlerinden yer imleri, geçmiş ve kayıtlı parolalar; böylece sıfırdan başlamazsınız. İsteğe bağlı.' });
   // The first step's two choices (js/onboarding.js, _renderWelcome): {n} is the minutes.
   Object.assign(strings.en, { paceQuick: 'Just the essentials — about {n} minutes', paceQuickSub: 'How Vex looks, which panels you keep, your name, your search engine, three privacy choices, and whether links open here. Everything else has a sensible default and lives in Settings.',
     paceFull: 'Everything — about {n} minutes', paceFullSub: 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync, passwords and notifications.',

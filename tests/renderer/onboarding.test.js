@@ -121,10 +121,21 @@ describe('Setup style step (Full Vex / Simple / Custom)', () => {
   };
   const overrides = () => JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}');
 
-  it('is the second step, right after welcome', () => {
+  it('comes after the welcome and the offer to bring things over from another browser', () => {
     const keys = Onboarding.STEPS().map(s => s.key);
     expect(keys[0]).toBe('welcome');
-    expect(keys[1]).toBe('setupstyle');
+    expect(keys[1]).toBe('import');
+    expect(keys[2]).toBe('setupstyle');
+  });
+
+  it('offers the import in the short wizard too, and is done once the button was pressed', () => {
+    const step = Onboarding.STEPS().find(s => s.key === 'import');
+    expect(step.quick).toBe(true);
+    localStorage.removeItem('vex.importOffered');
+    expect(Onboarding._isStepDone('import')).toBe(false);
+    localStorage.setItem('vex.importOffered', 'true');
+    expect(Onboarding._isStepDone('import')).toBe(true);
+    localStorage.removeItem('vex.importOffered');
   });
 
   // Re-opening the wizard and pressing Save & continue on the pre-selected
