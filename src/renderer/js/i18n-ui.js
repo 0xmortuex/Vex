@@ -7210,6 +7210,9 @@ const VexI18nUI = {
         if (!seen.has(container)) { seen.add(container); if (this.translateEl(container, lang)) n++; }
       });
     }
+    // The tab list's own label ("Tabs"), and only that: its tabs are pages, whose titles are never translated.
+    const tabList = scope.querySelector ? scope.querySelector('#top-tabs-list') : null;
+    if (tabList && !seen.has(tabList)) { seen.add(tabList); if (this.translateEl(tabList, lang)) n++; }
     return n;
   },
 

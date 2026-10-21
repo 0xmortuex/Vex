@@ -124,6 +124,19 @@ describe('what it must never touch', () => {
   });
 });
 
+describe('the tab list', () => {
+  it('has its own label translated, and its tabs\' titles left exactly as the pages wrote them', () => {
+    tr();
+    document.body.innerHTML = '<div id="top-tab-bar"><div id="top-tabs-list" aria-label="Tabs"><div class="top-tab"><span class="tab-title">Settings</span></div></div></div>';
+    VexI18nUI.apply();
+    expect(document.getElementById('top-tabs-list').getAttribute('aria-label')).toBe('Sekmeler');
+    expect(document.querySelector('.tab-title').textContent).toBe('Settings');   // a page called "Settings" stays so
+    en();
+    VexI18nUI.apply();
+    expect(document.getElementById('top-tabs-list').getAttribute('aria-label')).toBe('Tabs');
+  });
+});
+
 describe('templates', () => {
   const look = (t) => VexI18nUI.lookup(t, 'tr');
   it('the template with the most fixed text wins over a general one', () => {
