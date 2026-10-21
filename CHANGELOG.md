@@ -1,5 +1,20 @@
 # Changelog
 
+## v37.33.9 (2026-10-21) — Release notes in Turkish, the new-tab button next to your tabs, and a Turkish first step in the setup wizard
+
+### New
+- **Release notes in Turkish.** When Vex is in Turkish, the update cover, the "What's new" card and window, the Welcome back guide and the new-features pop-up show the notes in Turkish. A release with no Turkish notes shows its English ones. The newest five releases are translated and every release from now on will be. Try: Set the language to Türkçe, press Ctrl+K and run "What's New", and check the newest releases are Turkish.
+
+### Changed
+- **The new-tab button follows your last tab.** It used to sit at the far right of the strip. The empty part of the strip can still be used to drag the window, and the window buttons stay at the right. The Safari look keeps its tabs filling the bar. Try: Open three tabs and check the + is right after the third.
+
+### Fixed
+- **The first step of the setup wizard was half English in Turkish.** After choosing Türkçe, the two choices ("Just the essentials", "Everything") and the sentence under them stayed English. Try: Press Ctrl+K, run "Setup wizard", choose Türkçe and read the first step.
+- **Text with a note in brackets stayed half English in Turkish.** Labels such as "Posta (needs your permission)" now translate the note too. Try: Set the language to Türkçe, open Settings, find Brief, and check the Posta row.
+
+### Checked
+The tests for each change, the source, type and lint checks, the tab strip measured in real Chromium in four looks with 1, 3 and 30 tabs (the + follows the last tab, the window buttons stay at the right edge, the drag area stays), the Turkish release list and the "What's new" window in the real app, and the wizard's first step in English and Turkish in the real app.
+
 ## v37.26.6 (2026-10-21) — Shorter tabs, and Settings opens as a simple list on the left
 
 ### Changed
