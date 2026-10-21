@@ -1,5 +1,14 @@
 # Changelog
 
+## v37.26.6 (2026-10-21) — Shorter tabs, and Settings opens as a simple list on the left
+
+### Changed
+- **Tabs are shorter.** A tab stops growing at 160 pixels, so with a few tabs open the close button sits next to the title instead of half a screen away. Tabs still share the bar and shrink as before when there are many. The Safari look keeps its equal-width tabs. Try: Open two tabs and check the X is close to the title.
+- **Settings opens as one column using the whole width, with the list of sections down the left side.** This is the default for new installs and for anyone who never changed the Settings layout; a layout you chose yourself is kept, and "Back to the default layout" in the Settings layout box returns to this one. Try: Open Settings, then open the layout button and choose Back to the default layout.
+
+### Checked
+The tests for both changes, the Settings layouts in the UI check (156 controls in each of three looks, nothing flagged), and the real tab widths measured in Chromium in the default and Firefox-style looks with 1, 2, 8 and 30 tabs.
+
 ## v37.21.0 (2026-10-21) — After an update, every new feature with its switch, a cursor of your own, and much more Turkish
 
 ### New
