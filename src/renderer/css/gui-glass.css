@@ -195,9 +195,10 @@ body[data-gui-style="glass"] #gui-shortcuts-bar .gsc { min-height: 32px; }
 /* Window controls (min/max/close) — relocated by gui-style.js onto the tab-bar
    row (top-right), like a tabs-on-top browser. Make sure they're visible there. */
 body[data-gui-style="glass"] #top-tab-bar .tab-bar-trailing {
-  display: flex; align-items: center; gap: 4px; margin-left: auto;
-  -webkit-app-region: no-drag;
+  display: flex; align-items: center; gap: 4px; flex: 1 1 auto;
+  -webkit-app-region: drag;
 }
+body[data-gui-style="glass"] #top-tab-bar .tab-bar-trailing > * { -webkit-app-region: no-drag; }
 body[data-gui-style="glass"] #window-controls { display: flex !important; gap: 2px; -webkit-app-region: no-drag; }
 body[data-gui-style="glass"] .win-btn {
   width: 30px; height: 30px; background: transparent !important; border: none !important;
@@ -206,7 +207,7 @@ body[data-gui-style="glass"] .win-btn {
 body[data-gui-style="glass"] .win-btn:hover { background: rgba(255,255,255,0.16) !important; opacity: 1; }
 body[data-gui-style="glass"] .win-btn-close:hover { background: #e0485a !important; color: #fff !important; }
 /* keep tabs from overrunning the controls */
-body[data-gui-style="glass"] #top-tabs-list { flex: 1 1 auto; min-width: 0; }
+body[data-gui-style="glass"] #top-tabs-list { flex: 0 1 auto; min-width: 0; }
 
 /* tabs */
 body[data-gui-style="glass"] .top-tab {

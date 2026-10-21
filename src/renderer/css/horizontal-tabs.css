@@ -38,7 +38,9 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
 .top-tabs-list {
   display: flex;
   gap: 2px;
-  flex: 1;
+  /* As wide as its tabs, no wider: the + button follows the last tab, and what is left of the strip is the trailing
+     area (draggable). With many tabs the list shrinks and the tabs shrink inside it. */
+  flex: 0 1 auto;
   min-width: 0;          /* critical for flex-shrink */
   overflow: hidden;      /* shrink instead of scroll by default */
   -webkit-app-region: no-drag;
@@ -52,9 +54,13 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   display: flex;
   align-items: center;
   gap: 2px;
-  flex-shrink: 0;
-  -webkit-app-region: no-drag;
+  flex: 1 1 auto;
+  /* The strip left over is a window-drag region; only the buttons in it are not. */
+  -webkit-app-region: drag;
 }
+.tab-bar-trailing > * { -webkit-app-region: no-drag; }
+/* Whatever follows the buttons (the window controls, in some looks) goes to the far right. */
+.tab-bar-trailing #btn-list-all-tabs { margin-right: auto; }
 
 /* Individual tab — prefer wider, shrink gracefully */
 .top-tab {
@@ -68,7 +74,7 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
      half a screen from the title (asked for 2026-10-21). Tabs still share
      the bar equally and shrink as before, but stop growing at 160px. */
   max-width: 160px;
-  flex: 1 1 0;
+  flex: 0 1 160px;
   background: var(--vex-glass-tab-inactive);
   border: 1px solid var(--vex-border-subtle);
   border-bottom: none;
