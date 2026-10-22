@@ -36,3 +36,42 @@ describe('addTurkishNotes', () => {
     }
   });
 });
+
+// Every release has its notes in Turkish, with the same shape as the English: the same bullets, the same (feature: id) tags, the same code
+// in backticks. A translation that dropped a bullet or changed a command would fail here.
+describe('CHANGELOG.tr.md covers every release', () => {
+  const fs2 = require('fs');
+  const path2 = require('path');
+  const read = (n) => fs2.readFileSync(path2.join(__dirname, '..', '..', n), 'utf8').replace(/\r/g, '');
+  const sections = (md) => {
+    const heads = [...md.matchAll(/^## (v\d\S*) (\([^)]*\))/gm)];
+    return new Map(heads.map((h, i) => [h[1], { date: h[2], text: md.slice(h.index, i + 1 < heads.length ? heads[i + 1].index : undefined) }]));
+  };
+  const en = sections(read('CHANGELOG.md'));
+  const tr = sections(read('CHANGELOG.tr.md'));
+  const bullets = (t) => (t.match(/^\s*- /gm) || []).length;
+  const heads3 = (t) => (t.match(/^### /gm) || []).length;
+  const set = (t, re) => (t.match(re) || []).sort().join('\u0001');
+  const hasBody = (t) => t.split('\n').slice(1).join('').trim().length > 0;
+
+  it('has a Turkish entry for every release that has notes', () => {
+    const missing = [...en].filter(([v, e]) => hasBody(e.text) && !tr.has(v)).map(([v]) => v);
+    expect(missing).toEqual([]);
+  });
+  it('has no Turkish entry for a release that does not exist', () => {
+    expect([...tr.keys()].filter(v => !en.has(v))).toEqual([]);
+  });
+  it('keeps each entry\'s date, bullets, headings, feature tags and code spans', () => {
+    const bad = [];
+    for (const [v, t] of tr) {
+      const e = en.get(v);
+      if (!e) continue;
+      if (e.date !== t.date) bad.push(v + ': date');
+      if (bullets(e.text) !== bullets(t.text)) bad.push(v + ': bullets');
+      if (heads3(e.text) !== heads3(t.text)) bad.push(v + ': headings');
+      if (set(e.text, /\(feature:\s*[a-z0-9._:-]+\)/gi) !== set(t.text, /\(feature:\s*[a-z0-9._:-]+\)/gi)) bad.push(v + ': feature tags');
+      if (set(e.text, /`[^`\n]+`/g) !== set(t.text, /`[^`\n]+`/g)) bad.push(v + ': code spans');
+    }
+    expect(bad).toEqual([]);
+  });
+});

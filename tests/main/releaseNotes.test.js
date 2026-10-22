@@ -21,11 +21,12 @@ const SCRIPT = path.join(REPO, 'scripts', 'write-release-notes.js');
 
 // Run the script against a throwaway copy of a repo, so the real CHANGELOG and
 // package.json are never touched.
-function runIn(version, changelog) {
+function runIn(version, changelog, turkish) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-notes-'));
   fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'x', version }));
   fs.writeFileSync(path.join(dir, 'CHANGELOG.md'), changelog);
+  if (turkish !== undefined) fs.writeFileSync(path.join(dir, 'CHANGELOG.tr.md'), turkish);
   fs.copyFileSync(SCRIPT, path.join(dir, 'scripts', 'write-release-notes.js'));
   try {
     const stdout = execFileSync(process.execPath, [path.join(dir, 'scripts', 'write-release-notes.js')], { encoding: 'utf8' });
@@ -51,6 +52,44 @@ const CHANGELOG = [
   '- the old thing',
   '',
 ].join('\n');
+
+const TURKISH = [
+  '# Değişiklik günlüğü',
+  '',
+  '## v2.0.0 (2026-01-02) — Daha yeni',
+  '',
+  '### Notlar',
+  '- yeni şey',
+  '',
+].join('\n');
+
+describe('the Turkish notes on the release page', () => {
+  it('follow the English under a Türkçe heading with the Turkish title', () => {
+    const r = runIn('2.0.0', CHANGELOG, TURKISH);
+    expect(r.ok).toBe(true);
+    expect(r.body).toContain('the new thing');
+    expect(r.body).toMatch(/\n---\n\n## Türkçe — Daha yeni\n\n### Notlar\n- yeni şey/);
+    expect(r.body.indexOf('the new thing')).toBeLessThan(r.body.indexOf('yeni şey'));
+    expect(r.stdout).toContain('with the Turkish notes');
+  });
+  it('are left out, and the English alone is written, when that version has no Turkish entry', () => {
+    const r = runIn('1.0.0', CHANGELOG, TURKISH);
+    expect(r.ok).toBe(true);
+    expect(r.body).toContain('the old thing');
+    expect(r.body).not.toContain('Türkçe');
+    expect(r.stdout).toContain('English only');
+  });
+  it('are left out when there is no CHANGELOG.tr.md at all', () => {
+    const r = runIn('2.0.0', CHANGELOG);
+    expect(r.ok).toBe(true);
+    expect(r.body).not.toContain('Türkçe');
+  });
+  it('never stand in for a missing English entry', () => {
+    const r = runIn('9.9.9', CHANGELOG, '## v9.9.9 (x) — Yok\n\n- var\n');
+    expect(r.ok).toBe(false);
+    expect(r.stderr).toContain('no "## v9.9.9" entry');
+  });
+});
 
 describe('release notes for the published version', () => {
   it("takes the entry for package.json's version, not simply the newest", () => {

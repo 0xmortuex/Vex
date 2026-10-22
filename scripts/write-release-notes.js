@@ -11,6 +11,10 @@
 // version in package.json at the moment of publishing, not from whenever
 // scripts/release.js last ran. package.json points electron-builder at the file
 // it writes (build.releaseInfo.releaseNotesFile).
+//
+// The page carries the English notes and, under a "Türkçe" heading, the Turkish ones from CHANGELOG.tr.md for the same version, so a Turkish
+// reader of the release page has them too. (The release scripts refuse a version with no Turkish entry; a build with no CHANGELOG.tr.md at
+// all writes the English alone.)
 const fs = require('fs');
 const path = require('path');
 
@@ -25,17 +29,33 @@ function fail(msg) {
 const { version } = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');
 
-// The entry runs from its own "## vX.Y.Z" heading to the next "## v" heading.
-const start = changelog.indexOf(`## v${version} `);
-if (start === -1) fail(`CHANGELOG.md has no "## v${version}" entry — refusing to publish a release with no notes`);
-const rest = changelog.slice(start);
-const nextIdx = rest.indexOf('\n## v', 1);
-const entry = (nextIdx === -1 ? rest : rest.slice(0, nextIdx)).trim();
+// The entry runs from its own "## vX.Y.Z" heading to the next "## v" heading; its heading is dropped (the release page already shows the
+// version and title). -> { body, title } or null when the file has no entry for this version.
+function entryOf(md, v) {
+  md = md.replace(/\r/g, '');
+  const start = md.indexOf(`## v${v} `);
+  if (start === -1) return null;
+  const rest = md.slice(start);
+  const nextIdx = rest.indexOf('\n## v', 1);
+  const entry = (nextIdx === -1 ? rest : rest.slice(0, nextIdx)).trim();
+  return { title: entry.split('\n')[0], body: entry.split('\n').slice(1).join('\n').trim() };
+}
 
-// Drop the heading itself; the release page already shows the version + title.
-const body = entry.split('\n').slice(1).join('\n').trim();
-if (!body) fail(`the CHANGELOG entry for v${version} has a heading but no content`);
+const english = entryOf(changelog, version);
+if (!english) fail(`CHANGELOG.md has no "## v${version}" entry — refusing to publish a release with no notes`);
+if (!english.body) fail(`the CHANGELOG entry for v${version} has a heading but no content`);
+let body = english.body;
+
+const trPath = path.join(REPO, 'CHANGELOG.tr.md');
+if (fs.existsSync(trPath)) {
+  const turkish = entryOf(fs.readFileSync(trPath, 'utf8'), version);
+  if (turkish && turkish.body) {
+    // The Turkish title is the heading's text after the dash.
+    const trTitle = (/—\s*(.+)$/.exec(turkish.title) || [])[1];
+    body += '\n\n---\n\n## Türkçe' + (trTitle ? ' — ' + trTitle : '') + '\n\n' + turkish.body;
+  }
+}
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, body + '\n', 'utf8');
-console.log(`release-notes: wrote ${path.relative(REPO, OUT)} for v${version} (${body.length} chars)`);
+console.log(`release-notes: wrote ${path.relative(REPO, OUT)} for v${version} (${body.length} chars${body.includes('\n## Türkçe') ? ', with the Turkish notes' : ', English only'})`);
