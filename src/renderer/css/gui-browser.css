@@ -171,8 +171,6 @@ body[data-gui-family="browser"] :is(.nav-btn, #top-bar-right > button, #btn-look
 body[data-gui-family="browser"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar):hover {
   background: var(--b-btn-hover); color: var(--b-text); border-color: var(--b-btn-hover-border, transparent);
 }
-/* The AI button is an icon AND the word: the fixed square above squeezed its icon to nothing, leaving only "AI". It is as wide as its content. */
-body[data-gui-family="browser"] #btn-toggle-ai { width: auto; min-width: var(--b-btn-size); padding: 0 8px; gap: 4px; flex: none; }
 body[data-gui-family="browser"] .nav-btn:disabled { color: var(--b-icon-disabled); background: transparent; }
 /* Back / Forward / Reload with nowhere to go, or locked under a side panel
    (js/nav-lock.js); beats the hover fill above. Darker than the look's own

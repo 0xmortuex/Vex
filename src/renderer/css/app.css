@@ -948,7 +948,7 @@ body.tabs-hidden #icon-sidebar:hover::after { opacity: 0.4; }
 #btn-toggle-ai {
   display: flex; align-items: center; gap: 5px;
   background: transparent; border: 1px solid var(--border);
-  color: var(--text-muted); padding: 4px 10px; border-radius: var(--radius-sm);
+  color: var(--text-muted); padding: 4px 8px; border-radius: var(--radius-sm);
   cursor: pointer; font-family: 'Outfit', sans-serif;
   transition: all var(--transition); -webkit-app-region: no-drag;
 }

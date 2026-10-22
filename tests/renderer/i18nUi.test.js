@@ -404,16 +404,16 @@ describe('text drawn after the page is up', () => {
 });
 
 describe('the toolbar AI button', () => {
-  // Turkish speakers call it AI; "Yapay zekâ" wrapped onto two lines, and "YZ" is not what people say (told 2026-10-20).
-  it('keeps the word AI in Turkish, on one line', () => {
-    const html = require('fs').readFileSync('src/renderer/index.html', 'utf8');
-    const m = /<span[^>]*id="?[^>]*data-tr-text="([^"]*)"[^>]*>AI<\/span>/.exec(html.replace(/\r\n/g, '\n')) || /white-space:nowrap" data-tr-text="([^"]*)">AI<\/span>/.exec(html);
-    expect(m).not.toBeNull();
-    expect(m[1]).toBe('AI');
-    document.body.innerHTML = '<div id="top-bar"><button><span id="x" data-tr-text="AI">AI</span></button></div>';
+  // It showed the icon AND the word AI (told 2026-10-23); it is an icon now, named by its tooltip and its label. The `data-tr-text` feature that kept
+  // "AI" on one line in Turkish is tested above on its own markup.
+  it('has no word of its own, and its name is Turkish in a Turkish Vex', () => {
+    const html = require('fs').readFileSync('src/renderer/index.html', 'utf8').replace(/\r\n/g, '\n');
+    const button = /<button id="btn-toggle-ai"[^>]*>[\s\S]*?<\/button>/.exec(html);
+    expect(button).not.toBeNull();
+    expect(button[0]).not.toMatch(/<span/);
+    expect(button[0]).toMatch(/aria-label="AI panel"/);
     tr();
-    VexI18nUI.apply();
-    expect(document.getElementById('x').textContent).toBe('AI');
+    expect(VexI18nUI.lookup('AI panel')).toBe('Yapay zekâ paneli');
   });
 });
 
