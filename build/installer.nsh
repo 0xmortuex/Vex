@@ -1,15 +1,25 @@
 !macro customInstall
+  ; The words Windows shows for Vex (Settings > Default apps) are in the language the installer runs in (electron-builder's installer is
+  ; multi-language and picks the language of Windows): Turkish (1055) or, for any other, English. Decided when the installer runs, so
+  ; no per-language table has to be filled for every language the installer carries.
+  StrCpy $R8 "A browser built just for you"
+  StrCpy $R9 "Vex HTML Document"
+  ${If} $LANGUAGE == 1055
+    StrCpy $R8 "Tam size göre yapılmış bir tarayıcı"
+    StrCpy $R9 "Vex HTML Belgesi"
+  ${EndIf}
+
   ; Register Vex as a browser in Windows
 
   ; File class for HTML documents
-  WriteRegStr HKCU "Software\Classes\VexHTML" "" "Vex HTML Document"
+  WriteRegStr HKCU "Software\Classes\VexHTML" "" "$R9"
   WriteRegStr HKCU "Software\Classes\VexHTML\DefaultIcon" "" "$INSTDIR\Vex.exe,0"
   WriteRegStr HKCU "Software\Classes\VexHTML\shell\open\command" "" '"$INSTDIR\Vex.exe" "%1"'
 
   ; Application capabilities — required for Windows 10/11 default apps
   WriteRegStr HKCU "Software\Clients\StartMenuInternet\Vex" "" "Vex"
   WriteRegStr HKCU "Software\Clients\StartMenuInternet\Vex\Capabilities" "ApplicationName" "Vex"
-  WriteRegStr HKCU "Software\Clients\StartMenuInternet\Vex\Capabilities" "ApplicationDescription" "A browser built just for you"
+  WriteRegStr HKCU "Software\Clients\StartMenuInternet\Vex\Capabilities" "ApplicationDescription" "$R8"
   WriteRegStr HKCU "Software\Clients\StartMenuInternet\Vex\Capabilities" "ApplicationIcon" "$INSTDIR\Vex.exe,0"
 
   ; URL associations (http, https)
