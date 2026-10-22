@@ -356,6 +356,8 @@ const SidebarManager = {
     // The Memory panel's trend line samples from launch, not from its first open.
     if (typeof MemoryPanel !== 'undefined' && MemoryPanel.startTrend) MemoryPanel.startTrend();
 
+    this._wireButtonDrag();
+
     // The house icon follows the tab in front.
     window.addEventListener('vex:tab-activated', () => this._syncStartIcon());
     window.addEventListener('vex:tab-url-changed', () => this._syncStartIcon());
@@ -396,6 +398,9 @@ const SidebarManager = {
     // whether it already ran to know what a missing Schedules setting meant.
     try { this._mergeSchedulesIntoClockOnce(); }
     catch (err) { window.VexProblems?.note('Sidebar', 'The Schedules panel is now part of Clock, but your saved sidebar settings could not be moved over (they are left as they were)', err); }
+    // The Work panel is part of the Toolbox now: nothing saved may still point at it.
+    try { this._dropWorkPanel(); }
+    catch (err) { window.VexProblems?.note('Sidebar', 'The Work panel is now part of the Toolbox, but your saved sidebar settings could not be tidied (they are left as they were)', err); }
     this._applyLeanDefault();
     this._hideBookmarksOnce();
     this._showLibraryOnce();
@@ -571,7 +576,6 @@ const SidebarManager = {
       recall: ['Recall', () => typeof Recall !== 'undefined' && Recall],
       authenticator: ['Authenticator', () => typeof Authenticator !== 'undefined' && Authenticator],
       privacy: ['Privacy', () => typeof PrivacyDashboard !== 'undefined' && PrivacyDashboard],
-      work: ['Work', () => typeof WorkPanel !== 'undefined' && WorkPanel],
       clock: ['Clock', () => typeof VexClock !== 'undefined' && VexClock],
       'devtools-dash': ['Developer', () => typeof VexDevMode !== 'undefined' && VexDevMode],
     }[panelName];
@@ -1961,6 +1965,27 @@ const SidebarManager = {
     localStorage.setItem(FLAG, '1');
   },
 
+  // The Work panel became the strip at the top of the Toolbox: its place in the sidebar order, its rename/icon/hidden override, a panel
+  // remembered beside it and its last-used time are removed. Nothing else is touched. It changes nothing once they are gone, so it runs
+  // on every start and needs no flag of its own.
+  _dropWorkPanel() {
+    const read = (key) => { const raw = localStorage.getItem(key); return raw === null ? null : JSON.parse(raw); };   // a corrupt value must surface
+    const writes = {};
+    const order = read('vex.sidebarOrder');
+    if (Array.isArray(order) && order.includes('work')) writes['vex.sidebarOrder'] = order.filter(p => p !== 'work');
+    for (const key of ['vex.panelOverrides', 'vex.panelUsage']) {
+      const o = read(key);
+      if (o && typeof o === 'object' && !Array.isArray(o) && 'work' in o) { delete o.work; writes[key] = o; }
+    }
+    const pairs = read('vex.panelPairs');
+    if (pairs && typeof pairs === 'object' && !Array.isArray(pairs) && ('work' in pairs || Object.values(pairs).includes('work'))) {
+      delete pairs.work;
+      for (const k of Object.keys(pairs)) if (pairs[k] === 'work') delete pairs[k];
+      writes['vex.panelPairs'] = pairs;
+    }
+    for (const [key, value] of Object.entries(writes)) localStorage.setItem(key, JSON.stringify(value));
+  },
+
   applyPanelOverrides() {
     const ov = loadPanelOverrides();
     // Iterate EVERY sidebar button, not just the ones with an override — a
@@ -2085,6 +2110,87 @@ const SidebarManager = {
     this._saveOrder(order);
     this.applySidebarOrder();
     this.renderSidebarManager();
+  },
+
+  // Put `panel` before (or, with `after`, behind) `ref`, and keep the order. The same saved order Settings › Sidebar edits.
+  dropButton(panel, ref, after) {
+    if (!panel || !ref || panel === ref) return false;
+    const panels = this._topButtons().map(b => b.dataset.panel);
+    const order = this._loadOrder().filter(p => panels.includes(p));
+    panels.forEach(p => { if (!order.includes(p)) order.push(p); });
+    if (!order.includes(panel) || !order.includes(ref)) return false;
+    order.splice(order.indexOf(panel), 1);
+    order.splice(order.indexOf(ref) + (after ? 1 : 0), 0, panel);
+    this._saveOrder(order);
+    this.applySidebarOrder();
+    this.renderSidebarManager();
+    return true;
+  },
+
+  // Drag a sidebar button with the mouse to move it: press, move a few pixels, and a line shows where it will land; let go to drop it.
+  // A plain click still opens the panel, and Escape while dragging puts it back. Pointer events, not HTML drag-and-drop, so it never
+  // meets the tab-onto-button drop.
+  _wireButtonDrag() {
+    const bar = document.getElementById('icon-sidebar');
+    if (!bar || bar.dataset.dragWired) return;
+    bar.dataset.dragWired = '1';
+    const THRESHOLD = 6;
+    let drag = null;
+    const shown = () => this._topButtons().filter(b => !b.hidden && getComputedStyle(b).display !== 'none');
+    const marks = ['sb-drop-before', 'sb-drop-after'];
+    const unmark = () => bar.querySelectorAll('.sb-drop-before, .sb-drop-after').forEach(el => el.classList.remove(...marks));
+    // Where it would land: before the first button whose middle is past the pointer, else after the last. Down the rail, or along it when
+    // the buttons sit in a row.
+    const targetFor = (e) => {
+      const others = shown().filter(b => b !== drag.btn);
+      if (!others.length) return null;
+      const rects = others.map(b => b.getBoundingClientRect());
+      const across = rects.length > 1 && Math.abs(rects[1].left - rects[0].left) > Math.abs(rects[1].top - rects[0].top);
+      const at = across ? e.clientX : e.clientY;
+      for (let i = 0; i < others.length; i++) {
+        const mid = across ? rects[i].left + rects[i].width / 2 : rects[i].top + rects[i].height / 2;
+        if (at < mid) return { btn: others[i], after: false };
+      }
+      return { btn: others[others.length - 1], after: true };
+    };
+    bar.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const btn = e.target.closest && e.target.closest('.sidebar-icon');
+      if (!btn || !this._topButtons().includes(btn)) return;
+      drag = { btn, x: e.clientX, y: e.clientY, id: e.pointerId, active: false, target: null };
+    });
+    bar.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.active) {
+        if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < THRESHOLD) return;
+        drag.active = true;
+        drag.btn.classList.add('sb-dragging');
+        bar.classList.add('sb-reordering');
+        if (bar.setPointerCapture) bar.setPointerCapture(e.pointerId);
+      }
+      e.preventDefault();
+      unmark();
+      drag.target = targetFor(e);
+      if (drag.target) drag.target.btn.classList.add(drag.target.after ? 'sb-drop-after' : 'sb-drop-before');
+    });
+    const finish = (e, cancel) => {
+      if (!drag || (e && e.pointerId !== drag.id)) return;
+      const d = drag;
+      drag = null;
+      if (!d.active) return;
+      unmark();
+      d.btn.classList.remove('sb-dragging');
+      bar.classList.remove('sb-reordering');
+      // The click that ends a drag must not open the panel.
+      const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      bar.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => bar.removeEventListener('click', swallow, { capture: true }), 0);
+      if (cancel || !d.target) return;
+      this.dropButton(d.btn.dataset.panel, d.target.btn.dataset.panel, d.target.after);
+    };
+    bar.addEventListener('pointerup', (e) => finish(e, false));
+    bar.addEventListener('pointercancel', (e) => finish(e, true));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drag && drag.active) finish(null, true); });
   },
 
   // ---- Settings → Sidebar manager (master list: show/hide + restore, rename,

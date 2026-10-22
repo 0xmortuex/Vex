@@ -113,3 +113,35 @@ describe('Ask Vex AI button', () => {
     expect(host.querySelector('#wp-ai-where').textContent).toBe('Cloud — no local model is running');
   });
 });
+
+describe('Work is part of the Toolbox', () => {
+  const html = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/index.html'), 'utf8');
+
+  it('has no sidebar button or panel of its own any more', () => {
+    expect(html).not.toContain('data-panel="work"');
+    expect(html).not.toContain('id="panel-work"');
+  });
+
+  it('draws the job strip into whatever element it is given, without a panel header, and lists the tools only once', () => {
+    const host = render();
+    expect(host.querySelector('.panel-header')).toBeNull();
+    expect(host.querySelector('.wp-identity .wp-job').textContent).toBe('Software Developer');
+    expect(host.querySelector('.wp-meta').textContent).toMatch(/· \d+ tools?/);
+    expect(host.querySelector('#wp-tools')).toBeNull();
+  });
+
+  it('refresh() draws the strip again inside an open Toolbox', () => {
+    document.body.innerHTML = '<div id="tb-job"></div>';
+    WorkPanel.refresh();
+    expect(document.querySelector('#tb-job .wp-identity')).toBeTruthy();
+  });
+
+  it('the Change button closes the Toolbox before the job picker opens', () => {
+    document.body.innerHTML = '<div id="vex-toolbox"><div id="tb-job"></div></div>';
+    window.JobSetup = { open: vi.fn() };
+    WorkPanel.refresh();
+    document.querySelector('#wp-change').click();
+    expect(document.getElementById('vex-toolbox')).toBeNull();
+    expect(window.JobSetup.open).toHaveBeenCalled();
+  });
+});

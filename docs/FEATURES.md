@@ -826,8 +826,8 @@ Notes, sessions, monitoring, automation.
   - Open: Library > Snooze from the notification > How it works.
 - **Alarm tone and volume** (`alarm-sound`): Four tones, a volume, and insistent or gentle — once, then every thirty seconds — with a preview, in the Clock's Alarms tab.
   - Open: Ctrl+K: "Clock"; sidebar panel: clock.
-- **Work, apart from the rest** (`today-work`): Reminders and alarms carry the job they were set under. Today marks them, and the Work panel lists what is set for this job.
-  - Open: sidebar panel: work.
+- **Work, apart from the rest** (`today-work`): Reminders and alarms carry the job they were set under. Today marks them, and the Toolbox lists what is set for this job.
+  - Open: Ctrl+K: "Toolbox".
 - **Reminders in another city's time** (`remind-zone`): Type "9am New York time" or "tomorrow 17:00 in Tokyo" and the reminder lands at that moment, read back in both clocks before it saves.
   - Open: Ctrl+K: "Remind me".
 - **Tool history** (`tool-history`): Every tool keeps its last ten results and the Toolbox shows the tools you opened most recently, beside your favourites.

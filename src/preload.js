@@ -868,6 +868,7 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Local sidebar config (userData/sidebar-config.json) — personalized tool URLs
   getSidebarConfig: () => ipcRenderer.invoke('sidebar-config:get'),
+  saveQueueConfig: (cfg) => ipcRenderer.invoke('sidebar-config:set-queue', cfg),
 
   // Persistent storage (survives reinstalls — backs the localStorage shim)
   persistGetAll: () => ipcRenderer.invoke('persist-get-all'),

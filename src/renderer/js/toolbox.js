@@ -459,6 +459,10 @@ const Toolbox = {
     search.addEventListener('input', () => { state.q = search.value.trim(); this._paintList(m, state); });
     // Kept on the element so toggling a star can repaint without re-deriving it.
     m.__tbState = state;
+    // The job strip (js/job-work-panel.js) is drawn once and put back at the top of the list each time the list is painted.
+    m.__tbJob = document.createElement('div');
+    m.__tbJob.id = 'tb-job';
+    if (window.WorkPanel) WorkPanel.renderPanel(m.__tbJob);
     this._paintFamilies(m, state);
     this._paintList(m, state);
     // Put the scroll back, now there is a list to scroll.
@@ -542,6 +546,7 @@ const Toolbox = {
   _paintList(m, state) {
     const list = m.querySelector('#tb-list');
     list.innerHTML = '';
+    if (m.__tbJob && m.__tbJob.childElementCount && !state.q && (state.fam === 'all' || state.fam === 'job')) list.appendChild(m.__tbJob);
     const toolCard = (t) => this._card(t.name, this.iconMarkup(t), t.desc, () => {
       this._rememberLauncher(m, state);
       m.remove();

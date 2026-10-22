@@ -674,7 +674,7 @@ const FeatureHow = {
   // clock-panel.js
   'alarm-sound': 'In the Clock panel, on the Alarms tab, you pick the tone, the volume, and whether an alarm rings once or insistently, again every thirty seconds until you dismiss it. Each tone has a preview so you can hear it before choosing.',
   // job-work-panel.js
-  'today-work': 'A reminder or alarm remembers the job it was set under. Today marks the ones that belong to your work, and the Work panel lists what is set for the job you are in. Open the Work panel to see them.',
+  'today-work': 'A reminder or alarm remembers the job it was set under. Today marks the ones that belong to your work, and the top of the Toolbox lists what is set for the job you are in. Open the Toolbox to see them.',
   // quick-reminder.js: VexClock zones
   'remind-zone': 'In the Remind me box, add a place to the time: “9am New York time” or “tomorrow 17:00 in Tokyo”. Vex works out the moment in your own clock and reads it back in both before it saves, so you can see what you agreed to. Start from Ctrl+K, then “Remind me”.',
   // toolbox

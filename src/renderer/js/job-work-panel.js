@@ -1,7 +1,8 @@
-// === Vex Work panel ===
+// === The job strip at the top of the Toolbox ===
 //
-// The home for the profession picked in Job Setup: who you are set up as, the
-// AI one click away, the tools you chose, and the way back to the picker.
+// Work used to be a sidebar button of its own, with the same briefcase as the Toolbox. It is part of the Toolbox now: the profession picked
+// in Job Setup (who you are set up as, with the way back to the picker), the AI one click away, the reminders set for this job and two quick
+// actions. The tools you chose are the "For your job" shelf right below it, so they are not listed twice.
 //
 // The layout is in css/work-panel.css rather than inline styles. What changed
 // is the weighting: everything used to be the same size and colour, competing
@@ -23,18 +24,17 @@ const WorkPanel = {
     if (!job) { this._renderSetup(container); return; }
 
     const enabled = this._enabledTools(job);
-    const tools = (window.Toolbox ? Toolbox.all().filter(t => enabled.includes(t.id)) : []);
+    const toolCount = (window.Toolbox ? Toolbox.all().filter(t => enabled.includes(t.id)) : []).length;
     const themeMeta = (typeof ThemeManager !== 'undefined' && ThemeManager.getThemeMeta)
       ? ThemeManager.getThemeMeta(job.theme) : { label: job.theme, accent: '#6366f1' };
 
     container.innerHTML = `
-      <div class="panel-header"><h2>Work</h2></div>
-      <div class="wp-body">
+      <div class="wp-strip">
         <div class="wp-identity">
           <span class="wp-swatch" style="background:${esc(themeMeta.accent || '#6366f1')}">${this._icon('briefcase', 17)}</span>
           <span class="wp-identity-text">
             <span class="wp-job">${esc(job.name)}</span>
-            <span class="wp-meta"><span class="wp-tag">${esc(job.cat)}</span>${esc(themeMeta.label || job.theme)}</span>
+            <span class="wp-meta"><span class="wp-tag">${esc(job.cat)}</span>${esc(themeMeta.label || job.theme)} · ${toolCount} ${toolCount === 1 ? 'tool' : 'tools'}</span>
           </span>
           <button class="wp-change" id="wp-change">Change</button>
         </div>
@@ -47,14 +47,6 @@ const WorkPanel = {
           </span>
         </button>
 
-        <section class="wp-section">
-          <div class="wp-section-head">
-            Your tools <span class="wp-section-count">${tools.length}</span>
-            <button class="wp-section-action" id="wp-manage">Manage</button>
-          </div>
-          <div class="wp-tools" id="wp-tools"></div>
-        </section>
-
         <section class="wp-section" id="wp-reminders-section" hidden>
           <div class="wp-section-head">
             For this job <span class="wp-section-count" id="wp-reminders-count"></span>
@@ -63,55 +55,29 @@ const WorkPanel = {
           <div class="wp-tools" id="wp-reminders"></div>
         </section>
 
-        <section class="wp-section">
-          <div class="wp-section-head">Quick actions</div>
-          <div class="wp-actions">
-            <button class="wp-act" data-act="toolbox"><span class="wp-act-icon">${this._icon('toolbox', 15)}</span>Open the full Toolbox</button>
+        <div class="wp-actions">
             <button class="wp-act" data-act="note"><span class="wp-act-icon">${this._icon('note', 15)}</span>Sticky note for this page</button>
             <button class="wp-act" data-act="review"><span class="wp-act-icon">${this._icon('clipboard', 15)}</span>Weekly review</button>
-          </div>
-        </section>
+        </div>
       </div>`;
 
     // Reminders set while this job was active. They live in the main process
     // and carry the job id, so a personal reminder never shows up here.
     this._renderJobReminders(container, jobId);
 
-    const list = container.querySelector('#wp-tools');
-    if (!tools.length) {
-      const empty = document.createElement('div');
-      empty.className = 'wp-empty';
-      empty.textContent = 'No tools chosen yet. Manage adds the ones you use from all ' + (window.Toolbox ? Toolbox.all().length : 'the') + ' in the Toolbox.';
-      list.appendChild(empty);
-    }
-    for (const t of tools) {
-      const b = document.createElement('button');
-      b.className = 'wp-tool';
-      b.title = t.desc || t.name;
-      b.innerHTML = `<span class="wp-tool-icon">${window.Toolbox ? Toolbox.iconMarkup(t, 14) : ''}</span>
-        <span class="wp-tool-text"><span class="wp-tool-name"></span><span class="wp-tool-desc"></span></span>`;
-      b.querySelector('.wp-tool-name').textContent = t.name;
-      b.querySelector('.wp-tool-desc').textContent = t.desc || '';
-      b.addEventListener('click', () => {
-        try { window.Toolbox && Toolbox.openTool(t.id); }
-        catch (err) { window.showToast?.('Could not open ' + t.name + ': ' + ((err && err.message) || ''), 'error'); }
-      });
-      list.appendChild(b);
-    }
-
     this._wireAI(container, job);
-    const openSetup = () => { try { window.JobSetup && JobSetup.open(); } catch (err) { window.showToast?.('Could not open job setup', 'error'); } };
+    const openSetup = () => { this._leaveToolbox(); try { window.JobSetup && JobSetup.open(); } catch (err) { window.showToast?.('Could not open job setup', 'error'); } };
     container.querySelector('#wp-change')?.addEventListener('click', openSetup);
-    container.querySelector('#wp-manage')?.addEventListener('click', openSetup);
     container.querySelectorAll('.wp-act').forEach(b => b.addEventListener('click', () => {
       const a = b.dataset.act;
+      this._leaveToolbox();
       try {
-        if (a === 'toolbox') { window.Toolbox && Toolbox.open(); }
-        else if (a === 'note') { window.StickyNotes && StickyNotes.open(); }
+        if (a === 'note') { window.StickyNotes && StickyNotes.open(); }
         else if (a === 'review') { if (typeof VexReview === 'undefined') throw new Error('The weekly review is not available'); VexReview.open(); }
       } catch (err) { window.showToast?.('That did not open: ' + ((err && err.message) || ''), 'error'); }
     }));
     container.querySelector('#wp-remind')?.addEventListener('click', () => {
+      this._leaveToolbox();
       if (typeof VexQuickReminder === 'undefined') { window.showToast?.('Reminders are not available in this build', 'error'); return; }
       VexQuickReminder.open();
     });
@@ -136,7 +102,7 @@ const WorkPanel = {
       row.querySelector('.wp-tool-name').textContent = r.message;
       row.querySelector('.wp-tool-desc').textContent = r.site ? 'Next time you open ' + r.site
         : (window.VexQuickReminder ? VexQuickReminder.describe(new Date(r.at)).split(' — ')[0] : new Date(r.at).toLocaleString());
-      row.addEventListener('click', () => { if (window.VexQuickReminder) VexQuickReminder.showCard(r.id); });
+      row.addEventListener('click', () => { this._leaveToolbox(); if (window.VexQuickReminder) VexQuickReminder.showCard(r.id); });
       list.appendChild(row);
     }
   },
@@ -144,7 +110,6 @@ const WorkPanel = {
   // Not set up yet — a clear way into the existing picker.
   _renderSetup(container) {
     container.innerHTML = `
-      <div class="panel-header"><h2>Work</h2></div>
       <div class="wp-setup">
         <div class="wp-setup-icon">${this._icon('briefcase', 34)}</div>
         <div class="wp-setup-title">A Vex built for your work</div>
@@ -152,6 +117,7 @@ const WorkPanel = {
         <button class="wp-setup-btn" id="wp-setup">Choose my job</button>
       </div>`;
     container.querySelector('#wp-setup')?.addEventListener('click', () => {
+      this._leaveToolbox();
       try { window.JobSetup && JobSetup.open(); } catch (err) { window.showToast?.('Could not open job setup', 'error'); }
     });
   },
@@ -191,6 +157,7 @@ const WorkPanel = {
       }
     }
     btn.addEventListener('click', () => {
+      this._leaveToolbox();
       const panel = (typeof AIPanel !== 'undefined' && AIPanel) || null;
       if (!panel || typeof panel.open !== 'function') {
         window.showToast?.('The AI panel is not available', 'error');
@@ -218,9 +185,13 @@ const WorkPanel = {
     } catch { return 'Chat about your work'; }
   },
 
+  // What opens from the strip opens over the page, so the Toolbox that holds the strip gets out of the way first.
+  _leaveToolbox() { document.getElementById('vex-toolbox')?.remove(); },
+
+  // The job or its tools changed: draw the strip again if the Toolbox is open.
   refresh() {
-    const el = document.getElementById('panel-work');
-    if (el && getComputedStyle(el).display !== 'none') this.renderPanel(el);
+    const el = document.getElementById('tb-job');
+    if (el) this.renderPanel(el);
   },
 };
 

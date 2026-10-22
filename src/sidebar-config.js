@@ -69,11 +69,43 @@ function loadSidebarConfig(userDataPath) {
 }
 
 /**
- * Register the IPC handler the renderer uses to fetch the config.
- * Channel: `sidebar-config:get` -> resolves to the loaded config object.
+ * Save the Queue's address and read secret (the Queue panel's setup form) into <userDataPath>/sidebar-config.json, keeping every other key
+ * in the file. Throws, in words, for an address that is not https or a secret that is empty, and for a file that is not valid JSON (it is
+ * never overwritten, so a hand-edited file is not lost).
+ *
+ * @returns {{queueUrl: string, queueSecret: string}} what was saved
+ */
+function saveQueueConfig(userDataPath, input) {
+  const queueUrl = String((input && input.queueUrl) || '').trim().replace(/\/+$/, '');
+  const queueSecret = String((input && input.queueSecret) || '').trim();
+  let url;
+  try { url = new URL(queueUrl); } catch { throw new Error('That is not a web address. It looks like https://queue-bot.your-name.workers.dev'); }
+  if (url.protocol !== 'https:') throw new Error('The queue address has to start with https://');
+  if (queueSecret.length < 8) throw new Error('The read secret is missing or too short');
+  const file = path.join(userDataPath || '', CONFIG_FILENAME);
+  let current = {};
+  let raw = null;
+  try { raw = fs.readFileSync(file, 'utf8'); }
+  catch (err) { if (!err || err.code !== 'ENOENT') throw err; }
+  if (raw !== null) {
+    try { current = JSON.parse(raw); }
+    catch (err) { throw new Error(CONFIG_FILENAME + ' is not valid JSON, so it was left as it is. Fix or delete it, then try again.', { cause: err }); }
+    if (!current || typeof current !== 'object' || Array.isArray(current)) throw new Error(CONFIG_FILENAME + ' is not a JSON object, so it was left as it is.');
+  }
+  current.queueUrl = queueUrl;
+  current.queueSecret = queueSecret;
+  fs.writeFileSync(file, JSON.stringify(current, null, 2) + '\n', 'utf8');
+  return { queueUrl, queueSecret };
+}
+
+/**
+ * Register the IPC handlers the renderer uses.
+ * `sidebar-config:get` -> resolves to the loaded config object.
+ * `sidebar-config:set-queue` -> saves the Queue's address and secret, resolves to the loaded config object.
  */
 function registerSidebarConfigIpc(ipcMain, userDataPath) {
   ipcMain.handle('sidebar-config:get', () => loadSidebarConfig(userDataPath));
+  ipcMain.handle('sidebar-config:set-queue', (_e, input) => { saveQueueConfig(userDataPath, input); return loadSidebarConfig(userDataPath); });
 }
 
-module.exports = { DEFAULTS, CONFIG_FILENAME, loadSidebarConfig, registerSidebarConfigIpc };
+module.exports = { DEFAULTS, CONFIG_FILENAME, loadSidebarConfig, saveQueueConfig, registerSidebarConfigIpc };

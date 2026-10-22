@@ -196,10 +196,11 @@ const AINews = {
 
   // A profile that saved its preferences while the default was English only has ['en'] saved, which is the old default and not a choice
   // anyone made. Once, in a Turkish Vex, Turkish is added to it; a list that differs from ['en'] is left as it is, and so is a later change.
-  TR_MIGRATED_KEY: 'vex.aiNews.trLanguageMigrated',
+  // "Once" is remembered in the news state (trLanguageDone), not in a key of its own.
   migrateLanguageForTurkish() {
-    if (!this._vexIsTurkish() || localStorage.getItem(this.TR_MIGRATED_KEY) === '1') return false;
-    localStorage.setItem(this.TR_MIGRATED_KEY, '1');
+    if (!this._vexIsTurkish() || this.state().trLanguageDone) return false;
+    this.state().trLanguageDone = true;
+    this._save();
     if (this._readJson(this.PREFS_KEY) === null || this._privateWindow()) return false;
     const cur = this.prefs();
     if (cur.languages.length !== 1 || cur.languages[0] !== 'en') return false;

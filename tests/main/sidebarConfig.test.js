@@ -101,3 +101,30 @@ describe('loadSidebarConfig — queue panel fields', () => {
     expect(cfg.queueUrl).toBe('https://q/');
   });
 });
+
+describe('saveQueueConfig', () => {
+  const { saveQueueConfig } = require('../../src/sidebar-config.js');
+  it('writes the address and secret and keeps every other key', () => {
+    const dir = tmpUserData();
+    writeConfig(dir, JSON.stringify({ aiNewsUrl: 'https://news/', extra: 1 }));
+    const saved = saveQueueConfig(dir, { queueUrl: ' https://q.example.workers.dev/ ', queueSecret: ' secret-1234 ' });
+    expect(saved).toEqual({ queueUrl: 'https://q.example.workers.dev', queueSecret: 'secret-1234' });
+    const onDisk = JSON.parse(require('fs').readFileSync(require('path').join(dir, 'sidebar-config.json'), 'utf8'));
+    expect(onDisk).toEqual({ aiNewsUrl: 'https://news/', extra: 1, queueUrl: 'https://q.example.workers.dev', queueSecret: 'secret-1234' });
+    expect(loadSidebarConfig(dir).queueUrl).toBe('https://q.example.workers.dev');
+  });
+  it('creates the file when there is none', () => {
+    const dir = tmpUserData();
+    saveQueueConfig(dir, { queueUrl: 'https://q.example.workers.dev', queueSecret: 'secret-1234' });
+    expect(loadSidebarConfig(dir).queueSecret).toBe('secret-1234');
+  });
+  it('refuses an address that is not https, a short secret, and a file that is not JSON (which it leaves alone)', () => {
+    const dir = tmpUserData();
+    expect(() => saveQueueConfig(dir, { queueUrl: 'http://q.example.workers.dev', queueSecret: 'secret-1234' })).toThrow(/https/);
+    expect(() => saveQueueConfig(dir, { queueUrl: 'not a url', queueSecret: 'secret-1234' })).toThrow(/web address/);
+    expect(() => saveQueueConfig(dir, { queueUrl: 'https://q.example.workers.dev', queueSecret: 'x' })).toThrow(/secret/);
+    writeConfig(dir, '{ broken');
+    expect(() => saveQueueConfig(dir, { queueUrl: 'https://q.example.workers.dev', queueSecret: 'secret-1234' })).toThrow(/not valid JSON/);
+    expect(require('fs').readFileSync(require('path').join(dir, 'sidebar-config.json'), 'utf8')).toBe('{ broken');
+  });
+});

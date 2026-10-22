@@ -32,3 +32,24 @@ describe('SidebarManager._syncStartIcon', () => {
     expect(btn.classList.contains('active')).toBe(true);
   });
 });
+
+describe('SidebarManager._dropWorkPanel', () => {
+  beforeEach(() => { localStorage.clear(); });
+  it('takes the Work panel out of the saved order, overrides, pairs and usage, and leaves the rest', () => {
+    localStorage.setItem('vex.sidebarOrder', JSON.stringify(['notes', 'work', 'clock']));
+    localStorage.setItem('vex.panelOverrides', JSON.stringify({ work: { hidden: true }, clock: { hidden: false } }));
+    localStorage.setItem('vex.panelPairs', JSON.stringify({ work: 'notes', notes: 'work', clock: 'history', history: 'clock' }));
+    localStorage.setItem('vex.panelUsage', JSON.stringify({ work: 5, notes: 7 }));
+    SidebarManager._dropWorkPanel();
+    expect(JSON.parse(localStorage.getItem('vex.sidebarOrder'))).toEqual(['notes', 'clock']);
+    expect(JSON.parse(localStorage.getItem('vex.panelOverrides'))).toEqual({ clock: { hidden: false } });
+    expect(JSON.parse(localStorage.getItem('vex.panelPairs'))).toEqual({ clock: 'history', history: 'clock' });
+    expect(JSON.parse(localStorage.getItem('vex.panelUsage'))).toEqual({ notes: 7 });
+    SidebarManager._dropWorkPanel();                          // nothing left to do the second time
+    expect(JSON.parse(localStorage.getItem('vex.sidebarOrder'))).toEqual(['notes', 'clock']);
+  });
+  it('changes nothing when nothing was saved', () => {
+    SidebarManager._dropWorkPanel();
+    expect(localStorage.getItem('vex.sidebarOrder')).toBeNull();
+  });
+});

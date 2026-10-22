@@ -150,7 +150,7 @@
       permissions: { reads: ['the address of a page whose password field you focused, against the sites you have logins for'], writes: [], sends: [] } },
     { id: 'playfulness', title: 'Playfulness', group: 'Playfulness', storageKeys: ['vex.playfulness.prior'], usesKeys: ['vex.fun.quiet'],
       permissions: { reads: ['your Playfulness level, Game mode and the quiet switch'], writes: ['the level you chose'], sends: [] } },
-    { id: 'attention-inbox', title: 'Attention Inbox', group: 'Attention', storageKeys: ['vex.attention.inbox', 'vex.attention.inboxOn'],
+    { id: 'attention-inbox', title: 'Attention Inbox', group: 'Attention', storageKeys: ['vex.attention.inbox', 'vex.attention.inboxOn', 'vex.attention.seenAt'],
       permissions: { reads: ['the notices that did not fit the cap'], writes: ['the notices that did not fit the cap'], sends: [] } },
     // The calm New Tab layout is a layout choice, not an extra: Minimal Vex keeps it (killSwitch 'none', not in the usage table).
     // The place search behind the weather (js/geo-search.js: wizard, start page, Settings). A setting, not a feature to switch off.

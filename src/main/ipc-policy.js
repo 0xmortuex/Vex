@@ -40,6 +40,8 @@ const UI_ONLY_CHANNELS = new Set([
   'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage',
   // The language the native dialogs speak (main/i18n-main.js).
   'i18n:set-language',
+  // The Queue panel's setup form saves its address and secret.
+  'sidebar-config:set-queue',
   // Knowledge base (main/knowledge-base.js): the index holds page text.
   'kb:plan', 'kb:put', 'kb:sync-archive', 'kb:status', 'kb:step', 'kb:search', 'kb:context', 'kb:related', 'kb:related-page', 'kb:keep-out', 'kb:keep-out-clear', 'kb:forget',
   // Cookie report and cleanup, extension usage, crash-proof tab snapshots

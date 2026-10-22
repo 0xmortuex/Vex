@@ -244,3 +244,9 @@ body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon .icon-badge.discord-ca
   .panel-loading-bar::after { animation-duration: 3s; }
   .panel-loading-spinner { animation-duration: 2.4s; }
 }
+
+/* Dragging a sidebar button to a new place (SidebarManager._wireButtonDrag). */
+#icon-sidebar .sidebar-icon.sb-dragging { opacity: 0.45; }
+#icon-sidebar.sb-reordering, #icon-sidebar.sb-reordering .sidebar-icon { cursor: grabbing; }
+#icon-sidebar .sidebar-icon.sb-drop-before { box-shadow: 0 -2px 0 0 var(--primary); }
+#icon-sidebar .sidebar-icon.sb-drop-after { box-shadow: 0 2px 0 0 var(--primary); }

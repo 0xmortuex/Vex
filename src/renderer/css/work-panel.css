@@ -10,13 +10,8 @@
  * follows whichever look is active.
  */
 
-#panel-work { display: flex; flex-direction: column; min-height: 0; }
-
-.wp-body {
-  flex: 1; min-height: 0; overflow-y: auto;
-  padding: 0 14px 16px;
-  display: flex; flex-direction: column; gap: 16px;
-}
+/* The strip at the top of the Toolbox: identity, the AI, this job's reminders and two quick actions. */
+.wp-strip { display: flex; flex-direction: column; gap: 10px; margin: 2px 0 4px; }
 
 /* ---------- who you are -------------------------------------------------- */
 
@@ -114,10 +109,10 @@
 
 /* ---------- quiet secondary actions -------------------------------------- */
 
-.wp-actions { display: flex; flex-direction: column; gap: 4px; }
+.wp-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .wp-act {
-  display: flex; align-items: center; gap: 9px; width: 100%;
-  padding: 9px 11px; text-align: left; cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 11px; text-align: left; cursor: pointer; font-family: inherit;
   background: transparent; color: var(--text-muted);
   border: 1px solid transparent; border-radius: 9px; font-size: 12.5px;
 }

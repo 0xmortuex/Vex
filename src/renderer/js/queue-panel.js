@@ -134,10 +134,7 @@ const QueuePanel = {
       // Plain words: this read "Add queueUrl and queueSecret to your local
       // sidebar-config.json — see queue-bot/SETUP.md" (walkthrough M5,
       // 2026-10-07). It is hidden from the rail by default anyway.
-      this.renderMessage(list,
-        'The Queue is not set up on this computer. It shows links you send to your own ' +
-        'queue bot, and needs that bot connected before it has anything to show. ' +
-        'To take it off the sidebar, right-click its button and choose Hide button.');
+      this.renderSetup(list);
       return;
     }
 
@@ -145,7 +142,7 @@ const QueuePanel = {
       const res = await (window.VexNet?.fetch || fetch)(
         buildQueueUrl(this.config.queueUrl, '/queue', this.config.queueSecret));
       if (res.status === 403) {
-        this.renderMessage(list, 'Access denied (403) — check <code>queueSecret</code>.');
+        this.renderSetup(list, 'The bot refused the read secret (403). Paste the secret again below.');
         return;
       }
       if (res.status === 429) {
@@ -166,6 +163,75 @@ const QueuePanel = {
 
   renderMessage(list, html) {
     list.innerHTML = `<div class="panel-placeholder"><p>${html}</p></div>`;
+  },
+
+  GUIDE_URL: 'https://github.com/0xmortuex/queue-bot/blob/main/SETUP.md',
+  // The steps, in plain words. The deploying itself is one page of copy-and-paste in the queue-bot guide; this panel takes the last step.
+  SETUP_STEPS: [
+    'On your phone, open Telegram, message @BotFather, send /newbot and follow it. Keep the token it gives you.',
+    'Message @userinfobot to get your own Telegram number. The bot only listens to you.',
+    'Put the free queue-bot Worker on your Cloudflare account. The guide below has every command to copy; it takes about ten minutes, once.',
+    'Message your bot anything, such as “buy milk”. It answers that it queued it.',
+    'Paste your Worker’s address and its read secret below, and press Connect.',
+  ],
+
+  // The first-time guide, and the form that finishes it. `note` is shown first when the panel is here for a reason (a refused secret).
+  renderSetup(list, note) {
+    list.textContent = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'queue-setup';
+    const add = (tag, text, css) => { const el = document.createElement(tag); el.textContent = text; if (css) el.style.cssText = css; wrap.appendChild(el); return el; };
+    if (note) add('p', note, 'color:#e5484d;font-size:12.5px;margin:0 0 10px');
+    add('p', 'Your own Queue', 'font-weight:650;font-size:14px;margin:0 0 4px;color:var(--text)');
+    add('p', 'The Queue is not set up on this computer yet. Send yourself links and notes from your phone through Telegram, and they wait here with Done and Delete buttons. It is free, private to you, and only needs setting up once.', 'font-size:12.5px;line-height:1.5;margin:0 0 10px;color:var(--text-muted)');
+    const ol = document.createElement('ol');
+    ol.style.cssText = 'margin:0 0 10px;padding-left:20px;font-size:12.5px;line-height:1.55;color:var(--text)';
+    for (const step of this.SETUP_STEPS) { const li = document.createElement('li'); li.textContent = step; li.style.marginBottom = '4px'; ol.appendChild(li); }
+    wrap.appendChild(ol);
+    const guide = document.createElement('button');
+    guide.className = 'queue-act-btn';
+    guide.textContent = 'Open the step-by-step guide';
+    guide.addEventListener('click', () => {
+      if (typeof TabManager === 'undefined') { window.showToast?.('Could not open the guide: ' + this.GUIDE_URL, 'error'); return; }
+      TabManager.createTab(this.GUIDE_URL, true);
+    });
+    wrap.appendChild(guide);
+    const form = document.createElement('form');
+    form.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:12px';
+    const field = (label, type, placeholder) => {
+      const l = document.createElement('label');
+      l.style.cssText = 'display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--text-muted)';
+      l.append(label);
+      const i = document.createElement('input');
+      i.type = type; i.placeholder = placeholder; i.spellcheck = false; i.autocomplete = 'off';
+      i.style.cssText = 'padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);font:inherit;font-size:12.5px';
+      l.appendChild(i); form.appendChild(l); return i;
+    };
+    const url = field('Your Worker’s address', 'url', 'https://queue-bot.your-name.workers.dev');
+    const secret = field('Read secret', 'password', 'The QUEUE_READ_SECRET you set');
+    const status = document.createElement('div');
+    status.setAttribute('role', 'status');
+    status.style.cssText = 'font-size:12px;min-height:16px;color:#e5484d';
+    const go = document.createElement('button');
+    go.type = 'submit'; go.className = 'queue-act-btn'; go.textContent = 'Connect';
+    form.append(go, status);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      status.textContent = '';
+      go.disabled = true;
+      try {
+        if (!window.vex || typeof window.vex.saveQueueConfig !== 'function') throw new Error('Saving is not available in this build');
+        const saved = await window.vex.saveQueueConfig({ queueUrl: url.value, queueSecret: secret.value });
+        this.config = { queueUrl: saved.queueUrl || '', queueSecret: saved.queueSecret || '' };
+        await this.refresh();
+      } catch (err) {
+        status.textContent = String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (Error: )?/, '');
+        go.disabled = false;
+      }
+    });
+    wrap.appendChild(form);
+    add('p', 'Not for you? Right-click the Queue button and choose Hide button.', 'font-size:11.5px;color:var(--text-muted);margin:12px 0 0');
+    list.appendChild(wrap);
   },
 
   renderItems(list, items) {

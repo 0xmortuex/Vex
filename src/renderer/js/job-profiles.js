@@ -521,7 +521,7 @@ const JobProfiles = {
     if (!Array.isArray(tools) || tools.some(t => typeof t !== 'string')) throw new Error('A tool list is a list of tool ids');
     localStorage.setItem('vex.jobTools', JSON.stringify(tools));
     this.renderButtons();
-    try { if (window.WorkPanel) WorkPanel.refresh(); } catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Toolbox', 'The work panel did not refresh', err); }
+    try { if (window.WorkPanel) WorkPanel.refresh(); } catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Toolbox', 'The job strip did not refresh', err); }
   },
 
   // Offer, never apply: at most one suggestion a month, only when at least OFFER_MIN_NEW used tools are
