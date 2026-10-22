@@ -24,7 +24,13 @@ const { waitFor, waitText } = require('./lock-pin');
 
 const MAX_FAILS = 5;
 
-function createUnlockGate({ app, BrowserWindow, ipcMain, dialog, profileCrypt, startupError = null, htmlFile, preloadFile, now = () => Date.now(), log = console }) {
+// `i18n` is main/i18n-main.js's { language(), t(text) }: the window, its title and what it says go in the language Vex is in.
+const ENGLISH = { language: () => 'en', t: (text) => text };
+
+function createUnlockGate({ app, BrowserWindow, ipcMain, dialog, profileCrypt, startupError = null, htmlFile, preloadFile, i18n = ENGLISH, now = () => Date.now(), log = console }) {
+  const t = (text) => i18n.t(text);
+  // waitText() is "30 s" or "2 min"; the units follow the language.
+  const wait = (ms) => { const w = waitText(ms); return i18n.language() === 'tr' ? w.replace(/ s$/, ' sn').replace(/ min$/, ' dk') : w; };
   let problem = startupError;
   let locked = false;
   if (!problem) {
@@ -50,7 +56,7 @@ function createUnlockGate({ app, BrowserWindow, ipcMain, dialog, profileCrypt, s
     if (!fromWindow(e)) throw new Error('Only the unlock window does this');
     if (unlocked) return { ok: true };
     const left = state.waitUntil - now();
-    if (left > 0) return { ok: false, error: 'Too many tries - wait ' + waitText(left) };
+    if (left > 0) return { ok: false, error: t('Too many tries - wait {1}').replace('{1}', wait(left)) };
     try {
       if (mode === 'recovery') await profileCrypt.unlockWithRecovery(secret);
       else if (mode === 'passphrase') await profileCrypt.unlock(secret);
@@ -60,11 +66,11 @@ function createUnlockGate({ app, BrowserWindow, ipcMain, dialog, profileCrypt, s
       state.fails += 1;
       if (state.fails >= MAX_FAILS) {
         state.fails = 0; state.rounds += 1;
-        const wait = waitFor(state.rounds);
-        state.waitUntil = now() + wait;
-        return { ok: false, error: 'Too many tries - wait ' + waitText(wait) };
+        const ms = waitFor(state.rounds);
+        state.waitUntil = now() + ms;
+        return { ok: false, error: t('Too many tries - wait {1}').replace('{1}', wait(ms)) };
       }
-      return { ok: false, error: err.message };
+      return { ok: false, error: t(err.message) };
     }
     unlocked = true;
     resolveReady();
@@ -75,7 +81,7 @@ function createUnlockGate({ app, BrowserWindow, ipcMain, dialog, profileCrypt, s
   app.whenReady().then(() => {
     win = new BrowserWindow({
       width: 480, height: 440, show: false, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true,
-      title: 'Unlock Vex',
+      title: t('Unlock Vex'),
       webPreferences: { preload: preloadFile, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, spellcheck: false },
     });
     win.setMenuBarVisibility(false);
@@ -84,7 +90,7 @@ function createUnlockGate({ app, BrowserWindow, ipcMain, dialog, profileCrypt, s
     win.once('ready-to-show', () => win.show());
     // Closing the window without unlocking is a quit: there is nothing else to show.
     win.on('closed', () => { win = null; if (!unlocked) app.quit(); });
-    win.loadFile(htmlFile).catch((err) => { log.error('[ProfileLock] the unlock page could not be loaded:', err); dialog.showErrorBox('Vex cannot ask for the passphrase', err.message); app.exit(1); });
+    win.loadFile(htmlFile, { query: { lang: i18n.language() } }).catch((err) => { log.error('[ProfileLock] the unlock page could not be loaded:', err); dialog.showErrorBox('Vex cannot ask for the passphrase', err.message); app.exit(1); });
   }).catch((err) => { log.error('[ProfileLock] the unlock window could not be made:', err); app.exit(1); });
 
   return { ready, finish() { if (win && !win.isDestroyed()) win.close(); } };

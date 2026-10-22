@@ -55,6 +55,22 @@
     const said = document.getElementById('said');
     input.focus();
 
+    // Turkish when Vex is in Turkish (vex.lang, shared by Vex's own pages); English is the page as written.
+    const TR = {
+      'Vex — quick capture': 'Vex — hızlı not',
+      'A note, or “remind me…”, or “/” for a command': 'Bir not, ya da “yarın 8’de annemi ara hatırlat”, ya da komut için “/”',
+      'Saving…': 'Kaydediliyor…', 'Saved': 'Kaydedildi', 'That did not work': 'Olmadı',
+    };
+    const lang = (() => { try { const v = localStorage.getItem('vex.lang') || ''; return v === 'tr' || v === '"tr"' ? 'tr' : 'en'; } catch (e) { return 'en'; } })();   // unreadable: English, the page as written
+    const t = (s) => (lang === 'tr' && TR[s]) || s;
+    if (lang === 'tr') {
+      document.documentElement.lang = 'tr';
+      document.title = t('Vex — quick capture');
+      document.querySelector('.title').textContent = t('Vex — quick capture');
+      input.placeholder = t('A note, or “remind me…”, or “/” for a command');
+      document.querySelector('.hint').innerHTML = '<b>Enter</b> not kaydeder · <b>Ctrl+Enter</b> klip olarak tutar · <b>hatırlat</b> yazınca hatırlatıcı kurar · <b>timer 20 min</b> · <b>/</b> komut çalıştırır · <b>Esc</b> kapatır';
+    }
+
     function classify(text) {
       const t = text.trim();
       if (!t) return null;
@@ -73,17 +89,17 @@
         ? { kind: 'clip', text: input.value.trim() }
         : classify(input.value);
       if (!parsed) { window.vexCapture.close(); return; }
-      said.textContent = 'Saving…';
+      said.textContent = t('Saving…');
       try {
         const r = await window.vexCapture.submit(parsed);
-        said.textContent = (r && r.said) || 'Saved';
+        said.textContent = (r && r.said) || t('Saved');
         input.value = '';
         setTimeout(() => window.vexCapture.close(), 700);
       } catch (err) {
         // Electron wraps a refusal from the main process as "Error invoking
         // remote method 'capture:submit': Error: …"; the person needs only the
         // last part (found 2026-09-29).
-        said.textContent = String((err && err.message) || 'That did not work').replace(/^Error invoking remote method '[^']*': (?:\w*Error: )?/, '');
+        said.textContent = String((err && err.message) || t('That did not work')).replace(/^Error invoking remote method '[^']*': (?:\w*Error: )?/, '');
       }
     });
 

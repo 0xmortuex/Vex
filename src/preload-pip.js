@@ -50,11 +50,33 @@ const BAR_CSS = `
 
 let pinned = true;
 
+// Turkish when Vex is: main passes --vex-lang=tr (pip.js), because this window may show any site, whose storage is not Vex's.
+// English is the page as written. Said here because the page itself may not run a script.
+const TR = {
+  'Vex Picture-in-Picture': 'Vex Resim İçinde Resim',
+  'Back to tab (returns you to Vex and closes this window)': 'Sekmeye dön (Vex’e geri götürür ve bu pencereyi kapatır)',
+  'Keep on top (Ctrl+Shift+P)': 'Üstte tut (Ctrl+Shift+P)', 'Not on top (Ctrl+Shift+P)': 'Üstte değil (Ctrl+Shift+P)', 'Close (Esc)': 'Kapat (Esc)',
+  'The site would not serve this video to a separate window. Close this and use the tab.': 'Site bu videoyu ayrı bir pencereye vermedi. Bunu kapatın ve sekmeyi kullanın.',
+  'This video can\'t be floated on its own': 'Bu video tek başına yüzdürülemiyor',
+  'The site streams it in pieces that only work inside its own page.': 'Site onu yalnızca kendi sayfasının içinde çalışan parçalar halinde yayınlıyor.',
+};
+const _tr = process.argv.includes('--vex-lang=tr');
+const t = (s) => (_tr && TR[s]) || s;
+if (_tr) {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.documentElement.lang = 'tr';
+    const b = document.querySelector('#msg b'), d = document.getElementById('msg-detail');
+    if (b) b.textContent = t(b.textContent);
+    if (d) d.textContent = t(d.textContent);
+    document.title = t(document.title);
+  }, { once: true });
+}
+
 // The bar shows what is playing, when the player knows.
 let pageTitle = '';
 let currentTitleEl = null;
 function paintTitle() {
-  if (currentTitleEl) currentTitleEl.textContent = pageTitle || 'Vex Picture-in-Picture';
+  if (currentTitleEl) currentTitleEl.textContent = pageTitle || t('Vex Picture-in-Picture');
 }
 
 
@@ -84,7 +106,7 @@ function build() {
   const title = document.createElement('span');
   title.className = 'title';
   currentTitleEl = title;
-  title.textContent = pageTitle || 'Vex Picture-in-Picture';
+  title.textContent = pageTitle || t('Vex Picture-in-Picture');
 
   const ICON = (inner) => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
     + ' stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
@@ -98,9 +120,9 @@ function build() {
     return b;
   };
 
-  const backBtn = mkBtn(ICON('<path d="M4.5 10.5h10a5 5 0 0 1 0 10H9"/><path d="m8.5 6-4 4.5 4 4.5"/>'), 'Back to tab (returns you to Vex and closes this window)');
-  const pinBtn = mkBtn(ICON('<path d="M9 4h6l-1 6 3.5 3H6.5L10 10z"/><path d="M12 13v7"/>'), 'Keep on top (Ctrl+Shift+P)', 'pinned');
-  const closeBtn = mkBtn('✕', 'Close (Esc)', 'close');
+  const backBtn = mkBtn(ICON('<path d="M4.5 10.5h10a5 5 0 0 1 0 10H9"/><path d="m8.5 6-4 4.5 4 4.5"/>'), t('Back to tab (returns you to Vex and closes this window)'));
+  const pinBtn = mkBtn(ICON('<path d="M9 4h6l-1 6 3.5 3H6.5L10 10z"/><path d="M12 13v7"/>'), t('Keep on top (Ctrl+Shift+P)'), 'pinned');
+  const closeBtn = mkBtn('✕', t('Close (Esc)'), 'close');
 
   backBtn.addEventListener('click', () => ipcRenderer.send('pip:back-to-tab'));
   closeBtn.addEventListener('click', () => ipcRenderer.send('pip:close'));
@@ -122,7 +144,7 @@ let currentPinBtn = null;
 function paintPin() {
   if (!currentPinBtn) return;
   currentPinBtn.className = pinned ? 'pinned' : '';
-  currentPinBtn.title = pinned ? 'Keep on top (Ctrl+Shift+P)' : 'Not on top (Ctrl+Shift+P)';
+  currentPinBtn.title = pinned ? t('Keep on top (Ctrl+Shift+P)') : t('Not on top (Ctrl+Shift+P)');
 }
 ipcRenderer.on('pip:pin-state', (_e, on) => { pinned = !!on; paintPin(); });
 
@@ -143,7 +165,7 @@ ipcRenderer.on('pip:media', (_e, media) => {
   };
   video.addEventListener('error', () => {
     // Most often a CDN that wants the page's own cookies or referer.
-    fail('The site would not serve this video to a separate window. Close this and use the tab.');
+    fail(t('The site would not serve this video to a separate window. Close this and use the tab.'));
   }, { once: true });
   video.addEventListener('loadedmetadata', () => {
     if (Number.isFinite(media.currentTime) && media.currentTime > 0) {

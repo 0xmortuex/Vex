@@ -47,6 +47,14 @@ const TR = {
   'Save': 'Kaydet',
   'Save as an e-book': 'E-kitap olarak kaydedin',
   'E-book': 'E-kitap',
+  // The unlock window of an encrypted profile (main/profile-unlock.js)
+  'Unlock Vex': 'Vex’in kilidini aç',
+  'Too many tries - wait {1}': 'Çok fazla deneme - {1} bekleyin',
+  'Wrong passphrase': 'Yanlış parola',
+  'That recovery code does not open this profile': 'Bu kurtarma kodu bu profili açmıyor',
+  'A recovery code is 32 letters and digits, in groups of four': 'Kurtarma kodu, dörderli gruplar halinde 32 harf ve rakamdır',
+  'A passphrase is {1} to {2} characters': 'Bir parola {1} ile {2} karakter arasındadır',
+  'Unknown way to unlock': 'Bilinmeyen kilit açma yolu',
   // Said to the page by passkeys.js
   '{1}. Use the site’s other sign-in methods.': '{1}. Sitenin diğer oturum açma yöntemlerini kullanın.',
   'Vex is locked. Unlock it to use a passkey.': 'Vex kilitli. Bir geçiş anahtarı kullanmak için kilidini açın.',

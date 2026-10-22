@@ -1314,8 +1314,11 @@ let _profileCryptStartup = null;
 try {
   if (_profileCrypt.recover().recovered) console.warn('[ProfileLock] an encryption that did not finish was undone; the profile is plain text again');
 } catch (err) { _profileCryptStartup = err; }
+// The language of the native dialogs (main/i18n-main.js). Made here, before the unlock window, because that is the first thing Vex shows.
+const _i18nMain = require('./main/i18n-main').create({ fs, dir: userDataPath });
+_i18nMain.install(dialog);
 const _profileGate = require('./main/profile-unlock').createUnlockGate({
-  app, BrowserWindow, ipcMain, dialog, profileCrypt: _profileCrypt, startupError: _profileCryptStartup,
+  app, BrowserWindow, ipcMain, dialog, profileCrypt: _profileCrypt, startupError: _profileCryptStartup, i18n: _i18nMain,
   htmlFile: path.join(__dirname, 'renderer', 'profile-unlock.html'), preloadFile: path.join(__dirname, 'preload-profile-unlock.js'),
 });
 const _profileReady = _profileGate.ready;
@@ -10413,8 +10416,6 @@ ipcMain.handle('mail:compose', async (_e, { subject, body, to }) => {
   return { ok: true };
 });
 // The language of the native dialogs (main/i18n-main.js): the window says which one Vex is in, and what a Windows dialog shows follows it.
-const _i18nMain = require('./main/i18n-main').create({ fs, dir: app.getPath('userData') });
-_i18nMain.install(dialog);
 ipcMain.handle('i18n:set-language', (_e, lang) => ({ ok: true, language: _i18nMain.setLanguage(lang) }));
 ipcMain.handle('open-external', (_e, url) => {
   try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}

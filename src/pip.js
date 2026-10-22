@@ -14,6 +14,15 @@ let saveTimer = null;
 // teardown path would leave a tab silently muted with nothing to blame.
 let closedCallback = null;
 let closeReason = 'closed';
+// The language Vex is in (main/i18n-main.js keeps it in language.txt), handed to the pop-out's preload as an argument.
+function languageArgument() {
+  try { return fs.readFileSync(path.join(app.getPath('userData'), 'language.txt'), 'utf8').trim() === 'tr' ? '--vex-lang=tr' : '--vex-lang=en'; }
+  catch (err) {
+    if (err && err.code !== 'ENOENT') console.warn('[PiP] the saved language could not be read:', err.message);
+    return '--vex-lang=en';
+  }
+}
+
 function onPipClosed(cb) { closedCallback = typeof cb === 'function' ? cb : null; }
 // The next teardown is a "back to tab" rather than a plain close.
 function setCloseReason(reason) { closeReason = reason || 'closed'; }
@@ -150,9 +159,10 @@ function createPipWindow(url, ses) {
     maximizable: false,
     closable: true,
     skipTaskbar: false,
-    title: 'Vex Picture-in-Picture',
+    title: languageArgument() === '--vex-lang=tr' ? 'Vex Resim İçinde Resim' : 'Vex Picture-in-Picture',
     backgroundColor: '#000000',
     webPreferences: {
+      additionalArguments: [languageArgument()],
       preload: path.join(__dirname, 'preload-pip.js'),
       session: ses,
       contextIsolation: true,

@@ -194,19 +194,19 @@ describe('Settings channels', () => {
 });
 
 describe('the unlock window gate', () => {
-  function gateFor(d, { startupError = null, clock = { t: 0 } } = {}) {
+  function gateFor(d, { startupError = null, clock = { t: 0 }, i18n } = {}) {
     const handlers = new Map(), listeners = new Map();
     const ipcMain = { handle: (c, f) => handlers.set(c, f), on: (c, f) => listeners.set(c, f) };
     const calls = { quit: 0, exit: [], errorBoxes: [], windows: [] };
     class FakeWindow {
       constructor(opts) { this.opts = opts; this.webContents = { on() {}, setWindowOpenHandler() {} }; this.handlers = {}; calls.windows.push(this); }
       setMenuBarVisibility() {} once(ev, f) { this.handlers[ev] = f; } on(ev, f) { this.handlers[ev] = f; }
-      loadFile(f) { this.file = f; return Promise.resolve(); } isDestroyed() { return !!this.gone; }
+      loadFile(f, o) { this.file = f; this.loadOptions = o; return Promise.resolve(); } isDestroyed() { return !!this.gone; }
       close() { this.gone = true; if (this.handlers.closed) this.handlers.closed(); } show() {}
     }
     const app = { whenReady: () => Promise.resolve(), quit: () => { calls.quit += 1; }, exit: (c) => calls.exit.push(c) };
     const dialog = { showErrorBox: (t, m) => calls.errorBoxes.push([t, m]) };
-    const gate = createUnlockGate({ app, BrowserWindow: FakeWindow, ipcMain, dialog, profileCrypt: engine(d), startupError, htmlFile: 'unlock.html', preloadFile: 'preload.js', now: () => clock.t, log: quiet });
+    const gate = createUnlockGate({ app, BrowserWindow: FakeWindow, ipcMain, dialog, profileCrypt: engine(d), startupError, htmlFile: 'unlock.html', preloadFile: 'preload.js', i18n, now: () => clock.t, log: quiet });
     return { gate, handlers, listeners, calls, clock };
   }
   async function encryptedProfile() {
@@ -243,6 +243,27 @@ describe('the unlock window gate', () => {
     g.gate.finish();
     expect(win.gone).toBe(true);
     expect(g.calls.quit).toBe(0);                       // closing after the unlock is not a quit
+  });
+  it('speaks Turkish when Vex is: the title, the page address, the wrong-passphrase answer and the wait', async () => {
+    const { d } = await encryptedProfile();
+    const i18n = require('../../src/main/i18n-main.js').create({ fs: nodeFs, dir: dir() });
+    i18n.setLanguage('tr');
+    const g = gateFor(d, { i18n });
+    await new Promise((r) => setImmediate(r));
+    const [win] = g.calls.windows;
+    expect(win.opts.title).toBe('Vex’in kilidini aç');
+    expect(win.loadOptions).toEqual({ query: { lang: 'tr' } });
+    const ok = { sender: win.webContents };
+    const unlock = g.handlers.get('profilecrypt:unlock');
+    for (let i = 0; i < 4; i++) expect(await unlock(ok, 'passphrase', 'wrong wrong wrong')).toMatchObject({ ok: false, error: 'Yanlış parola' });
+    expect((await unlock(ok, 'passphrase', 'wrong wrong wrong')).error).toBe('Çok fazla deneme - 30 sn bekleyin');
+  });
+  it('stays English, and asks the page for English, when nothing says otherwise', async () => {
+    const { d } = await encryptedProfile();
+    const g = gateFor(d);
+    await new Promise((r) => setImmediate(r));
+    expect(g.calls.windows[0].opts.title).toBe('Unlock Vex');
+    expect(g.calls.windows[0].loadOptions).toEqual({ query: { lang: 'en' } });
   });
   it('opens with the recovery code, and closing the window without unlocking quits', async () => {
     const { d, recoveryCode } = await encryptedProfile();

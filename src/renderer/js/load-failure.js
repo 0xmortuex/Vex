@@ -57,9 +57,14 @@ const VexLoadFailure = {
     return code === -3 || code === -20 || code === -27 || code === -26 || (code <= -200 && code >= -299);
   },
 
+  // The page is drawn over the tabs, outside the areas the Turkish translator watches, so it asks for its own words.
+  _t(text) { return (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup(text)) || text; },
+
   describe(code) {
     const w = this.WORDS[String(code)];
-    return w ? { name: w[0], what: w[1], tip: w[2] } : { name: 'Error ' + code, what: 'The page could not be loaded.', tip: 'Try again in a moment.' };
+    return w
+      ? { name: w[0], what: this._t(w[1]), tip: this._t(w[2]) }
+      : { name: this._t('Error {1}').replace('{1}', code), what: this._t('The page could not be loaded.'), tip: this._t('Try again in a moment.') };
   },
 
   // The webview reported a failed main-frame load (js/webview.js did-fail-load).
@@ -121,7 +126,7 @@ const VexLoadFailure = {
     el.setAttribute('role', 'alert');
     const box = document.createElement('div');
     box.className = 'vlf-card';
-    const h = document.createElement('h2'); h.className = 'vlf-title'; h.textContent = site + ' did not load';
+    const h = document.createElement('h2'); h.className = 'vlf-title'; h.textContent = this._t('{1} did not load').replace('{1}', site);
     const p = document.createElement('p'); p.className = 'vlf-what'; p.textContent = d.what;
     const t = document.createElement('p'); t.className = 'vlf-tip'; t.textContent = d.tip;
     const u = document.createElement('p'); u.className = 'vlf-url'; u.textContent = failed.url + '  ·  ' + d.name;
@@ -130,17 +135,18 @@ const VexLoadFailure = {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'vlf-btn' + (primary ? ' vlf-primary' : '');
+      label = this._t(label);
       b.textContent = label;
-      if (title) b.title = title;
-      b.addEventListener('click', () => { Promise.resolve().then(run).catch(err => { console.error('[LoadFailure] ' + label + ' failed:', err); window.showToast?.(label + ' did not work: ' + ((err && err.message) || err), 'error'); }); });
+      if (title) b.title = this._t(title);
+      b.addEventListener('click', () => { Promise.resolve().then(run).catch(err => { console.error('[LoadFailure] ' + label + ' failed:', err); window.showToast?.(this._t('{1} did not work: {2}').replace('{1}', label).replace('{2}', (err && err.message) || err), 'error'); }); });
       row.appendChild(b);
     };
     add('Try again', true, () => this.retry(tab.id, false));
     if (/^https:/i.test(failed.url)) add('Reload from the server', false, () => this.retry(tab.id, true), 'Ignore anything kept from before');
     if (/^https:/i.test(failed.url) && !this._local(failed.url)) add('Try http:// instead', false, () => this.tryHttp(tab.id), 'Not encrypted: you will be asked to confirm');
-    if (failed.copy) add('Open your saved copy', false, () => ArchiveLibrary.openCopy(failed.copy.id), 'Saved ' + new Date(failed.copy.at).toLocaleString());
+    if (failed.copy) add('Open your saved copy', false, () => ArchiveLibrary.openCopy(failed.copy.id), this._t('Saved {1}').replace('{1}', new Date(failed.copy.at).toLocaleString()));
     if (typeof LinkRot !== 'undefined') add('Look in the Wayback Machine', false, () => LinkRot.viewArchived(failed.url), 'Opens archive.org in a new tab');
-    add('Copy the address', false, () => navigator.clipboard.writeText(failed.url).then(() => window.showToast?.('Address copied')));
+    add('Copy the address', false, () => navigator.clipboard.writeText(failed.url).then(() => window.showToast?.(this._t('Address copied'))));
     box.append(h, p, t, row, u);
     el.appendChild(box);
     host.appendChild(el);
@@ -169,10 +175,10 @@ const VexLoadFailure = {
     if (!failed || !/^https:/i.test(failed.url)) return false;
     const http = 'http:' + failed.url.slice('https:'.length);
     const yes = typeof window.vexConfirm === 'function' && await window.vexConfirm({
-      title: 'Try without encryption?',
-      message: 'http:// sends everything in the clear: anyone on your network can read it and change the page. Only continue for a site you would not mind being read, and never sign in there.',
-      okLabel: 'Try http://',
-      cancelLabel: 'Not now',
+      title: this._t('Try without encryption?'),
+      message: this._t('http:// sends everything in the clear: anyone on your network can read it and change the page. Only continue for a site you would not mind being read, and never sign in there.'),
+      okLabel: this._t('Try http://'),
+      cancelLabel: this._t('Not now'),
     });
     if (!yes) return false;
     this.clear(tabId);

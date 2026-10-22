@@ -34,8 +34,11 @@ const VexLocaleTranslate = {
   _EN_WORDS: ['the', 'and', 'of', 'to', 'in', 'is', 'that', 'for', 'it', 'with', 'as', 'was', 'on', 'are', 'this', 'be', 'by', 'at', 'or', 'from', 'have', 'not', 'but', 'you', 'your', 'we', 'they', 'will', 'can', 'which'],
 
   // ---- state -------------------------------------------------------------------
+  // In a Turkish Vex a summary comes in Turkish unless the profile was set otherwise (chat and mail still follow the text).
+  _appIsTurkish() { return typeof VexI18nUI !== 'undefined' && typeof VexI18nUI.locale === 'function' && VexI18nUI.locale() === 'tr'; },
+
   defaults() {
-    return { skipSame: true, never: [], profile: { summary: { lang: 'auto', formality: 'neutral' }, mail: { lang: 'auto', formality: 'neutral' }, chat: { lang: 'auto', formality: 'neutral' } }, keepNames: [], gloss: false };
+    return { skipSame: true, never: [], profile: { summary: { lang: this._appIsTurkish() ? 'tr' : 'auto', formality: 'neutral' }, mail: { lang: 'auto', formality: 'neutral' }, chat: { lang: 'auto', formality: 'neutral' } }, keepNames: [], gloss: false };
   },
   state() {
     let raw = null;

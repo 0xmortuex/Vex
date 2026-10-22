@@ -180,3 +180,38 @@ describe('the buttons', () => {
     err.mockRestore();
   });
 });
+
+describe('in Turkish', () => {
+  beforeEach(() => {
+    localStorage.setItem('vex.lang', JSON.stringify('tr'));
+    globalThis.VexI18nUI = require('../../src/renderer/js/i18n-ui.js').VexI18nUI;
+  });
+  afterEach(() => { delete globalThis.VexI18nUI; });
+
+  it('says what happened, what to try and the buttons in Turkish, and keeps the site name and the error name', () => {
+    install();
+    VexLoadFailure.note('a', fail(-105));
+    vi.advanceTimersByTime(300);
+    expect(document.querySelector('.vlf-title').textContent).toBe('shop.example yüklenemedi');
+    expect(document.querySelector('.vlf-what').textContent).toBe('Adres bulunamadı.');
+    expect(document.querySelector('.vlf-tip').textContent).toMatch(/^Yazım hatası/);
+    expect(document.querySelector('.vlf-url').textContent).toContain('ERR_NAME_NOT_RESOLVED');
+    expect(buttons()).toEqual(['Yeniden dene', 'Sunucudan yeniden yükle', 'Bunun yerine http:// dene', 'Adresi kopyala']);
+  });
+
+  it('has Turkish for a code it has no words for, and for every error it does', () => {
+    install();
+    expect(VexLoadFailure.describe(-9999)).toMatchObject({ name: 'Hata -9999', what: 'Sayfa yüklenemedi.', tip: 'Biraz sonra yeniden deneyin.' });
+    for (const code of Object.keys(VexLoadFailure.WORDS)) {
+      const d = VexLoadFailure.describe(Number(code));
+      expect(d.what, code).not.toBe(VexLoadFailure.WORDS[code][1]);
+      expect(d.tip, code).not.toBe(VexLoadFailure.WORDS[code][2]);
+    }
+  });
+
+  it('stays English when Vex is', () => {
+    localStorage.setItem('vex.lang', JSON.stringify('en'));
+    install();
+    expect(VexLoadFailure.describe(-105).what).toBe('The address could not be found.');
+  });
+});

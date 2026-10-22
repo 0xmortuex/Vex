@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // T2-057 (js/mun-dossier.js), T2-040 (js/course-spaces.js), T2-033 (js/translate-locale.js).
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const JS = '../../src/renderer/js/';
 const fresh = (p) => { delete require.cache[require.resolve(p)]; return require(p); };
@@ -150,5 +150,31 @@ describe('Turkish and English translation helpers', () => {
   it('builds a gloss script that is valid JavaScript', () => {
     expect(() => new Function(L.glossScript([{ term: 'Bridge', to: 'Köprü' }]))).not.toThrow();
     expect(() => new Function(L.clearGlossScript())).not.toThrow();
+  });
+});
+
+describe('the reply language of Vex AI in a Turkish Vex', () => {
+  let L;
+  beforeEach(() => { localStorage.clear(); ({ VexLocaleTranslate: L } = fresh(JS + 'translate-locale.js')); });
+  afterEach(() => { delete globalThis.VexI18nUI; });
+
+  it('asks for summaries in Turkish, and leaves chat and mail following the text', () => {
+    globalThis.VexI18nUI = { locale: () => 'tr' };
+    expect(L.instruction('summary')).toBe('Write the answer in Turkish.');
+    expect(L.instruction('chat')).toBe('');
+    expect(L.instruction('mail')).toBe('');
+    expect(L.shapeRequest('summarize', { message: 'Summarize this page' }).message).toBe('Summarize this page\n\nWrite the answer in Turkish.');
+  });
+  it('changes nothing in an English Vex', () => {
+    globalThis.VexI18nUI = { locale: () => 'en' };
+    expect(L.instruction('summary')).toBe('');
+    expect(L.shapeRequest('summarize', { message: 'x' })).toEqual({ message: 'x' });
+  });
+  it('keeps what the profile says once it has been saved', () => {
+    globalThis.VexI18nUI = { locale: () => 'tr' };
+    const prof = L.state().profile;
+    prof.summary.lang = 'auto';
+    L.save({ profile: prof });
+    expect(L.instruction('summary')).toBe('');
   });
 });

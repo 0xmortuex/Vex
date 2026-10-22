@@ -5,13 +5,16 @@
 // notes, reminders, timers, the command bar, the AI — so this only decides
 // which one and passes the text along. Nothing is reimplemented.
 const QuickCapture = {
+  // The answers go back to the capture box, which is outside the areas the Turkish translator watches.
+  _t(text) { return (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup(text)) || text; },
+
   init() {
     if (!window.vex || typeof window.vex.onCaptureTake !== 'function') return false;
     window.vex.onCaptureTake(async (job) => {
       let out;
-      try { out = { ok: true, said: await this.run(job) }; }
+      try { out = { ok: true, said: this._t(await this.run(job)) }; }
       catch (err) {
-        out = { ok: false, error: (err && err.message) || 'That did not work' };
+        out = { ok: false, error: this._t((err && err.message) || 'That did not work') };
         VexProblems?.note('Quick capture', 'Could not carry out "' + String(job && job.text).slice(0, 60) + '"', err);
       }
       try { window.vex.captureDone({ id: job.id, ...out }); } catch {}
