@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v37.43.9 (2026-10-21) — Kurulum sihirbazında başka bir tarayıcıdan eşyalarınızı getirme, Türkçe sürüm notları ve tamamı Türkçe sihirbaz
+## v37.45.4 (2026-10-22) — Kurulum sihirbazında başka bir tarayıcıdan eşyalarınızı getirme, Türkçe sürüm notları ve tamamı Türkçe sihirbaz
 
 ### Yeni
 - **Kurulum sihirbazı, başka bir tarayıcıdan eşyalarınızı getirmeyi önerir.** Karşılamanın hemen ardından gelen yeni bir adım (kısa sürümde de) yer imleri, geçmiş ve kayıtlı parolalar için içe aktarma penceresini açar ve web sitelerinin neden yine de bir kez oturum açmanızı istediğini söyler: tarayıcılar açık oturumlarını kendilerine saklar ve Vex başka bir tarayıcının çerezlerini ya da parola deposunu asla okumaz; ama parolalarınız içe aktarıldığında bu oturum açma tek tıktır. Deneyin: Ctrl+K’ye basın, “Kurulum sihirbazı”nı çalıştırın ve 2. adıma bakın.
@@ -13,6 +13,7 @@ Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler
 - **Yeni sekme düğmesi son sekmenizi izler.** Eskiden çubuğun en sağında dururdu. Çubuğun boş kısmı pencereyi sürüklemek için kullanılmaya devam eder ve pencere düğmeleri sağda kalır. Safari görünümü sekmelerini çubuğu dolduracak şekilde korur. Deneyin: Üç sekme açın ve + işaretinin üçüncüden hemen sonra olduğunu görün.
 
 ### Düzeltildi
+- **Ayarlar her açılışta biraz büyüyordu.** Üç bölüm (Yapay zekâ harcama sınırı, Yapay zekâ parası, Yapay zekâ yönlendirme) Ayarlar her açıldığında bir dinleyici ekliyordu ve her biri çizdiği bölümü sonsuza kadar bellekte tutuyordu: açılış başına yaklaşık 65 öğe ve 11 dinleyici. Artık tek dinleyici tutuyorlar ve Ayarlar 24 kez açılsa bile hiç büyümüyor. Deneyin: Ayarlar’ı birkaç kez açıp kapatın, sonra Bellek panelini açın ve Vex’in kendi belleğinin yükselmediğine bakın.
 - **İçe aktarma penceresi Türkçede İngilizceydi.** Metni, sayıları (“3 yer imi”) ve iletileri artık Türkçe. Deneyin: Dili Türkçe yapın, Ctrl+K’ye basın ve “Başka bir tarayıcıdan içe aktar”ı çalıştırın.
 - **Kurulum sihirbazı Türkçede yarı İngilizceydi.** Türkçe seçildikten sonra başlıkların altındaki açıklamalar 23 adımın çoğunda İngilizce kalıyordu (görünüm seçenekleri, bellek ve gizlilik, oturum açma kodları, Bulut yapay zekâ, Eşitleme, parolalar, bildirimler ve son adım) ve ilk adımdaki iki seçenek de öyleydi. Hepsi artık Türkçe. Deneyin: Ctrl+K’ye basın, “Kurulum sihirbazı”nı çalıştırın, Türkçe’yi seçin ve sihirbazın tamamını adım adım gezin.
 - **Parantez içinde not olan metinler Türkçede yarı İngilizce kalıyordu.** “Posta (needs your permission)” gibi etiketlerde artık not da çevriliyor. Deneyin: Dili Türkçe yapın, Ayarlar’ı açın, Özet’i bulun ve Posta satırına bakın.

@@ -1,6 +1,6 @@
 # Changelog
 
-## v37.43.9 (2026-10-21) — Bring your things from another browser in the setup wizard, release notes in Turkish, and the whole wizard in Turkish
+## v37.45.4 (2026-10-22) — Bring your things from another browser in the setup wizard, release notes in Turkish, and the whole wizard in Turkish
 
 ### New
 - **The setup wizard offers to bring your things over from another browser.** A new step right after the welcome (also in the short version) opens the importer for bookmarks, history and saved passwords, and says why websites still ask for one sign-in: browsers keep their signed-in sessions to themselves and Vex never reads another browser's cookies or password store, but with your passwords imported that sign-in is one click. Try: Press Ctrl+K, run "Setup wizard", and look at step 2.
@@ -11,6 +11,7 @@
 - **The new-tab button follows your last tab.** It used to sit at the far right of the strip. The empty part of the strip can still be used to drag the window, and the window buttons stay at the right. The Safari look keeps its tabs filling the bar. Try: Open three tabs and check the + is right after the third.
 
 ### Fixed
+- **Settings grew a little every time it was opened.** Three sections (AI spend cap, AI money, AI routing) added a listener each time Settings opened, and each one kept the section it had drawn in memory for good: about 65 elements and 11 listeners per open. They keep one listener now, and opened 24 times Settings no longer grows at all. Try: Open and close Settings a few times, then open the Memory panel and check Vex's own memory is not climbing.
 - **The importer window was English in Turkish.** Its text, its counts ("3 yer imi") and its messages are Turkish now. Try: Set the language to Türkçe, press Ctrl+K and run "Import from Another Browser".
 - **The setup wizard was half English in Turkish.** After choosing Türkçe, the explanations under the headings stayed English on most of the 23 steps (the look choices, memory and privacy, sign-in codes, Cloud AI, Sync, passwords, notifications and the last step), and so did the two choices on the first step. All of them are Turkish now. Try: Press Ctrl+K, run "Setup wizard", choose Türkçe, and step through the whole wizard.
 - **Text with a note in brackets stayed half English in Turkish.** Labels such as "Posta (needs your permission)" now translate the note too. Try: Set the language to Türkçe, open Settings, find Brief, and check the Posta row.
