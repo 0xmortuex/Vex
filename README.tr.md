@@ -24,7 +24,7 @@ Vex, [castLabs Electron](https://github.com/castlabs/electron-releases) üzerind
 
 ## Türkçe kullanım
 
-Vex varsayılan olarak İngilizcedir; Türkçeyi kendiniz seçersiniz, Windows'un dilinden otomatik olarak seçilmez. Kurulum sihirbazının ilk adımında **English | Türkçe** seçeneği vardır. Sihirbazı daha sonra yeniden çalıştırarak dili değiştirebilirsiniz.
+Vex varsayılan olarak İngilizcedir; Türkçeyi kendiniz seçersiniz, Windows'un dilinden otomatik olarak seçilmez. Kurulum sihirbazının ilk adımında **English | Türkçe** seçeneği vardır. Sonradan **Ayarlar → Genel → Dil**’den de değiştirebilirsiniz.
 
 Türkçe seçildiğinde şunlar Türkçe olur:
 

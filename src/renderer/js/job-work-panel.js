@@ -34,7 +34,7 @@ const WorkPanel = {
           <span class="wp-swatch" style="background:${esc(themeMeta.accent || '#6366f1')}">${this._icon('briefcase', 17)}</span>
           <span class="wp-identity-text">
             <span class="wp-job">${esc(job.name)}</span>
-            <span class="wp-meta"><span class="wp-tag">${esc(job.cat)}</span>${esc(themeMeta.label || job.theme)} · ${toolCount} ${toolCount === 1 ? 'tool' : 'tools'}</span>
+            <span class="wp-meta"><span class="wp-tag">${esc(job.cat)}</span>${esc(themeMeta.label || job.theme)} · <span class="wp-count">${toolCount === 1 ? '1 tool' : toolCount + ' tools'}</span></span>
           </span>
           <button class="wp-change" id="wp-change">Change</button>
         </div>
