@@ -66,3 +66,50 @@ describe('SidebarManager._drawSettingsSections', () => {
     expect(await third).toBe(false);
   });
 });
+
+describe('the placement of the blocks is held while the sections draw', () => {
+  it('holds it after the first layout, and lets go once the last section is drawn', async () => {
+    const order = [];
+    const release = vi.fn(() => { order.push('release'); });
+    globalThis.SettingsUI = { enhance: vi.fn(() => { order.push('enhance'); }), holdLayout: vi.fn(() => { order.push('hold'); return release; }) };
+    await SidebarManager._drawSettingsSections();
+    expect(order).toEqual(['enhance', 'hold', 'enhance', 'release']);
+  });
+
+  it('lets go when the draw is stopped, and when a section throws', async () => {
+    const release = vi.fn();
+    globalThis.SettingsUI = { enhance: vi.fn(), holdLayout: vi.fn(() => release) };
+    const stopped = SidebarManager._drawSettingsSections();
+    SidebarManager.activePanel = null;
+    expect(await stopped).toBe(false);
+    expect(release).toHaveBeenCalledTimes(1);
+    SidebarManager.activePanel = 'settings';
+    globalThis.VexProblems = { note: vi.fn() };
+    globalThis.PersonasSettings = { renderPanel: () => { throw new Error('boom'); } };
+    expect(await SidebarManager._drawSettingsSections()).toBe(true);
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
+  it('a newer draw lets go of an older one that never finished', async () => {
+    const releases = [];
+    globalThis.SettingsUI = { enhance: vi.fn(), holdLayout: vi.fn(() => { const r = vi.fn(); releases.push(r); return r; }) };
+    const first = SidebarManager._drawSettingsSections();
+    const second = SidebarManager._drawSettingsSections();
+    expect(releases[0]).toHaveBeenCalled();          // let go by the second run, before its own frame
+    await first; await second;
+    expect(releases[1]).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the first enhance is for the first open only', () => {
+  it('builds the toolbar before the first paint when there is none, and not again on a later open', async () => {
+    const order = [];
+    globalThis.SettingsUI = { enhance: vi.fn(() => { order.push('enhance'); }), holdLayout: vi.fn(() => { order.push('hold'); return () => order.push('release'); }) };
+    await SidebarManager._drawSettingsSections();
+    expect(order).toEqual(['enhance', 'hold', 'enhance', 'release']);            // first open
+    order.length = 0;
+    document.getElementById('panel-settings').insertAdjacentHTML('afterbegin', '<div class="set-toolbar"></div>');
+    await SidebarManager._drawSettingsSections();
+    expect(order).toEqual(['hold', 'enhance', 'release']);                       // later: the toolbar is there, only the final one
+  });
+});

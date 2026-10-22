@@ -644,7 +644,14 @@ const SidebarManager = {
     const run = this._settingsRun = (this._settingsRun || 0) + 1;
     // Categorize + colorize the settings panel (presentation only): at once, so the first paint is already laid out, and again at the end.
     const enhance = () => { if (typeof SettingsUI !== 'undefined') SettingsUI.enhance(); };
-    enhance();
+    // The first open builds the toolbar and the category chips, so the first paint is laid out. Every later open already has them, and enhance
+    // (200 to 560 ms on a real profile) would only hold the first paint back to build them again: the one at the end covers what the draw adds.
+    if (!document.querySelector('#panel-settings .set-toolbar')) enhance();
+    // From here the sections fill in one by one; the blocks are placed once at the end, not after each one (SettingsUI.holdLayout).
+    const release = typeof SettingsUI !== 'undefined' && typeof SettingsUI.holdLayout === 'function' ? SettingsUI.holdLayout() : () => undefined;
+    // A run that never finished (its frame never came) must not keep the placement held: the newer run lets go of it.
+    if (this._settingsRelease) this._settingsRelease();
+    this._settingsRelease = release;
     const steps = this._settingsSteps();
     const loose = steps.filter(st => !st[0]);
     const withEl = steps.filter(st => st[0]).map(st => ({ st, el: document.getElementById(st[0]) }));
@@ -655,8 +662,13 @@ const SidebarManager = {
     const still = () => run === this._settingsRun && (this.activePanel === 'settings' || this.sidePanel === 'settings');
     const frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
     return new Promise((resolve) => {
+      const finish = (value) => {
+        release();
+        if (this._settingsRelease === release) this._settingsRelease = null;
+        resolve(value);
+      };
       const slice = () => {
-        if (!still()) { resolve(false); return; }
+        if (!still()) { finish(false); return; }
         const t0 = performance.now();
         // At least one section a slice, so a slow one cannot stall the rest.
         while (queue.length) {
@@ -668,8 +680,8 @@ const SidebarManager = {
           if (performance.now() - t0 >= this.SETTINGS_SLICE_MS) break;
         }
         if (queue.length) { frame(slice); return; }
-        enhance();
-        resolve(true);
+        // The sections are in: the menu is built again only if they, or the language, are not what it was built from.
+        try { if (typeof SettingsUI !== 'undefined') (SettingsUI.enhanceIfChanged || SettingsUI.enhance).call(SettingsUI); } finally { finish(true); }
       };
       frame(slice);
     });

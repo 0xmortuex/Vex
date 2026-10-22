@@ -543,6 +543,21 @@ const SettingsUI = {
     // Side-by-side sections in a wide window (see _layout).
     this._watchLayout(root);
     this._markCurrent(root);
+    this._seen = this._signature(root);
+  },
+
+  // What enhance last saw of the page: the language and the sections (which ones, shown or not). Enhancing again changes nothing when this is the
+  // same, and costs 400 to 500 ms on a real profile (it builds the category menu for 250 sections), so the end of an open asks enhanceIfChanged.
+  _signature(root) {
+    const language = typeof VexI18nUI !== 'undefined' && typeof VexI18nUI.locale === 'function' ? VexI18nUI.locale() : '';
+    const groups = Array.from(root.children).filter(el => el.classList && el.classList.contains('setting-group'));
+    return language + '|' + document.body.dataset.uiMode + '|' + groups.map(g => g.id + (g.hidden || g.style.display === 'none' ? '-' : '+')).join(',');
+  },
+  enhanceIfChanged() {
+    const root = document.querySelector('#panel-settings .settings-content');
+    if (root && this._seen === this._signature(root)) return false;
+    this.enhance();
+    return true;
   },
 
   // === Settings layout =====================================================
@@ -934,10 +949,31 @@ const SettingsUI = {
   // column count already in use and leaves a change of count to the next
   // frame: see _watchLayout.
   _layout(root, opts) {
+    // Held while the sections draw (holdLayout): the placement waits and happens once, at the end.
+    if (this._held > 0) { this._owed = true; return false; }
     const again = this._layoutBlocks(root, opts);
     // The style written to the blocks is not a change of content to react to.
     if (this._contentObserver) this._contentObserver.takeRecords();
     return again;
+  },
+
+  // Every section that fills in while Settings draws (SidebarManager._drawSettingsSections) changed the page, and each change placed all
+  // the blocks again: a placement reads sizes, which makes the browser lay out the whole page (about 45 ms), and thirty of them took 1.4 s of
+  // the 2.5 s a real profile needed to open Settings (found by profiling it, 2026-10-22). The draw holds the placement and the release
+  // does it once if anything asked for it meanwhile. Holds can nest; releasing twice is harmless.
+  _held: 0,
+  _owed: false,
+  holdLayout() {
+    this._held++;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      if (--this._held > 0 || !this._owed) return;
+      this._owed = false;
+      const root = document.querySelector('#panel-settings .settings-content');
+      if (root) this._layout(root);
+    };
   },
 
   _layoutBlocks(root, { keepCols = false } = {}) {
