@@ -100,7 +100,7 @@ describe('SettingsUI.enhance', () => {
     SettingsUI.enhance();
     const chips = Array.from(document.querySelectorAll('.set-nav .set-nav-chip')).map(c => c.textContent.trim());
     // AI Personas is one of the AI sections, so its nav chip is the AI one.
-    expect(chips).toEqual(['Personalization', 'AI', 'Autofill']);
+    expect(chips).toEqual(['Personalization', 'Autofill', 'AI']);   // in the order of SettingsUI.ORDER
     expect(document.querySelectorAll('.set-nav .set-nav-chip svg').length).toBe(3);
   });
 
@@ -153,13 +153,13 @@ describe('the AI sections share one chip', () => {
     return spy;
   };
 
-  it('puts one AI chip in the nav instead of seven, the other chips in their old order', () => {
+  it('puts one AI chip in the nav instead of seven, the other chips in the order of SettingsUI.ORDER', () => {
     const names = navNames();
     expect(names.filter(n => n === 'AI')).toHaveLength(1);
     for (const gone of ['Personas', 'AI Memory', 'On-Device', 'MCP', 'Skills', 'History']) expect(names).not.toContain(gone);
     expect(names.length).toBeLessThanOrEqual(32); // 31 + Downloads (folder and ask-where-to-save, 2026-10-10)
-    expect(names.slice(0, 16)).toEqual(['General', 'Browser', 'Sidebar', 'Privacy', 'Autofill', 'Sessions', 'Downloads', 'Workspaces',
-      'Performance', 'Profiles', 'Data', 'Location', 'Sync', 'AI', 'Appearance', 'Layout']);
+    expect(names.slice(0, 16)).toEqual(['General', 'Browser', 'Appearance', 'Layout', 'Sidebar', 'Personalization', 'Profiles', 'Privacy',
+      'Passwords', 'Passkeys', 'Autofill', 'Permissions', 'Extensions', 'Downloads', 'Sessions', 'Performance']);
     expect(names).not.toContain('Other');
     expect(names).toContain('Recall');
     expect(names).toContain('Personalization');
@@ -323,5 +323,46 @@ describe('the chip bar height', () => {
   it('a short window and Larger/Largest keep one row that scrolls', () => {
     expect(css).toMatch(/@media \(max-height: 760px\)\s*\{\s*\.set-nav\s*\{[^}]*max-height:\s*34px;[^}]*overflow-y:\s*auto/);
     expect(css).toMatch(/\[data-vex-scale="largest"\]\) \.set-nav\s*\{[^}]*max-height:\s*34px;[^}]*overflow-y:\s*auto/);
+  });
+});
+
+describe('the order of the sections', () => {
+  const cats = () => [...document.querySelectorAll('#panel-settings .settings-content > .setting-group')].map(g => SettingsUI._catOf(g).name);
+  const rank = (name) => SettingsUI.ORDER.indexOf(name);
+
+  it('names every category there is, once, so none falls into the unlisted spot by accident', () => {
+    const all = SettingsUI.CATS.map(c => c.name);
+    expect(SettingsUI.ORDER.filter(n => !all.includes(n))).toEqual([]);      // no name that is not a category
+    expect(all.filter(n => !SettingsUI.ORDER.includes(n))).toEqual([]);      // every category is placed
+    expect(new Set(SettingsUI.ORDER).size).toBe(SettingsUI.ORDER.length);
+  });
+
+  it('puts the sections of the real page in that order, with General first and About last, and is stable when run again', () => {
+    const body = new DOMParser().parseFromString(PANEL_HTML, 'text/html').body;
+    document.body.innerHTML = body.innerHTML;
+    const root = document.querySelector('#panel-settings .settings-content');
+    const groups = Array.from(root.children).filter(el => el.classList.contains('setting-group'));
+    const before = groups.slice();
+    expect(SettingsUI._orderGroups(root, groups)).toBe(true);
+    const ranks = cats().map(rank);
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+    expect(cats()[0]).toBe('General');
+    expect(cats()[cats().length - 1]).toBe('About');
+    expect(cats().indexOf('Passwords')).toBeLessThan(cats().indexOf('Boosts'));
+    expect(cats().indexOf('Personalization')).toBeLessThan(cats().indexOf('AI'));
+    expect(new Set(Array.from(root.children).filter(el => el.classList.contains('setting-group')))).toEqual(new Set(before));   // nothing lost
+    expect(root.firstElementChild.tagName).toBe('H2');
+    expect(SettingsUI._orderGroups(root, Array.from(root.children).filter(el => el.classList.contains('setting-group')))).toBe(false);
+  });
+
+  it('keeps the cards of one category in the order they had', () => {
+    document.body.innerHTML = '<div id="panel-settings"><div class="settings-content">' +
+      ['Passwords', 'AI Skills', 'Privacy & Security', 'General', 'AI Personas', 'Privacy Hardening']
+        .map(t => '<div class="setting-group" id="g-' + t.replace(/\W+/g, '') + '"><div class="setting-label"><strong>' + t + '</strong></div></div>').join('') +
+      '</div></div>';
+    const root = document.querySelector('.settings-content');
+    SettingsUI._orderGroups(root, Array.from(root.children));
+    expect(Array.from(root.children).map(g => g.querySelector('strong').textContent)).toEqual(
+      ['General', 'Privacy & Security', 'Privacy Hardening', 'Passwords', 'AI Personas', 'AI Skills']);
   });
 });

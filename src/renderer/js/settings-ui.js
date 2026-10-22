@@ -107,6 +107,43 @@ const SettingsUI = {
     { name: 'About',           icon: 'info',     color: '#64748b', match: ['about', 'version', 'update'] },
   ],
 
+  // The order the sections come in, by category name (see CATS): what most people look for first, and the rest by how related they are -
+  // look and layout, then your start page and profiles, then privacy and sign-in, then how the browser behaves, then reading, AI,
+  // knowledge and focus, then accounts and sync, then extras, and last your data, Vex's own health, Developer and About. The page's
+  // markup order was the order the sections were written in over time (Passwords after Boosts, Personalization after AI). A category
+  // that is not listed goes just before Vex health.
+  ORDER: [
+    'General', 'Browser', 'Appearance', 'Layout', 'Sidebar', 'Personalization', 'Profiles',
+    'Privacy', 'Passwords', 'Passkeys', 'Autofill', 'Permissions', 'Extensions',
+    'Downloads', 'Sessions', 'Performance', 'Tab Groups', 'History', 'Shortcuts', 'Reading',
+    'AI', 'Personas', 'AI Memory', 'On-Device', 'MCP', 'Skills', 'AI History',
+    'Knowledge', 'Library', 'Recall', 'Focus OS', 'Focus', 'Workspaces', 'Location',
+    'Sync', 'Cloud', 'Boosts', 'Chains', 'Extras', 'Play',
+    'Data', 'Vex health', 'Developer', 'About',
+  ],
+
+  // The category of one section card, by its English heading (a Turkish heading would match none).
+  _catOf(group) {
+    const labelEl = group.querySelector('.setting-label');
+    const text = (labelEl ? (typeof VexI18nUI !== 'undefined' ? VexI18nUI.english(labelEl) : labelEl.textContent) : '').toLowerCase();
+    return this._matchCat(text);
+  },
+
+  // Put the section cards in ORDER (a stable sort: cards of one category keep the order they have), in the page and in `groups`.
+  // It changes nothing when they are already in order, so running it on every open costs nothing.
+  _orderGroups(root, groups) {
+    const rankOf = (cat) => {
+      const i = this.ORDER.indexOf(cat.name);
+      return i >= 0 ? i : this.ORDER.indexOf('Vex health') - 0.5;
+    };
+    const ordered = groups.map((g, i) => ({ g, i, r: rankOf(this._catOf(g)) })).sort((a, b) => a.r - b.r || a.i - b.i).map(x => x.g);
+    if (ordered.every((g, i) => g === groups[i])) return false;
+    const after = groups[groups.length - 1].nextSibling;
+    ordered.forEach(g => root.insertBefore(g, after));
+    groups.splice(0, groups.length, ...ordered);
+    return true;
+  },
+
   // How a group's one chip looks in the nav (see `group` in CATS).
   GROUPS: {
     AI: { name: 'AI', icon: 'spark', color: '#d4a574' },
@@ -388,6 +425,7 @@ const SettingsUI = {
     }
     nav.innerHTML = '';
     root.querySelectorAll(':scope > .set-subnav').forEach(row => row.remove());
+    this._orderGroups(root, groups);
     const seen = new Set();
     const rows = {};   // group name -> { row, chip, names } for its row of sub-chips
 
