@@ -967,7 +967,7 @@ body.tabs-hidden #icon-sidebar:hover::after { opacity: 0.4; }
 @keyframes ai-btn-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { #btn-toggle-ai.working::after { animation: none; } }
 #btn-toggle-ai.active:hover { filter: brightness(1.1); }
-#btn-toggle-ai svg { stroke: currentColor; }
+#btn-toggle-ai svg { stroke: currentColor; flex: none; }
 
 /* Tab audio indicator — inline SVG on currentColor, so it follows the theme. */
 .tab-audio {

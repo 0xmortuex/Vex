@@ -25,6 +25,7 @@ const AINewsUI = {
     }
     document.addEventListener('vex:ai-news', () => { this.refreshBadge(); if (document.getElementById('ain-panel')) this._drawList(); });
     this._injectStyle();
+    if (typeof AINews !== 'undefined') AINews.migrateLanguageForTurkish();
     this.refreshBadge();
   },
 

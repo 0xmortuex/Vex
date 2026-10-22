@@ -22,6 +22,7 @@
 const AttentionInbox = {
   KEY: 'vex.attention.inbox',
   ENABLED_KEY: 'vex.attention.inboxOn',
+  SEEN_KEY: 'vex.attention.seenAt',
   MAX_ROWS: 50,
   MAX_DOTS: 3,
   _handlers: new Map(),
@@ -119,7 +120,11 @@ const AttentionInbox = {
   // ---- the dots ---------------------------------------------------------------------------
   // Other dots are marked data-vex-dot (the panel badges are).
   otherDots() { return typeof document === 'undefined' ? 0 : document.querySelectorAll('[data-vex-dot]:not([data-vex-dot="inbox"]):not([hidden])').length; },
-  dotVisible() { return this.enabled() && this.count() > 0 && this.otherDots() < this.MAX_DOTS; },
+  // The dot means "something new is waiting": it goes once the list has been opened, and comes back only for a row added or refreshed after that.
+  seenAt() { return Number(localStorage.getItem(this.SEEN_KEY)) || 0; },
+  unseen() { const at = this.seenAt(); return this._read().filter(r => (r.ts || 0) > at).length; },
+  markSeen() { localStorage.setItem(this.SEEN_KEY, String(this._now())); this.refresh(); },
+  dotVisible() { return this.enabled() && this.unseen() > 0 && this.otherDots() < this.MAX_DOTS; },
 
   // ---- the bell ---------------------------------------------------------------------------
   refresh() {
@@ -182,6 +187,7 @@ const AttentionInbox = {
     document.addEventListener('keydown', this._onKey, true);
     document.addEventListener('mousedown', this._onDoc, true);
     this._renderList();
+    this.markSeen();
     return pop;
   },
   close() {

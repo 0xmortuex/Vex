@@ -1,7 +1,7 @@
 // AI news (js/ai-news.js): the rule engine, quiet hours, caps, the poller's
 // state machine and the delivery plan. Pure parts are called directly; the
 // poller runs against an injected request, so no network and no window.
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 const { AINews } = require('../../src/renderer/js/ai-news.js');
 globalThis.AINews = AINews;   // the panel reads it as a script global
 
@@ -463,6 +463,32 @@ describe('language filter', () => {
     const zh = prefs({ languages: ['zh'] });
     expect(AINews.languageWanted(item({ lang: 'zh-CN' }), zh)).toBe(true);
     expect(AINews.languageWanted(item({ lang: 'en' }), zh)).toBe(false);
+  });
+  describe('in a Turkish Vex', () => {
+    beforeEach(() => { globalThis.VexI18nUI = { locale: () => 'tr' }; });
+    afterEach(() => { delete globalThis.VexI18nUI; });
+    it('keeps Turkish stories as well as English by default', () => {
+      store = {};
+      expect(AINews.prefs().languages).toEqual(['tr', 'en']);
+    });
+    it('adds Turkish once to a profile that still has the old English-only default, and leaves a later change alone', () => {
+      store = {};
+      globalThis.VexI18nUI = { locale: () => 'en' };
+      AINews.setPrefs({ enabled: true });
+      expect(AINews.prefs().languages).toEqual(['en']);
+      globalThis.VexI18nUI = { locale: () => 'tr' };
+      expect(AINews.migrateLanguageForTurkish()).toBe(true);
+      expect(AINews.prefs().languages).toEqual(['tr', 'en']);
+      AINews.setPrefs({ languages: ['en'] });
+      expect(AINews.migrateLanguageForTurkish()).toBe(false);
+      expect(AINews.prefs().languages).toEqual(['en']);
+    });
+    it('does not touch a list somebody chose', () => {
+      store = {};
+      AINews.setPrefs({ enabled: true, languages: ['zh'] });
+      expect(AINews.migrateLanguageForTurkish()).toBe(false);
+      expect(AINews.prefs().languages).toEqual(['zh']);
+    });
   });
   it('a story with no language counts as English', () => {
     expect(AINews.languageWanted(item({ lang: '' }), prefs())).toBe(true);

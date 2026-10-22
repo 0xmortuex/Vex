@@ -356,6 +356,11 @@ const SidebarManager = {
     // The Memory panel's trend line samples from launch, not from its first open.
     if (typeof MemoryPanel !== 'undefined' && MemoryPanel.startTrend) MemoryPanel.startTrend();
 
+    // The house icon follows the tab in front.
+    window.addEventListener('vex:tab-activated', () => this._syncStartIcon());
+    window.addEventListener('vex:tab-url-changed', () => this._syncStartIcon());
+    this._syncStartIcon();
+
     // Set up sidebar icon clicks
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -451,9 +456,16 @@ const SidebarManager = {
       const url = typeof START_URL !== 'undefined' ? START_URL : 'vex://start';
       TabManager.createTab(url, true);
     }
-    document.querySelectorAll('.sidebar-icon').forEach(b => {
-      b.classList.toggle('active', b.dataset.panel === 'start');
-    });
+    this._syncStartIcon();
+  },
+
+  // The house icon is lit only while the page in front IS the start page: no panel open and the active tab on the start page. It used to
+  // be lit when clicked and stay lit on every other tab.
+  _syncStartIcon() {
+    const btn = document.querySelector('.sidebar-icon[data-panel="start"]');
+    if (!btn) return;
+    const tab = typeof TabManager !== 'undefined' && TabManager.activeTabId ? TabManager.tabs.find(t => t.id === TabManager.activeTabId) : null;
+    btn.classList.toggle('active', !this.activePanel && !!tab && typeof isStartPage === 'function' && isStartPage(tab.url));
   },
 
   togglePanel(panelName) {
@@ -951,6 +963,7 @@ const SidebarManager = {
       const n = btn.dataset.panel;
       btn.classList.toggle('active', (!!this.activePanel && n === this.activePanel) || (!!side && n === side));
     });
+    this._syncStartIcon();
   },
 
   panelLabel(panelName) {

@@ -81,7 +81,8 @@ const AINews = {
       // Which languages are kept: primary language codes ('en', 'tr', 'zh') plus
       // 'other' for any code not named in LANGUAGES. A story with no language
       // is read as English ('include') or not kept ('exclude').
-      languages: ['en'],
+      // In a Turkish Vex the Turkish stories come too, English after them (an English Vex is unchanged).
+      languages: this._vexIsTurkish() ? ['tr', 'en'] : ['en'],
       unknownLanguage: 'include',
       sound: true,
       quietHours: { enabled: false, from: '23:00', to: '08:00', allowBreaking: false },
@@ -190,6 +191,21 @@ const AINews = {
   },
 
   prefs() { return this.sanitizePrefs(this._readJson(this.PREFS_KEY)); },
+
+  _vexIsTurkish() { return typeof VexI18nUI !== 'undefined' && typeof VexI18nUI.locale === 'function' && VexI18nUI.locale() === 'tr'; },
+
+  // A profile that saved its preferences while the default was English only has ['en'] saved, which is the old default and not a choice
+  // anyone made. Once, in a Turkish Vex, Turkish is added to it; a list that differs from ['en'] is left as it is, and so is a later change.
+  TR_MIGRATED_KEY: 'vex.aiNews.trLanguageMigrated',
+  migrateLanguageForTurkish() {
+    if (!this._vexIsTurkish() || localStorage.getItem(this.TR_MIGRATED_KEY) === '1') return false;
+    localStorage.setItem(this.TR_MIGRATED_KEY, '1');
+    if (this._readJson(this.PREFS_KEY) === null || this._privateWindow()) return false;
+    const cur = this.prefs();
+    if (cur.languages.length !== 1 || cur.languages[0] !== 'en') return false;
+    this.setPrefs({ languages: ['tr', 'en'] });
+    return true;
+  },
 
   // Merge a patch (objects merge one level down; lists and scalars replace).
   // Throws, in words, for an address that cannot be used.

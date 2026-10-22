@@ -253,6 +253,23 @@ describe('the Attention Inbox', () => {
     expect(bell.hidden).toBe(false);          // the list is still there, only the dot gave way
   });
 
+  it('takes the dot away once the list has been opened, and brings it back only for something new', () => {
+    const bell = document.getElementById('btn-attention');
+    let t = 1000;
+    I._now = () => t;
+    I.add({ feature: 'recall', title: 'You searched this earlier today' });
+    expect(bell.querySelector('.attention-dot')).not.toBeNull();
+    t = 2000;
+    I.open();
+    I.close();
+    expect(bell.hidden).toBe(false);          // still listed
+    expect(bell.querySelector('.attention-dot')).toBeNull();
+    t = 3000;
+    I.add({ feature: 'backup', title: 'Back up?' });
+    expect(bell.querySelector('.attention-dot')).not.toBeNull();
+    delete I._now;
+  });
+
   it('opens a list with Dismiss, Show less and Never for this feature on every row', () => {
     I.add({ feature: 'backup', title: 'Back up?', action: { label: 'Export now', key: 'export' } });
     I.open();
