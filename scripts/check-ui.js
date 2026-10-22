@@ -1267,13 +1267,14 @@ function settingsLayouts(full) {
 // where they were before (an "overlap" that was gone 100ms later). Wait until
 // no block has moved for 300ms, at most 3s, and judge what the person is left
 // looking at. A layout that never settles, or settles wrong, is still flagged.
+// While the sections draw, the placement is held (SettingsUI.holdLayout) and nothing moves, however long a slow machine takes: that is not settled.
 async function settleSettingsLayout(cdp) {
-  const sig = "Array.from(document.querySelectorAll('#panel-settings .settings-content > *')).map(e => { const r = e.getBoundingClientRect(); return Math.round(r.left) + ':' + Math.round(r.top) + ':' + Math.round(r.height); }).join()";
-  const until = Date.now() + 3000;
+  const sig = "Array.from(document.querySelectorAll('#panel-settings .settings-content > *')).map(e => { const r = e.getBoundingClientRect(); return Math.round(r.left) + ':' + Math.round(r.top) + ':' + Math.round(r.height); }).join() + '|' + (SettingsUI._held || 0) + (SettingsUI._owed ? 'o' : '')";
+  const until = Date.now() + 8000;
   let last = null, same = 0;
   while (Date.now() < until && same < 3) {
     const now = await evaluate(cdp, sig);
-    same = now === last ? same + 1 : 0;
+    same = now === last && /|0$/.test(now) ? same + 1 : 0;
     last = now;
     await sleep(100);
   }
