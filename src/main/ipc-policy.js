@@ -38,6 +38,8 @@ const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-hos
 const UI_ONLY_CHANNELS = new Set([
   // The sampling heap profiler on the Discord panel (main/discord-heap.js): Vex's own window only.
   'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage',
+  // The language the native dialogs speak (main/i18n-main.js).
+  'i18n:set-language',
   // Knowledge base (main/knowledge-base.js): the index holds page text.
   'kb:plan', 'kb:put', 'kb:sync-archive', 'kb:status', 'kb:step', 'kb:search', 'kb:context', 'kb:related', 'kb:related-page', 'kb:keep-out', 'kb:keep-out-clear', 'kb:forget',
   // Cookie report and cleanup, extension usage, crash-proof tab snapshots

@@ -10412,6 +10412,10 @@ ipcMain.handle('mail:compose', async (_e, { subject, body, to }) => {
   await shell.openExternal(url);
   return { ok: true };
 });
+// The language of the native dialogs (main/i18n-main.js): the window says which one Vex is in, and what a Windows dialog shows follows it.
+const _i18nMain = require('./main/i18n-main').create({ fs, dir: app.getPath('userData') });
+_i18nMain.install(dialog);
+ipcMain.handle('i18n:set-language', (_e, lang) => ({ ok: true, language: _i18nMain.setLanguage(lang) }));
 ipcMain.handle('open-external', (_e, url) => {
   try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}
   return { ok: false };

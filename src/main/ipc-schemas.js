@@ -415,6 +415,7 @@ define('theme:set-custom-image', [optional(value => typeof value === 'string' &&
 define('theme:read-wallpaper', []);
 // Website appearance (src/main/website-appearance.js): light or dark for pages.
 define('theme:set-website-appearance', [oneOf(['system', 'light', 'dark'])]);
+define('i18n:set-language', [oneOf(['en', 'tr'])]);
 define('site:clear-data cookies:list', [shape({ url: web, partition: optional(string(160)) })]);
 // Editing one cookie: the name and the three things that decide which cookie
 // of that name it is (domain, path, secure) come straight back from the list.

@@ -730,6 +730,7 @@ contextBridge.exposeInMainWorld('vex', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
   getReleaseList: () => ipcRenderer.invoke('updates:list'),
+  setLanguage: (lang) => ipcRenderer.invoke('i18n:set-language', lang),
   restartApp: () => ipcRenderer.invoke('app:restart'),
   focusWindow: () => ipcRenderer.invoke('app:focus'),
 
