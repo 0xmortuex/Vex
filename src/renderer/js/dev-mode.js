@@ -116,6 +116,16 @@ const VexDevMode = {
         },
       },
       {
+        id: 'check-updates', label: 'Check for updates', icon: 'download',
+        what: 'Asks GitHub for the newest release now, the same check as Settings › About. A newer one opens the update cover; otherwise it says you are up to date.',
+        run: async () => {
+          if (typeof UpdateNotifier === 'undefined') throw new Error('The update check is not loaded.');
+          // checkManually() reports the result itself (a cover, or a message), so there is nothing to add here.
+          const r = await UpdateNotifier.checkManually();
+          if (r) localStorage.setItem('vex.lastUpdateCheck', Date.now().toString());
+        },
+      },
+      {
         id: 'devtools', label: 'Open DevTools', icon: 'terminal',
         what: 'The Chromium inspector for the interface itself, not the page. Docked at the bottom; press again to close.',
         run: async () => {

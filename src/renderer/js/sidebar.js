@@ -585,118 +585,7 @@ const SidebarManager = {
       if (typeof VexBreaker !== 'undefined') VexBreaker.guardPanel(panelEl, 'panel:' + panelName, drawn[0], draw);
       else draw();
     }
-    if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
-      // Phase 13: render the Vex Sync section whenever Settings opens
-      const c = document.getElementById('sync-panel-content');
-      if (c) SyncSettings.renderSyncPanel(c);
-    }
-    if (panelName === 'settings' && typeof AISettings !== 'undefined') {
-      // Phase 14: populate the AI Backend section each time Settings opens
-      AISettings.renderAISettings();
-    }
-    if (panelName === 'settings' && typeof GameMode !== 'undefined') {
-      // Streamer mode and the Discord hotkeys (js/game-mode.js).
-      GameMode.renderSettings().catch(err => VexProblems?.note('Settings', 'Could not show the gaming settings', err));
-    }
-    if (panelName === 'settings' && typeof VexMemoryTools !== 'undefined') {
-      try { VexMemoryTools.renderSettings(); } catch (err) { VexProblems?.note('Settings', 'Could not show the memory tools settings', err); }
-    }
-    if (panelName === 'settings' && typeof BatteryMode !== 'undefined') {
-      // The On battery section (js/battery-mode.js).
-      BatteryMode.renderSettings().catch(err => VexProblems?.note('Settings', 'Could not show the battery settings', err));
-    }
-    if (panelName === 'settings' && typeof PersonasSettings !== 'undefined') {
-      // Phase 15: render the Personas grid each time Settings opens
-      PersonasSettings.renderPanel(document.getElementById('personas-panel-content'));
-    }
-    if (panelName === 'settings' && typeof ShortcutEditor !== 'undefined') {
-      // Phase 17: render the keyboard shortcut editor each time Settings opens
-      ShortcutEditor.renderPanel(document.getElementById('shortcuts-editor-content'));
-    }
-    if (panelName === 'settings' && typeof ExtensionsSettings !== 'undefined') {
-      // Phase 18: render the Chrome Extensions manager each time Settings opens
-      ExtensionsSettings.render(document.getElementById('extensions-panel-content'));
-    }
-    if (panelName === 'settings' && typeof PermissionsSettings !== 'undefined') {
-      // Site permissions manager each time Settings opens
-      PermissionsSettings.render(document.getElementById('permissions-panel-content'));
-    }
-    if (panelName === 'settings' && typeof LocationSettings !== 'undefined') {
-      // Manual-location override (replaces Google Cloud geolocation)
-      LocationSettings.render(document.getElementById('location-panel-content'));
-    }
-    if (panelName === 'settings' && typeof VexSkills !== 'undefined') {
-      // AI Skills manager each time Settings opens
-      VexSkills.renderPanel(document.getElementById('skills-panel-content'));
-    }
-    if (panelName === 'settings' && typeof VexBoosts !== 'undefined') {
-      // Boosts (per-site customization) list each time Settings opens
-      VexBoosts.renderPanel(document.getElementById('boosts-panel-content'));
-    }
-    if (panelName === 'settings' && typeof VexUserscripts !== 'undefined') {
-      // Userscripts list each time Settings opens
-      VexUserscripts.renderPanel(document.getElementById('userscripts-panel-content'))
-        .catch(err => window.VexProblems?.note('Userscripts', 'Could not show the userscripts list', err));
-    }
-    if (panelName === 'settings' && typeof PasswordVault !== 'undefined') {
-      // Saved passwords list each time Settings opens
-      PasswordVault.renderPanel(document.getElementById('passwords-panel-content'));
-    }
-    if (panelName === 'settings' && typeof PageWatchUI !== 'undefined') {
-      PageWatchUI.renderSettings(document.getElementById('pagewatch-panel-content'));
-    }
-    if (panelName === 'settings' && typeof AINewsUI !== 'undefined') {
-      AINewsUI.renderSettings(document.getElementById('ainews-panel-content'));
-    }
-    if (panelName === 'settings' && typeof VexBrief !== 'undefined') {
-      VexBrief.renderSettings(document.getElementById('brief-panel-content'));
-    }
-    if (panelName === 'settings' && typeof BriefIntegration !== 'undefined') {
-      BriefIntegration.renderSettings(document.getElementById('brief-extras-settings'));
-    }
-    if (panelName === 'settings' && typeof FocusMode !== 'undefined') {
-      FocusMode.renderPanel(document.getElementById('focus-panel-content'));
-    }
-    if (panelName === 'settings' && typeof VexWorkflow !== 'undefined') {
-      VexWorkflow.renderSettings(document.getElementById('workflow-panel-content'));
-    }
-    if (panelName === 'settings' && typeof DistractionBudget !== 'undefined') {
-      DistractionBudget.renderPanel(document.getElementById('budget-panel-content'));
-    }
-    if (panelName === 'settings' && typeof CommandChains !== 'undefined') {
-      CommandChains.renderPanel(document.getElementById('chains-panel-content'));
-    }
-    if (panelName === 'settings' && typeof TabArchiver !== 'undefined') {
-      TabArchiver.renderSettings(document.getElementById('library-panel-content'));
-    }
-    if (panelName === 'settings' && typeof AccessibilityPack !== 'undefined') {
-      AccessibilityPack.renderPanel(document.getElementById('a11y-panel-content'));
-    }
-    if (panelName === 'settings' && typeof Recall !== 'undefined') {
-      Recall.renderSettings(document.getElementById('recall-panel-content'));
-    }
-    if (panelName === 'settings' && typeof PrivacyPack !== 'undefined') {
-      PrivacyPack.renderSettings(document.getElementById('privacy-panel-content'));
-    }
-    if (panelName === 'settings' && window.DiscordBypass) {
-      DiscordBypass.renderSetting(document.getElementById('discord-bypass-setting'));
-    }
-    if (panelName === 'settings' && window.DiscordTheme) {
-      DiscordTheme.renderSetting(document.getElementById('discord-theme-setting'));
-    }
-    if (panelName === 'settings' && typeof AIMemory !== 'undefined') {
-      AIMemory.renderSettings(document.getElementById('ai-memory-panel-content'));
-    }
-    if (panelName === 'settings' && typeof WebLLM !== 'undefined') {
-      WebLLM.renderSettings(document.getElementById('webllm-panel-content'));
-    }
-    if (panelName === 'settings' && typeof McpClient !== 'undefined') {
-      McpClient.renderSettings(document.getElementById('mcp-panel-content'));
-    }
-    if (panelName === 'settings' && typeof SettingsUI !== 'undefined') {
-      // Categorize + colorize the settings panel (presentation only).
-      SettingsUI.enhance();
-    }
+    if (panelName === 'settings') this._drawSettingsSections();
 
     // Killed while it was hidden: load it again now rather than showing a
     // blank panel and making the user press Refresh.
@@ -706,6 +595,84 @@ const SidebarManager = {
     if (!this.customPanels.includes(panelName) && !this.panelWebviews[panelName]) {
       this._createPanelWebview(panelName, panelEl);
     }
+  },
+
+  // Settings draws its sections each time it opens (their lists may have changed). They used to all draw before the panel could paint, which
+  // took about two seconds on a full profile. Now the panel shows at once, and the sections draw in short slices of a few milliseconds
+  // between frames, so the window keeps answering: the ones with no place of their own first, then the rest in the order they sit on the
+  // page. Leaving Settings, or opening it again, stops the older run. Resolves when every section has been drawn.
+  SETTINGS_SLICE_MS: 8,
+  _settingsSteps() {
+    const el = (id) => document.getElementById(id);
+    // [id of the element the section draws into (or null), what draws it]
+    return [
+      [null, () => { if (typeof AISettings !== 'undefined') return AISettings.renderAISettings(); }],
+      [null, () => { if (typeof GameMode !== 'undefined') return GameMode.renderSettings(); }],
+      [null, () => { if (typeof VexMemoryTools !== 'undefined') return VexMemoryTools.renderSettings(); }],
+      [null, () => { if (typeof BatteryMode !== 'undefined') return BatteryMode.renderSettings(); }],
+      ['sync-panel-content', () => { const c = el('sync-panel-content'); if (c && typeof SyncSettings !== 'undefined') return SyncSettings.renderSyncPanel(c); }],
+      ['personas-panel-content', () => { if (typeof PersonasSettings !== 'undefined') return PersonasSettings.renderPanel(el('personas-panel-content')); }],
+      ['shortcuts-editor-content', () => { if (typeof ShortcutEditor !== 'undefined') return ShortcutEditor.renderPanel(el('shortcuts-editor-content')); }],
+      ['extensions-panel-content', () => { if (typeof ExtensionsSettings !== 'undefined') return ExtensionsSettings.render(el('extensions-panel-content')); }],
+      ['permissions-panel-content', () => { if (typeof PermissionsSettings !== 'undefined') return PermissionsSettings.render(el('permissions-panel-content')); }],
+      ['location-panel-content', () => { if (typeof LocationSettings !== 'undefined') return LocationSettings.render(el('location-panel-content')); }],
+      ['skills-panel-content', () => { if (typeof VexSkills !== 'undefined') return VexSkills.renderPanel(el('skills-panel-content')); }],
+      ['boosts-panel-content', () => { if (typeof VexBoosts !== 'undefined') return VexBoosts.renderPanel(el('boosts-panel-content')); }],
+      ['userscripts-panel-content', () => { if (typeof VexUserscripts !== 'undefined') return VexUserscripts.renderPanel(el('userscripts-panel-content')); }],
+      ['passwords-panel-content', () => { if (typeof PasswordVault !== 'undefined') return PasswordVault.renderPanel(el('passwords-panel-content')); }],
+      ['pagewatch-panel-content', () => { if (typeof PageWatchUI !== 'undefined') return PageWatchUI.renderSettings(el('pagewatch-panel-content')); }],
+      ['ainews-panel-content', () => { if (typeof AINewsUI !== 'undefined') return AINewsUI.renderSettings(el('ainews-panel-content')); }],
+      ['brief-panel-content', () => { if (typeof VexBrief !== 'undefined') return VexBrief.renderSettings(el('brief-panel-content')); }],
+      ['brief-extras-settings', () => { if (typeof BriefIntegration !== 'undefined') return BriefIntegration.renderSettings(el('brief-extras-settings')); }],
+      ['focus-panel-content', () => { if (typeof FocusMode !== 'undefined') return FocusMode.renderPanel(el('focus-panel-content')); }],
+      ['workflow-panel-content', () => { if (typeof VexWorkflow !== 'undefined') return VexWorkflow.renderSettings(el('workflow-panel-content')); }],
+      ['budget-panel-content', () => { if (typeof DistractionBudget !== 'undefined') return DistractionBudget.renderPanel(el('budget-panel-content')); }],
+      ['chains-panel-content', () => { if (typeof CommandChains !== 'undefined') return CommandChains.renderPanel(el('chains-panel-content')); }],
+      ['library-panel-content', () => { if (typeof TabArchiver !== 'undefined') return TabArchiver.renderSettings(el('library-panel-content')); }],
+      ['a11y-panel-content', () => { if (typeof AccessibilityPack !== 'undefined') return AccessibilityPack.renderPanel(el('a11y-panel-content')); }],
+      ['recall-panel-content', () => { if (typeof Recall !== 'undefined') return Recall.renderSettings(el('recall-panel-content')); }],
+      ['privacy-panel-content', () => { if (typeof PrivacyPack !== 'undefined') return PrivacyPack.renderSettings(el('privacy-panel-content')); }],
+      ['discord-bypass-setting', () => { if (window.DiscordBypass) return DiscordBypass.renderSetting(el('discord-bypass-setting')); }],
+      ['discord-theme-setting', () => { if (window.DiscordTheme) return DiscordTheme.renderSetting(el('discord-theme-setting')); }],
+      ['ai-memory-panel-content', () => { if (typeof AIMemory !== 'undefined') return AIMemory.renderSettings(el('ai-memory-panel-content')); }],
+      ['webllm-panel-content', () => { if (typeof WebLLM !== 'undefined') return WebLLM.renderSettings(el('webllm-panel-content')); }],
+      ['mcp-panel-content', () => { if (typeof McpClient !== 'undefined') return McpClient.renderSettings(el('mcp-panel-content')); }],
+    ];
+  },
+
+  _drawSettingsSections() {
+    const run = this._settingsRun = (this._settingsRun || 0) + 1;
+    // Categorize + colorize the settings panel (presentation only): at once, so the first paint is already laid out, and again at the end.
+    const enhance = () => { if (typeof SettingsUI !== 'undefined') SettingsUI.enhance(); };
+    enhance();
+    const steps = this._settingsSteps();
+    const loose = steps.filter(st => !st[0]);
+    const withEl = steps.filter(st => st[0]).map(st => ({ st, el: document.getElementById(st[0]) }));
+    const placed = withEl.filter(x => x.el).sort((x, y) => (x.el.compareDocumentPosition(y.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)).map(x => x.st);
+    const missing = withEl.filter(x => !x.el).map(x => x.st);   // their element is not on the page; each section says so itself
+    const queue = loose.concat(placed, missing);
+    const failed = (err) => { if (typeof VexProblems !== 'undefined') VexProblems.note('Settings', 'A section of Settings could not be shown', err); else console.error('[Settings]', err); };
+    const still = () => run === this._settingsRun && (this.activePanel === 'settings' || this.sidePanel === 'settings');
+    const frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
+    return new Promise((resolve) => {
+      const slice = () => {
+        if (!still()) { resolve(false); return; }
+        const t0 = performance.now();
+        // At least one section a slice, so a slow one cannot stall the rest.
+        while (queue.length) {
+          const draw = queue.shift()[1];
+          try {
+            const r = draw();
+            if (r && typeof r.then === 'function') r.then(null, failed);
+          } catch (err) { failed(err); }
+          if (performance.now() - t0 >= this.SETTINGS_SLICE_MS) break;
+        }
+        if (queue.length) { frame(slice); return; }
+        enhance();
+        resolve(true);
+      };
+      frame(slice);
+    });
   },
 
   // One web panel's <webview>, wired and placed in its panel. Used by

@@ -217,3 +217,29 @@ describe('Open DevTools', () => {
     expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/not exposed/i), 'error');
   });
 });
+
+describe('Check for updates', () => {
+  const check = () => VexDevMode.actions().find(a => a.id === 'check-updates');
+
+  it('is in the list the sidebar and the dashboard share', () => {
+    expect(check()).toBeTruthy();
+    expect(check().what).toMatch(/Settings/);
+  });
+
+  it('runs the same manual check as Settings › About and remembers when', async () => {
+    globalThis.UpdateNotifier = { checkManually: vi.fn(async () => ({ ok: true, hasUpdate: false, current: '1.0.0' })) };
+    try {
+      localStorage.removeItem('vex.lastUpdateCheck');
+      await VexDevMode._runAction(check());
+      expect(UpdateNotifier.checkManually).toHaveBeenCalledTimes(1);
+      expect(Number(localStorage.getItem('vex.lastUpdateCheck'))).toBeGreaterThan(0);
+    } finally { delete globalThis.UpdateNotifier; }
+  });
+
+  it('says so when the update check is not loaded', async () => {
+    window.showToast = vi.fn();
+    delete globalThis.UpdateNotifier;
+    await VexDevMode._runAction(check());
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/not loaded/i), 'error');
+  });
+});

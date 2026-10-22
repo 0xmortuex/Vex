@@ -21,6 +21,62 @@ const SelectionAIBar = {
   _editable: false,
   _busy: false,
 
+  // ---- which actions make sense for this text ----------------------------------------------------------------------------------------
+  // Every action used to show for every selection ("Debug" on a sentence, "Summarize" on one word). suggest() looks at the text, in a few
+  // microseconds and only its first 2,000 characters, so the bar still appears at the same moment. It errs towards showing: Explain is
+  // always there, and a text it cannot read is offered Translate.
+  SUGGEST_CHARS: 2000,
+  _STOP: {
+    en: new Set('the and of to is are was were in on for with that this it as at by be from or an not have has had but you your they their which will would can'.split(' ')),
+    tr: new Set('ve bir bu için ile da de çok daha gibi ama olarak olan ne kadar var yok her ben sen biz siz onlar mi mı mu mü değil sonra önce ise'.split(' ')),
+  },
+  _ERROR_RE: /\b(error|exception|traceback|stack ?trace|fatal|failed|failure|cannot|can't|could not|unable to|denied|refused|timed? ?out|not found|undefined|null ?pointer|segmentation fault|panic|hata|başarısız|bulunamadı|erişim engellendi)\b|\b(TypeError|ReferenceError|SyntaxError|RangeError|ENOENT|EACCES|ECONNREFUSED|ETIMEDOUT|Uncaught)\b|^\s*at\s+\S+.*:\d+(:\d+)?\)?\s*$|\b0x[0-9a-f]{6,}\b|\b(HTTP|status|code)\s*[:=]?\s*[45]\d\d\b/im,
+  _CODE_RE: /(=>|[{};]\s*$|^\s*(function|const|let|var|def|class|import|from|return|public|private|#include|SELECT|INSERT|UPDATE)\b|\w\(.*\)\s*[{;:]|<\/?[a-z][a-z0-9]*[ >\/]|^\s*[.#]?[\w-]+\s*\{[^}]*:)/m,
+
+  // 'tr' | 'en' | 'other' (a script that is not Latin) | 'none' (no letters at all) | 'unknown'.
+  guessLanguage(text) {
+    const t = String(text || '').slice(0, this.SUGGEST_CHARS);
+    const letters = t.match(/\p{L}/gu);
+    if (!letters) return 'none';
+    const foreign = letters.filter(c => !/\p{Script=Latin}/u.test(c)).length;
+    if (foreign / letters.length > 0.3) return 'other';
+    const words = t.toLowerCase().match(/[\p{L}'’]+/gu) || [];
+    if (words.length < 4) return 'unknown';
+    const hits = (set) => words.filter(w => set.has(w)).length / words.length;
+    const en = hits(this._STOP.en), tr = hits(this._STOP.tr);
+    const turkishLetters = (t.match(/[çğıöşüÇĞİÖŞÜ]/g) || []).length / letters.length;
+    if (tr >= 0.1 && tr > en) return 'tr';
+    if (turkishLetters > 0.03 && en < 0.1) return 'tr';
+    if (en >= 0.15 && en > tr) return 'en';
+    return 'unknown';
+  },
+
+  // The set of data-act names to show. opts: { editable, localOn, lang } with lang the language Vex is in ('en' or 'tr').
+  suggest(text, opts = {}) {
+    const t = String(text || '').slice(0, this.SUGGEST_CHARS);
+    const lang = opts.lang === 'tr' ? 'tr' : 'en';
+    const words = (t.match(/[\p{L}\p{N}'’-]+/gu) || []).length;
+    const chars = t.trim().length;
+    const looksError = this._ERROR_RE.test(t);
+    const looksCode = !looksError && this._CODE_RE.test(t) && /[\n;{}()=<>]/.test(t) && words >= 2;
+    const said = this.guessLanguage(t);
+    const looksLink = /^\s*(https?:\/\/|www\.)\S+\s*$|^\s*\S+@\S+\.\S+\s*$/i.test(t);
+    const out = new Set(['explain']);
+    if (opts.localOn) out.add('explain-local');
+    if (looksError) out.add('debug');
+    // Said in a language that is not yours: worth translating. Code, errors, numbers and your own language are not.
+    if (!looksCode && !looksError && !looksLink && said !== 'none' && said !== lang) out.add('translate');
+    if (looksError && said !== 'none' && said !== 'en' && said !== lang) out.add('translate');
+    // A summary of a line or two is no shorter than the line.
+    if (!looksCode && !looksError && (words >= 40 || chars >= 250)) out.add('summarize');
+    if (opts.editable) {
+      out.add('rewrite');
+      out.add('fix');
+      if (words >= 12) out.add('shorten');
+    }
+    return out;
+  },
+
   // Registered through the webview's lifecycle so destroyWebview can take it
   // off again. A handler left on the element captures `webview` in its closure,
   // and that keeps the whole element alive for the life of the window — one
@@ -115,9 +171,15 @@ const SelectionAIBar = {
     this._build();
     // In-place edit actions (Rewrite/Fix/Shorten) only make sense when the
     // selection sits in an editable field we can write back into.
-    this._el.querySelectorAll('[data-edit]').forEach(n => { n.style.display = editable ? '' : 'none'; });
-    const local = this._el.querySelector('[data-act="explain-local"]');
-    if (local) local.style.display = (typeof ExplainPage !== 'undefined' && ExplainPage.barEnabled()) ? '' : 'none';
+    // Only the actions that make sense for this text (suggest(), above).
+    const want = this.suggest(text, {
+      editable: !!editable,
+      localOn: typeof ExplainPage !== 'undefined' && ExplainPage.barEnabled(),
+      lang: typeof VexI18nUI !== 'undefined' && typeof VexI18nUI.locale === 'function' ? VexI18nUI.locale() : 'en',
+    });
+    this._el.querySelectorAll('button[data-act]').forEach(b => { b.style.display = want.has(b.dataset.act) ? '' : 'none'; });
+    const divider = this._el.querySelector('.vex-sel-div');
+    if (divider) divider.style.display = editable && [...want].some(a => !['rewrite', 'fix', 'shorten'].includes(a)) ? '' : 'none';
     this._el.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
     // Guest-viewport coords → host window coords via the webview's position.
     let host = { left: 0, top: 0 };
