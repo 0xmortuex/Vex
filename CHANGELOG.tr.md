@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v37.45.4 (2026-10-22) — Kurulum sihirbazında başka bir tarayıcıdan eşyalarınızı getirme, Türkçe sürüm notları ve tamamı Türkçe sihirbaz
+## v37.50.4 (2026-10-22) — Kurulum sihirbazında başka bir tarayıcıdan eşyalarınızı getirme, Türkçe sürüm notları ve tamamı Türkçe sihirbaz
 
 ### Yeni
 - **Kurulum sihirbazı, başka bir tarayıcıdan eşyalarınızı getirmeyi önerir.** Karşılamanın hemen ardından gelen yeni bir adım (kısa sürümde de) yer imleri, geçmiş ve kayıtlı parolalar için içe aktarma penceresini açar ve web sitelerinin neden yine de bir kez oturum açmanızı istediğini söyler: tarayıcılar açık oturumlarını kendilerine saklar ve Vex başka bir tarayıcının çerezlerini ya da parola deposunu asla okumaz; ama parolalarınız içe aktarıldığında bu oturum açma tek tıktır. Deneyin: Ctrl+K’ye basın, “Kurulum sihirbazı”nı çalıştırın ve 2. adıma bakın.

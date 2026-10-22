@@ -1,6 +1,6 @@
 # Changelog
 
-## v37.45.4 (2026-10-22) — Bring your things from another browser in the setup wizard, release notes in Turkish, and the whole wizard in Turkish
+## v37.50.4 (2026-10-22) — Bring your things from another browser in the setup wizard, release notes in Turkish, and the whole wizard in Turkish
 
 ### New
 - **The setup wizard offers to bring your things over from another browser.** A new step right after the welcome (also in the short version) opens the importer for bookmarks, history and saved passwords, and says why websites still ask for one sign-in: browsers keep their signed-in sessions to themselves and Vex never reads another browser's cookies or password store, but with your passwords imported that sign-in is one click. Try: Press Ctrl+K, run "Setup wizard", and look at step 2.
