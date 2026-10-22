@@ -286,7 +286,7 @@ const VexAIMoney = {
       el.appendChild(S.button('Quality history...', () => { try { this.openQuality(); } catch (err) { fail(err); } }));
     };
     draw();
-    document.addEventListener('vex:ai-spend', () => { if (el.isConnected && !el.contains(document.activeElement)) draw(); });
+    VexSettingsGroups.follow('ai-money', 'vex:ai-spend', () => { if (el.isConnected && !el.contains(document.activeElement)) draw(); });
   },
 };
 

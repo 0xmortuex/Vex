@@ -35,6 +35,22 @@ const VexSettingsGroups = {
 
   ids() { return Array.from(this._defs.keys()); },
 
+  // A section is built again every time Settings opens. A document listener added by each build closes over the section it drew, so every
+  // build kept its section alive for good (about 65 nodes and 11 listeners an open, found 2026-10-22 by the smoke matrix). This keeps ONE
+  // listener per section and event, and calls the newest build's function. `key` is the section, `fn` redraws it.
+  _following: new Map(),
+  follow(key, eventName, fn) {
+    if (typeof fn !== 'function') throw new Error('follow needs a function to call');
+    const id = key + '|' + eventName;
+    let slot = this._following.get(id);
+    if (!slot) {
+      slot = { fn };
+      this._following.set(id, slot);
+      document.addEventListener(eventName, () => slot.fn());
+    }
+    slot.fn = fn;
+  },
+
   // Create or refresh every registered group under root (.settings-content).
   mount(root) { return this.inject(root); },
 

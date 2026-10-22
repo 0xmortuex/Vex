@@ -336,7 +336,7 @@ const VexAISpend = {
       if (rows.length) el.appendChild(VexSettingsGroups.note('Results so far: ' + rows.map(r => r.feature + ' on ' + r.backend + ' ' + r.ok + ' answered, ' + r.fail + ' failed').join('; ')));
     };
     draw();
-    document.addEventListener('vex:ai-spend', () => { if (el.isConnected) draw(); });
+    VexSettingsGroups.follow('ai-spend-cap', 'vex:ai-spend', () => { if (el.isConnected) draw(); });
   },
 };
 

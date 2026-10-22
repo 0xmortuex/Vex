@@ -262,8 +262,8 @@ const AIRouteControl = {
       el.appendChild(p);
     };
     draw();
-    document.addEventListener('vex:ai-answered', () => { if (el.isConnected) draw(); });
-    document.addEventListener('vex:ai-route-changed', () => { if (el.isConnected) draw(); });
+    VexSettingsGroups.follow('ai-route', 'vex:ai-answered', () => { if (el.isConnected) draw(); });
+    VexSettingsGroups.follow('ai-route', 'vex:ai-route-changed', () => { if (el.isConnected) draw(); });
   },
 
   init() {
