@@ -145,3 +145,15 @@ describe('Work is part of the Toolbox', () => {
     expect(window.JobSetup.open).toHaveBeenCalled();
   });
 });
+
+describe('the Toolbox is a dialog for assistive technology', () => {
+  it('names itself and says it is modal', () => {
+    document.body.innerHTML = '';
+    window.JobProfiles = { current: () => 'dev', get: () => JOB };
+    Toolbox.open();
+    const m = document.getElementById('vex-toolbox');
+    expect(m.getAttribute('role')).toBe('dialog');
+    expect(m.getAttribute('aria-modal')).toBe('true');
+    expect(m.getAttribute('aria-label')).toBe('Toolbox');
+  });
+});

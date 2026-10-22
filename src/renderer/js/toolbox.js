@@ -436,6 +436,10 @@ const Toolbox = {
     document.getElementById('vex-toolbox')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-toolbox';
+    // A modal says so to a screen reader (the UI check found it did not).
+    m.setAttribute('role', 'dialog');
+    m.setAttribute('aria-modal', 'true');
+    m.setAttribute('aria-label', 'Toolbox');
     m.style.cssText = 'position:fixed;inset:0;z-index:100053;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
     m.innerHTML = `<div style="width:820px;max-width:95vw;height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 8px">
