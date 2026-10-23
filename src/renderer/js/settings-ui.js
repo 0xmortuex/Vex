@@ -972,7 +972,10 @@ const SettingsUI = {
       if (--this._held > 0 || !this._owed) return;
       this._owed = false;
       const root = document.querySelector('#panel-settings .settings-content');
-      if (root) this._layout(root);
+      // A placement that changes the menu or the column count asks for another one a frame later (_layoutBlocks); the observers do that
+      // for themselves, so here it is asked for again until the layout is done.
+      const place = (left) => { if (this._layout(root) && left > 0 && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => place(left - 1)); };
+      if (root) place(5);
     };
   },
 

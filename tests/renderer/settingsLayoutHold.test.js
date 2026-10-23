@@ -36,6 +36,18 @@ describe('SettingsUI.holdLayout', () => {
     expect(SettingsUI._held).toBe(0);
   });
 
+  it('places again a frame later while the layout says it is not done (a new menu or column count)', async () => {
+    blocks.mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValue(false);
+    const release = SettingsUI.holdLayout();
+    SettingsUI._layout(root());
+    release();
+    expect(blocks).toHaveBeenCalledTimes(1);
+    await new Promise(r => requestAnimationFrame(() => r()));
+    await new Promise(r => requestAnimationFrame(() => r()));
+    await new Promise(r => requestAnimationFrame(() => r()));
+    expect(blocks).toHaveBeenCalledTimes(3);
+  });
+
   it('nested holds place once, when the last one is let go of', () => {
     const a = SettingsUI.holdLayout();
     const b = SettingsUI.holdLayout();
