@@ -2,6 +2,17 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
+## v37.85.6 (2026-10-23) — Araç çubuğundaki YZ düğmesi artık yalnızca bir simge ve Ayarlar açıldıktan sonra yanlış menüyle kalmıyor
+
+### Değişti
+- **Araç çubuğundaki YZ düğmesi, yanındaki düğmeler gibi bir simgedir.** Simgenin yanında “AI” yazısı da görünüyordu. Yazı kalktı; üzerine gelince hâlâ “Toggle AI Panel” (YZ panelini aç/kapat) yazar, ekran okuyucular “Yapay zekâ paneli” diye okur. Altı görünümün hepsinde denetlendi.
+
+### Düzeltildi
+- **Ayarlar, bölüm menüsü yanlış biçimde kalarak açılabiliyordu.** Ayarlar açılırken bloklar, bölümler dolduktan sonra bir kez yerleştirilir. Bu son yerleştirme menüyü (üstte sekmeler ya da solda liste) veya sütun sayısını değiştirmek zorundaysa işi bitirmiyordu; böylece listeyi istediğiniz yerde sekmeler, ya da tersi görünebiliyordu. Artık düzen bitene kadar yerleştirmeye devam eder.
+
+### Denetlendi
+Düzen bekletmesinin testleri (biri yeni) ve kullanıcı arayüzü denetimi; denetim artık ölçmeden önce Ayarlar düzeninin yerleşmesini bekliyor: yavaş bir makinede çok erken ölçüp olmayan çakışmalar bildirmişti.
+
 ## v37.84.8 (2026-10-22) — Kurulum sihirbazında başka bir tarayıcıdan eşyalarınızı getirme ve Vex’in geri kalanı Türkçe: sürüm notları, özellik kitaplığı, iletiler ve Windows iletişim kutuları
 
 ### Yeni
