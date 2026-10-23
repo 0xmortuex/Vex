@@ -1270,7 +1270,7 @@ function settingsLayouts(full) {
 // While the sections draw, the placement is held (SettingsUI.holdLayout) and nothing moves, however long a slow machine takes: that is not settled.
 async function settleSettingsLayout(cdp) {
   const sig = "Array.from(document.querySelectorAll('#panel-settings .settings-content > *')).map(e => { const r = e.getBoundingClientRect(); return Math.round(r.left) + ':' + Math.round(r.top) + ':' + Math.round(r.height); }).join() + '|' + (SettingsUI._held || 0) + (SettingsUI._owed ? 'o' : '')";
-  const until = Date.now() + 8000;
+  const until = Date.now() + 30000;
   let last = null, same = 0;
   while (Date.now() < until && same < 3) {
     const now = await evaluate(cdp, sig);

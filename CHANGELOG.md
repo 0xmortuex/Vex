@@ -6,10 +6,10 @@
 - **The AI button in the toolbar is an icon like the buttons beside it.** It showed the icon and the word "AI" next to it. The word is gone; hovering still says "Toggle AI Panel", and screen readers read it as "AI panel" (in Turkish, "Yapay zekâ paneli"). Checked in all six looks.
 
 ### Fixed
-- **Settings could finish opening with the section menu in the wrong style.** Opening Settings places its blocks once, after the sections have filled in. When that last placement had to change the menu (chips or a list on the left) or the number of columns, it did not finish the job, so chips could show where you had asked for the list, or the other way round. It now keeps placing until the layout is done.
+- **Settings could finish opening with the section menu in the wrong style.** Opening Settings places its blocks once, after the sections have filled in. When that last placement had to change the menu (chips or a list on the left) or the number of columns, it did not finish the job, so chips could show where you had asked for the list, or the other way round. It now keeps placing until the layout is done, and on a slow computer, where filling in the sections takes seconds, the blocks are put in place every so often meanwhile instead of staying over each other until the end.
 
 ### Checked
-The tests for the layout hold (one new), and the UI check, which now waits for the Settings layout to be placed before it measures: on a slow machine it had measured too early and reported overlaps that were not there.
+The tests for the layout hold (one new), and the UI check, which now waits for the Settings layout to be placed before it measures, and the Settings layouts with the processor slowed three times: the overlaps and gaps that appeared there are gone (eleven layouts, nothing flagged).
 
 ## v37.84.8 (2026-10-22) — Bring your things from another browser in the setup wizard, and the rest of Vex in Turkish: release notes, feature library, messages and Windows dialogs
 

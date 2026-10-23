@@ -950,7 +950,10 @@ const SettingsUI = {
   // frame: see _watchLayout.
   _layout(root, opts) {
     // Held while the sections draw (holdLayout): the placement waits and happens once, at the end.
-    if (this._held > 0) { this._owed = true; return false; }
+    // On a slow machine the draw lasts seconds, and the blocks would stay where they were while the sections change size (overlapping): so
+    // one placement is let through each HOLD_CATCHUP_MS of a long hold.
+    if (this._held > 0 && !(this._heldSince && performance.now() - this._heldSince > this.HOLD_CATCHUP_MS)) { this._owed = true; return false; }
+    this._heldSince = this._held > 0 ? performance.now() : 0;
     const again = this._layoutBlocks(root, opts);
     // The style written to the blocks is not a change of content to react to.
     if (this._contentObserver) this._contentObserver.takeRecords();
@@ -963,8 +966,10 @@ const SettingsUI = {
   // does it once if anything asked for it meanwhile. Holds can nest; releasing twice is harmless.
   _held: 0,
   _owed: false,
+  _heldSince: 0,
+  HOLD_CATCHUP_MS: 400,
   holdLayout() {
-    this._held++;
+    if (this._held++ === 0) this._heldSince = performance.now();
     let released = false;
     return () => {
       if (released) return;

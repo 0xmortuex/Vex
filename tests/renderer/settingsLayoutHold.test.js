@@ -28,6 +28,17 @@ describe('SettingsUI.holdLayout', () => {
     expect(blocks).toHaveBeenCalledTimes(1);
   });
 
+  it('lets one placement through in a long hold, so a slow draw does not leave the blocks overlapping', () => {
+    const release = SettingsUI.holdLayout();
+    expect(SettingsUI._layout(root())).toBe(false);
+    SettingsUI._heldSince = performance.now() - SettingsUI.HOLD_CATCHUP_MS - 1;
+    SettingsUI._layout(root());
+    expect(blocks).toHaveBeenCalledTimes(1);
+    SettingsUI._layout(root());
+    expect(blocks).toHaveBeenCalledTimes(1);   // the next one waits again
+    release();
+  });
+
   it('does nothing at the end when nobody asked, and letting go twice is harmless', () => {
     const release = SettingsUI.holdLayout();
     release();
