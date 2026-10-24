@@ -242,6 +242,12 @@ const VexUiSounds = {
     row.className = 'setting-toggle-row';
     const text = document.createElement('span');
     text.textContent = label;
+    if (hint) {
+      const h = document.createElement('span');
+      h.style.cssText = 'display:block;color:var(--text-muted);font-size:11px';
+      h.textContent = hint;
+      text.appendChild(h);
+    }
     const sw = document.createElement('label');
     sw.className = 'toggle';
     const input = document.createElement('input');
@@ -257,7 +263,6 @@ const VexUiSounds = {
     sw.append(input, slider);
     row.append(text, sw);
     host.appendChild(row);
-    if (hint) host.appendChild(VexSettingsGroups.note(hint));
     return input;
   },
 
