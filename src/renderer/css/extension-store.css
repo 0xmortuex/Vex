@@ -12,7 +12,7 @@
   background: var(--vex-bg-elevated, var(--surface)); color: var(--vex-text-primary, var(--text));
   border: 1px solid var(--vex-border-medium, var(--border)); border-radius: var(--vex-radius-md, 12px);
   box-shadow: 0 16px 48px var(--vex-shadow-color, rgba(0, 0, 0, 0.4));
-  font-size: 13px; overflow: hidden;
+  font-family: var(--vex-font-base, 'Outfit', sans-serif); font-size: 13px; overflow: hidden;
 }
 .exs-header { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px 6px; }
 .exs-logo {

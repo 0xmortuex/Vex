@@ -57,7 +57,7 @@ describe('the store list (extension-store-data.js)', () => {
 
   it('is honest: a partly working entry says what is missing, and a full one has no blocking-API claim', () => {
     for (const e of WEB) {
-      if (e.level === 'partial') expect(e.caveat || e.works, e.key).toMatch(/\S{12}/);
+      if (e.level === 'partial') expect(String(e.caveat || '').length, e.key + ' needs a caveat saying what is missing').toBeGreaterThan(30);
       expect(e.works, e.key).not.toMatch(/^\s*$/);
     }
   });
