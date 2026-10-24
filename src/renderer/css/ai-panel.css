@@ -1,41 +1,71 @@
 /* === Vex AI ================================================================
  *
  * Two modes, one markup:
- *   docked    — a column on the right, as before.
- *   .expanded — the whole window, conversation centred in a readable column.
+ *   docked    - a column on the right.
+ *   .expanded - the whole window, conversation centred in a readable column.
  *
- * Everything here is built from the theme tokens (--bg, --surface, --border,
- * --primary, --text…) defined once in theme-tokens.css, so the panel follows
- * whichever of the themes is active instead of carrying its own palette.
+ * The panel is calm on purpose: flat surfaces, one hairline border, one accent.
+ * Every colour is a theme token (--bg, --bg-2, --surface, --border, --text,
+ * --text-muted, --primary, --danger, --success...) defined once in
+ * theme-tokens.css and bridged by the browser looks (gui-browser.css), so it
+ * follows whichever of the colour themes and looks is active and carries no
+ * palette of its own. Type is the theme's or the user's own font
+ * (--vex-font-base for text, --vex-font-display for titles, --vex-font-mono for
+ * code); sizes and gaps scale with --vex-density. No gradients, no noise, no
+ * blur: skins.css and gui-glass.css leave this panel alone.
  *
- * The old layout stacked six control strips between the header and the first
- * message — persona, prompts, tab selector, agent mode, quick actions — and the
- * conversation got whatever height was left. The controls now live in one row
- * inside the composer, and the starters only appear while the chat is empty.
+ * Layout of the pieces: a header (who, about which tab, the whole-chat
+ * buttons), the conversation, and one composer card that holds what you type
+ * with the controls that shape the answer under it.
  */
 
 /* ---------- shell -------------------------------------------------------- */
 
 #ai-panel {
-  --ai-gap: 14px;
+  --ai-pad: calc(14px * var(--vex-density, 1));
+  --ai-gap: calc(12px * var(--vex-density, 1));
   --ai-col: 720px;            /* readable column width in focus mode */
+  --ai-r: var(--vex-radius-lg, 10px);
+  --ai-r-sm: var(--vex-radius-md, 6px);
+  --ai-ctl: 28px;             /* the smallest thing you press */
+  --ai-soft: color-mix(in srgb, var(--text) 5%, var(--bg-2));
+  --ai-tint: color-mix(in srgb, var(--primary) 13%, var(--surface));
+  --ai-tint-line: color-mix(in srgb, var(--primary) 26%, var(--border));
+  /* Secondary text inside the panel is the theme's text colour, softened, rather than the theme's own
+     muted grey: that grey is tuned for the page and reads below 4.5:1 on a card in several themes. */
+  --text-muted: color-mix(in srgb, var(--text) 90%, var(--surface));
+  --ai-link: color-mix(in srgb, var(--primary) 50%, var(--text));
+  --ai-shadow: 0 8px 24px var(--vex-shadow-color, color-mix(in srgb, var(--text) 25%, transparent));
   /* --ai-top: where the page area starts (ai-panel.js _placeBelowChrome), so
      the panel never covers the tab strip, toolbar or window buttons. */
   position: fixed; right: 0; top: var(--ai-top, 0px); bottom: 0;
   width: 420px; max-width: 100vw;
   background: var(--bg-2);
+  color: var(--text);
   border-left: 1px solid var(--border);
   display: flex; flex-direction: column;
   transform: translateX(100%);
   transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
   z-index: 500;
-  font-family: var(--vex-font-base, 'Outfit', sans-serif);
+  font-family: var(--vex-font-base);
+  font-size: 13.5px;
 }
 #ai-panel.open { transform: translateX(0); }
 
+/* The browser looks set their own font on every button and field; this panel
+   speaks in the theme's (or the user's chosen) font like the page beside it. */
+html body #ai-panel :is(button, input, textarea, select) { font-family: inherit !important; }
+
+#ai-panel ::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
+
+/* Scrollbars like the rest of Vex's panels (app.css): thin, quiet, accent on hover. */
+#ai-panel ::-webkit-scrollbar { width: 8px; height: 8px; }
+#ai-panel ::-webkit-scrollbar-track { background: transparent; }
+#ai-panel ::-webkit-scrollbar-thumb { background: var(--vex-border-medium, var(--border)); border-radius: 4px; }
+#ai-panel ::-webkit-scrollbar-thumb:hover { background: var(--vex-accent, var(--primary)); }
+
 /* Focus mode: take the page area (the tabs, toolbar and window buttons stay
-   usable above it). Rounded and inset slightly so it reads as a
-   surface over Vex rather than a second application. */
+   usable above it). */
 #ai-panel.expanded {
   right: 0; left: 0; top: var(--ai-top, 0px); bottom: 0;
   width: 100vw;
@@ -50,8 +80,7 @@
    from the docked panel. */
 #ai-backdrop {
   position: fixed; inset: 0; top: var(--ai-top, 0px); z-index: 999;
-  background: color-mix(in srgb, var(--vex-bg-deep, #000) 55%, transparent);
-  backdrop-filter: blur(2px);
+  background: color-mix(in srgb, var(--vex-bg-deep, var(--bg)) 55%, transparent);
   opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
 }
 #ai-backdrop.show { opacity: 1; pointer-events: auto; }
@@ -59,70 +88,83 @@
 /* ---------- header ------------------------------------------------------- */
 
 .ai-header {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px 10px 14px;
+  display: flex; align-items: center; gap: 8px; flex: none;
+  padding: calc(10px * var(--vex-density, 1)) calc(10px * var(--vex-density, 1)) calc(10px * var(--vex-density, 1)) var(--ai-pad);
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
 }
 #ai-panel.expanded .ai-header {
   padding: 12px max(16px, calc((100vw - var(--ai-col)) / 2 - 60px));
 }
+/* The title and, under it, the tab being talked about. Two lines instead of
+   one squeezed row, so the tab's name has the room the buttons used to take. */
+.ai-heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .ai-title {
   display: flex; align-items: center; gap: 7px;
-  font-weight: 650; font-size: 14px; color: var(--text);
-  letter-spacing: -0.01em; flex: none;
+  font-family: var(--vex-font-display, inherit);
+  font-weight: 600; font-size: 14.5px; line-height: 1.25; color: var(--text);
 }
-.ai-title svg { color: var(--primary); flex: none; }
+.ai-title-ico { display: inline-flex; color: var(--primary); flex: none; }
 
 .ai-tab-indicator {
-  flex: 1; min-width: 0;
-  font-size: 11.5px; color: var(--text-muted);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex; align-items: center; gap: 7px; min-width: 0;
+  font-size: 11.5px; line-height: 1.3; color: var(--text-muted);
 }
-.ai-context-label { opacity: 0.75; }
-.ai-current-tab-title { color: var(--text); margin-left: 4px; }
+.ai-context-ico { display: inline-flex; justify-content: center; flex: none; width: 16px; }
+.ai-current-tab-title { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ai-header-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.ai-header-sep { width: 1px; height: 16px; margin: 0 4px; background: var(--border); flex: none; }
 
 .ai-icon-btn {
-  width: 28px; height: 28px; flex: none;
+  width: var(--ai-ctl); height: var(--ai-ctl); flex: none; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; color: var(--text-muted);
-  border-radius: var(--radius-sm, 7px); cursor: pointer;
+  border-radius: var(--ai-r-sm); cursor: pointer;
   transition: background 0.14s ease, color 0.14s ease;
 }
 .ai-icon-btn:hover { background: var(--vex-hover-fill, var(--tab-hover)); color: var(--text); }
 .ai-icon-btn:active { transform: translateY(0.5px); }
-.ai-icon-btn.active { background: var(--vex-accent-glow, var(--tab-hover)); color: var(--primary); }
+.ai-icon-btn.active { background: var(--vex-accent-glow); color: var(--primary); }
+#ai-think-toggle.active { color: var(--primary); }
 
 /* ---------- recent chats ------------------------------------------------- */
 
 .ai-history {
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg-2);
   max-height: 45%; overflow-y: auto; flex: none;
+  padding-bottom: 6px;
 }
 .ai-history-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 9px 14px 5px; font-size: 11px; font-weight: 700;
+  padding: 10px var(--ai-pad) 4px; font-size: 11px; font-weight: 600;
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);
 }
-.ai-history-list { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 2px; }
-.ai-history-item {
-  display: flex; flex-direction: column; gap: 2px; width: 100%;
-  text-align: left; padding: 8px 10px; border-radius: 8px;
-  background: transparent; border: 1px solid transparent; cursor: pointer;
-  font-family: inherit; color: var(--text);
+.ai-history-search {
+  display: block; width: calc(100% - 2 * var(--ai-pad)); box-sizing: border-box;
+  margin: 4px var(--ai-pad) 8px; padding: 0 10px; height: var(--ai-ctl);
+  font: inherit; font-size: 12.5px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--ai-r-sm);
 }
-.ai-history-item:hover { background: var(--bg); border-color: var(--border); }
+.ai-history-search::placeholder { color: var(--text-muted); }
+.ai-history-search:focus { border-color: var(--primary); outline: none; }
+.ai-history-list { padding: 0 8px; display: flex; flex-direction: column; gap: 2px; }
+.ai-history-item {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;
+  text-align: left; padding: 8px 10px; min-height: 36px; border-radius: var(--ai-r-sm);
+  background: transparent; border: 1px solid transparent; cursor: pointer;
+  font: inherit; color: var(--text);
+}
+.ai-history-item:hover { background: var(--vex-hover-fill, var(--tab-hover)); }
 .ai-history-item.current { border-color: var(--primary); }
 .ai-history-item .t { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-history-item .m { font-size: 11px; color: var(--text-muted); }
-.ai-history-empty { padding: 10px 14px 14px; font-size: 12px; color: var(--text-muted); }
+.ai-history-empty { padding: 10px var(--ai-pad) 14px; font-size: 12px; color: var(--text-muted); }
+.ai-history-sub { padding: 8px 10px 3px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
 
 .ai-viewing {
   display: flex; align-items: center; gap: 10px; flex: none;
-  padding: 7px 14px; font-size: 11.5px; color: var(--text-muted);
+  padding: 7px var(--ai-pad); font-size: 11.5px; color: var(--text-muted);
   background: var(--vex-accent-glow); border-bottom: 1px solid var(--border);
 }
 .ai-viewing-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -134,69 +176,119 @@
 
 .ai-messages {
   flex: 1; overflow-y: auto; overscroll-behavior: contain;
-  padding: var(--ai-gap);
-  display: flex; flex-direction: column; gap: 12px;
-  scrollbar-width: thin;
+  padding: var(--ai-pad);
+  display: flex; flex-direction: column; gap: var(--ai-gap);
 }
 #ai-panel.expanded .ai-messages {
   padding: 26px max(16px, calc((100vw - var(--ai-col)) / 2)) 30px;
-  gap: 18px;
+  gap: calc(18px * var(--vex-density, 1));
 }
 
+/* The empty chat. */
 .ai-empty {
-  margin: auto; max-width: 34ch; text-align: center;
-  font-size: 13px; line-height: 1.6; color: var(--text-muted);
+  margin: auto; max-width: 32ch; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  font-size: 13px; line-height: 1.55; color: var(--text-muted);
 }
+.ai-empty-ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; margin-bottom: 6px; border-radius: 50%;
+  color: var(--primary); background: var(--vex-accent-glow);
+}
+.ai-empty-title { font-family: var(--vex-font-display, inherit); font-size: 16px; font-weight: 600; color: var(--text); }
+.ai-empty-hint { text-wrap: balance; }
 #ai-panel.expanded .ai-empty { max-width: 46ch; font-size: 14.5px; }
 
+/* A message. The question is a tinted block at the right; the answer is plain
+   text on the panel, with nothing drawn around it. */
 .ai-msg {
-  max-width: 92%; padding: 10px 14px; border-radius: 14px;
-  font-size: 13.5px; line-height: 1.6; word-break: break-word;
+  max-width: 100%; padding: 0; border-radius: var(--ai-r);
+  font-size: 13.5px; line-height: 1.6; overflow-wrap: anywhere;
   position: relative; user-select: text; -webkit-user-select: text;
 }
-#ai-panel.expanded .ai-msg { font-size: 14.5px; max-width: 100%; }
+#ai-panel.expanded .ai-msg { font-size: 14.5px; }
 
 .ai-msg.user {
-  align-self: flex-end; max-width: 85%;
-  background: var(--primary); color: var(--on-primary, #fff);
-  border-bottom-right-radius: 5px;
+  align-self: flex-end; max-width: 88%;
+  padding: 8px 13px;
+  background: var(--ai-tint); color: var(--text);
+  border: 1px solid var(--ai-tint-line);
+  border-radius: var(--ai-r) var(--ai-r) 3px var(--ai-r);
 }
-.ai-msg.assistant {
-  align-self: stretch;
-  background: transparent; color: var(--text);
-  border: none; padding: 2px 34px 2px 0;
-}
-/* In the docked column the assistant text needs the card to stay legible
-   against the panel background; full width reads fine in focus mode. */
-#ai-panel:not(.expanded) .ai-msg.assistant {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 14px; border-bottom-left-radius: 5px;
-  padding: 10px 34px 10px 14px;
-}
-.ai-msg.assistant ul, .ai-msg.assistant ol { padding-left: 18px; margin: 7px 0; }
-.ai-msg.assistant li { margin-bottom: 4px; }
-.ai-msg.assistant strong { color: var(--text); font-weight: 650; }
-.ai-msg.assistant code {
-  font-family: var(--vex-font-mono, monospace); font-size: 0.9em;
-  background: var(--vex-hover-fill, var(--tab-hover)); padding: 1px 5px; border-radius: 5px;
-}
-.ai-msg.assistant pre {
-  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
-  padding: 11px 13px; overflow-x: auto; margin: 9px 0;
-}
-.ai-msg.assistant pre code { background: none; padding: 0; }
-
+.ai-msg.assistant { align-self: stretch; background: none; color: var(--text); border: none; }
 .ai-msg-content { user-select: text; -webkit-user-select: text; cursor: text; }
 
+/* Inside an answer. */
+.ai-msg.assistant ul, .ai-msg.assistant ol { padding-left: 20px; margin: 6px 0; }
+.ai-msg.assistant li { margin-bottom: 3px; }
+.ai-msg.assistant li::marker { color: var(--text-muted); }
+.ai-msg.assistant strong { color: var(--text); font-weight: 650; }
+.ai-msg.assistant a { color: var(--ai-link); text-decoration-thickness: 1px; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.ai-msg.assistant :is(h1, h2, h3, h4) {
+  font-family: var(--vex-font-display, inherit);
+  line-height: 1.3; margin: 14px 0 5px; color: var(--text);
+}
+.ai-msg.assistant :is(h1, h2, h3, h4):first-child { margin-top: 0; }
+.ai-msg.assistant h1 { font-size: 1.28em; }
+.ai-msg.assistant h2 { font-size: 1.16em; }
+.ai-msg.assistant :is(h3, h4) { font-size: 1.06em; }
+.ai-msg.assistant p { margin: 0 0 8px; }
+.ai-msg.assistant > :last-child, .ai-msg-content > :last-child { margin-bottom: 0; }
+.ai-msg.assistant hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+.ai-msg.assistant blockquote {
+  margin: 8px 0; padding: 2px 0 2px 11px;
+  border-left: 2px solid var(--border); color: var(--text-muted);
+}
+.ai-msg.assistant code {
+  font-family: var(--vex-font-mono, monospace); font-size: 0.9em;
+  background: var(--ai-soft); padding: 1px 5px; border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+.ai-msg.assistant table { border-collapse: collapse; margin: 8px 0; font-size: .95em; width: 100%; }
+.ai-msg.assistant :is(td, th) { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
+.ai-msg.assistant th { background: var(--ai-soft); font-weight: 600; }
+
+/* Code: a block with a bar (the language, and Copy) over it. */
+.ai-code {
+  margin: 9px 0; border: 1px solid var(--border); border-radius: var(--ai-r-sm);
+  background: var(--bg); overflow: hidden;
+}
+.ai-code-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 2px 4px 2px 11px; background: var(--ai-soft); border-bottom: 1px solid var(--border);
+  font-family: var(--vex-font-mono, monospace); font-size: 11px; color: var(--text-muted);
+}
+.ai-code-copy {
+  display: inline-flex; align-items: center; gap: 5px; height: var(--ai-ctl); padding: 0 8px;
+  font: inherit; color: var(--text-muted); background: transparent; border: none;
+  border-radius: var(--ai-r-sm); cursor: pointer;
+}
+.ai-code-copy:hover { background: var(--vex-hover-fill, var(--tab-hover)); color: var(--text); }
+.ai-code-copy.done { color: var(--success, var(--vex-success)); }
+.ai-msg.assistant .ai-code pre, .ai-msg.assistant pre {
+  margin: 0; padding: 10px 12px; overflow-x: auto;
+  background: transparent; border: none; border-radius: 0;
+  font-family: var(--vex-font-mono, monospace); font-size: 12.5px; line-height: 1.55;
+}
+.ai-msg.assistant pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+/* A bare <pre> with no bar (a block the wrapper did not see). */
+.ai-msg.assistant > pre, .ai-msg-content > pre { margin: 9px 0; border: 1px solid var(--border); border-radius: var(--ai-r-sm); background: var(--bg); }
+
+/* The cards the agent draws sit in the thread as boxes of their own. */
+.ai-msg.assistant.agent-run-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--ai-r); }
+
+/* A quoted line from the page. */
 .ai-msg .citation {
   background: var(--vex-accent-glow); border-left: 2px solid var(--primary);
-  padding: 6px 9px; margin: 7px 0; font-size: 11.5px; border-radius: 6px;
+  padding: 6px 10px; margin: 8px 0; font-size: 12px; line-height: 1.5;
+  border-radius: 0 var(--ai-r-sm) var(--ai-r-sm) 0;
   font-style: italic; color: var(--text-muted);
 }
 
 /* A streamed answer: the loading bubble becomes the answer in place, with a
    cursor so it reads as still being written. */
 .ai-msg.streaming { position: relative; }
+.ai-msg.streaming .ai-msg-content > p:last-child { display: inline; }
 .ai-msg.streaming .ai-msg-content::after {
   content: ''; display: inline-block; vertical-align: text-bottom;
   width: 2px; height: 1.05em; margin-left: 2px;
@@ -207,15 +299,15 @@
 /* ---------- the model's thinking ----------------------------------------- */
 
 /* Folded away by default. A reasoning model's chain of thought is longer than
-   the answer, and it is context for when a reply looks wrong — not the reply. */
+   the answer, and it is context for when a reply looks wrong, not the reply. */
 .ai-thinking {
   margin: 0 0 8px; border: 1px solid var(--border);
-  border-radius: 10px; background: var(--surface); overflow: hidden;
+  border-radius: var(--ai-r-sm); background: var(--ai-soft); overflow: hidden;
 }
 .ai-thinking-summary {
-  display: flex; align-items: center; gap: 7px;
-  padding: 6px 10px; cursor: pointer; list-style: none;
-  font-size: 11.5px; color: var(--text-muted); user-select: none;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+  min-height: var(--ai-ctl); padding: 3px 10px; cursor: pointer; list-style: none;
+  font-size: 12px; color: var(--text-muted); user-select: none;
 }
 .ai-thinking-summary::-webkit-details-marker { display: none; }
 .ai-thinking-summary:hover { color: var(--text); }
@@ -224,25 +316,22 @@
 .ai-thinking-chev { display: inline-flex; flex: none; transform: rotate(90deg); transition: transform 0.15s ease; }
 .ai-thinking[open] .ai-thinking-chev { transform: rotate(-90deg); }
 .ai-thinking-body {
-  padding: 2px 12px 11px; border-top: 1px solid var(--border);
-  margin-top: 2px;
+  padding: 8px 12px 11px; border-top: 1px solid var(--border);
   font-family: var(--vex-font-mono, monospace); font-size: 11.5px; line-height: 1.6;
-  color: var(--text-muted); white-space: pre-wrap; word-break: break-word;
+  color: var(--text-muted); white-space: pre-wrap; overflow-wrap: anywhere;
   max-height: 320px; overflow-y: auto;
   user-select: text; -webkit-user-select: text;
 }
 #ai-panel.expanded .ai-thinking-body { font-size: 12.5px; max-height: 420px; }
 
-/* Show thinking: the latest thought as one line under "Thinking…", like a
+/* Show thinking: the latest thought as one line under "Thinking...", like a
    subtitle. It sits inside the <summary> so it shows while folded; opening
-   the fold shows the whole of it. Faded, italic, one line — it is there to
-   show the model is working and roughly on what, not to be read closely. */
-.ai-thinking-summary { flex-wrap: wrap; }
+   the fold shows the whole of it. */
 .ai-thinking-live {
   flex: 0 0 100%; order: 3;
-  padding-left: 20px;
+  padding: 0 0 4px 20px;
   font-style: italic; font-size: 11.5px; line-height: 1.45;
-  color: var(--text-muted); opacity: 0.8;
+  color: var(--text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ai-thinking-live:empty,
@@ -258,228 +347,299 @@
   .ai-msg.loading.is-thinking .ai-thinking-ico { animation: none; }
 }
 
-/* The switch in the panel header. */
-#ai-think-toggle.active { color: var(--primary); }
+/* ---------- under a message: actions, chips, state ----------------------- */
 
-/* Per-message actions — revealed on hover, so they never compete with the text */
-.ai-msg-actions {
-  position: absolute; top: 4px; right: 2px;
-  display: flex; gap: 1px; opacity: 0; transition: opacity 0.14s ease;
+/* Copy, save, retry. They sit in a row under the answer, beside the line that
+   says what wrote it, and appear when the message is pointed at or focused (and
+   always under the latest answer), so they never lie on top of the text. */
+.ai-msg-actions { display: inline-flex; gap: 1px; margin: 2px 0 -8px; vertical-align: middle; opacity: 0; transition: opacity 0.14s ease; }
+.ai-msg:hover .ai-msg-actions, .ai-msg-actions:focus-within,
+.ai-msg.assistant:last-child .ai-msg-actions { opacity: 1; }
+.ai-msg.assistant .backend-tag + .ai-msg-actions { margin-left: 6px; }
+/* A question's own buttons sit beside its block, not inside it. */
+.ai-msg.user .ai-msg-actions {
+  position: absolute; right: 100%; top: 50%; transform: translateY(-50%); margin: 0 4px 0 0;
 }
-.ai-msg:hover .ai-msg-actions, .ai-msg-actions:focus-within { opacity: 1; }
 .ai-msg-act {
-  width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--bg-2); border: 1px solid var(--border); color: var(--text-muted);
-  border-radius: 6px; cursor: pointer; padding: 0;
+  width: var(--ai-ctl); height: var(--ai-ctl); padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--text-muted);
+  border-radius: var(--ai-r-sm); cursor: pointer;
 }
-.ai-msg-act:hover { color: var(--text); border-color: var(--primary); }
-.ai-msg-act.done { color: var(--success, #22c55e); border-color: var(--success, #22c55e); }
-.ai-msg.user .ai-msg-act { background: var(--primary-hover, var(--primary)); border-color: rgba(255,255,255,0.35); color: var(--on-primary, #fff); }
+.ai-msg-act:hover { color: var(--text); background: var(--vex-hover-fill, var(--tab-hover)); }
+.ai-msg-act.done { color: var(--success, var(--vex-success)); }
 
 /* The old single copy button, kept for anything still rendering it. */
 .ai-copy-btn {
-  position: absolute; top: 6px; right: 6px;
+  position: absolute; top: 0; right: 0; width: var(--ai-ctl); height: var(--ai-ctl);
+  display: inline-flex; align-items: center; justify-content: center; padding: 0;
   background: transparent; border: none; color: var(--text-muted);
-  cursor: pointer; font-size: 13px; padding: 3px 5px; border-radius: 4px;
-  opacity: 0; transition: all 0.15s;
+  border-radius: var(--ai-r-sm); cursor: pointer;
+  opacity: 0; transition: opacity 0.15s;
 }
-.ai-msg:hover .ai-copy-btn { opacity: 0.6; }
-.ai-copy-btn:hover { opacity: 1 !important; background: var(--bg); }
-.ai-copy-btn.copied { color: var(--success, #22c55e); opacity: 1; }
+.ai-msg:hover .ai-copy-btn, .ai-copy-btn:focus-visible { opacity: 1; }
+.ai-copy-btn:hover { background: var(--vex-hover-fill, var(--tab-hover)); color: var(--text); }
+.ai-copy-btn.copied { color: var(--success, var(--vex-success)); opacity: 1; }
 
-/* Ways into the features an answer mentions. */
-.ai-feature-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.ai-feature-chip {
-  display: inline-flex; align-items: center; gap: 5px;
-  background: var(--vex-accent-glow); border: 1px solid var(--primary); color: var(--primary);
-  padding: 4px 10px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
-  font-family: inherit; white-space: nowrap;
-}
-.ai-feature-chip:hover { background: var(--primary); color: var(--on-primary, #fff); }
+.ai-msg-actions + .follow-ups, .ai-msg-actions + .ai-feature-chips { margin-top: 6px; }
 
-.ai-msg .follow-ups { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; user-select: none; }
-.ai-msg .follow-up-btn {
-  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
-  padding: 5px 10px; border-radius: 999px; text-align: left; font-size: 11.5px;
-  cursor: pointer; font-family: inherit; transition: all 0.15s;
-  user-select: none; -webkit-user-select: none;
+/* One look for every chip: starters, next steps, features, follow-ups. */
+.ai-feature-chips, .ai-msg .follow-ups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; user-select: none; }
+.ai-feature-chip, .ai-msg .follow-up-btn, .ai-quick-btn, .persona-prompt, .ai-retry-btn, .ai-why-btn,
+.agent-final-btn, .ai-agent-steps-link, #ai-pause-agent, #ai-stop-agent {
+  display: inline-flex; align-items: center; gap: 6px; min-height: var(--ai-ctl); box-sizing: border-box;
+  padding: 0 11px; font: inherit; font-size: 12px; line-height: 1.2; text-align: left;
+  color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 999px; cursor: pointer; white-space: nowrap;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
-.ai-msg .follow-up-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--vex-accent-glow); }
+.ai-feature-chip, .ai-msg .follow-up-btn { color: var(--text-muted); }
+.ai-feature-chip:hover, .ai-msg .follow-up-btn:hover, .ai-quick-btn:hover, .persona-prompt:hover,
+.ai-retry-btn:hover, .ai-why-btn:hover:not(:disabled), .agent-final-btn:hover:not(:disabled) {
+  background: var(--vex-hover-fill, var(--tab-hover)); border-color: var(--primary); color: var(--text);
+}
+.ai-feature-chip svg, .ai-msg .follow-up-btn svg, .ai-quick-btn svg { color: var(--ai-link); flex: none; }
+.ai-ico { display: inline-flex; flex: none; }
+.ai-feature-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ai-msg .follow-up-btn { white-space: normal; }
 
-.ai-msg.loading { display: flex; align-items: center; gap: 9px; color: var(--text-muted); }
-.ai-msg.loading .ai-spinner {
-  width: 14px; height: 14px; border: 2px solid var(--border);
-  border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite;
+.ai-msg.loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); }
+/* Three dots while it works. One element, so the agent's own "thinking" row
+   can use the same mark; reduced motion turns it into a fade (a11y.css). */
+#ai-panel .ai-spinner {
+  display: inline-block; flex: none; width: 4px; height: 4px; margin: 0 18px 0 2px;
+  border: 0; border-radius: 50%; background: currentColor; color: var(--primary);
+  box-shadow: 9px 0 0 currentColor, 18px 0 0 currentColor;
+  animation: ai-dots 1.2s ease-in-out infinite;
 }
-.ai-msg.error {
-  background: color-mix(in srgb, var(--danger) 12%, transparent) !important;
-  border: 1px solid var(--danger) !important; border-radius: 12px !important;
-  padding: 10px 14px !important; color: var(--text);
+@keyframes ai-dots { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+
+/* A failure: a quiet block with the reason, and what you can do about it. */
+.ai-msg.assistant.error {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-radius: var(--ai-r); color: var(--text);
 }
+.ai-error-line { flex: 1 0 100%; display: flex; gap: 8px; align-items: flex-start; }
+.ai-error-ico { display: inline-flex; flex: none; padding-top: 2px; color: var(--danger); }
+.ai-error-text { min-width: 0; overflow-wrap: anywhere; }
+.ai-retry-btn { color: var(--text); }
+.ai-why-btn { color: var(--text-muted); background: transparent; }
+.ai-why-btn:disabled, .agent-final-btn:disabled { opacity: 0.6; cursor: default; }
+.ai-why { flex: 1 0 100%; padding: 8px 10px; border-radius: var(--ai-r-sm); background: var(--bg); border: 1px solid var(--border); }
+.ai-why-head { font-size: 12px; color: var(--text); margin-bottom: 6px; }
+.ai-why-lines { font-size: 11.5px; color: var(--text-muted); white-space: pre-wrap; line-height: 1.5; }
 
 .ai-meta {
-  margin-top: 9px; padding: 6px 9px; background: var(--vex-accent-glow);
-  border-radius: 6px; font-size: 11.5px; color: var(--text-muted);
+  margin-top: 9px; padding: 6px 10px; background: var(--vex-accent-glow);
+  border-radius: var(--ai-r-sm); font-size: 11.5px; color: var(--text-muted);
 }
+.ai-msg .backend-tag { margin-top: 6px; }
+
+/* Where the model's memory of this chat begins. */
+.ai-context-mark { margin: 6px 4px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 11px; color: var(--text-muted); text-align: center; }
+/* What a cited source says, on hover. */
+.ai-source-card {
+  position: fixed; z-index: 100040; max-width: 320px; padding: 8px 10px;
+  border-radius: var(--ai-r-sm); background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--ai-shadow); font-size: 11.5px; line-height: 1.45; color: var(--text);
+  pointer-events: none;
+}
+/* The guide's answer. */
+.vex-guide-card .vex-guide-steps { margin: 6px 0 0 18px; padding: 0; font-size: 12.5px; line-height: 1.6; color: var(--text); }
+.vex-guide-card .vex-guide-also { margin-top: 6px; font-size: 11.5px; color: var(--text-muted); }
+.ai-agent-steps-link { margin-top: 8px; color: var(--ai-link); }
+.ai-agent-steps-link:hover { background: var(--vex-hover-fill, var(--tab-hover)); }
 
 /* ---------- composer ----------------------------------------------------- */
 
 .ai-composer {
   flex: none; border-top: 1px solid var(--border);
-  background: var(--bg-2); padding: 10px 12px 8px;
+  background: var(--bg-2); padding: calc(10px * var(--vex-density, 1)) var(--ai-pad) calc(12px * var(--vex-density, 1));
 }
 #ai-panel.expanded .ai-composer {
   background: var(--bg);
-  padding: 12px max(16px, calc((100vw - var(--ai-col)) / 2)) 14px;
+  padding: 12px max(16px, calc((100vw - var(--ai-col)) / 2)) 16px;
 }
 .ai-composer-inner { display: flex; flex-direction: column; gap: 8px; }
 
-/* Starters — only while the conversation is empty. */
-.ai-quick-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Starters: only while the conversation is empty. */
+.ai-quick-actions, .persona-prompts-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .ai-quick-actions[hidden] { display: none; }
-.ai-quick-btn {
-  background: var(--surface); border: 1px solid var(--border); color: var(--text);
-  padding: 6px 11px; border-radius: 999px; font-size: 12px; cursor: pointer;
-  font-family: inherit; transition: all 0.15s;
-}
-.ai-quick-btn:hover { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
+.persona-prompt { white-space: normal; color: var(--text-muted); }
 
-.persona-prompts-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.persona-prompt {
-  background: transparent; border: 1px dashed var(--border); color: var(--text-muted);
-  padding: 5px 10px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
-  font-family: inherit;
-}
-.persona-prompt:hover { border-style: solid; border-color: var(--primary); color: var(--primary); }
-
+/* The card you type in. */
 .ai-input-wrapper {
-  display: flex; align-items: flex-end; gap: 8px;
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 14px; padding: 8px 8px 8px 12px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  position: relative; display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--ai-r); padding: 8px 8px 6px 12px;
+  transition: border-color 0.15s ease;
 }
-.ai-input-wrapper:focus-within {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--vex-accent-glow);
+.ai-input-wrapper:focus-within { border-color: var(--primary); }
+/* The keyboard-focus ring goes round the card, not round the bare text area. */
+.ai-input-wrapper:has(#ai-input:focus-visible) {
+  outline: 2px solid var(--vex-focus-ring, var(--primary)) !important; outline-offset: 2px;
 }
+html body #ai-panel #ai-input:focus-visible { outline: none !important; }
 #ai-input {
-  flex: 1; background: transparent; border: none; color: var(--text);
-  padding: 4px 0; font-family: inherit; font-size: 13.5px; line-height: 1.5;
-  resize: none; max-height: 180px; outline: none; min-height: 22px;
+  display: block; width: 100%; box-sizing: border-box; flex: none;
+  background: transparent; border: none; color: var(--text);
+  padding: 4px 0; font: inherit; font-size: 13.5px; line-height: 1.5;
+  resize: none; max-height: 180px; outline: none; min-height: 24px;
 }
 #ai-panel.expanded #ai-input { font-size: 14.5px; max-height: 240px; }
 #ai-input::placeholder { color: var(--text-muted); }
 
-.ai-input-actions { display: flex; align-items: center; gap: 4px; flex: none; }
-@keyframes ai-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-#ai-stop-agent { display: none; }
-#ai-stop-agent.visible { display: inline-block; }
+/* Under the text: who answers, which tabs, how the agent asks - and Send. */
+.ai-composer-bar { display: flex; align-items: flex-end; gap: 8px; margin-left: -6px; }
+.ai-controls { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.ai-controls-spacer { flex: 1; }
+.ai-input-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+
 #ai-send {
-  background: var(--primary); color: var(--on-primary, #fff); border: none;
-  width: 32px; height: 32px; border-radius: 9px; cursor: pointer; flex: none;
-  display: flex; align-items: center; justify-content: center;
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; padding: 0; border: none; cursor: pointer;
+  background: var(--primary); color: var(--on-primary, var(--bg)); border-radius: var(--ai-r-sm);
   transition: background 0.15s ease, opacity 0.15s ease;
 }
-#ai-send:hover { background: var(--primary-hover); }
+#ai-send:hover { background: var(--primary-hover, var(--primary)); }
 #ai-send:disabled { opacity: 0.45; cursor: default; }
+#ai-send.running { animation: ai-pulse 1.4s ease-in-out infinite; }
+@keyframes ai-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
-/* ---------- control row -------------------------------------------------- */
+/* Pause and Stop appear with a running agent. */
+#ai-stop-agent, #ai-pause-agent { display: none; min-height: var(--ai-ctl); padding: 0 11px; }
+#ai-stop-agent.visible, #ai-pause-agent.visible { display: inline-flex; }
+#ai-stop-agent { color: var(--danger); border-color: var(--danger); background: transparent; }
+#ai-stop-agent:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+#ai-pause-agent { color: var(--text-muted); background: transparent; }
+body.agent-paused #ai-pause-agent { border-color: var(--primary); color: var(--primary); }
 
-.ai-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.ai-controls-spacer { flex: 1; }
+/* ---------- the pills under the box -------------------------------------- */
 
+/* Quiet until pointed at: a name, a small mark, a chevron. */
 .ai-pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  background: var(--surface); border: 1px solid var(--border); color: var(--text);
-  padding: 4px 9px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
-  font-family: inherit; white-space: nowrap; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 6px; min-height: var(--ai-ctl); box-sizing: border-box;
+  padding: 0 8px; font: inherit; font-size: 12px; color: var(--text-muted);
+  background: transparent; border: 1px solid transparent; border-radius: var(--ai-r-sm);
+  cursor: pointer; white-space: nowrap; max-width: 100%;
+  transition: background 0.14s ease, color 0.14s ease;
 }
-.ai-pill:hover { border-color: var(--primary); color: var(--primary); }
-.ai-pill-quiet { background: transparent; color: var(--text-muted); }
-.ai-pill .selector-arrow { opacity: 0.6; font-size: 9px; }
-.ai-pill .selector-label { color: var(--text-muted); }
-.persona-icon { display: inline-flex; align-items: center; color: var(--primary); }
-
-.persona-selector, .ai-tab-selector { position: relative; }
-
-.persona-dropdown, #tab-selector-dropdown {
-  position: absolute; bottom: calc(100% + 6px); left: 0;
-  min-width: 240px; max-width: min(340px, 86vw); max-height: 320px; overflow-y: auto;
-  background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: 12px; box-shadow: 0 16px 40px var(--vex-shadow-color, rgba(0,0,0,0.4));
-  z-index: 30; padding: 6px;
+.ai-pill:hover, .ai-pill[aria-expanded="true"] { background: var(--vex-hover-fill, var(--tab-hover)); color: var(--text); }
+.ai-pill .selector-arrow { display: inline-flex; opacity: 0.7; }
+.ai-pill .ai-ico, .ai-pill .persona-icon { color: var(--ai-link); }
+.persona-icon { display: inline-flex; align-items: center; }
+/* "Tabs:" and "Agent:" are said by the mark and the tooltip; a screen reader still gets them. */
+.ai-pill .selector-label {
+  position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
 }
-.persona-dropdown[hidden], #tab-selector-dropdown[hidden] { display: none; }
+.persona-name, .selector-count, #agent-perm-label { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.persona-name { text-align: left; }
 
-.persona-search-wrap { padding: 2px 2px 6px; position: sticky; top: -6px; background: var(--bg-2); z-index: 1; }
+/* The menus open upward over the card, as wide as the card, so none of them
+   can run off the edge of the window. */
+.persona-selector, .ai-tab-selector, .agent-perm { position: static; flex: 0 0 auto; max-width: 100%; }
+.persona-dropdown, #tab-selector-dropdown, .agent-perm-menu {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px);
+  width: auto; min-width: 0; max-width: none; max-height: min(340px, 55vh); overflow-y: auto;
+  box-sizing: border-box; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--ai-r); box-shadow: var(--ai-shadow);
+  z-index: 30;
+}
+.persona-dropdown[hidden], #tab-selector-dropdown[hidden], .agent-perm-menu[hidden] { display: none; }
+.agent-perm-menu.asking { border-color: var(--primary); }
+
+.persona-search-wrap { padding: 0 0 6px; position: sticky; top: -6px; background: var(--surface); z-index: 1; margin-top: -6px; padding-top: 6px; }
 #persona-search {
-  width: 100%; box-sizing: border-box;
+  width: 100%; box-sizing: border-box; height: var(--ai-ctl); padding: 0 10px;
   background: var(--bg); border: 1px solid var(--border); color: var(--text);
-  border-radius: 8px; padding: 6px 9px; font-family: inherit; font-size: 12px; outline: none;
+  border-radius: var(--ai-r-sm); font: inherit; font-size: 12.5px; outline: none;
 }
 #persona-search:focus { border-color: var(--primary); }
 
+.persona-list { display: flex; flex-direction: column; gap: 2px; }
 .persona-item {
-  display: flex; align-items: flex-start; gap: 9px; width: 100%;
-  padding: 8px 10px; border-radius: 9px; border: 1px solid transparent;
-  background: transparent; cursor: pointer; text-align: left; font-family: inherit;
-  color: var(--text);
+  display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; min-height: 40px;
+  padding: 6px 10px; border-radius: var(--ai-r-sm); border: 1px solid transparent; border-left-width: 1px;
+  background: transparent; cursor: pointer; text-align: left; color: var(--text);
 }
-.persona-item:hover { background: var(--surface); border-color: var(--border); }
+.persona-item:hover { background: var(--vex-hover-fill, var(--tab-hover)); }
 .persona-item.active { border-color: var(--primary); background: var(--vex-accent-glow); }
-.persona-item-icon { color: var(--primary); flex: none; display: inline-flex; padding-top: 1px; }
-.persona-item-info { min-width: 0; }
-.persona-item-name { font-size: 12.5px; font-weight: 600; }
-.persona-item-desc { font-size: 11px; color: var(--text-muted); line-height: 1.45; }
-.persona-item-builtin { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
-.persona-footer { border-top: 1px solid var(--border); margin-top: 4px; padding: 6px 4px 2px; }
-
-.btn-link {
-  background: none; border: none; color: var(--primary); cursor: pointer;
-  font-size: 11.5px; font-family: inherit; padding: 2px 4px;
+.persona-item-icon { display: inline-flex; flex: none; font-size: inherit; line-height: 1; color: var(--primary); }
+.persona-item-info { flex: 1; min-width: 0; }
+.persona-item-name { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.persona-item-desc { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.persona-item.active .persona-item-desc, .agent-perm-item.active span { color: var(--text); }
+.persona-item-builtin {
+  flex: none; padding: 1px 7px; border-radius: 999px; font-family: var(--vex-font-mono, monospace);
+  font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-muted); background: var(--ai-soft);
 }
-.btn-link:hover { text-decoration: underline; }
+.persona-footer { border-top: 1px solid var(--border); margin: 6px 0 0; padding: 4px 0 0; text-align: left; }
+
+#ai-panel .btn-link {
+  display: inline-flex; align-items: center; min-height: var(--ai-ctl); padding: 0 8px;
+  background: none; border: none; color: var(--ai-link); cursor: pointer;
+  font: inherit; font-size: 12px; border-radius: var(--ai-r-sm);
+}
+#ai-panel .btn-link:hover { background: var(--vex-hover-fill, var(--tab-hover)); }
+.ai-history-head .btn-link { text-transform: none; letter-spacing: 0; }
 
 .selector-modes { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px; }
 .selector-mode {
-  background: var(--surface); border: 1px solid var(--border); color: var(--text);
-  padding: 5px 9px; border-radius: 8px; font-size: 11.5px; cursor: pointer; font-family: inherit;
+  min-height: var(--ai-ctl); padding: 0 11px; font: inherit; font-size: 12px; cursor: pointer;
+  color: var(--text); background: transparent; border: 1px solid var(--border); border-radius: 999px;
 }
-.selector-mode.active { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
+.selector-mode:hover { background: var(--vex-hover-fill, var(--tab-hover)); }
+.selector-mode.active { background: var(--primary); color: var(--on-primary, var(--bg)); border-color: var(--primary); }
 #selector-tab-list { max-height: 180px; overflow-y: auto; margin-top: 6px; }
-#selector-summary { font-size: 11px; color: var(--text-muted); padding: 6px 4px 2px; }
+#selector-summary { font-size: 11.5px; color: var(--text-muted); padding: 6px 4px 2px; }
 
-.agent-mode-selector {
-  display: inline-flex; background: var(--surface);
-  border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px;
+/* How the agent asks for permission: a menu that says what each choice means. */
+.agent-perm-head { padding: 6px 8px 4px; font-size: 11.5px; font-weight: 600; color: var(--text-muted); }
+.agent-perm-menu.asking .agent-perm-head { color: var(--text); }
+.agent-perm-item {
+  display: block; width: 100%; box-sizing: border-box; text-align: left; cursor: pointer;
+  padding: 8px 10px; margin: 2px 0; border-radius: var(--ai-r-sm);
+  background: transparent; border: 1px solid transparent; color: var(--text); font: inherit;
 }
-.mode-btn {
-  background: transparent; border: none; color: var(--text-muted);
-  padding: 3px 10px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
-  font-family: inherit; transition: all 0.15s;
-}
-.mode-btn.active { background: var(--primary); color: var(--on-primary, #fff); }
-.mode-btn:not(.active):hover { color: var(--text); }
+.agent-perm-item strong { display: block; font-size: 12.5px; font-weight: 600; }
+.agent-perm-item span { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.4; color: var(--text-muted); }
+.agent-perm-item:hover { background: var(--vex-hover-fill, var(--tab-hover)); }
+.agent-perm-item.active { border-color: var(--primary); background: var(--vex-accent-glow); }
+.agent-perm-foot { padding: 6px 8px 4px; font-size: 11px; line-height: 1.4; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 4px; }
 
-.ai-footer {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 10.5px; color: var(--text-muted); padding: 2px 2px 0;
+.ai-footer { display: flex; justify-content: flex-end; align-items: center; font-size: 11px; color: var(--text-muted); }
+.ai-footer:empty, .ai-backend:empty { display: none; }
+.ai-footer:has(> .ai-backend:empty) { display: none; }
+
+/* A file dropped into the chat, and the @mention list: both sit on the card. */
+.ai-file-chip {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 3px 4px 3px 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--ai-r-sm);
+  font-size: 12px; color: var(--text);
 }
-#ai-stop-agent {
-  background: transparent; border: 1px solid var(--danger); color: var(--danger);
-  padding: 2px 9px; border-radius: 999px; font-size: 11px; cursor: pointer; font-family: inherit;
+.ai-file-chip[hidden] { display: none; }
+.ai-file-chip-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-file-chip button {
+  display: inline-flex; align-items: center; justify-content: center; width: var(--ai-ctl); height: var(--ai-ctl); padding: 0;
+  background: none; border: none; cursor: pointer; color: var(--text-muted); border-radius: var(--ai-r-sm);
 }
-/* Pause sits beside Stop and appears with it: holding a run is the smaller
-   decision, so it is the quieter button. */
-#ai-pause-agent { display: none; }
-#ai-pause-agent.visible { display: inline-block; }
-#ai-pause-agent {
-  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
-  padding: 2px 9px; border-radius: 999px; font-size: 11px; cursor: pointer; font-family: inherit;
-  margin-right: 6px;
+.ai-file-chip button:hover { background: var(--vex-hover-fill, var(--tab-hover)); color: var(--text); }
+.vex-mention-list {
+  position: absolute; z-index: 60; left: 6px; right: 6px; bottom: calc(100% + 6px);
+  max-height: 216px; overflow-y: auto; padding: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--ai-r); box-shadow: var(--ai-shadow);
 }
-body.agent-paused #ai-pause-agent { border-color: var(--primary); color: var(--primary); }
-.ai-backend { margin-left: auto; opacity: 0.8; }
+.vex-mention-row { display: flex; align-items: center; gap: 8px; min-height: var(--ai-ctl); padding: 5px 8px; border-radius: var(--ai-r-sm); cursor: pointer; }
+.vex-mention-row[aria-selected="true"] { background: var(--vex-hover-fill, var(--tab-hover)); }
+.vex-mention-row > div { flex: 1; min-width: 0; }
+.vex-mention-label { font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vex-mention-sub { font-size: 10.5px; color: var(--text-muted); }
 
 /* ---------- narrow windows ---------------------------------------------- */
 
@@ -490,140 +650,18 @@ body.agent-paused #ai-pause-agent { border-color: var(--primary); color: var(--p
   #ai-panel.expanded .ai-composer { padding-left: 14px; padding-right: 14px; }
 }
 
-/* ---- Agent permission menu (ai-panel.js _initAgentPermission) ----
-   Replaces the Ask / Plan / Auto pills: one labelled pill, a menu that says
-   what each choice means, opened by the robot button on first use. */
-.agent-perm { position: relative; }
-.agent-perm-menu {
-  position: absolute; bottom: calc(100% + 6px); left: 0;
-  width: 300px; max-width: min(320px, 86vw);
-  background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: 12px; box-shadow: 0 16px 40px var(--vex-shadow-color, rgba(0,0,0,0.4));
-  z-index: 30; padding: 6px;
-}
-.agent-perm-menu[hidden] { display: none; }
-.agent-perm-menu.asking { border-color: var(--primary); }
-.agent-perm-head { padding: 6px 8px 4px; font-size: 11px; font-weight: 600; color: var(--text-muted); }
-.agent-perm-menu.asking .agent-perm-head { color: var(--text); }
-.agent-perm-item {
-  display: block; width: 100%; text-align: left; cursor: pointer;
-  padding: 8px 10px; margin: 2px 0; border-radius: 9px;
-  background: transparent; border: 1px solid transparent; color: var(--text);
-  font-family: inherit;
-}
-.agent-perm-item strong { display: block; font-size: 12.5px; font-weight: 600; }
-.agent-perm-item span { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: var(--text-muted); }
-.agent-perm-item:hover { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); }
-.agent-perm-item.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
-.agent-perm-foot { padding: 6px 8px 4px; font-size: 10.5px; line-height: 1.4; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 4px; }
+/* ---------- the agent's plan, and what it made --------------------------- */
 
-/* The agent's plan (agent-loop.js _confirmPlan) and its final answer. */
-.agent-plan-steps { margin: 6px 0 8px; padding-left: 20px; font-size: 12px; line-height: 1.5; color: var(--text); }
+.agent-plan-steps { margin: 6px 0 8px; padding-left: 20px; font-size: 12.5px; line-height: 1.5; color: var(--text); }
 .agent-plan-steps li { margin: 2px 0; }
-.ai-msg.agent-final { border-left: 2px solid var(--primary); }
-
-/* Agent runs inside the history popover */
-.ai-history-sub { padding: 8px 10px 3px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
-
-/* Send is working as the agent */
-#ai-send.running { animation: ai-pulse 1.4s ease-in-out infinite; }
-/* An agent answer in a reopened chat: back to its steps */
-.ai-agent-steps-link { margin-top: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: 11px; color: var(--primary); cursor: pointer; }
-.ai-agent-steps-link:hover { text-decoration: underline; }
-
-/* "Why did that fail?" — the AI's own diagnosis */
-.ai-why-btn {
-  margin-top: 6px; padding: 4px 10px; font: inherit; font-size: 11px; border-radius: 6px; cursor: pointer;
-  background: transparent; color: var(--text-muted); border: 1px solid var(--border);
-}
-.ai-why-btn:hover:not(:disabled) { color: var(--text); background: var(--vex-hover-fill, var(--bg)); }
-.ai-why { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); }
-.ai-why-head { font-size: 12px; color: var(--text); margin-bottom: 6px; }
-.ai-why-lines { font-size: 11px; color: var(--text-muted); white-space: pre-wrap; line-height: 1.5; }
-
-/* Settings › AI — the local model manager */
-#model-manager { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
-.mm-card { font-size: 12px; color: var(--text-muted); padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
-.mm-empty { font-size: 12px; color: var(--text-muted); padding: 6px 2px; }
-.mm-list { display: flex; flex-direction: column; gap: 6px; }
-.mm-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
-.mm-row.live { border-color: var(--primary); }
-.mm-name { font-size: 12.5px; font-weight: 600; color: var(--text); flex: none; }
-.mm-meta { font-size: 11px; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mm-row-actions { display: flex; gap: 6px; flex: none; }
-.mm-btn { font: inherit; font-size: 11px; padding: 4px 9px; border-radius: 6px; cursor: pointer; background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
-.mm-btn:hover { color: var(--text); background: var(--vex-hover-fill, var(--bg)); }
-.mm-danger:hover { color: var(--danger); border-color: var(--danger); }
-.mm-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.mm-input { flex: 1; min-width: 220px; padding: 6px 10px; font: inherit; font-size: 12px; border-radius: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); }
-.mm-progress { font-size: 11px; color: var(--text-muted); }
-.mm-progress[hidden] { display: none; }
-
+.ai-msg.agent-final { border-left: 2px solid var(--primary); padding-left: 12px; }
 /* The agent's step row is a plain bubble, not a <summary>: the thinking line
    sits on its own row beneath the "what I'm doing" text. */
 .agent-think-live { display: block; padding-left: 0; margin-top: 4px; }
 
-/* Search every chat (AIPanel._renderHistory). */
-.ai-history-search { margin: 0 8px 6px; padding: 6px 9px; font: inherit; font-size: 12px; border-radius: 7px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
-/* Where the model's memory of this chat begins (AIPanel._renderMessages). */
-.ai-context-mark { margin: 10px 4px; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 11px; color: var(--text-muted); text-align: center; }
-/* What a cited source says, on hover (AIPanel._previewSource). */
-.ai-source-card { position: fixed; z-index: 100040; max-width: 320px; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 28px rgba(0,0,0,0.3); font-size: 11.5px; line-height: 1.45; color: var(--text); pointer-events: none; }
+/* ---------- history extras ----------------------------------------------- */
 
-/* The guide's answer (AIPanel._renderGuide). */
-.vex-guide-card .vex-guide-steps { margin: 6px 0 0 18px; padding: 0; font-size: 12.5px; line-height: 1.6; color: var(--text); }
-.vex-guide-card .vex-guide-also { margin-top: 6px; font-size: 11px; color: var(--text-muted); }
-
-/* === Reading an answer, not scanning a wall ==============================
-   The panel held four rows of controls under the box you type in, starters
-   that never went away, and headings the same size as the text under them.
-   These are the spacing rules that make an answer read as a piece of writing;
-   they come last so they win over the older ones above. */
-
-/* One rhythm down the column: a question, its answer, a gap, the next pair. */
-.ai-messages { gap: 10px; }
-.ai-msg.user + .ai-msg.assistant { margin-top: -2px; }
-.ai-msg.assistant + .ai-msg.user { margin-top: 6px; }
-
-/* Headings inside an answer look like headings. */
-.ai-msg.assistant :is(h1, h2, h3, h4) {
-  font-family: var(--vex-font-display, inherit);
-  line-height: 1.3;
-  margin: 12px 0 5px;
-  color: var(--text);
-}
-.ai-msg.assistant :is(h1, h2, h3, h4):first-child { margin-top: 0; }
-.ai-msg.assistant h1 { font-size: 1.28em; }
-.ai-msg.assistant h2 { font-size: 1.16em; }
-.ai-msg.assistant :is(h3, h4) { font-size: 1.06em; }
-.ai-msg.assistant p { margin: 0 0 8px; }
-.ai-msg.assistant > :last-child { margin-bottom: 0; }
-.ai-msg.assistant hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
-.ai-msg.assistant blockquote {
-  margin: 8px 0; padding: 2px 0 2px 11px;
-  border-left: 2px solid var(--border); color: var(--text-muted);
-}
-/* An inline code span the width of the panel used to break across two lines
-   with a box on each. */
-.ai-msg.assistant code { overflow-wrap: anywhere; }
-.ai-msg.assistant table { border-collapse: collapse; margin: 8px 0; font-size: .95em; width: 100%; }
-.ai-msg.assistant :is(td, th) { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
-.ai-msg.assistant th { background: var(--vex-hover-fill, var(--tab-hover)); font-weight: 600; }
-
-/* The question, as a quiet block rather than a shout. */
-.ai-msg.user { border-radius: 13px 13px 5px 13px; padding: 8px 13px; }
-
-/* The composer: one row of chips, one line to type in, nothing else. */
-.ai-composer-inner { gap: 8px; }
-.ai-controls { row-gap: 6px; }
-.ai-footer:empty { display: none; }
-.ai-footer { padding-top: 0; }
-.ai-backend:empty { display: none; }
-
-/* The history list, tidied. Pin / Rename / To note used to be appended
-   straight onto the item, which is a flex column — so each one took a full
-   line and a list of ten chats was forty rows tall. They belong on one band,
-   and the band belongs out of the way until the row is wanted. */
+/* Pin / Rename / To note: one band, out of the way until the row is wanted. */
 .ai-history-tools {
   display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
   opacity: 0; max-height: 0; overflow: hidden;
@@ -631,6 +669,30 @@ body.agent-paused #ai-pause-agent { border-color: var(--primary); color: var(--p
 }
 .ai-history-item:hover .ai-history-tools,
 .ai-history-item:focus-within .ai-history-tools { opacity: 1; max-height: 40px; }
-/* A heading that is not the first needs air above it, or the days run together. */
 .ai-history-sub + .ai-history-item { margin-top: 1px; }
 .ai-history-item + .ai-history-sub { margin-top: 8px; }
+
+/* ---------- Settings > AI: the local model manager ----------------------- */
+
+#model-manager { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.mm-card { font-size: 12px; color: var(--text-muted); padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--vex-radius-lg, 10px); }
+.mm-empty { font-size: 12px; color: var(--text-muted); padding: 6px 2px; }
+.mm-list { display: flex; flex-direction: column; gap: 6px; }
+.mm-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--vex-radius-lg, 10px); }
+.mm-row.live { border-color: var(--primary); background: var(--vex-accent-glow); }
+.mm-name { font-size: 12.5px; font-weight: 600; color: var(--text); flex: none; }
+.mm-meta { font-size: 11.5px; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mm-row-actions { display: flex; gap: 6px; flex: none; }
+.mm-btn {
+  min-height: 28px; padding: 0 10px; font: inherit; font-size: 12px; cursor: pointer;
+  background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--vex-radius-md, 6px);
+}
+.mm-btn:hover { color: var(--text); background: var(--vex-hover-fill, var(--bg)); }
+.mm-danger:hover { color: var(--danger); border-color: var(--danger); }
+.mm-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mm-input {
+  flex: 1; min-width: 220px; min-height: 28px; padding: 0 10px; font: inherit; font-size: 12.5px;
+  border-radius: var(--vex-radius-md, 6px); background: var(--bg); color: var(--text); border: 1px solid var(--border);
+}
+.mm-progress { font-size: 11.5px; color: var(--text-muted); }
+.mm-progress[hidden] { display: none; }

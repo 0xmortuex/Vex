@@ -180,10 +180,10 @@
 .backend-tag {
   display: inline-block; margin-top: 6px;
   padding: 1px 6px; border-radius: 4px;
-  font-size: 9px; font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; font-family: var(--vex-font-mono, monospace);
   opacity: 0.6; letter-spacing: 0.3px;
 }
-.backend-tag.local { background: rgba(34,197,94,0.15); color: var(--success); }
+.backend-tag.local { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
 .backend-tag.cloud { background: var(--vex-accent-dim); color: var(--primary); }
 
 /* Ollama hint in AI panel */

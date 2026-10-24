@@ -1561,20 +1561,24 @@
        conversation gets the height instead. -->
   <div id="ai-panel" role="complementary" aria-label="AI assistant">
     <div class="ai-header">
-      <div class="ai-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        <span>Vex AI</span>
-      </div>
-      <div class="ai-tab-indicator">
-        <span class="ai-context-label">Talking about:</span>
-        <span class="ai-current-tab-title" id="ai-current-tab">New Tab</span>
+      <div class="ai-heading">
+        <div class="ai-title">
+          <span class="ai-title-ico" id="ai-title-ico" data-ico="sparkles" data-ico-size="16"></span>
+          <span>Vex AI</span>
+        </div>
+        <div class="ai-tab-indicator">
+          <span class="ai-context-ico" data-ico="globe" data-ico-size="12"></span><span class="ai-context-label vex-sr-only">Talking about:</span>
+          <span class="ai-current-tab-title" id="ai-current-tab">New Tab</span>
+        </div>
       </div>
       <div class="ai-header-actions">
         <button class="ai-icon-btn" id="ai-think-toggle" title="Show thinking" aria-label="Show thinking" aria-pressed="false"></button>
+        <span class="ai-header-sep" aria-hidden="true"></span>
         <button class="ai-icon-btn" id="ai-new-chat" title="New chat" aria-label="New chat"></button>
         <button class="ai-icon-btn" id="ai-history-btn" title="Recent chats" aria-label="Recent chats"></button>
         <button class="ai-icon-btn" id="ai-export" title="Save this conversation to a file" aria-label="Save this conversation"></button>
         <button class="ai-icon-btn ai-clear" id="ai-clear" title="Clear this conversation" aria-label="Clear this conversation"></button>
+        <span class="ai-header-sep" aria-hidden="true"></span>
         <button class="ai-icon-btn" id="ai-expand" title="Full screen (Ctrl+Shift+F)" aria-label="Full screen"></button>
         <button class="ai-icon-btn ai-close" id="ai-close" title="Close (Esc)" aria-label="Close"></button>
       </div>
@@ -1582,17 +1586,21 @@
 
     <!-- Recent conversations, folded away until asked for. -->
     <div class="ai-history" id="ai-history" hidden>
-      <div class="ai-history-head">Recent chats <button class="btn-link" id="ai-history-close">Done</button></div>
+      <div class="ai-history-head"><span>Recent chats</span> <button class="btn-link" id="ai-history-close">Done</button></div>
       <input class="ai-history-search" id="ai-history-search" type="search" placeholder="Search every chat" aria-label="Search every chat">
       <div class="ai-history-list" id="ai-history-list"></div>
     </div>
 
-    <!-- The conversation. In focus mode .ai-thread centres itself in the window
-         and the messages get a readable column width instead of the full span. -->
+    <!-- The conversation. In focus mode the messages get a readable column
+         width instead of the full span. -->
     <div class="ai-body">
       <div class="ai-thread">
         <div class="ai-messages" id="ai-messages">
-          <div class="ai-empty">Ask anything about the current page, or use the quick actions above.</div>
+          <div class="ai-empty">
+              <span class="ai-empty-ico" data-ico="sparkles" data-ico-size="22"></span>
+              <div class="ai-empty-title">How can I help?</div>
+              <div class="ai-empty-hint">Ask anything about the current page, or pick a starter below.</div>
+            </div>
         </div>
       </div>
     </div>
@@ -1602,91 +1610,94 @@
         <!-- Starters. Shown only while the conversation is empty, the way an
              empty chat offers somewhere to begin. -->
         <div class="ai-quick-actions" id="ai-quick-actions">
-          <button class="ai-quick-btn" data-action="summarize">Summarize</button>
-          <button class="ai-quick-btn" data-action="compare">Compare tabs</button>
-          <button class="ai-quick-btn" data-action="translate">Translate</button>
-          <button class="ai-quick-btn" data-action="ask">Ask</button>
-          <button class="ai-quick-btn" data-action="group-tabs">Organize tabs</button>
+          <button class="ai-quick-btn" data-action="summarize"><span class="ai-ico" data-ico="note"></span>Summarize</button>
+          <button class="ai-quick-btn" data-action="compare"><span class="ai-ico" data-ico="swap"></span>Compare tabs</button>
+          <button class="ai-quick-btn" data-action="translate"><span class="ai-ico" data-ico="globe"></span>Translate</button>
+          <button class="ai-quick-btn" data-action="ask"><span class="ai-ico" data-ico="message"></span>Ask</button>
+          <button class="ai-quick-btn" data-action="group-tabs"><span class="ai-ico" data-ico="tabs"></span>Organize tabs</button>
         </div>
 
         <div class="persona-prompts-row" id="persona-prompts-row" style="display:none"></div>
 
+        <!-- One card: what you type, and under it the controls that shape the
+             answer (who answers, which tabs it reads, how the agent asks) with
+             Send at the end of the same row. -->
         <div class="ai-input-wrapper">
           <textarea id="ai-input" placeholder="Ask anything about this page…" rows="1"></textarea>
-          <div class="ai-input-actions">
-            <button id="ai-send" title="Send  (Enter) — a task runs as the agent, a question is answered. /agent or /chat forces one" aria-label="Send"></button>
-          </div>
-        </div>
+          <div class="ai-composer-bar">
+            <div class="ai-controls">
+              <div class="persona-selector">
+                <button class="active-persona ai-pill" id="active-persona-btn" title="Switch persona (@name in chat works too)">
+                  <span class="persona-icon" id="active-persona-icon"></span>
+                  <span class="persona-name" id="active-persona-name">Vex</span>
+                  <span class="selector-arrow" data-ico="chevron-down" data-ico-size="11"></span>
+                </button>
+                <div class="persona-dropdown" id="persona-dropdown" hidden>
+                  <div class="persona-list" id="persona-list"></div>
+                  <div class="persona-footer">
+                    <button class="btn-link" id="manage-personas-btn">Manage personas</button>
+                  </div>
+                </div>
+              </div>
 
-        <!-- One row of controls, in the composer where they are used, rather
-             than four strips pushing the conversation down the panel. -->
-        <div class="ai-controls">
-          <div class="persona-selector">
-            <button class="active-persona ai-pill" id="active-persona-btn" title="Switch persona (@name in chat works too)">
-              <span class="persona-icon" id="active-persona-icon"></span>
-              <span class="persona-name" id="active-persona-name">Vex</span>
-              <span class="selector-arrow">&#9662;</span>
-            </button>
-            <div class="persona-dropdown" id="persona-dropdown" hidden>
-              <div class="persona-list" id="persona-list"></div>
-              <div class="persona-footer">
-                <button class="btn-link" id="manage-personas-btn">Manage personas &rarr;</button>
+              <div class="ai-tab-selector">
+                <button class="tab-selector-toggle ai-pill" id="tab-selector-toggle" title="Which tabs the AI reads">
+                  <span class="ai-ico" data-ico="tabs" data-ico-size="13"></span>
+                  <span class="selector-label">Tabs:</span>
+                  <span class="selector-count" id="selector-count">Current tab</span>
+                  <span class="selector-arrow" data-ico="chevron-down" data-ico-size="11"></span>
+                </button>
+                <div id="tab-selector-dropdown" hidden>
+                  <div class="selector-modes">
+                    <button class="selector-mode active" data-mode="current">Current tab</button>
+                    <button class="selector-mode" data-mode="all">All tabs</button>
+                    <button class="selector-mode" data-mode="group">This group</button>
+                    <button class="selector-mode" data-mode="custom">Pick tabs…</button>
+                  </div>
+                  <div id="selector-tab-list" hidden></div>
+                  <div id="selector-summary">1 tab included</div>
+                </div>
+              </div>
+
+              <!-- How the agent asks for permission (Send runs a task as the agent). Three words
+                   in three pills — "Ask / Plan / Auto" — did not say what they
+                   governed; this names it and explains each choice. The robot
+                   button opens it the first time, before anything runs. -->
+              <div class="agent-perm">
+                <button class="ai-pill agent-perm-toggle" id="agent-perm-toggle" aria-haspopup="menu" aria-expanded="false" title="How the agent asks before it clicks, types or navigates">
+                  <span class="ai-ico" data-ico="robot" data-ico-size="13"></span>
+                  <span class="selector-label">Agent:</span>
+                  <span id="agent-perm-label">Approve manually</span>
+                  <span class="selector-arrow" data-ico="chevron-down" data-ico-size="11"></span>
+                </button>
+                <div class="agent-perm-menu" id="agent-perm-menu" role="menu" hidden>
+                  <div class="agent-perm-head" id="agent-perm-head">How should the agent ask for permission?</div>
+                  <button class="agent-perm-item" role="menuitemradio" data-mode="ask">
+                    <strong>Approve manually</strong>
+                    <span>Asks before every click, typed text or navigation. Reading and searching run without asking.</span>
+                  </button>
+                  <button class="agent-perm-item" role="menuitemradio" data-mode="plan">
+                    <strong>Plan first</strong>
+                    <span>Shows its plan once. After you approve, it carries the plan out on its own.</span>
+                  </button>
+                  <button class="agent-perm-item" role="menuitemradio" data-mode="auto">
+                    <strong>Auto-approve</strong>
+                    <span>Works on its own from the start.</span>
+                  </button>
+                  <div class="agent-perm-foot">In every mode it asks before buying, paying, sending, posting or deleting.</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="ai-tab-selector">
-            <button class="tab-selector-toggle ai-pill" id="tab-selector-toggle">
-              <span class="selector-label">Tabs:</span>
-              <span class="selector-count" id="selector-count">Current tab</span>
-              <span class="selector-arrow">&#9662;</span>
-            </button>
-            <div id="tab-selector-dropdown" hidden>
-              <div class="selector-modes">
-                <button class="selector-mode active" data-mode="current">Current tab</button>
-                <button class="selector-mode" data-mode="all">All tabs</button>
-                <button class="selector-mode" data-mode="group">This group</button>
-                <button class="selector-mode" data-mode="custom">Pick tabs…</button>
-              </div>
-              <div id="selector-tab-list" hidden></div>
-              <div id="selector-summary">1 tab included</div>
+            <div class="ai-input-actions">
+              <button id="ai-pause-agent" title="Hold the agent between steps">Pause</button>
+              <button id="ai-stop-agent" title="Stop agent">Stop</button>
+              <button id="ai-send" title="Send  (Enter) — a task runs as the agent, a question is answered. /agent or /chat forces one" aria-label="Send"></button>
             </div>
           </div>
-
-          <!-- How the agent asks for permission (Send runs a task as the agent). Three words
-               in three pills — "Ask / Plan / Auto" — did not say what they
-               governed; this names it and explains each choice. The robot
-               button opens it the first time, before anything runs. -->
-          <div class="agent-perm">
-            <button class="ai-pill agent-perm-toggle" id="agent-perm-toggle" aria-haspopup="menu" aria-expanded="false" title="How the agent asks before it clicks, types or navigates">
-              <span class="selector-label">Agent:</span>
-              <span id="agent-perm-label">Approve manually</span>
-              <span class="selector-arrow">&#9662;</span>
-            </button>
-            <div class="agent-perm-menu" id="agent-perm-menu" role="menu" hidden>
-              <div class="agent-perm-head" id="agent-perm-head">How should the agent ask for permission?</div>
-              <button class="agent-perm-item" role="menuitemradio" data-mode="ask">
-                <strong>Approve manually</strong>
-                <span>Asks before every click, typed text or navigation. Reading and searching run without asking.</span>
-              </button>
-              <button class="agent-perm-item" role="menuitemradio" data-mode="plan">
-                <strong>Plan first</strong>
-                <span>Shows its plan once. After you approve, it carries the plan out on its own.</span>
-              </button>
-              <button class="agent-perm-item" role="menuitemradio" data-mode="auto">
-                <strong>Auto-approve</strong>
-                <span>Works on its own from the start.</span>
-              </button>
-              <div class="agent-perm-foot">In every mode it asks before buying, paying, sending, posting or deleting.</div>
-            </div>
-          </div>
-
-          <span class="ai-controls-spacer"></span>
         </div>
 
         <div class="ai-footer">
-          <button id="ai-pause-agent" title="Hold the agent between steps">Pause</button>
-          <button id="ai-stop-agent" title="Stop agent">Stop</button>
           <span class="ai-backend" id="ai-backend"></span>
         </div>
       </div>

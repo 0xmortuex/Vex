@@ -1296,7 +1296,7 @@ const AgentLoop = {
       container.appendChild(el);
       container.scrollTop = container.scrollHeight;
       const settle = this._settleCard(el, resolve);
-      const done = (ok) => settle(ok, ok ? 'Plan approved' : 'Denied', ok ? 'var(--success,#22c55e)' : 'var(--danger)');
+      const done = (ok) => settle(ok, ok ? 'Plan approved' : 'Denied', ok ? 'var(--success)' : 'var(--danger)');
       el.querySelector('.agent-approve').addEventListener('click', () => done(true));
       el.querySelector('.agent-deny').addEventListener('click', () => done(false));
     });
@@ -1384,7 +1384,7 @@ const AgentLoop = {
       container.appendChild(el);
       container.scrollTop = container.scrollHeight;
       const settle = this._settleCard(el, resolve);
-      const done = (ok) => settle(ok, ok ? 'Carrying on' : 'Stopped', ok ? 'var(--success,#22c55e)' : 'var(--danger)');
+      const done = (ok) => settle(ok, ok ? 'Carrying on' : 'Stopped', ok ? 'var(--success)' : 'var(--danger)');
       el.querySelector('.agent-approve').addEventListener('click', () => done(true));
       el.querySelector('.agent-deny').addEventListener('click', () => done(false));
     });
@@ -1422,7 +1422,7 @@ const AgentLoop = {
       if (!this._openCards.has(settle)) return;
       this._openCards.delete(settle);
       const btns = el.querySelector('.agent-btns');
-      if (btns) btns.innerHTML = '<span style="color:' + (color || 'var(--text-muted)') + ';font-size:11px">' + this._esc(label) + '</span>';
+      if (btns) btns.innerHTML = '<span class="agent-settled" style="color:' + (color || 'var(--text-muted)') + '">' + this._esc(label) + '</span>';
       resolve(value);
     };
     this._openCards.add(settle);
@@ -1452,8 +1452,8 @@ const AgentLoop = {
       container.scrollTop = container.scrollHeight;
       const settle = this._settleCard(el, resolve);
 
-      el.querySelector('.agent-approve').addEventListener('click', () => settle(true, 'Approved', 'var(--success,#22c55e)'));
-      el.querySelector('.agent-always')?.addEventListener('click', () => settle('always', 'Allowed on this site from now on — Settings › AI to change it', 'var(--success,#22c55e)'));
+      el.querySelector('.agent-approve').addEventListener('click', () => settle(true, 'Approved', 'var(--success)'));
+      el.querySelector('.agent-always')?.addEventListener('click', () => settle('always', 'Allowed on this site from now on — Settings › AI to change it', 'var(--success)'));
       el.querySelector('.agent-deny').addEventListener('click', () => settle(false, 'Denied', 'var(--danger)'));
     });
   },
@@ -1464,9 +1464,9 @@ const AgentLoop = {
     const el = document.createElement('div');
     el.className = 'ai-msg assistant agent-step-error';
     el.innerHTML = `
-      <div style="color:var(--danger);font-weight:600;margin-bottom:6px">Agent Error</div>
-      <div style="font-size:12px">${this._esc(error)}</div>
-      ${rawResponse ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:11px;color:var(--text-muted)">Show raw AI response</summary><pre style="font-size:10px;white-space:pre-wrap;background:var(--bg);padding:8px;border-radius:4px;margin-top:6px;max-height:200px;overflow:auto">${this._esc(String(rawResponse))}</pre></details>` : ''}
+      <div class="agent-error-title">Agent Error</div>
+      <div class="agent-error-text">${this._esc(error)}</div>
+      ${rawResponse ? `<details class="agent-error-raw"><summary>Show raw AI response</summary><pre>${this._esc(String(rawResponse))}</pre></details>` : ''}
     `;
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
