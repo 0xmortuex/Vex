@@ -21,3 +21,12 @@ describe('the webview of a New Tab page', () => {
     expect(tokens).toContain('--vex-bg-base:');
   });
 });
+
+describe('the webview of a sidebar web panel', () => {
+  it('has the theme base colour from the moment it is made, so opening Discord or GitHub does not flash white in a dark theme', () => {
+    const side = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/js/sidebar.js'), 'utf8').replace(/\r\n/g, '\n');
+    const make = side.indexOf("const wv = document.createElement('webview');");
+    expect(make).toBeGreaterThan(-1);
+    expect(side.slice(make, make + 700)).toContain("wv.style.background = 'var(--vex-bg-base)'");
+  });
+});

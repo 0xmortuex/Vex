@@ -695,6 +695,9 @@ const SidebarManager = {
     if (!config || !config.url || !panelEl) return null;
     const wv = document.createElement('webview');
     wv.setAttribute('src', config.url);
+    // Until the site paints, the empty webview showed white: a white flash each time a panel opened in a dark theme (see js/webview.js, the
+    // same for the New Tab page). The theme's base colour stands in; the site's own page covers it when it draws.
+    wv.style.background = 'var(--vex-bg-base)';
     if (config.partition) {
       wv.setAttribute('partition', config.partition);
     }
