@@ -3151,14 +3151,14 @@ const AIPanel = {
       window.showToast?.('Could not copy: ' + ((err && err.message) || 'clipboard unavailable'), 'error');
       return;
     }
-    const label = btn.querySelector('span');
+    const word = btn.querySelector('span');
     btn.classList.add('done');
     const shown = btn.querySelector('svg'); if (shown) shown.outerHTML = this._icon('check', 13);
-    if (label) label.textContent = 'Copied';
+    if (word) word.textContent = 'Copied';
     setTimeout(() => {
       if (!btn.isConnected) return;
       btn.classList.remove('done');
-      if (label) label.textContent = 'Copy';
+      if (word) word.textContent = 'Copy';
       const ico = btn.querySelector('svg'); if (ico) ico.outerHTML = this._icon('copy', 13);
     }, 1400);
   },
