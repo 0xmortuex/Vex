@@ -139,6 +139,13 @@ const ThemeManager = {
     } catch (e) {
       console.warn('[ThemeManager] load failed:', e);
     }
+    // A private window keeps its own storage, so it saved nothing: it wears the theme of the window it was opened from (the address carries
+    // that window's snapshot, js/early-look.js), not the default.
+    if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow && window.VexEarlyLook) {
+      const carried = window.VexEarlyLook.carried();
+      const theme = carried && carried.html && carried.html.attrs && carried.html.attrs['data-theme'];
+      if (typeof theme === 'string') saved = theme;
+    }
     if (typeof saved === 'string') saved = this._migrate(saved);
     this.currentTheme = (typeof saved === 'string' && this.availableThemes.includes(saved))
       ? saved

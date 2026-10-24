@@ -10120,7 +10120,16 @@ async function _refuseBeforeAgreement() {
 }
 // clean: the window for sharing a screen — private, and showing only `url`
 // (the renderer hides the bookmarks bar and sidebar and turns streamer mode on).
-async function openPrivateWindow({ clean = false, url = '', look = '', uiMode = '', guest = false } = {}) {
+// The opener's look and theme as js/early-look.js saved them: a private window keeps its own storage, so it knew neither and opened in
+// the default cream theme whatever the person had chosen. Only a snapshot of the one known shape goes into the address.
+function _bootLookParam(boot) {
+  if (typeof boot !== 'string' || boot.length > 4000) return '';
+  try {
+    const snap = JSON.parse(boot);
+    return snap && snap.v === 1 && snap.html && snap.body ? boot : '';
+  } catch { return ''; }
+}
+async function openPrivateWindow({ clean = false, url = '', look = '', uiMode = '', guest = false, boot = '' } = {}) {
   await _refuseBeforeAgreement();
   if (_vexLocked) throw new Error('Vex is locked — unlock it first');
   const privatePartition = secureSessions.newPrivatePartition();
@@ -10130,6 +10139,7 @@ async function openPrivateWindow({ clean = false, url = '', look = '', uiMode = 
   const privWin = new BrowserWindow({
     width: 1200, height: 800, frame: false, titleBarStyle: 'hidden',
     backgroundColor: '#1a0a1a',
+    show: false,        // shown once painted (below): the dark-purple box showed first, whatever theme the window then wore
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       partition: privatePartition,
@@ -10137,7 +10147,10 @@ async function openPrivateWindow({ clean = false, url = '', look = '', uiMode = 
     }
   });
   secureSessions.registerHost(privWin, privatePartition);
-  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition, ...(look ? { look } : {}), ...(uiMode ? { uiMode } : {}), ...(clean ? { clean: 'true', url } : (url ? { url } : {})), ...(guest ? { guest: 'true' } : {}) } });
+  privWin.once('ready-to-show', () => { if (!privWin.isDestroyed()) privWin.show(); });
+  // In case 'ready-to-show' is missed (as for the main window, see _showMainWindow).
+  setTimeout(() => { if (!privWin.isDestroyed() && !privWin.isVisible()) privWin.show(); }, 4000).unref();
+  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition, ...(look ? { look } : {}), ...(uiMode ? { uiMode } : {}), ...(_bootLookParam(boot) ? { boot: _bootLookParam(boot) } : {}), ...(clean ? { clean: 'true', url } : (url ? { url } : {})), ...(guest ? { guest: 'true' } : {}) } });
   return true;
 }
 // `look` is the opener's GUI style: a private window keeps its own storage,
@@ -10159,7 +10172,7 @@ ipcMain.handle('overlay:open', (_e, url, opacity, partition) => {
 });
 ipcMain.handle('overlay:close', () => { if (_overlay && !_overlay.isDestroyed()) _overlay.close(); _overlay = null; return { ok: true }; });
 // `uiMode` likewise carries the opener's Simple/Full mode (js/simple-mode.js).
-ipcMain.handle('open-private-window', (_e, look, uiMode, url) => openPrivateWindow({ look: look || '', uiMode: uiMode || '', url: /^https?:\/\//i.test(url || '') ? url : '' }));
+ipcMain.handle('open-private-window', (_e, look, uiMode, url, boot) => openPrivateWindow({ look: look || '', uiMode: uiMode || '', url: /^https?:\/\//i.test(url || '') ? url : '', boot: boot || '' }));
 ipcMain.handle('open-clean-window', (_e, url, look, uiMode) => openPrivateWindow({ clean: true, url, look: look || '', uiMode: uiMode || '' }));
 // Guest session (T3-116, js/guest-session.js): the same private window, marked so the window shows
 // its Guest banner and the wipe receipt. It is not a new kind of storage: nothing is kept, as before.

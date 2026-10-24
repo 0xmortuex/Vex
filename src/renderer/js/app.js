@@ -175,7 +175,7 @@ function vexOwnTextFocused(doc) {
       const tab = TabManager.getActiveTab();
       // A full private window, if that is what Shift+Enter was set to open (Settings, Tabs and navigation).
       const opened = VexTabsNav.shiftEnterTarget() === 'private'
-        ? window.vex.openPrivateWindow(VexGuiStyle.get(), VexSimpleMode.mode(), url)
+        ? window.vex.openPrivateWindow(VexGuiStyle.get(), VexSimpleMode.mode(), url, window.VexEarlyLook && window.VexEarlyLook.forNewWindow())
         : window.vex.openAsApp(url, '', (tab && tab.partition) || '');
       Promise.resolve(opened)
         .then((r) => { if (r === false || (r && r.ok === false)) window.showToast?.((r && r.error) || 'Could not open a new window', 'error'); },

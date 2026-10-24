@@ -39,7 +39,9 @@ const VexIncognito = {
     try {
       await window.vex.openPrivateWindow(
         typeof VexGuiStyle !== 'undefined' ? VexGuiStyle.get() : '',
-        typeof VexSimpleMode !== 'undefined' ? VexSimpleMode.mode() : '');
+        typeof VexSimpleMode !== 'undefined' ? VexSimpleMode.mode() : '',
+        undefined,
+        window.VexEarlyLook ? window.VexEarlyLook.forNewWindow() : undefined);
       if (typeof VexUsage !== 'undefined' && VexUsage.touch) VexUsage.touch('private-window');
       return true;
     } catch (err) {

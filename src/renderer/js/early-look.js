@@ -59,11 +59,32 @@
     }
   }
 
+  // The look a window was opened with: a private window keeps its own storage, so the window it was opened from puts its snapshot in the
+  // address (?boot=). Null when there is none, or it is not a snapshot.
+  function carried() {
+    var raw = null;
+    try { raw = new URLSearchParams(location.search).get('boot'); } catch (err) { console.error('[EarlyLook] the address could not be read:', err); return null; }
+    if (!raw || raw.length > 4000) return null;
+    try {
+      var snap = JSON.parse(raw);
+      return snap && snap.v === 1 ? snap : null;
+    } catch (err) { console.error('[EarlyLook] the look in the address is not valid JSON, ignoring it:', err); return null; }
+  }
+
+  // This window's look as text, for a window it opens.
+  function forNewWindow() {
+    try { return JSON.stringify(snapshot()); } catch (err) { console.error('[EarlyLook] could not describe the window look:', err); return undefined; }
+  }
+
   // Put the saved look back. Returns true when there was one.
   function apply() {
     var raw = null;
     try { raw = localStorage.getItem(KEY); } catch (err) { console.error('[EarlyLook] saved look unreadable:', err); return false; }
-    if (!raw) return false;
+    if (!raw) {
+      var given = carried();
+      if (!given) return false;
+      raw = JSON.stringify(given);
+    }
     var snap;
     try { snap = JSON.parse(raw); } catch (err) { console.error('[EarlyLook] the saved look is not valid JSON, ignoring it:', err); return false; }
     if (!snap || snap.v !== 1) return false;
@@ -112,6 +133,6 @@
 
   var applied = false;
   try { applied = apply(); } catch (err) { console.error('[EarlyLook] could not put the saved look back:', err); }
-  window.VexEarlyLook = { KEY: KEY, HTML_ATTRS: HTML_ATTRS, BODY_ATTRS: BODY_ATTRS, applied: applied, apply: apply, save: save, snapshot: snapshot };
+  window.VexEarlyLook = { KEY: KEY, HTML_ATTRS: HTML_ATTRS, BODY_ATTRS: BODY_ATTRS, applied: applied, apply: apply, save: save, snapshot: snapshot, carried: carried, forNewWindow: forNewWindow };
   window.addEventListener('DOMContentLoaded', whenSettled, { once: true });
 })();

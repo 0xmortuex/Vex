@@ -664,7 +664,7 @@ contextBridge.exposeInMainWorld('vex', {
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
   isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
   onFullscreenChanged: (callback) => subscribe('fullscreen-changed', callback),
-  openPrivateWindow: (look, uiMode, url) => ipcRenderer.invoke('open-private-window', look, uiMode, url),
+  openPrivateWindow: (look, uiMode, url, boot) => ipcRenderer.invoke('open-private-window', look, uiMode, url, boot),
   openGuestWindow: (look, uiMode) => ipcRenderer.invoke('open-guest-window', look, uiMode),
   openCleanWindow: (url, look, uiMode) => ipcRenderer.invoke('open-clean-window', url, look, uiMode),
   // New Identity: a throwaway isolated session (random consistent Chrome UA).

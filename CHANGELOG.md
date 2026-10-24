@@ -14,6 +14,7 @@
 
 ### Fixed
 - **Vex no longer flashes the default theme when it opens.** Every start showed the cream default theme and the Classic look, then your theme, then your look, because the window painted before the scripts that apply them had run. Vex now remembers how its window looked and paints that from the very first frame (measured in a real window: after a reload every frame is already your look). Try: pick a dark theme and the Firefox look, then restart Vex.
+- **An incognito window now has your theme and your look, and no longer flashes a dark box first.** It opened in the default cream theme whatever theme you had chosen, because a private window keeps its own storage and was told only the look. It is now given the look and theme of the window it was opened from, paints them from its first frame, and is shown only once it has painted. Try: pick a dark theme, then click the Incognito button.
 - **A new tab no longer flashes white before the New Tab page appears.** In a dark theme the page area was a white screen for a moment (150 ms and more, measured in a real window) until the New Tab page painted. It now shows the theme's own base colour straight away, and so do the sidebar's web panels (Discord, WhatsApp, Spotify and the rest) when you open them.
 - **Settings could rarely open with the section menu as chips although you had chosen the list on the left.** Changing the layout asked for the menu to move, and the second step of that move was sometimes never made. It is now asked for again until the layout is done.
 
