@@ -63,7 +63,7 @@ const SettingsUI = {
   CATS: [
     { name: 'General',         icon: 'search',   color: '#6366f1', match: ['general', 'search engine', 'search by what you want'] },
     { name: 'Browser',         icon: 'globe',    color: '#0ea5e9', match: ['default browser'] },
-    { name: 'Appearance',      icon: 'palette',  color: '#a855f7', match: ['appearance', 'theme', 'gui style', 'tab layout', 'vex packs', 'mouse cursor', 'click effect'] },
+    { name: 'Appearance',      icon: 'palette',  color: '#a855f7', match: ['appearance', 'theme', 'gui style', 'tab layout', 'vex packs', 'mouse cursor', 'click effect', 'sounds'] },
     { name: 'Layout',          icon: 'grid',     color: '#c084fc', match: ['layout'] },
     { name: 'Sidebar',         icon: 'panel',    color: '#818cf8', match: ['sidebar', 'links and panels', 'panels and messages'] },
     { name: 'Privacy',         icon: 'shield',   color: '#22c55e', match: ['sign-in: ', 'privacy', 'security', 'private routing', 'web safety', 'safer web', 'if something went wrong', 'signed in to', 'paste-and-run', 'containers per site', 'secure lock options', 'safer browsing', 'startup check', 'terms of service', 'encrypted profile lock', 'meeting transcript'] },

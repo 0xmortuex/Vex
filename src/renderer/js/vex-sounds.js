@@ -185,6 +185,8 @@ const VexSounds = {
     document.addEventListener('vex:timer-done', () => this.play('timerDone'));
     document.addEventListener('vex:inbox-zero', () => this.play('inboxZero'));
     document.addEventListener('vex:tab-closed', () => {
+      // The interface sounds (js/ui-sounds.js) play the tab-close sound while they are on: never two.
+      if (typeof VexUiSounds !== 'undefined' && VexUiSounds.tabsOn()) return;
       // Closing twenty tabs at once is one soft sound, not twenty.
       const now = Date.now();
       if (now - this._lastClose < 700) return;

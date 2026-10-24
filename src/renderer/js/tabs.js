@@ -435,6 +435,8 @@ const TabManager = {
     this.tabs.splice(at, 0, tab);
     if (opener && !adjacent) this._openerRun = { openerId: opener.id, lastId: tab.id };
     WebviewManager.createWebview(tab);
+    // A tab the person (or a link) opened, not a restored one: js/ui-sounds.js plays its opening sound.
+    document.dispatchEvent(new CustomEvent('vex:tab-created', { detail: { tabId: tab.id } }));
     this._applyMuted(tab);
     // A site rule can also say how the tab behaves once it is open — muted,
     // or never allowed to sleep (js/site-routes.js).
