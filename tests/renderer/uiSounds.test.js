@@ -150,6 +150,16 @@ describe('wiring', () => {
     delete globalThis.AttentionState;
   });
 
+  it('quiet hours apply only once the person has set them: the pack default of 22:00 to 08:00 does not silence these', () => {
+    const real = { HOURS_KEY: 'vex.sounds.hours', hours: () => ({ enabled: true, from: '22:00', to: '08:00' }), inQuietHours: () => true };
+    globalThis.VexSounds = real;
+    try {
+      expect(U._quietHours(Date.now())).toBe(false);                       // nothing saved: the default is not applied
+      localStorage.setItem('vex.sounds.hours', JSON.stringify({ enabled: true, from: '22:00', to: '08:00' }));
+      expect(U._quietHours(Date.now())).toBe(true);                        // the person saved hours: they apply
+    } finally { delete globalThis.VexSounds; }
+  });
+
   it('vex-sounds.js leaves tab close to this file while tab sounds are on', () => {
     const src = fs.readFileSync(path.join(JS, 'vex-sounds.js'), 'utf8');
     expect(src).toContain('VexUiSounds.tabsOn()');

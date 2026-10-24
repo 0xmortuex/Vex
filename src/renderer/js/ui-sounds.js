@@ -128,6 +128,11 @@ const VexUiSounds = {
   },
   _quietHours(now) {
     if (typeof VexSounds === 'undefined' || typeof VexSounds.hours !== 'function') return false;
+    // Quiet hours apply only once the person has set them (Settings > Play). The soft-sound pack's default of 22:00 to 08:00 is a default for
+    // sounds that are off until chosen; these are on by default (the owner asked), and silent every night they would seem broken.
+    let saved = null;
+    try { saved = localStorage.getItem(VexSounds.HOURS_KEY); } catch { saved = null; }
+    if (saved === null) return false;
     return VexSounds.inQuietHours(new Date(now), VexSounds.hours());
   },
 
