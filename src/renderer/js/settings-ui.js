@@ -624,12 +624,18 @@ const SettingsUI = {
   },
 
   // The saved choices, on screen at once: no reload.
+  // A placement that changes the menu or the column count asks for another one a frame later (_layoutBlocks). The observers do that for
+  // themselves when they place, but a placement made from here (the end of a draw, a changed layout choice) has no observer behind it,
+  // and the menu was left as chips where the list was asked for (check:ui, one run in a few on a slow runner). So it asks again, a few times.
+  _placeUntilDone(root, left = 5) {
+    if (this._layout(root) && left > 0 && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this._placeUntilDone(root, left - 1));
+  },
   applyLayoutPrefs() {
     const panel = typeof document !== 'undefined' ? document.getElementById('panel-settings') : null;
     if (!panel) return null;
     const prefs = this._applyLayoutAttrs(panel);
     const root = panel.querySelector('.settings-content');
-    if (root) { this._layout(root); this._markCurrent(root); }
+    if (root) { this._placeUntilDone(root); this._markCurrent(root); }
     return prefs;
   },
 
@@ -977,10 +983,7 @@ const SettingsUI = {
       if (--this._held > 0 || !this._owed) return;
       this._owed = false;
       const root = document.querySelector('#panel-settings .settings-content');
-      // A placement that changes the menu or the column count asks for another one a frame later (_layoutBlocks); the observers do that
-      // for themselves, so here it is asked for again until the layout is done.
-      const place = (left) => { if (this._layout(root) && left > 0 && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => place(left - 1)); };
-      if (root) place(5);
+      if (root) this._placeUntilDone(root);
     };
   },
 

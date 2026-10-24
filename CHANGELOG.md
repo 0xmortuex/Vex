@@ -1,5 +1,22 @@
 # Changelog
 
+## v38.35.9 (2026-10-25) — The Vex Extension Store, Opera GX-style interface sounds, and a one-click Incognito button that is no longer mixed up with Tor
+
+### New
+- **The Vex Extension Store.** A hand-picked shelf of 39 extensions (YouTube, privacy, dark mode, developer tools, media and more), open from the Extensions menu, Settings > Extensions, or Ctrl+K > Open the extension store. Every card says whether the extension works fully or partly in Vex and why, and Add installs it from its real source: the Chrome Web Store with the package signatures checked, or the publisher's own GitHub. Vex hosts no copies, so the developers' licences and updates stay theirs. It includes Ambient Light for YouTube, SponsorBlock, DeArrow, Return YouTube Dislike, Enhancer for YouTube, ImprovedTube, Dark Reader, Stylus, Refined GitHub and more. Paste any Chrome Web Store link or id into its search to add another one. Try: Ctrl+K, type "extension store", search "ambient", Add.
+- **Interface sounds, on by default.** A soft key click while you type in the address bar and Ctrl+K, a clear tick when the pointer enters one of the browser's own buttons (toolbar, sidebar, tabs, bookmarks bar; never page content), two rising notes when a tab opens and two falling ones when it closes. They stay silent in Game mode, meetings, Focus sessions, a hidden or background window, while you drag, and at the quiet hours you set. Switch each kind off or change the volume in Settings > Sounds. Try: hover the toolbar, type in the address bar, open a tab.
+- **Incognito in one click.** A mask button now sits in the toolbar in every look; Ctrl+K > New Incognito Window and Ctrl+Alt+N open the same window. Every incognito window says once, in a slim bar at the bottom, that it keeps no history, cookies or logins after you close it, and that it does not hide your connection.
+
+### Changed
+- **Tor and incognito are no longer mixed up.** The Tor button is an onion, and now shows in the Firefox, Chrome and Safari looks too. "Private routing" is now called **Route all of Vex through Tor or a proxy** everywhere. Its confirm box says it stays on after you close Tor or restart Vex, and that every new incognito window goes through it; while it is on, incognito windows say "Everything in Vex, including this window, is going through Tor". Opening an incognito window never starts Tor by itself.
+- **Closing Tor no longer silently comes back.** If you cancel the Tor progress window while all of Vex is set to Tor, Vex offers a Go direct button, because every page you open would start Tor again.
+
+### Fixed
+- **Settings could rarely open with the section menu as chips although you had chosen the list on the left.** Changing the layout asked for the menu to move, and the second step of that move was sometimes never made. It is now asked for again until the layout is done.
+
+### Checked
+Opened in the real app in a throwaway profile: the store (search, the real install consent box, Installed and Remove, a pasted link, the Firefox and Glass looks and Turkish); 33 of its extensions installed and tried on their target sites, with the ones that did not work left out; the sounds (29 checks: defaults, one sound per event, silence in each quiet mode, 2 ticks for a sweep over 11 icons); the Incognito button in all six looks without overlap, opening a real incognito window with its bar, and no Tor process started. Not heard by a person: how loud and pleasant the sounds are, and the Tor and proxy versions of the incognito bar, which only unit tests cover.
+
 ## v37.90.9 (2026-10-24) — PDFs open in Vex again, on the newest security release of Electron
 
 ### Fixed

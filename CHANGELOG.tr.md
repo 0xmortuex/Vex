@@ -2,6 +2,23 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
+## v38.35.9 (2026-10-25) — Vex Eklenti Mağazası, Opera GX tarzı arayüz sesleri ve Tor ile karışmayan, tek tıkla Gizli pencere
+
+### Yeni
+- **Vex Eklenti Mağazası.** 39 eklentilik elle seçilmiş bir raf (YouTube, gizlilik, koyu mod, geliştirici araçları, medya ve fazlası); Eklentiler menüsünden, Ayarlar > Eklentiler’den ya da Ctrl+K > Eklenti mağazasını aç ile açılır. Her kart, eklentinin Vex’te tam mı kısmen mi çalıştığını ve nedenini söyler; Ekle, eklentiyi gerçek kaynağından kurar: paket imzaları denetlenen Chrome Web Mağazası ya da yayıncının kendi GitHub’ı. Vex kopya barındırmaz; böylece geliştiricilerin lisansları ve güncellemeleri onlarda kalır. Ambient Light for YouTube, SponsorBlock, DeArrow, Return YouTube Dislike, Enhancer for YouTube, ImprovedTube, Dark Reader, Stylus, Refined GitHub ve daha fazlası var. Başka bir eklenti için aramaya herhangi bir Chrome Web Mağazası bağlantısı ya da kimliği yapıştırın. Deneyin: Ctrl+K, “eklenti mağazası” yazın, “ambient” arayın, Ekle.
+- **Varsayılan olarak açık arayüz sesleri.** Adres çubuğunda ve Ctrl+K’de yazarken yumuşak bir tuş sesi, işaretçi tarayıcının kendi düğmelerine (araç çubuğu, kenar çubuğu, sekmeler, yer imi çubuğu; asla sayfa içeriğine değil) girince net bir tık sesi, sekme açılınca yükselen, kapanınca alçalan iki nota. Oyun modunda, toplantılarda, Odak oturumlarında, gizli ya da arka plandaki pencerede, sürüklerken ve belirlediğiniz sessiz saatlerde susar. Her türü kapatmak ya da sesi ayarlamak için Ayarlar > Sesler. Deneyin: araç çubuğunun üzerine gelin, adres çubuğuna yazın, bir sekme açın.
+- **Tek tıkla Gizli pencere.** Araç çubuğunda her görünümde bir maske düğmesi var; Ctrl+K > Yeni Gizli Pencere ve Ctrl+Alt+N aynı pencereyi açar. Her gizli pencere, altta ince bir çubukta bir kez, kapatınca geçmiş, çerez ve oturum bırakmadığını ve bağlantınızı gizlemediğini söyler.
+
+### Değişti
+- **Tor ile gizli pencere artık karışmıyor.** Tor düğmesi bir soğan simgesi ve artık Firefox, Chrome ve Safari görünümlerinde de görünür. “Özel yönlendirme” her yerde **Vex’in tamamını Tor ya da vekil sunucu üzerinden yönlendir** adını aldı. Onay kutusu, Tor’u kapatsanız ya da Vex’i yeniden başlatsanız da açık kaldığını ve yeni açılan her gizli pencerenin de bundan geçtiğini söyler; açıkken gizli pencereler “Vex’teki her şey, bu pencere dahil, Tor üzerinden gidiyor” der. Gizli pencere açmak Tor’u kendiliğinden hiçbir zaman başlatmaz.
+- **Tor’u kapatmak artık sessizce geri gelmiyor.** Vex’in tamamı Tor’a ayarlıyken Tor ilerleme penceresini iptal ederseniz, Vex bir Doğrudan bağlan düğmesi sunar; çünkü açtığınız her sayfa Tor’u yeniden başlatırdı.
+
+### Düzeltildi
+- **Ayarlar, sol taraftaki listeyi seçmiş olsanız bile nadiren bölüm menüsü sekme olarak açılabiliyordu.** Düzeni değiştirmek menünün taşınmasını istiyordu ve bu taşımanın ikinci adımı bazen hiç yapılmıyordu. Artık düzen bitene kadar yeniden isteniyor.
+
+### Denetlendi
+Gerçek uygulamada, geçici bir profilde açıldı: mağaza (arama, gerçek kurulum onay kutusu, Kuruldu ve Kaldır, yapıştırılan bir bağlantı, Firefox ve Cam görünümleri ve Türkçe); eklentilerinden 33’ü hedef sitelerinde kurulup denendi, çalışmayanlar rafa konmadı; sesler (29 denetim: varsayılanlar, olay başına bir ses, her sessiz kipte sessizlik, 11 simge üzerinde gezinmede 2 tık); Gizli pencere düğmesi altı görünümün hepsinde çakışmadan, gerçek bir gizli pencere ve çubuğuyla açıldı ve hiçbir Tor süreci başlamadı. Bir insan tarafından dinlenmedi: seslerin ne kadar yüksek ve hoş olduğu; ve gizli pencere çubuğunun Tor ve vekil sunucu sürümleri, bunları yalnızca birim testleri kapsıyor.
+
 ## v37.90.9 (2026-10-24) — PDF’ler Vex’te yeniden açılıyor ve Electron’un en yeni güvenlik sürümü kullanılıyor
 
 ### Düzeltildi

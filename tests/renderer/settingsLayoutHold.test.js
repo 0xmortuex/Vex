@@ -59,6 +59,16 @@ describe('SettingsUI.holdLayout', () => {
     expect(blocks).toHaveBeenCalledTimes(3);
   });
 
+  it('a changed layout choice places again a frame later too, not only the end of a draw', async () => {
+    blocks.mockReturnValueOnce(true).mockReturnValue(false);
+    document.querySelector('#panel-settings').id = 'panel-settings';
+    SettingsUI.applyLayoutPrefs();
+    expect(blocks).toHaveBeenCalledTimes(1);
+    await new Promise(r => requestAnimationFrame(() => r()));
+    await new Promise(r => requestAnimationFrame(() => r()));
+    expect(blocks).toHaveBeenCalledTimes(2);
+  });
+
   it('nested holds place once, when the last one is let go of', () => {
     const a = SettingsUI.holdLayout();
     const b = SettingsUI.holdLayout();
