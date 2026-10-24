@@ -13,6 +13,13 @@ beforeEach(() => {
 
 const root = () => document.querySelector('.settings-content');
 
+// Frames run by hand, so the test does not depend on how fast a loaded machine delivers real ones.
+function manualFrames() {
+  const queue = [];
+  vi.stubGlobal('requestAnimationFrame', (fn) => { queue.push(fn); return queue.length; });
+  return { run() { const now = queue.splice(0); now.forEach(fn => fn(0)); return now.length; }, pending: () => queue.length };
+}
+
 describe('SettingsUI.holdLayout', () => {
   it('places the blocks as before when nothing is held', () => {
     SettingsUI._layout(root());
@@ -47,26 +54,33 @@ describe('SettingsUI.holdLayout', () => {
     expect(SettingsUI._held).toBe(0);
   });
 
-  it('places again a frame later while the layout says it is not done (a new menu or column count)', async () => {
+  it('places again a frame later while the layout says it is not done (a new menu or column count)', () => {
     blocks.mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValue(false);
-    const release = SettingsUI.holdLayout();
-    SettingsUI._layout(root());
-    release();
-    expect(blocks).toHaveBeenCalledTimes(1);
-    await new Promise(r => requestAnimationFrame(() => r()));
-    await new Promise(r => requestAnimationFrame(() => r()));
-    await new Promise(r => requestAnimationFrame(() => r()));
-    expect(blocks).toHaveBeenCalledTimes(3);
+    const frames = manualFrames();
+    try {
+      const release = SettingsUI.holdLayout();
+      SettingsUI._layout(root());
+      release();
+      expect(blocks).toHaveBeenCalledTimes(1);
+      frames.run();
+      frames.run();
+      frames.run();
+      expect(blocks).toHaveBeenCalledTimes(3);
+      expect(frames.pending()).toBe(0);
+    } finally { vi.unstubAllGlobals(); }
   });
 
-  it('a changed layout choice places again a frame later too, not only the end of a draw', async () => {
+  it('a changed layout choice places again a frame later too, not only the end of a draw', () => {
     blocks.mockReturnValueOnce(true).mockReturnValue(false);
     document.querySelector('#panel-settings').id = 'panel-settings';
-    SettingsUI.applyLayoutPrefs();
-    expect(blocks).toHaveBeenCalledTimes(1);
-    await new Promise(r => requestAnimationFrame(() => r()));
-    await new Promise(r => requestAnimationFrame(() => r()));
-    expect(blocks).toHaveBeenCalledTimes(2);
+    const frames = manualFrames();
+    try {
+      SettingsUI.applyLayoutPrefs();
+      expect(blocks).toHaveBeenCalledTimes(1);
+      frames.run();
+      expect(blocks).toHaveBeenCalledTimes(2);
+      expect(frames.pending()).toBe(0);
+    } finally { vi.unstubAllGlobals(); }
   });
 
   it('nested holds place once, when the last one is let go of', () => {

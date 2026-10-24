@@ -271,6 +271,7 @@ const FeatureDetails = {
   setupgallery: 'Your whole setup as a code you can paste on another machine or hand to someone else. Themes, layout, panels and settings travel; your data does not.',
   startpage: 'A start page with your name, the weather, your GitHub activity, a daily verse or quote and your own shortcuts. Every part of it can be switched off.',
   shortcuts: 'Two things in one screen: rebind what already has a key, and give a key to anything that has none — every command in Ctrl+K can have one, which is over two hundred of them. A few are fixed because Windows or Chromium claims them first, and those say so instead of pretending.',
+  'extension-store': 'A hand-picked shelf of extensions for Vex: YouTube, privacy, dark mode, developer tools and more. Each card says whether the extension works fully or partly in Vex, and why. Add installs it from its real source (the Chrome Web Store with the package signatures checked, or the publisher’s own GitHub); Vex keeps no copies. Paste any Chrome Web Store link or id into its search to add another one.',
   extensions: 'Install Chrome extensions from a folder, a .zip or a .crx. The manager says honestly which parts of an extension Electron cannot support — request blocking, for one — rather than letting it fail quietly.',
   'tools-bar': 'Pin any web app to the sidebar as a button of your own, with your choice of icon.',
 
@@ -339,6 +340,7 @@ const FeatureDetails = {
   'play-tetris': 'It reads your tab titles. It keeps or changes scores. It sends nothing anywhere.',
   'play-word': 'It reads nothing beyond its own on/off switch. It keeps or changes today’s word and streak. It sends nothing anywhere.',
   'play-sounds': 'It reads nothing beyond its own on/off switch. It writes only its own on/off switch. It sends nothing anywhere.',
+  'extension-store': 'It reads the list of extensions you have installed, to show Installed, Update and Remove. Adding one downloads it from the Chrome Web Store (Google’s own update server) or the publisher’s GitHub release, after you confirm what it asks to do. It sends nothing else anywhere.',
   'ui-sounds': 'It reads its own switches and the quiet hours you set for the sound packs. It writes only its own switches and volume. It sends nothing anywhere. It never plays in Game mode, a meeting, a Focus session, quiet hours, a background window or while a mouse button is held.',
   'living-tab-personality': 'It reads tab hosts. It writes only its own on/off switch. It sends nothing anywhere.',
   'living-tab-glow': 'It reads tab hosts. It writes only its own on/off switch. It sends nothing anywhere.',
@@ -744,6 +746,7 @@ const FeatureHow = {
   'play-tetris': 'Use Open Tab Tetris to open the tab-group game. Its pieces represent your actual tabs and groups, so read the controls before changing them. Its switch is in Play: tab tetris; quiet modes can pause it.',
   'play-word': 'Use Open Daily Word to open today\'s word puzzle. Its switch is in Play: daily word. Playfulness and quiet modes can also hold it back.',
   'play-sounds': 'Use Open settings to reach Play: sound packs. The controls there configure the behavior described above; viewing this card does not switch it on.',
+  'extension-store': 'Use Open the extension store, or Ctrl+K and type extension store. Search the shelf, press Add on a card and confirm what it asks for; Remove takes it out again.',
   'ui-sounds': 'Use Open settings to reach Sounds. The controls there configure the behavior described above; it is on from the start, and the switches there turn each kind off.',
   'living-tab-personality': 'Use Open settings to reach Living Vex. The controls there configure the behavior described above; viewing this card does not switch it on.',
   'living-tab-glow': 'Use Open settings to reach Living Vex. The controls there configure the behavior described above; viewing this card does not switch it on.',
