@@ -470,7 +470,7 @@ const AIPanel = {
         ${p.isBuiltIn ? '<span class="persona-item-builtin">built-in</span>' : ''}
       </div>
     `).join('');
-    if (!all.length) list.innerHTML = '<div class="persona-item-desc" style="padding:10px">No persona matches that.</div>';
+    if (!all.length) list.innerHTML = '<div class="persona-item-desc persona-none">No persona matches that.</div>';
     list.querySelectorAll('.persona-item').forEach(el => {
       el.addEventListener('click', () => {
         const id = el.dataset.personaId;
@@ -1020,12 +1020,12 @@ const AIPanel = {
       document.getElementById('ai-attach')?.remove();
       const chip = document.createElement('div');
       chip.id = 'ai-attach';
-      chip.style.cssText = 'display:flex;align-items:center;gap:8px;margin:0 10px 6px;padding:4px 6px 4px 4px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:11.5px;color:var(--text)';
-      chip.innerHTML = `<img alt="" style="width:34px;height:34px;object-fit:cover;border-radius:5px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><button type="button" aria-label="Remove the picture" title="Remove the picture" style="display:inline-flex;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px">${this._icon('x', 12)}</button>`;
+      chip.className = 'ai-file-chip';   // drawn in css/ai-panel.css
+      chip.innerHTML = `<img class="ai-file-chip-img" alt=""><span class="ai-file-chip-name"></span><button type="button" aria-label="Remove the picture" title="Remove the picture">${this._icon('x', 12)}</button>`;
       chip.querySelector('img').src = this._pendingImage;
       chip.querySelector('span').textContent = 'Picture attached — ask about it, or just press Enter';
       chip.querySelector('button').addEventListener('click', () => this._clearAttachment());
-      const anchor = input && (input.closest('.ai-input-row, .ai-input-wrap, form') || input.parentElement);
+      const anchor = input && (input.closest('.ai-input-row, .ai-input-wrapper, .ai-input-wrap, form') || input.parentElement);
       if (anchor) anchor.insertAdjacentElement('beforebegin', chip);
       input?.focus();
     };

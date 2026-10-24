@@ -11,6 +11,8 @@ const AskAIBar = (() => {
   function _el() {
     if (!bar) bar = document.getElementById('ask-ai-bar');
     if (!input) input = document.getElementById('ask-ai-input');
+    // The mark in the header comes from the icon set (the markup names it).
+    if (bar && window.VexIcons) bar.querySelectorAll('[data-ico]').forEach((el) => { if (!el.innerHTML.trim()) el.innerHTML = VexIcons.svg(el.dataset.ico, { size: Number(el.dataset.icoSize) || 16 }); });
     return { bar, input };
   }
 
