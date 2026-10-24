@@ -1112,6 +1112,8 @@ Themes, layout, per-site tweaks, extensions.
   - Open: Ctrl+K: "Keyboard Shortcuts".
 - **Chrome extensions** (`extensions`): Install extensions from a folder, a .zip or a .crx. The manager says honestly which parts of an extension Vex can run.
   - Open: Settings > extensions-panel-content.
+- **Vex Extension Store** (`extension-store`): A hand-picked shelf of popular extensions (YouTube, privacy, dark mode, developer tools and more), each tested in Vex and marked Works fully, Works partly or Does not work, with the reason. Add installs it from its real source (the Chrome Web Store with its signatures checked, or the publisher’s own GitHub); Vex hosts no copies. Paste a Web Store link into its search to add any other extension.
+  - Open: Ctrl+K: "Open the extension store"; Settings > extensions-panel-content.
 - **Start Vex when Windows starts** (`login-start`): Opens Vex when you sign in to Windows, in front or minimised on the taskbar. Only in the installed app, and it shows what Windows really holds.
   - Open: Settings > setting-login-item.
 - **simple-mode** (`simple-mode`): A calm Vex: only the everyday buttons, panels and settings are on screen. Nothing is removed — All features in the toolbar shows the rest, any time.

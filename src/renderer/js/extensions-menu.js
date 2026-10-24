@@ -26,6 +26,8 @@ const ExtensionsMenu = {
     { icon: 'phone', label: 'Responsive Preview', sub: 'Phone / tablet / desktop widths', cmd: 'responsive' },
     { icon: 'shield', label: 'Privacy Report', sub: 'Trackers blocked + protections', cmd: 'privacy' },
     { sep: true },
+    { icon: 'grid', label: 'Extension store…', sub: 'Hand-picked extensions, added in one click',
+      fn: () => { if (typeof VexExtensionStore !== 'undefined') VexExtensionStore.open().catch(err => window.showToast?.('Extension store: ' + err.message, 'error')); else window.showToast?.('Unavailable'); } },
     { icon: 'puzzle', label: 'Manage Chrome extensions…', sub: 'Install .crx / .zip / unpacked',
       // Straight to the extensions list — opening Settings at the top left the
       // user to hunt for it (found 2026-09-29).

@@ -578,6 +578,8 @@ const VexFeatures = {
       what: 'Rebind any keyboard shortcut to whatever you actually press — and give a key to anything that has none, from the whole command list.' },
     { id: 'extensions', phrases: 'extensions add-ons plugins chrome store', cat: 'look', name: 'Chrome extensions', setting: { section: 'extensions-panel-content' },
       what: 'Install extensions from a folder, a .zip or a .crx. The manager says honestly which parts of an extension Vex can run.' },
+    { id: 'extension-store', phrases: 'extension store add-ons plugins chrome web store ambient light youtube sponsorblock dark reader install extension shelf', cat: 'look', cmd: 'extension-store', name: 'Vex Extension Store', setting: { section: 'extensions-panel-content' },
+      what: 'A hand-picked shelf of popular extensions (YouTube, privacy, dark mode, developer tools and more), each tested in Vex and marked Works fully, Works partly or Does not work, with the reason. Add installs it from its real source (the Chrome Web Store with its signatures checked, or the publisher’s own GitHub); Vex hosts no copies. Paste a Web Store link into its search to add any other extension.' },
     { id: 'login-start', phrases: 'start with windows launch at login startup boot open when computer starts run at startup minimised', cat: 'look', name: 'Start Vex when Windows starts', setting: { id: 'setting-login-item' },
       what: 'Opens Vex when you sign in to Windows, in front or minimised on the taskbar. Only in the installed app, and it shows what Windows really holds.' },
     { id: 'simple-mode', cat: 'look', cmd: 'simple-mode', setting: { id: 'setting-simple-mode' },

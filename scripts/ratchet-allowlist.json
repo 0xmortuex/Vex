@@ -30,6 +30,7 @@
     "src/renderer/js/command-aliases.js": 1,
     "src/renderer/js/coop-timer.js": 1,
     "src/renderer/js/dev-bench.js": 1,
+    "src/renderer/js/extension-store.js": 1,
     "src/renderer/js/extensions-settings.js": 1,
     "src/renderer/js/focus-scenes.js": 1,
     "src/renderer/js/kept-awake-memory.js": 3,
