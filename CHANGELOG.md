@@ -8,6 +8,7 @@
 - **Incognito in one click.** A mask button now sits in the toolbar in every look; Ctrl+K > New Incognito Window and Ctrl+Alt+N open the same window. Every incognito window says once, in a slim bar at the bottom, that it keeps no history, cookies or logins after you close it, and that it does not hide your connection.
 
 ### Changed
+- **Closing the last tab closes the window, as in other browsers.** Ctrl+W, a tab's X or a middle click on the only open tab used to open a new tab in its place, so there was no quick way to close Vex. Now the window closes (Vex goes to the tray instead if that is how you set up the close button), and Reopen closed tab still brings the tab back. Closing a tab through a bulk command never closes the window. Try: close all tabs but one, then press Ctrl+W.
 - **Tor and incognito are no longer mixed up.** The Tor button is an onion, and now shows in the Firefox, Chrome and Safari looks too. "Private routing" is now called **Route all of Vex through Tor or a proxy** everywhere. Its confirm box says it stays on after you close Tor or restart Vex, and that every new incognito window goes through it; while it is on, incognito windows say "Everything in Vex, including this window, is going through Tor". Opening an incognito window never starts Tor by itself.
 - **Closing Tor no longer silently comes back.** If you cancel the Tor progress window while all of Vex is set to Tor, Vex offers a Go direct button, because every page you open would start Tor again.
 

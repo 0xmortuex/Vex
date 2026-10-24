@@ -643,12 +643,22 @@ const TabManager = {
   // playing sound, in a call or holding typed text (js/close-protect.js). Bulk and programmatic closes
   // call closeTab directly and never ask. Resolves true when the tab was closed.
   requestClose(id) {
-    if (typeof CloseProtect === 'undefined') { this.closeTab(id); return Promise.resolve(true); }
-    return CloseProtect.close(id).catch((err) => {
+    // The only tab in the window: closing it closes the window, as in every other browser (it used to open a new tab in its place). The tab
+    // is still closed first, so Reopen closed tab has it and the window is saved with a fresh New Tab to come back to.
+    const last = this.tabs.length === 1 && this.tabs[0].id === id;
+    const done = (closed) => { if (closed && last) this.closeWindowAfterLastTab(); return closed; };
+    if (typeof CloseProtect === 'undefined') { this.closeTab(id); return Promise.resolve(done(true)); }
+    return CloseProtect.close(id).then(done).catch((err) => {
       console.error('[Tabs] the tab could not be closed:', err);
       window.VexProblems?.note('Tabs', 'A tab could not be closed', err);
       return false;
     });
+  },
+
+  // What the window's own close button does (main: the window closes, or Vex goes to the tray if that is how the person set it up).
+  closeWindowAfterLastTab() {
+    if (!window.vex || typeof window.vex.close !== 'function') throw new Error('The window cannot be closed from here');
+    window.vex.close();
   },
 
   closeTab(id) {
