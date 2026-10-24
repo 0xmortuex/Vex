@@ -14,6 +14,7 @@ Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler
 - **Tor’u kapatmak artık sessizce geri gelmiyor.** Vex’in tamamı Tor’a ayarlıyken Tor ilerleme penceresini iptal ederseniz, Vex bir Doğrudan bağlan düğmesi sunar; çünkü açtığınız her sayfa Tor’u yeniden başlatırdı.
 
 ### Düzeltildi
+- **Vex açılırken artık varsayılan temayı bir an göstermiyor.** Her açılışta önce krem renkli varsayılan tema ve Klasik görünüm, sonra sizin temanız, sonra sizin görünümünüz geliyordu; çünkü pencere, bunları uygulayan betikler çalışmadan önce çiziliyordu. Vex artık penceresinin nasıl göründüğünü hatırlıyor ve onu ilk kareden itibaren çiziyor (gerçek bir pencerede ölçüldü: yeniden yüklemeden sonra her kare zaten sizin görünümünüz). Deneyin: koyu bir tema ve Firefox görünümünü seçin, sonra Vex’i yeniden başlatın.
 - **Ayarlar, sol taraftaki listeyi seçmiş olsanız bile nadiren bölüm menüsü sekme olarak açılabiliyordu.** Düzeni değiştirmek menünün taşınmasını istiyordu ve bu taşımanın ikinci adımı bazen hiç yapılmıyordu. Artık düzen bitene kadar yeniden isteniyor.
 
 ### Denetlendi

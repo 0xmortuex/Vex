@@ -12,6 +12,7 @@
 - **Closing Tor no longer silently comes back.** If you cancel the Tor progress window while all of Vex is set to Tor, Vex offers a Go direct button, because every page you open would start Tor again.
 
 ### Fixed
+- **Vex no longer flashes the default theme when it opens.** Every start showed the cream default theme and the Classic look, then your theme, then your look, because the window painted before the scripts that apply them had run. Vex now remembers how its window looked and paints that from the very first frame (measured in a real window: after a reload every frame is already your look). Try: pick a dark theme and the Firefox look, then restart Vex.
 - **Settings could rarely open with the section menu as chips although you had chosen the list on the left.** Changing the layout asked for the menu to move, and the second step of that move was sometimes never made. It is now asked for again until the layout is done.
 
 ### Checked
