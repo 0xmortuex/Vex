@@ -45,7 +45,7 @@ describe('opening a private window', () => {
   });
 
   it('both the private and the clean (screen-sharing) window go through it', () => {
-    expect(MAIN).toMatch(/ipcMain\.handle\('open-private-window', \(_e, look, uiMode(?:, url)?\) => openPrivateWindow\(/);
+    expect(MAIN).toMatch(/ipcMain\.handle\('open-private-window', \(_e, look, uiMode(?:, url)?(?:, boot)?\) => openPrivateWindow\(/);
     expect(MAIN).toMatch(/ipcMain\.handle\('open-clean-window', \(_e, url, look, uiMode\) => openPrivateWindow\(/);
   });
 

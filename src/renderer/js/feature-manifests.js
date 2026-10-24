@@ -159,6 +159,9 @@
     // Interface sounds (js/ui-sounds.js): on for everyone from the start, with its own switches in Settings > Sounds. Not staged: it is feedback, not an extra.
     { id: 'ui-sounds', title: 'Interface sounds', group: 'Sounds', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.uiSounds.master', 'vex.uiSounds.typing', 'vex.uiSounds.hover', 'vex.uiSounds.tabs', 'vex.uiSounds.volume'], usesKeys: ['vex.sounds.hours', 'vex.fun.quiet'],
       permissions: { reads: ['its own switches and the quiet hours of the sound packs'], writes: ['its own switches and volume'], sends: [] } },
+    // The window's saved look (js/early-look.js): how the window looked, kept so the next start paints it from the first frame. Not staged: it is how the window opens.
+    { id: 'early-look', title: 'Window look at start-up', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.bootLook'],
+      permissions: { reads: ['the theme and look attributes of the window'], writes: ['a snapshot of them, to paint the next start from the first frame'], sends: [] } },
     { id: 'setup-again', title: 'Setup offered again', group: 'Setup wizard', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.setupLastAt', 'vex.setupAgainOff', 'vex.importOffered'],
       permissions: { reads: ['a note the uninstaller leaves in the profile folder when someone uninstalls Vex by hand'], writes: ['when the setup wizard last ran, and whether to offer it again every month'], sends: [] } },
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],

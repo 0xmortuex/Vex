@@ -40,15 +40,15 @@ describe('the private window gets the address', () => {
   });
   it('main passes only an http(s) address to the window, and the window opens it as its first tab', () => {
     const main = src('src/main.js');
-    expect(main).toMatch(/ipcMain\.handle\('open-private-window', \(_e, look, uiMode, url\) => openPrivateWindow\(\{[^}]*url: \/\^https\?:/);
+    expect(main).toMatch(/ipcMain\.handle\('open-private-window', \(_e, look, uiMode, url(?:, boot)?\) => openPrivateWindow\(\{[^}]*url: \/\^https\?:/);
     expect(main).toMatch(/\(clean \? \{ clean: 'true', url \} : \(url \? \{ url \} : \{\}\)\)/);
-    expect(src('src/preload.js')).toMatch(/openPrivateWindow: \(look, uiMode, url\) =>/);
+    expect(src('src/preload.js')).toMatch(/openPrivateWindow: \(look, uiMode, url(?:, boot)?\) =>/);
     expect(src('src/renderer/js/app.js')).toMatch(/isPrivateWindow && !window\.VexTabPolicy\.isCleanWindow[\s\S]{0,200}createTab\(wanted, true\)/);
   });
   it('Shift+Enter picks the window by the setting, and still needs the address bar extras', () => {
     const app = src('src/renderer/js/app.js');
     expect(app).toMatch(/newWindow && typeof VexTabsNav !== 'undefined' && VexTabsNav\.on\('addressExtras'\)/);
-    expect(app).toMatch(/VexTabsNav\.shiftEnterTarget\(\) === 'private'[\s\S]{0,120}window\.vex\.openPrivateWindow\(VexGuiStyle\.get\(\), VexSimpleMode\.mode\(\), url\)/);
+    expect(app).toMatch(/VexTabsNav\.shiftEnterTarget\(\) === 'private'[\s\S]{0,120}window\.vex\.openPrivateWindow\(VexGuiStyle\.get\(\), VexSimpleMode\.mode\(\), url(?:, window\.VexEarlyLook[^\n]*)?\)/);
   });
   it('has a settings row and an owner for its storage key', () => {
     expect(src('src/renderer/js/tabs-nav-settings.js')).toMatch(/setShiftEnterTarget\(seSel\.value\)/);
