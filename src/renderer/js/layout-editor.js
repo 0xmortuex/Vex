@@ -24,7 +24,7 @@ const LayoutEditor = {
     { container: 'top-bar-left',  items: ['vex-logo', 'workspace-switcher', 'sync-indicator', 'btn-toggle-tabs-left', 'nav-buttons', 'btn-onboarding', 'btn-restart-app'] },
     { container: 'top-bar',       items: ['url-bar-wrapper'] },
     { container: 'url-bar',       items: ['btn-copy-url', 'btn-ai-summarize'] },
-    { container: 'top-bar-right', items: ['btn-tor', 'btn-notes-top', 'btn-extensions', 'btn-toggle-ai', 'btn-split', 'btn-command'] },
+    { container: 'top-bar-right', items: ['btn-incognito', 'btn-tor', 'btn-notes-top', 'btn-extensions', 'btn-toggle-ai', 'btn-split', 'btn-command'] },
   ],
   // Zones an item can be dragged BETWEEN (the top bar's button clusters + the
   // address-bar interior). Each holds interchangeable button-like controls.
@@ -37,7 +37,7 @@ const LayoutEditor = {
     'vex-logo': 'Vex logo', 'workspace-switcher': 'Workspace switcher', 'sync-indicator': 'Sync indicator',
     'btn-toggle-tabs-left': 'Sidebar toggle', 'nav-buttons': 'Back / Forward / Reload', 'btn-onboarding': 'Setup wizard', 'btn-restart-app': 'Restart Vex',
     'url-bar-wrapper': 'Address bar', 'btn-copy-url': 'Copy URL', 'btn-ai-summarize': 'Summarize',
-    'btn-tor': 'Tor', 'btn-notes-top': 'Notes', 'btn-extensions': 'Extensions',
+    'btn-incognito': 'Incognito', 'btn-tor': 'Tor', 'btn-notes-top': 'Notes', 'btn-extensions': 'Extensions',
     'btn-toggle-ai': 'AI panel', 'btn-split': 'Split screen', 'btn-command': 'Command bar',
   },
 

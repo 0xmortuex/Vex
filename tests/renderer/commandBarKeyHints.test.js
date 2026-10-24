@@ -21,7 +21,7 @@ beforeAll(() => {
 });
 
 describe('Ctrl+K key hints', () => {
-  it('Private Window shows the key that opens one', () => {
+  it('New Incognito Window shows the key that opens one', () => {
     expect(cmd('private').shortcut).toBe('Ctrl+Alt+N');
   });
 
@@ -54,7 +54,7 @@ describe('the Shortcuts & Gestures guide reads the registry', () => {
     const rows = window.ShortcutsGuide.keys();
     const find = (label) => rows.find(r => r[0] === label);
     expect(find('Organize Tabs with AI')[1]).toBe('Ctrl+Alt+F9');
-    expect(find('Private Window')[1]).toBe('Ctrl+Alt+N');
+    expect(find('New Incognito Window')[1]).toBe('Ctrl+Alt+N');
     const keys = rows.map(r => r[1]);
     expect(keys).toContain('Ctrl+Shift+N');          // Notes, fixed
     expect(keys).toContain('Ctrl+Alt+1 / 2 / 3');    // command chains

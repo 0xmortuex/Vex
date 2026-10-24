@@ -109,7 +109,7 @@ const CommandBar = {
       window.MeetingPrep.showCard(prep);
     } },
     { id: 'library', label: 'Library', hint: 'What you saved — read later, archived tabs', icon: 'book', isPrimary: true, action: () => { try { ReadLater.showTab('saved'); } catch {} SidebarManager.openPanel('library'); } },
-    { id: 'routing-all', label: 'Private Routing — All of Vex Through Tor or a Proxy', hint: 'Send everything through Tor or a proxy you name, and check that it is really working', icon: 'globe', isPrimary: true, action: () => { if (typeof PrivateRouting !== 'undefined') PrivateRouting.open(); } },
+    { id: 'routing-all', label: 'Route All of Vex Through Tor or a Proxy', hint: 'Send everything through Tor or a proxy you name, and check that it is really working', icon: 'globe', isPrimary: true, action: () => { if (typeof PrivateRouting !== 'undefined') PrivateRouting.open(); } },
     { id: 'backup', label: 'Back Up Everything, or Put It Back', hint: 'One file with your notes, sessions, keybindings, site rules and the whole look — saved logins are never in it', icon: 'archive', action: () => { if (typeof VexBackup !== 'undefined') VexBackup.open(); } },
     { id: 'journal', label: 'Daily Journal', hint: 'What you read, did and saved each day — editable, export as markdown', icon: 'clipboard', action: () => { if (typeof VexMemoryTools !== 'undefined') VexMemoryTools.openJournal(); } },
     { id: 'link-memory', label: 'Search Saved Links', hint: 'Links from your notes and AI chats, by title and the words around them', icon: 'link', action: () => { if (typeof VexMemoryTools !== 'undefined') VexMemoryTools.openLinks(); } },
@@ -169,7 +169,7 @@ const CommandBar = {
     { id: 'tuning', label: 'Tuning advisor: what slows Vex down', hint: 'Cost per tab, extension and feature, with one-click fixes', icon: 'activity', action: () => { if (typeof VexTuning !== 'undefined') VexTuning.open().catch(err => window.showToast?.('Tuning advisor: ' + err.message, 'error')); } },
     { id: 'catchup', label: 'Reading digest (Catch me up)', hint: 'Your Read Later articles summarised by the local AI, in the Library', icon: 'coffee', action: () => { if (typeof ReadingDigest !== 'undefined') ReadingDigest.open({ build: true }); } },
     { id: 'otr', label: 'New Off-the-Record Tab', hint: 'Ephemeral tab: no history, cookies vanish when closed', icon: 'incognito', action: () => TabManager.createTab(START_URL, true, null, { partition: 'otr-' + Date.now() }) },
-    { id: 'tor', label: 'New Tor Tab', hint: 'Maximum-security private tab routed through Tor (Vex downloads and starts Tor the first time)', icon: 'onion', action: () => { if (typeof TorSession !== 'undefined') TorSession.open(); } },
+    { id: 'tor', label: 'New Tor Tab', hint: 'Hides your connection: one tab routed through Tor (Vex downloads and starts Tor the first time). For a window that forgets your history, use New Incognito Window', icon: 'onion', action: () => { if (typeof TorSession !== 'undefined') TorSession.open(); } },
     { id: 'identity', label: 'New Identity Tab', hint: 'Fresh isolated session + a new browser fingerprint — no carry-over from your logins', icon: 'mask', action: async () => {
       try {
         const r = await window.vex?.createIdentity?.();
@@ -433,7 +433,7 @@ const CommandBar = {
     { id: 'zoom-reset', label: 'Reset Zoom', hint: 'Reset to 100%', icon: 'search', action: () => WebviewManager.zoomReset() },
     // Phase 6 commands
     { id: 'fullscreen', label: 'Toggle Fullscreen', hint: 'Enter/exit fullscreen', shortcut: 'F11', icon: 'maximize', action: () => window.vex.toggleFullscreen?.() },
-    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Alt+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode())?.catch(err => window.showToast?.(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'error')) },
+    { id: 'private', label: 'New Incognito Window', hint: 'A window that saves no history, cookies or logins when you close it. Your connection is not hidden — for that, use a Tor tab', shortcut: 'Ctrl+Alt+N', icon: 'incognito', action: () => { if (typeof VexIncognito !== 'undefined') VexIncognito.open(); } },
     { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: 'mute', action: () => TabManager.toggleMuteTab() },
     { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: 'mute', action: () => TabManager.muteAllOtherTabs() },
     // The same slider as Quick Tools > Master Volume (js/master-volume.js); it

@@ -1,4 +1,8 @@
-// === Private routing: all of Vex through one route ========================
+// === Route all of Vex through Tor or a proxy (it was called "Private routing") ===
+//
+// Not incognito and not a Tor tab: a setting that stays on until it is switched
+// back. Incognito (js/incognito.js) forgets what you did; a Tor tab (js/tor-session.js)
+// is one tab over Tor; this sends every window and tab through Tor or a proxy.
 //
 // Vex could already send a container through Tor or a proxy (js/container-
 // routing.js), which is the right shape for "this account goes through Tor"
@@ -48,7 +52,7 @@ const PrivateRouting = {
     btn.hidden = !on;
     btn.title = on
       ? (mode === 'tor' ? 'Everything is going through Tor — click to change' : 'Everything is going through your proxy — click to change')
-      : 'Private routing';
+      : 'Route all of Vex through Tor or a proxy';
   },
 
   // Words in the language Vex is set to (the shared dictionary does not scan toasts or confirm boxes); {name} fills in.
@@ -83,6 +87,17 @@ const PrivateRouting = {
     });
   },
 
+  // The person closed or cancelled the Tor progress window while Tor was being started for the route for all of Vex. Cancel
+  // stops this start only: the next page asks Tor to start again, so it looked as if closing Tor did nothing. Offer the way out.
+  async offerDirect() {
+    const st = await this.state();
+    if (!st || st.mode !== 'tor') return false;
+    window.showToast?.(this.L('Tor was cancelled, but everything in Vex is still set to go through Tor, so the next page will start it again.'), 'info', 20000, {
+      action: { label: this.L('Go direct'), run: () => this.set('direct').catch(err => window.showToast?.(err.message, 'error')) },
+    });
+    return true;
+  },
+
   // One click on a big card used to send every tab, window and app in Vex through Tor or a proxy, for good: it is remembered
   // after a restart. So it is asked first.
   async confirmRoute(mode) {
@@ -91,8 +106,8 @@ const PrivateRouting = {
     return window.vexConfirm({
       title: this.L(tor ? 'Send everything through Tor?' : 'Send everything through your proxy?'),
       message: this.L(tor
-        ? 'Every tab, window and sidebar app in Vex will go through Tor. It is slow, some sites will not work, and Tor starts as soon as you open a page. This is remembered after a restart, and you can switch back here at any time.'
-        : 'Every tab, window and sidebar app in Vex will go through the proxy you named. If it is wrong or down, pages will not load. This is remembered after a restart, and you can switch back here at any time.'),
+        ? 'Every tab, window and sidebar app in Vex, including every new incognito window, will go through Tor. It is slow, some sites will not work, and Tor starts as soon as you open a page. It stays on after you close Tor or restart Vex, until you switch it back here. For one private tab only, use New Tor tab instead.'
+        : 'Every tab, window and sidebar app in Vex, including every new incognito window, will go through the proxy you named. If it is wrong or down, pages will not load. It stays on after you restart Vex, until you switch it back here.'),
       okLabel: this.L(tor ? 'Use Tor' : 'Use the proxy'),
     });
   },
@@ -106,11 +121,11 @@ const PrivateRouting = {
     const el = document.createElement('div');
     el.className = 'vexroute-backdrop';
     el.innerHTML = `
-      <div class="vexroute" role="dialog" aria-modal="true" aria-label="Private routing">
+      <div class="vexroute" role="dialog" aria-modal="true" aria-label="Route all of Vex through Tor or a proxy">
         <div class="vexroute-head">
           <div style="flex:1">
-            <h2>Private routing</h2>
-            <p>Send everything Vex does through Tor or through a proxy of your own: every tab, container, private window, off-the-record tab, sidebar app and mail. A container or site with a route of its own keeps it, Tor tabs stay on Tor, and the network speed check stays direct, as it measures your own line. This routes the browser — Vex is not a VPN service and does not run one, and anything outside Vex goes the way it always did.</p>
+            <h2>Route all of Vex through Tor or a proxy</h2>
+            <p>Send everything Vex does through Tor or through a proxy of your own: every tab, container, incognito window, off-the-record tab, sidebar app and mail. A container or site with a route of its own keeps it, Tor tabs stay on Tor, and the network speed check stays direct, as it measures your own line. This routes the browser — Vex is not a VPN service and does not run one, and anything outside Vex goes the way it always did.</p>
           </div>
           <button class="vexroute-close" aria-label="Close" title="Close">${VexIcons.svg('x', { size: 18 })}</button>
         </div>

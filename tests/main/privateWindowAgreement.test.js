@@ -49,13 +49,14 @@ describe('opening a private window', () => {
     expect(MAIN).toMatch(/ipcMain\.handle\('open-clean-window', \(_e, url, look, uiMode\) => openPrivateWindow\(/);
   });
 
-  it('a refusal is said, not dropped (Ctrl+Alt+N and Ctrl+K)', () => {
-    for (const f of ['src/renderer/js/app.js', 'src/renderer/js/command.js']) {
-      const src = read(f);
-      const at = src.indexOf('openPrivateWindow?.(');
-      expect(at, f).toBeGreaterThan(-1);
-      expect(src.slice(at, at + 160), f).toMatch(/\)\s*\?\.catch\(err => window\.showToast/);
-    }
+  it('a refusal is said, not dropped (Ctrl+Alt+N, Ctrl+K and the Incognito button all go through VexIncognito.open)', () => {
+    const inc = read('src/renderer/js/incognito.js');
+    const at = inc.indexOf('openPrivateWindow(');
+    expect(at).toBeGreaterThan(-1);
+    expect(inc.slice(at)).toMatch(/catch \(err\) \{\s*window\.showToast\?\.\(/);
+    expect(read('src/renderer/js/app.js')).toMatch(/register\('private-window', \(\) => VexIncognito\.open\(\)\)/);
+    expect(read('src/renderer/js/app.js')).toMatch(/btn-incognito'\)\?\.addEventListener\('click', \(\) => \{ if \(typeof VexIncognito !== 'undefined'\) VexIncognito\.open\(\)/);
+    expect(read('src/renderer/js/command.js')).toMatch(/id: 'private'.*VexIncognito\.open\(\)/);
   });
 
   it('the smoke run that opens one agrees first, as a person would', () => {

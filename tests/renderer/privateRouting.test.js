@@ -123,7 +123,7 @@ describe('asking before everything goes through Tor or a proxy', () => {
     await wait();
     expect(window.vexConfirm).toHaveBeenCalledTimes(1);
     expect(window.vexConfirm.mock.calls[0][0].title).toBe('Send everything through Tor?');
-    expect(window.vexConfirm.mock.calls[0][0].message).toMatch(/remembered after a restart/);
+    expect(window.vexConfirm.mock.calls[0][0].message).toMatch(/stays on after you close Tor or restart Vex/);
     expect(calls).toEqual([]);
     expect(el.querySelector('#vexroute-result').textContent).toBe('Nothing was changed.');
     expect(document.getElementById('btn-routing').hidden).toBe(true);

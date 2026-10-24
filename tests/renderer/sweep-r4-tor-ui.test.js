@@ -238,7 +238,7 @@ describe('an address typed before the tab\'s page is attached', () => {
 describe('the proxy routing screens say calls may not connect', () => {
   const NOTE = /Calls in Discord, Meet and similar may not connect: WebRTC is limited to the proxy so it can.t show your real address/;
 
-  it('Private routing, beside the proxy choice', async () => {
+  it('Route all of Vex, beside the proxy choice', async () => {
     const { PrivateRouting } = require('../../src/renderer/js/private-routing.js');
     window.escapeHtml = (v) => String(v == null ? '' : v);
     window.vex = { routingGetAll: async () => ({ mode: 'direct' }) };

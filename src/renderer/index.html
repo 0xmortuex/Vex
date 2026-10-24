@@ -86,6 +86,7 @@
   <link rel="stylesheet" href="css/vex-fun.css">
   <link rel="stylesheet" href="css/agent-task.css">
   <link rel="stylesheet" href="css/hygiene.css">
+  <link rel="stylesheet" href="css/incognito.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -171,7 +172,7 @@
         <span class="game-mode-chip-icon" aria-hidden="true"></span><span class="game-mode-chip-label">Game mode on</span>
         <button id="game-mode-off" type="button" title="Put everything back until this game ends">Turn off for now</button>
       </div>
-      <!-- Shown while Vex's own Tor runs, in every look (#btn-tor is hidden in the browser looks); tor-session.js fills the icon. -->
+      <!-- Shown while Vex's own Tor runs, in every look; tor-session.js fills the icon. -->
       <div id="tor-running" role="status" hidden>
         <span class="tor-running-icon" aria-hidden="true"></span><span class="tor-running-label">Tor is running</span>
         <button id="tor-running-stop" type="button" title="Stop Tor">Stop</button>
@@ -184,8 +185,13 @@
       <!-- Simple mode's one switch back to everything (js/simple-mode.js);
            shown only while Simple mode is on. -->
       <button id="btn-all-features" type="button" title="All features — show every panel, button and setting Vex has" aria-label="All features" hidden></button>
-      <button id="btn-tor" class="nav-btn" title="New Tor tab — maximum-security private browsing over Tor">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>
+      <!-- Incognito and Tor are two different things, with two different icons: the mask forgets what you did in a
+           window (js/incognito.js); the onion sends one tab through Tor to hide where you connect from (js/tor-session.js). -->
+      <button id="btn-incognito" class="nav-btn" type="button" title="New incognito window (Ctrl+Alt+N) — saves no history, cookies or logins; does not hide your connection" aria-label="New incognito window">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 12h17.6"/><path d="M6 12 7.8 6.1A2.2 2.2 0 0 1 9.9 4.6h4.2a2.2 2.2 0 0 1 2.1 1.5L18 12"/><circle cx="7.4" cy="16" r="3.4"/><circle cx="16.6" cy="16" r="3.4"/></svg>
+      </button>
+      <button id="btn-tor" class="nav-btn" type="button" title="New Tor tab — this one tab goes through Tor to hide your connection; slow, and not the same as incognito" aria-label="New Tor tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2c2.6 3 7 4.6 7 9.3a7 7 0 0 1-14 0c0-4.7 4.4-6.3 7-9.3z"/><path d="M12 8.6c1.3 1.6 2.2 2.6 2.2 4.4a2.2 2.2 0 0 1-4.4 0c0-1.8.9-2.8 2.2-4.4z"/></svg>
       </button>
       <button id="btn-notes-top" class="nav-btn" title="Notes (Ctrl+Shift+N)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -204,7 +210,7 @@
       <!-- Only ever visible while everything is routed through Tor or a
            proxy (js/private-routing.js): a route you forgot is on is slow
            browsing with no explanation. -->
-      <button id="btn-routing" class="nav-btn" title="Private routing" hidden>
+      <button id="btn-routing" class="nav-btn" title="Route all of Vex through Tor or a proxy" hidden>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.7-3.8-9s1.3-6.4 3.8-9z"/></svg>
       </button>
       <button id="btn-site-rules" class="nav-btn" title="This site is being held back" hidden>
@@ -1077,9 +1083,9 @@
               </div>
             </div>
 
-            <!-- Private routing: what people mean by a VPN. -->
+            <!-- Route all of Vex through Tor or a proxy: what people mean by a VPN. -->
             <div class="setting-group">
-              <label class="setting-label">Private routing</label>
+              <label class="setting-label">Route all of Vex</label>
               <div class="setting-toggle-row">
                 <span>Send everything through Tor or a proxy<br><span style="font-size:11.5px;color:var(--text-muted)">Applies to every tab and container at once, survives a restart, and can be checked: Vex asks what address the internet sees with the route and without it.</span></span>
                 <button id="setting-open-routing" class="btn-secondary">Set it up…</button>
@@ -1996,6 +2002,7 @@
   <script src="js/fonts.js"></script>
   <script src="js/skins.js"></script>
   <script src="js/private-routing.js"></script>
+  <script src="js/incognito.js"></script>
   <script src="js/site-routes.js"></script>
   <script src="js/sleep-consent.js"></script>
   <script src="js/battery-mode.js"></script>
