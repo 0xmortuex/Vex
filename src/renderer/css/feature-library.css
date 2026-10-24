@@ -220,3 +220,55 @@
   cursor: pointer;
 }
 .flib-never-one:hover { border-style: solid; border-color: var(--primary); color: var(--primary); }
+
+/* === Did you know? (js/feature-faq.js) ====================================
+   Frequently Asked FEATURES: a question per row, an answer that opens under it. Same borders, type and
+   buttons as a feature card, so it reads as part of the Library and follows every theme and look. */
+.flib-chip-faq { display: inline-flex; align-items: center; gap: 4px; }
+.flib-chip-faq svg { flex: none; }
+.flib-faq { border-bottom: 1px solid var(--border); padding: 2px 2px; }
+.flib-faq-q { margin: 0; }
+.flib-faq-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 4px;
+  cursor: pointer;
+  color: var(--text);
+}
+.flib-faq-head:hover { background: var(--vex-hover-fill, rgba(255, 255, 255, 0.05)); }
+.flib-faq-head:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.flib-faq-head .flib-name { line-height: 1.4; }
+.flib-faq-head .flib-chevron { display: inline-flex; flex: none; }
+.flib-faq-head[aria-expanded="true"] .flib-chevron { transform: rotate(90deg); }
+.flib-faq-new {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 20px;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.flib-faq-a { padding: 2px 4px 10px; }
+.flib-faq-a[hidden] { display: none; }
+.flib-faq-find { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
+.flib-faq-find b { color: var(--text); font-weight: 600; }
+.flib-faq-find kbd {
+  font-family: var(--vex-font-mono, monospace);
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.flib-btn:disabled { opacity: .5; cursor: default; }
