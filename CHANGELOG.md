@@ -1,6 +1,6 @@
 # Changelog
 
-## v37.89.4 (2026-10-24) — PDFs open in Vex again
+## v37.90.9 (2026-10-24) — PDFs open in Vex again, on the newest security release of Electron
 
 ### Fixed
 - **A PDF opened as a blank dark page.** Every PDF, from any site, showed an empty dark tab instead of the document. Vex's own page scripts were running inside the built-in PDF viewer and changing the viewer's own objects, which stopped it drawing anything. They now leave the viewer alone. Try: open any PDF link in a tab, for example a school or government document; the page, the thumbnails and the toolbar (zoom, print, download) appear as in Chrome.
