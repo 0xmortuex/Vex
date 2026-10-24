@@ -115,6 +115,11 @@ const FeatureLibrary = {
       this._details().then(() => { if (host.isConnected) this._drawList(host); })
         .catch(err => window.showToast?.('The feature descriptions could not load: ' + ((err && err.message) || err), 'error'));
     }
+    // "Did you know?" is a category of its own; its chip appears once its questions are here.
+    if (typeof FeatureFaq === 'undefined') {
+      this._faqData().then(() => { if (host.isConnected) { this._drawCats(host); this._drawList(host); } })
+        .catch(err => window.showToast?.('The questions could not load: ' + ((err && err.message) || err), 'error'));
+    }
     return host;
   },
 
@@ -122,6 +127,14 @@ const FeatureLibrary = {
     if (typeof FeatureDetails !== 'undefined') return Promise.resolve(true);
     if (!window.VexLazy) return Promise.reject(new Error('the lazy loader is missing'));
     return window.VexLazy.ensure('js/feature-details.js');
+  },
+
+  // The "Did you know?" questions (js/feature-faq.js): loaded like the long paragraphs, the first time the Library is
+  // opened, and for the same reason.
+  _faqData() {
+    if (typeof FeatureFaq !== 'undefined') return Promise.resolve(true);
+    if (!window.VexLazy) return Promise.reject(new Error('the lazy loader is missing'));
+    return window.VexLazy.ensure('js/feature-faq.js');
   },
 
   // ---- Ask Vex what you don't know ----------------------------------------
@@ -227,7 +240,11 @@ const FeatureLibrary = {
     if (!nav) return;
     const all = (typeof VexFeatures !== 'undefined' && VexFeatures.ITEMS) || [];
     const chip = (id, label, n) => `<button class="flib-chip${this._cat === id ? ' on' : ''}" data-cat="${this._esc(id == null ? '' : id)}">${this._esc(label)} <span>${n}</span></button>`;
+    // "Did you know?" stands beside Everything, ahead of the areas: it is the way in for someone who does not yet know
+    // what to look for (js/feature-faq.js).
+    const faqChip = (typeof FeatureFaq === 'undefined') ? '' : `<button class="flib-chip flib-chip-faq${this._cat === FeatureFaq.ID ? ' on' : ''}" data-cat="${FeatureFaq.ID}" type="button">${typeof VexIcons !== 'undefined' ? VexIcons.svg('bulb', { size: 12 }) : ''}${this._esc(FeatureFaq.NAME)} <span>${FeatureFaq.ENTRIES.length}</span></button>`;
     nav.innerHTML = chip(null, 'Everything', all.length)
+      + faqChip
       + (VexFeatures.CATS || []).map(c => chip(c.id, c.name, VexFeatures.byCat(c.id).length)).join('');
     nav.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => {
       this._cat = b.dataset.cat || null;
@@ -239,7 +256,28 @@ const FeatureLibrary = {
   _drawList(host) {
     const list = host.querySelector('#flib-list');
     if (!list) return;
+    // The questions: their own category, and also the first thing a search finds.
+    if (typeof FeatureFaq !== 'undefined' && this._cat === FeatureFaq.ID) {
+      const found = this.faqEntries(this._query);
+      list.innerHTML = `
+        <div class="flib-group">
+          <div class="flib-group-name" role="heading" aria-level="2">${this._esc(FeatureFaq.NAME)}</div>
+          <div class="flib-group-blurb">${this._esc(FeatureFaq.BLURB)}</div>
+        </div>
+        ${found.length ? found.map(e => this._faqHtml(this.faqCard(e))).join('') : `<div class="flib-empty">No question here matches that. Try other words, or ask Vex above.</div>`}`;
+      this._wireFaq(list);
+      return;
+    }
+    const faqHits = (this._query && !this._cat && typeof FeatureFaq !== 'undefined') ? this.faqEntries(this._query) : [];
+    const faqBlock = faqHits.length
+      ? `<div class="flib-group"><div class="flib-group-name" role="heading" aria-level="2">${this._esc(FeatureFaq.NAME)}</div></div>${faqHits.map(e => this._faqHtml(this.faqCard(e))).join('')}`
+      : '';
     const items = this._items();
+    if (!items.length && faqHits.length) {
+      list.innerHTML = faqBlock;
+      this._wireFaq(list);
+      return;
+    }
     if (!items.length) {
       list.innerHTML = `<div class="flib-empty">Nothing matches “${this._esc(this._query)}”. Try what you would call it — “stop videos playing”, “two accounts”.</div>`;
       return;
@@ -249,7 +287,7 @@ const FeatureLibrary = {
     // own GROUPS), because fifty-four things under one heading is not an
     // answer to "where is it".
     if (this._query) {
-      list.innerHTML = items.map(f => this._cardHtml(this.card(f))).join('');
+      list.innerHTML = faqBlock + (faqHits.length ? `<div class="flib-group"><div class="flib-group-name" role="heading" aria-level="2">Everything Vex does</div></div>` : '') + items.map(f => this._cardHtml(this.card(f))).join('');
     } else {
       const cats = (VexFeatures.CATS || []).filter(c => !this._cat || c.id === this._cat);
       list.innerHTML = cats.map(cat => {
@@ -266,6 +304,106 @@ const FeatureLibrary = {
       }).join('');
     }
     this._wireCards(list);
+    this._wireFaq(list);
+  },
+
+  // ---- Did you know? -------------------------------------------------------
+  //
+  // A list of questions about features nobody thinks to ask for (js/feature-faq.js). Each is an FAQ item: a button
+  // that opens an answer (aria-expanded, aria-controls), what the feature is, how to find it again, and Try it —
+  // which is the Library's own Open button (open()) for that catalogue entry, so a switched-off feature is
+  // introduced first and a button that cannot work says so instead of doing nothing.
+
+  // Case, Turkish dotted/dotless i and accents folded away, so "Sesli okuma" finds "sesli okuma" and "isik" finds "ışık".
+  _fold(s) {
+    return String(s == null ? '' : s)
+      .replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i')
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '');
+  },
+
+  // The Turkish for an English question or answer, or '' — the same table the rest of the window is translated from.
+  _tr(en) {
+    const t = (typeof VexI18nUI !== 'undefined' && VexI18nUI.TABLE && VexI18nUI.TABLE.tr) || null;
+    return (t && t[en]) || '';
+  },
+
+  // The questions that match what was typed. Every word has to be found, in the English question, answer and
+  // phrases or in the Turkish question and answer (whichever language is being typed). A word of five letters or more
+  // also matches by its stem, because Turkish adds endings ("okuma" is found in "okuyabilir").
+  faqEntries(query) {
+    if (typeof FeatureFaq === 'undefined') return [];
+    const all = FeatureFaq.ENTRIES;
+    const words = this._fold(query).split(/[^\p{L}\p{N}]+/u).filter(w => w.length > 1 && !(VexFeatures.FILLER && VexFeatures.FILLER.has(w)));
+    if (!words.length) return String(query || '').trim() ? [] : all.slice();
+    return all.filter((e) => {
+      const hay = this._fold([e.q, e.a, e.k, this._tr(e.q), this._tr(e.a)].join(' '));
+      return words.every(w => hay.includes(w) || (w.length >= 5 && hay.includes(w.slice(0, w.length - 2))));
+    });
+  },
+
+  // What one question's item says, as data (so a test can read it without a DOM).
+  faqCard(e) {
+    const f = VexFeatures.get(e.f);
+    const actions = f ? VexFeatures.actions(f).filter(a => a.act !== 'show') : [];
+    const act = e.act ? actions.find(a => a.act === e.act) : actions[0];
+    const cmd = f ? VexFeatures.command(f) : null;
+    return {
+      id: e.id, q: e.q, a: e.a,
+      feature: f, act: act ? act.act : '',
+      // Where to find it later: the Ctrl+K words (read from the live command, so a renamed command is not out of date
+      // here), else the Settings path written beside the entry.
+      label: e.path ? '' : ((cmd && cmd.label) || (f && f.openLabel) || ''),
+      path: e.path || '',
+      // No record of running it: the command bar's usage counts and the panels' last-opened times, the same record
+      // Discover reads. A feature that is only a Settings switch has no such record, so it carries no marker.
+      untried: !!(f && (f.cmd || f.panel) && !VexFeatures.used(f)),
+    };
+  },
+
+  _faqHtml(c) {
+    const chev = typeof VexIcons !== 'undefined' ? VexIcons.svg('chevron-right', { size: 14 }) : '';
+    const find = c.path
+      ? `<div class="flib-faq-find"><span class="flib-faq-lbl">Find it again:</span> <b>${this._esc(c.path)}</b></div>`
+      : c.label
+        ? `<div class="flib-faq-find"><span class="flib-faq-lbl">Find it again:</span> <kbd>Ctrl+K</kbd> <span>then type</span> <b>${this._esc(c.label)}</b></div>`
+        : '';
+    return `
+      <div class="flib-faq" data-faq="${this._esc(c.id)}">
+        <div class="flib-faq-q" role="heading" aria-level="3">
+          <button type="button" class="flib-faq-head" id="flib-faq-h-${this._esc(c.id)}" aria-expanded="false" aria-controls="flib-faq-a-${this._esc(c.id)}">
+            <span class="flib-name">${this._esc(c.q)}</span>
+            ${c.untried ? `<span class="flib-faq-new" title="Vex has no record of you running this. It remembers only your 60 most recent commands.">Not tried yet</span>` : ''}
+            <span class="flib-chevron" aria-hidden="true">${chev}</span>
+          </button>
+        </div>
+        <div class="flib-faq-a" id="flib-faq-a-${this._esc(c.id)}" role="region" aria-labelledby="flib-faq-h-${this._esc(c.id)}" hidden>
+          <p class="flib-detail">${this._esc(c.a)}</p>
+          ${find}
+          <div class="flib-acts">
+            <button type="button" class="flib-btn primary" data-faq-try="${this._esc(c.id)}"${c.act ? '' : ' disabled'}>Try it</button>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  _wireFaq(root) {
+    root.querySelectorAll('.flib-faq-head').forEach(b => b.addEventListener('click', () => {
+      const open = b.getAttribute('aria-expanded') !== 'true';
+      b.setAttribute('aria-expanded', String(open));
+      const region = document.getElementById(b.getAttribute('aria-controls'));
+      if (region) region.hidden = !open;
+      b.closest('.flib-faq').classList.toggle('open', open);
+    }));
+    root.querySelectorAll('[data-faq-try]').forEach(b => b.addEventListener('click', () => this.tryFaq(b.dataset.faqTry)));
+  },
+
+  // Try it: the same call as the Open button of the feature's own card.
+  tryFaq(id) {
+    const e = typeof FeatureFaq !== 'undefined' ? FeatureFaq.ENTRIES.find(x => x.id === id) : null;
+    const c = e ? this.faqCard(e) : null;
+    if (!c || !c.feature || !c.act) { window.showToast?.('That cannot be opened from here', 'error'); return undefined; }
+    return this.open(c.feature.id, c.act);
   },
 
   // Cards behave the same wherever they are drawn: in the list, or in an answer.
