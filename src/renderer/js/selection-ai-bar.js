@@ -116,24 +116,24 @@ const SelectionAIBar = {
       #vex-selection-ai {
         position: fixed; z-index: 95000; display: none;
         gap: 2px; padding: 4px;
-        background: var(--surface, #151921);
-        border: 1px solid var(--border, #1f2530);
-        border-radius: 10px;
-        box-shadow: 0 8px 28px rgba(0,0,0,0.45);
-        font-family: 'Segoe UI', system-ui, sans-serif;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--vex-radius-lg, 10px);
+        box-shadow: 0 8px 24px var(--vex-shadow-color, color-mix(in srgb, var(--text) 25%, transparent));
+        font-family: var(--vex-font-base);
         animation: vexSelBarIn .12s ease;
       }
       @keyframes vexSelBarIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
       #vex-selection-ai button {
         display: inline-flex; align-items: center; gap: 5px;
         height: 30px; padding: 0 10px;
-        border: none; border-radius: 7px; background: transparent;
-        color: var(--text, #e5e9f0); font: inherit; font-size: 12.5px; cursor: pointer;
+        border: none; border-radius: var(--vex-radius-md, 6px); background: transparent;
+        color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer;
         white-space: nowrap;
       }
-      #vex-selection-ai button:hover { background: var(--primary, #6366f1); color: var(--on-primary, #fff); }
+      #vex-selection-ai button:hover { background: var(--vex-hover-fill, var(--bg-2)); }
       #vex-selection-ai button:disabled { cursor: default; }
-      #vex-selection-ai .vex-sel-div { width: 1px; align-self: stretch; margin: 4px 3px; background: var(--border, #1f2530); }
+      #vex-selection-ai .vex-sel-div { width: 1px; align-self: stretch; margin: 4px 3px; background: var(--border); }
     `;
     document.head.appendChild(s);
   },

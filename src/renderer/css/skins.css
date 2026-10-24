@@ -15,10 +15,12 @@
 }
 
 /* ---- The texture ------------------------------------------------------- */
+/* Not on the AI panel: it is the one surface people read for minutes at a time,
+   and it stays a calm flat colour whatever skin is on (css/ai-panel.css). */
 /* Laid over the chrome's surfaces as a pseudo-element rather than as a
    background, so a panel's own background colour, gradient or image is left
    exactly as it was and the tile simply sits on top of it at low alpha. */
-html[data-skin-pattern] :is(#top-bar, #top-tab-bar, #icon-sidebar, #tabs-sidebar, #ai-panel, .panel, #gui-shortcuts)::before {
+html[data-skin-pattern] :is(#top-bar, #top-tab-bar, #icon-sidebar, #tabs-sidebar, .panel, #gui-shortcuts)::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -31,12 +33,12 @@ html[data-skin-pattern] :is(#top-bar, #top-tab-bar, #icon-sidebar, #tabs-sidebar
 }
 /* Those surfaces have to be a positioning context for the layer above, and
    their own content has to sit over it. */
-html[data-skin-pattern] :is(#top-bar, #top-tab-bar, #icon-sidebar, #tabs-sidebar, #ai-panel, .panel, #gui-shortcuts) { position: relative; }
-html[data-skin-pattern] :is(#top-bar, #top-tab-bar, #icon-sidebar, #tabs-sidebar, #ai-panel, #gui-shortcuts) > * { position: relative; z-index: 1; }
+html[data-skin-pattern] :is(#top-bar, #top-tab-bar, #icon-sidebar, #tabs-sidebar, .panel, #gui-shortcuts) { position: relative; }
+html[data-skin-pattern] :is(#top-bar, #top-tab-bar, #icon-sidebar, #tabs-sidebar, #gui-shortcuts) > * { position: relative; z-index: 1; }
 
 /* Grain is a generated fractal rather than a tile: a repeating "random" tile
    reads as a plaid, which is the one thing grain must not do. */
-html[data-skin-noise] :is(#top-bar, #icon-sidebar, #ai-panel, .panel)::before {
+html[data-skin-noise] :is(#top-bar, #icon-sidebar, .panel)::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
   background-size: 120px 120px;
 }
@@ -66,13 +68,13 @@ html[data-skin-shape="tight"] :is(.panel, .vex-dialog, .ai-composer-inner) { pad
 html[data-skin-shape="round"] :is(.panel, .vex-dialog) { padding: calc(14px * var(--vex-skin-pad)); }
 
 /* ---- The light --------------------------------------------------------- */
-html[data-skin-glow="flat"] :is(.panel, .vex-dialog, .downloads-drop, .vextasks, #ai-panel, .tab-context-menu, .vexfont) {
+html[data-skin-glow="flat"] :is(.panel, .vex-dialog, .downloads-drop, .vextasks, .tab-context-menu, .vexfont) {
   box-shadow: none !important;
 }
-html[data-skin-glow="lift"] :is(.panel, .vex-dialog, .downloads-drop, .vextasks, #ai-panel, .tab-context-menu, .vexfont) {
+html[data-skin-glow="lift"] :is(.panel, .vex-dialog, .downloads-drop, .vextasks, .tab-context-menu, .vexfont) {
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.22) !important;
 }
-html[data-skin-glow="halo"] :is(.panel, .vex-dialog, .downloads-drop, .vextasks, #ai-panel, .tab-context-menu, .vexfont) {
+html[data-skin-glow="halo"] :is(.panel, .vex-dialog, .downloads-drop, .vextasks, .tab-context-menu, .vexfont) {
   box-shadow: 0 0 0 1px var(--vex-accent-dim, transparent), 0 14px 44px var(--vex-accent-glow, rgba(0, 0, 0, 0.35)) !important;
 }
 html[data-skin-glow="halo"] :is(.nav-btn.active, .sidebar-icon.active, .tab.active) {

@@ -252,8 +252,8 @@ body[data-gui-style="glass"] #gui-shortcuts-bar::-webkit-scrollbar { height: 0; 
 #gui-shortcuts-bar .gsc-add { margin-left: auto; opacity: 0.85; }
 #gui-shortcuts-bar .gsc-add .ic { background: rgba(255,255,255,0.14); color: var(--vex-text-primary); font-size: 14px; }
 
-/* ---- 5. Cards / panels inside content pick up a subtle glass too ---- */
-body[data-gui-style="glass"] #ai-panel,
+/* ---- 5. Cards / panels inside content pick up a subtle glass too ----
+   (the AI panel is left out: it is a flat surface in every look, ai-panel.css) */
 body[data-gui-style="glass"] .panel,
 body[data-gui-style="glass"] #content-area > .home-screen {
   background: rgba(255,255,255,0.04) !important;

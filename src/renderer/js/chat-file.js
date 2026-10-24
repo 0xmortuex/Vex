@@ -79,10 +79,9 @@ const ChatFile = {
     const chip = document.createElement('div');
     chip.id = 'ai-file-attach';
     chip.dataset.tab = String(doc.tabId);
-    chip.style.cssText = 'display:flex;align-items:center;gap:8px;margin:0 10px 6px;padding:5px 7px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:11.5px;color:var(--text)';
-    chip.innerHTML = `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-      <button type="button" aria-label="Take the file off" title="Take the file off"
-              style="display:inline-flex;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px">${window.VexIcons ? VexIcons.svg('x', { size: 12 }) : 'x'}</button>`;
+    chip.className = 'ai-file-chip';   // drawn in css/ai-panel.css
+    chip.innerHTML = `<span class="ai-file-chip-name"></span>
+      <button type="button" aria-label="Take the file off" title="Take the file off">${window.VexIcons ? VexIcons.svg('x', { size: 12 }) : 'x'}</button>`;
     chip.querySelector('span').textContent = doc.name + ' · ' + this.size(doc) + (doc.truncated ? ' (first part)' : '') + ' — ask about it';
     chip.querySelector('button').addEventListener('click', () => this.clear(doc.tabId));
     const anchor = input && (input.closest('.ai-input-row, .ai-input-wrapper, .ai-input-wrap, form') || input.parentElement);

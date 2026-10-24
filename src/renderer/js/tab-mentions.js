@@ -102,20 +102,16 @@ const TabMentions = {
       this._el = document.createElement('div');
       this._el.className = 'vex-mention-list';
       this._el.setAttribute('role', 'listbox');
-      this._el.style.cssText = 'position:absolute;z-index:60;max-height:216px;overflow-y:auto;min-width:220px;' +
-        'background:var(--bg);border:1px solid var(--border);border-radius:9px;box-shadow:0 10px 30px var(--vex-shadow-color,rgba(0,0,0,0.38));padding:4px';
+      // Drawn in css/ai-panel.css (.vex-mention-list); it sits on the composer card.
       (input.closest('.ai-input-wrapper') || document.body).appendChild(this._el);
       const wrap = input.closest('.ai-input-wrapper');
       if (wrap && getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
-      this._el.style.left = '6px';
-      this._el.style.bottom = 'calc(100% + 6px)';
     }
     this._el.innerHTML = this._items.map((item, i) => `
-      <div role="option" data-i="${i}" aria-selected="${i === this._index}"
-           style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;background:${i === this._index ? 'var(--vex-hover-fill,var(--surface))' : 'transparent'}">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.label)}</div>
-          <div style="font-size:10px;color:var(--text-muted)">${esc(item.sub)}</div>
+      <div class="vex-mention-row" role="option" data-i="${i}" aria-selected="${i === this._index}">
+        <div>
+          <div class="vex-mention-label">${esc(item.label)}</div>
+          <div class="vex-mention-sub">${esc(item.sub)}</div>
         </div>
       </div>`).join('');
     this._el.querySelectorAll('[data-i]').forEach(row => {

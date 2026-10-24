@@ -393,9 +393,10 @@ const AIPanel = {
   _personaIcon(p, size) {
     const raw = (p && p.icon) || 'sparkles';
     // Never hand an imported persona's icon to innerHTML unescaped — only a
-    // known icon NAME may become markup.
+    // known icon NAME may become markup. A persona that holds a typed glyph
+    // (an emoji) instead of a name gets the default mark: Vex draws no emoji.
     if (window.VexIcons && VexIcons.has(raw)) return VexIcons.svg(raw, { size: size || 14 });
-    return this._esc(raw);
+    return (window.VexIcons && VexIcons.has('sparkles')) ? VexIcons.svg('sparkles', { size: size || 14 }) : '';
   },
 
   updatePersonaSwitcher() {
@@ -469,7 +470,7 @@ const AIPanel = {
         ${p.isBuiltIn ? '<span class="persona-item-builtin">built-in</span>' : ''}
       </div>
     `).join('');
-    if (!all.length) list.innerHTML = '<div class="persona-item-desc" style="padding:10px">No persona matches that.</div>';
+    if (!all.length) list.innerHTML = '<div class="persona-item-desc persona-none">No persona matches that.</div>';
     list.querySelectorAll('.persona-item').forEach(el => {
       el.addEventListener('click', () => {
         const id = el.dataset.personaId;
@@ -588,6 +589,13 @@ const AIPanel = {
     paint('ai-expand', 'maximize', 15);
     paint('ai-close', 'x', 16);
     paint('ai-send', 'arrow-right', 17);
+    // Everything in the markup that asks for an icon by name (starters, pills,
+    // the title, the empty state), drawn from the same set.
+    document.querySelectorAll('#ai-panel [data-ico]').forEach((el) => {
+      if (!el.innerHTML.trim()) el.innerHTML = this._icon(el.dataset.ico, Number(el.dataset.icoSize) || 14);
+    });
+    // One click anywhere in an answer's code block bar copies that block.
+    document.getElementById('ai-messages')?.addEventListener('click', (e) => this._onCodeCopy(e));
 
     // The dimmer behind focus mode. Clicking it closes, like clicking away
     // from the docked panel.
@@ -883,7 +891,7 @@ const AIPanel = {
           undo.title = 'Remove what this run made: ' + run.undo.map(u => u.label).join(', ');
           undo.addEventListener('click', async (ev) => {
             ev.stopPropagation();
-            const made = run.undo.map(u => '• ' + u.label).join('\n');
+            const made = run.undo.map(u => '- ' + u.label).join('\n');
             const ok = await vexConfirm({
               title: 'Undo this run?',
               message: 'This removes what it made:\n\n' + made + '\n\nWhat it did on a web page cannot be taken back from here.',
@@ -1012,12 +1020,12 @@ const AIPanel = {
       document.getElementById('ai-attach')?.remove();
       const chip = document.createElement('div');
       chip.id = 'ai-attach';
-      chip.style.cssText = 'display:flex;align-items:center;gap:8px;margin:0 10px 6px;padding:4px 6px 4px 4px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:11.5px;color:var(--text)';
-      chip.innerHTML = `<img alt="" style="width:34px;height:34px;object-fit:cover;border-radius:5px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><button type="button" aria-label="Remove the picture" title="Remove the picture" style="display:inline-flex;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px">${this._icon('x', 12)}</button>`;
+      chip.className = 'ai-file-chip';   // drawn in css/ai-panel.css
+      chip.innerHTML = `<img class="ai-file-chip-img" alt=""><span class="ai-file-chip-name"></span><button type="button" aria-label="Remove the picture" title="Remove the picture">${this._icon('x', 12)}</button>`;
       chip.querySelector('img').src = this._pendingImage;
       chip.querySelector('span').textContent = 'Picture attached — ask about it, or just press Enter';
       chip.querySelector('button').addEventListener('click', () => this._clearAttachment());
-      const anchor = input && (input.closest('.ai-input-row, .ai-input-wrap, form') || input.parentElement);
+      const anchor = input && (input.closest('.ai-input-row, .ai-input-wrapper, .ai-input-wrap, form') || input.parentElement);
       if (anchor) anchor.insertAdjacentElement('beforebegin', chip);
       input?.focus();
     };
@@ -1097,19 +1105,21 @@ const AIPanel = {
     if (m && m.didIt) return null;
     const box = document.createElement('div');
     box.className = 'follow-ups ai-next-chips';
-    const chip = (label, fn) => {
+    const chip = (label, fn, icon) => {
       const b = document.createElement('button');
-      b.className = 'follow-up-btn'; b.type = 'button'; b.textContent = label;
+      b.className = 'follow-up-btn'; b.type = 'button';
+      if (icon) b.innerHTML = this._icon(icon, 12);
+      b.appendChild(document.createTextNode(label));
       b.addEventListener('click', fn);
       box.appendChild(b);
     };
-    chip('Dig deeper', () => this.sendMessage('chat', { message: 'Go deeper on that: more detail, concrete examples, and anything I should watch out for.' }));
+    chip('Dig deeper', () => this.sendMessage('chat', { message: 'Go deeper on that: more detail, concrete examples, and anything I should watch out for.' }), 'sparkles');
     const links = this._linksIn(m.content);
     if (links.length) {
       chip(links.length === 1 ? 'Open the source' : 'Open the ' + Math.min(links.length, 5) + ' sources', () => {
         for (const u of links.slice(0, 5)) TabManager.createTabBesideActive(u, false);
         window.showToast?.('Opened ' + Math.min(links.length, 5) + ' tab' + VexPlural.s(links.length) + ' in the background');
-      });
+      }, 'external');
     }
     return box;
   },
@@ -2298,6 +2308,14 @@ const AIPanel = {
     this._renderMessages();
   },
 
+  // The empty chat: a mark, a line that says what this is for, and where to
+  // begin. The same markup is in index.html for the first paint.
+  _emptyHtml() {
+    return '<div class="ai-empty"><span class="ai-empty-ico">' + this._icon('sparkles', 22) + '</span>'
+      + '<div class="ai-empty-title">How can I help?</div>'
+      + '<div class="ai-empty-hint">Ask anything about the current page, or pick a starter below.</div></div>';
+  },
+
   _renderMessages() {
     const container = document.getElementById('ai-messages');
     if (!container) return;
@@ -2308,7 +2326,7 @@ const AIPanel = {
     const conv = this._getConv();
 
     if (conv.length === 0) {
-      container.innerHTML = '<div class="ai-empty">Ask anything about the current page, or pick a starter below.</div>';
+      container.innerHTML = this._emptyHtml();
       this._syncStarters();
       return;
     }
@@ -2848,7 +2866,15 @@ const AIPanel = {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
-        await navigator.clipboard.writeText(contentEl.innerText);
+        // Without the code blocks' own bars ("python Copy").
+        // Attached off-screen so innerText keeps its line breaks.
+        const plain = contentEl.cloneNode(true);
+        plain.querySelectorAll('.ai-code-bar').forEach(n => n.remove());
+        plain.style.cssText = 'position:absolute;left:-9999px;top:0;width:' + (contentEl.offsetWidth || 400) + 'px';
+        document.body.appendChild(plain);
+        const text = plain.innerText;
+        plain.remove();
+        await navigator.clipboard.writeText(text);
         btn.innerHTML = this._icon('check');
         btn.classList.add('copied');
         setTimeout(() => { btn.innerHTML = this._icon('copy'); btn.classList.remove('copied'); }, 1500);
@@ -3016,7 +3042,14 @@ const AIPanel = {
     const el = document.createElement('div');
     el.className = 'ai-msg assistant error';
     const msg = document.createElement('div');
-    msg.textContent = 'Error: ' + text;
+    msg.className = 'ai-error-line';
+    const mark = document.createElement('span');
+    mark.className = 'ai-error-ico';
+    mark.innerHTML = this._icon('warning', 15);
+    const words = document.createElement('span');
+    words.className = 'ai-error-text';
+    words.textContent = 'Error: ' + text;
+    msg.append(mark, words);
     el.appendChild(msg);
     if (typeof onRetry === 'function') {
       const btn = document.createElement('button');
@@ -3088,10 +3121,46 @@ const AIPanel = {
   // emoji preference has to be applied.
   _md(s) {
     const tab = typeof TabManager !== 'undefined' ? TabManager.tabs.find(t => t.id === TabManager.activeTabId) : null;
-    const html = this._mdRaw(this._deEmoji(s));
+    const html = this._wrapCode(this._mdRaw(this._deEmoji(s)));
     // Guarded because this now runs on every token of an answer that is still
     // being written: a throw here would stop the answer being drawn at all.
     return typeof VideoChat !== 'undefined' ? VideoChat.linkify(html, tab && tab.url) : html;
+  },
+
+  // A fenced code block gets a bar over it: the language it is in, and a copy
+  // button. The markdown renderer's own <pre> stays exactly as it was, inside.
+  // Pure string work, so it is safe to run on every token of a streaming answer.
+  _wrapCode(html) {
+    const copy = this._icon('copy', 13);
+    return String(html).replace(/<pre class="vex-md-pre">(<code(?: data-lang="([^"]*)")?>)/g, (m, codeOpen, lang) =>
+      '<div class="ai-code"><div class="ai-code-bar"><span class="ai-code-lang">' + (lang || 'code') + '</span>'
+      + '<button type="button" class="ai-code-copy" title="Copy code" aria-label="Copy code">' + copy + '<span>Copy</span></button></div>'
+      + '<pre class="vex-md-pre">' + codeOpen).replace(/<\/code><\/pre>/g, '</code></pre></div>');
+  },
+
+  // Delegated from #ai-messages: the copy button of a code block.
+  async _onCodeCopy(e) {
+    const btn = e.target && e.target.closest && e.target.closest('.ai-code-copy');
+    if (!btn) return;
+    e.stopPropagation();
+    const code = btn.closest('.ai-code')?.querySelector('pre code');
+    if (!code) throw new Error('AI panel: a code block has no code to copy');
+    try {
+      await navigator.clipboard.writeText(code.textContent);
+    } catch (err) {
+      window.showToast?.('Could not copy: ' + ((err && err.message) || 'clipboard unavailable'), 'error');
+      return;
+    }
+    const label = btn.querySelector('span');
+    btn.classList.add('done');
+    const shown = btn.querySelector('svg'); if (shown) shown.outerHTML = this._icon('check', 13);
+    if (label) label.textContent = 'Copied';
+    setTimeout(() => {
+      if (!btn.isConnected) return;
+      btn.classList.remove('done');
+      if (label) label.textContent = 'Copy';
+      const ico = btn.querySelector('svg'); if (ico) ico.outerHTML = this._icon('copy', 13);
+    }, 1400);
   },
   _mdRaw(s) { return window.VexMarkdown ? VexMarkdown.render(s || '') : this._esc(s).replace(/\n/g, '<br>'); },
 };

@@ -30,6 +30,10 @@ const VexI18nUI = {
     // The Library's feature list (js/feature-library.js), not the articles
     // saved beside it, which are the person's own words.
     '.flib',
+    // The AI panel's own furniture: its header, the starters, the pills and menus under the box, the empty chat. Never its
+    // messages (the person's questions and the model's answers) and never the persona list (names the person may have typed).
+    '.ai-header', '.ai-history-head', '.ai-empty', '.ai-quick-actions', '.ai-tab-selector', '.agent-perm', '.ai-input-actions',
+    '#ai-input', '#active-persona-btn', '#manage-personas-btn', '#persona-search', '.ai-code-copy',
     // Everything else Vex draws itself (found 2026-10-20: the Clock, Work and Developer panels, every dialog, menu and toast
     // stayed English in a Turkish Vex). The panels as a whole, and the overlays, menus and toasts by what they are, because
     // there are dozens of classes. Only a text that is, whole, one of the dictionary's phrases is ever replaced.
@@ -150,6 +154,48 @@ const VexI18nUI = {
       'Can I find the broken links on a page?': 'Bir sayfadaki bozuk bağlantıları bulabilir miyim?',
       'Yes. Vex asks every link on the page whether it still works and says which are broken, moved or behind a login. The offending link is outlined on the page, and no cookies are sent.': 'Evet. Vex sayfadaki her bağlantıya hâlâ çalışıp çalışmadığını sorar ve hangilerinin bozuk, taşınmış ya da oturum arkasında olduğunu söyler. Sorunlu bağlantı sayfada çerçeve içine alınır ve hiçbir çerez gönderilmez.',
       // --- Did you know? : generated block end ---
+      // --- The AI panel (index.html #ai-panel, js/ai-panel.js, css/ai-panel.css) ---
+      'Talking about:': 'Konuşulan sekme:',
+      'Show thinking': 'Düşünmeyi göster',
+      'New chat': 'Yeni sohbet',
+      'Recent chats': 'Son sohbetler',
+      'Save this conversation to a file': 'Bu sohbeti dosyaya kaydet',
+      'Save this conversation': 'Bu sohbeti kaydet',
+      'Clear this conversation': 'Bu sohbeti temizle',
+      'Full screen (Ctrl+Shift+F)': 'Tam ekran (Ctrl+Shift+F)',
+      'Exit full screen (Ctrl+Shift+F)': 'Tam ekrandan çık (Ctrl+Shift+F)',
+      'Full screen': 'Tam ekran',
+      'Close (Esc)': 'Kapat (Esc)',
+      'Search every chat': 'Tüm sohbetlerde ara',
+      'How can I help?': 'Nasıl yardımcı olabilirim?',
+      'Ask anything about the current page, or pick a starter below.': 'Geçerli sayfa hakkında istediğini sor ya da aşağıdan bir başlangıç seç.',
+      'Summarize': 'Özetle',
+      'Compare tabs': 'Sekmeleri karşılaştır',
+      'Ask': 'Sor',
+      'Organize tabs': 'Sekmeleri düzenle',
+      'Ask anything about this page…': 'Bu sayfa hakkında istediğini sor…',
+      'Switch persona (@name in chat works too)': 'Kişiliği değiştir (sohbette @ad yazmak da olur)',
+      'Manage personas': 'Kişilikleri yönet',
+      'Filter personas…': 'Kişilikleri ara…',
+      'Which tabs the AI reads': 'Yapay zekânın okuduğu sekmeler',
+      'Tabs:': 'Sekmeler:',
+      'Current tab': 'Geçerli sekme',
+      'All tabs': 'Tüm sekmeler',
+      'This group': 'Bu grup',
+      'Pick tabs…': 'Sekme seç…',
+      'Agent:': 'Ajan:',
+      'How the agent asks before it clicks, types or navigates': 'Ajanın tıklamadan, yazmadan veya gezinmeden önce nasıl sorduğu',
+      'Approve manually': 'Elle onayla',
+      'Plan first': 'Önce plan',
+      'Auto-approve': 'Otomatik onayla',
+      'How should the agent ask for permission?': 'Ajan izni nasıl istesin?',
+      'Asks before every click, typed text or navigation. Reading and searching run without asking.': 'Her tıklama, yazılan metin veya gezinmeden önce sorar. Okuma ve arama sormadan çalışır.',
+      'Shows its plan once. After you approve, it carries the plan out on its own.': 'Planını bir kez gösterir. Onayladıktan sonra planı kendi başına uygular.',
+      'Works on its own from the start.': 'Baştan kendi başına çalışır.',
+      'In every mode it asks before buying, paying, sending, posting or deleting.': 'Her kipte satın almadan, ödemeden, göndermeden, paylaşmadan veya silmeden önce sorar.',
+      'Stop agent': 'Ajanı durdur',
+      'Hold the agent between steps': 'Ajanı adımlar arasında beklet',
+      'Copy code': 'Kodu kopyala',
       // --- Vex Extension Store (js/extension-store.js) ---
       'Open the extension store': 'Eklenti mağazasını aç',
       'Hand-picked extensions for YouTube, privacy, dark mode and developer tools, added in one click': 'YouTube, gizlilik, koyu mod ve geliştirici araçları için elle seçilmiş eklentiler, tek tıkla eklenir',
