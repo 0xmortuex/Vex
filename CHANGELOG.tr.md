@@ -16,6 +16,7 @@ Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler
 
 ### Düzeltildi
 - **Vex açılırken artık varsayılan temayı bir an göstermiyor.** Her açılışta önce krem renkli varsayılan tema ve Klasik görünüm, sonra sizin temanız, sonra sizin görünümünüz geliyordu; çünkü pencere, bunları uygulayan betikler çalışmadan önce çiziliyordu. Vex artık penceresinin nasıl göründüğünü hatırlıyor ve onu ilk kareden itibaren çiziyor (gerçek bir pencerede ölçüldü: yeniden yüklemeden sonra her kare zaten sizin görünümünüz). Deneyin: koyu bir tema ve Firefox görünümünü seçin, sonra Vex’i yeniden başlatın.
+- **Yeni sekme artık Yeni Sekme sayfası görünmeden önce beyaz parlamıyor.** Koyu bir temada sayfa alanı, Yeni Sekme sayfası çizilene kadar kısa bir an beyaz bir ekrandı (gerçek bir pencerede ölçüldü: 150 ms ve daha fazla). Artık hemen temanın kendi taban rengini gösteriyor.
 - **Ayarlar, sol taraftaki listeyi seçmiş olsanız bile nadiren bölüm menüsü sekme olarak açılabiliyordu.** Düzeni değiştirmek menünün taşınmasını istiyordu ve bu taşımanın ikinci adımı bazen hiç yapılmıyordu. Artık düzen bitene kadar yeniden isteniyor.
 
 ### Denetlendi

@@ -70,6 +70,9 @@ const WebviewManager = {
       if (!event.isInPlace && typeof VexUserscripts !== 'undefined') VexUserscripts.noteActive(tab.id, null);
     });
     webview.setAttribute('src', tab.url);
+    // The New Tab page paints a moment after its tab appears (its process starts first), and the empty webview was white for that moment, in
+    // a dark theme a flash of a white screen (measured: 150 ms and more). Its own page colour is the theme's base colour, so it stands in.
+    if (typeof isStartPage === 'function' && isStartPage(tab.url)) webview.style.background = 'var(--vex-bg-base)';
     webview.setAttribute('partition', tab.partition || 'persist:main');
     webview.setAttribute('allowpopups', '');
     // Chromium's PDF viewer is the only plugin Electron has, and it runs only
