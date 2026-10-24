@@ -8,7 +8,7 @@ This document is meant to onboard a new contributor in ~20 minutes. It is not ex
 
 ## 1. Process model
 
-Vex uses castLabs Electron 42.11.0+wvcus, with browser windows containing multiple **`<webview>` guests**. Normal and private windows can coexist. `package.json` records the packaged runtime; Settings → About reports the running version.
+Vex uses castLabs Electron 42.11.18+wvcus, with browser windows containing multiple **`<webview>` guests**. Normal and private windows can coexist. `package.json` records the packaged runtime; Settings → About reports the running version.
 
 `src/main.js` coordinates application startup. Services under `src/main/` own session security, IPC schemas, permissions, downloads, updates, vault encryption, preference storage, atomic file stores and bounded network transport. `session-security.js` checks host identity and guest ownership; `ipc-schemas.js` checks each desktop bridge operation before its handler runs. Shared `renderer/js/data-contracts.js` validates imported and synced records in both processes.
 
@@ -97,7 +97,7 @@ A separate file `userData/sync-key.bin` holds the AES-GCM 256 key encrypted with
 
 - `npm run dist` → `npm run build-icons` → `scripts/check-dist-free.js` (stops if a Vex is running from `dist\`) → `rimraf dist` → `electron-builder`. `prestart`/`prepack`/`predist` first run `npm run build:vendor`, which copies the browser builds of Transformers.js, onnxruntime-web, WebLLM and tesseract.js into `src/renderer/vendor/runtime/`. Those npm packages are devDependencies: the app loads only the vendored copies, so they are not packed into `app.asar` a second time.
 - Releases: `npm run publish` (see `RELEASING.md`) builds without publishing, starts the packaged app (`verify-packaged-boot.js`), creates the release (`ensure-release.js`), uploads `Vex-Setup.exe`, its block map and `latest.yml` (last), then `post-publish.js` checks the release and moves the website badge.
-- **Electron** is the **castLabs Widevine fork** (`electron@github:castlabs/electron-releases#v42.11.0+wvcus`). This adds Widevine CDM hooks for DRM-capable builds (Netflix, Spotify Premium video).
+- **Electron** is the **castLabs Widevine fork** (`electron@github:castlabs/electron-releases#v42.11.18+wvcus`). This adds Widevine CDM hooks for DRM-capable builds (Netflix, Spotify Premium video).
 - After packing, `scripts/vmp-sign.js` (configured as `build.afterSign`) applies **VMP signing** so Widevine accepts the bundle.
 - Icon pipeline: `scripts/build-icons.js` uses sharp to rasterize the SVG and writes PNG plus a multi-resolution Windows ICO; deprecated icon-builder tooling is no longer used.
 - NSIS installer (one-click off; per-user install) writes desktop + start-menu shortcuts. `differentialPackage: true`, so every release also publishes `Vex-Setup.exe.blockmap`.

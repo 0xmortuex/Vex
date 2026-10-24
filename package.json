@@ -44,7 +44,7 @@
     "@mlc-ai/web-llm": "^0.2.84",
     "@types/node": "^26.4.1",
     "@vitest/ui": "^4.1.11",
-    "electron": "github:castlabs/electron-releases#v42.11.0+wvcus",
+    "electron": "github:castlabs/electron-releases#v42.11.18+wvcus",
     "electron-builder": "^26.15.3",
     "eslint": "^10.10.0",
     "eslint-plugin-promise": "^7.3.0",
@@ -76,7 +76,7 @@
     "afterSign": "scripts/vmp-sign.js",
     "beforePack": "scripts/window-bundle.js",
     "electronDownload": {
-      "version": "42.11.0+wvcus",
+      "version": "42.11.18+wvcus",
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
     },
     "directories": {

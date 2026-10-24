@@ -1,5 +1,16 @@
 # Changelog
 
+## v37.89.4 (2026-10-24) — PDFs open in Vex again
+
+### Fixed
+- **A PDF opened as a blank dark page.** Every PDF, from any site, showed an empty dark tab instead of the document. Vex's own page scripts were running inside the built-in PDF viewer and changing the viewer's own objects, which stopped it drawing anything. They now leave the viewer alone. Try: open any PDF link in a tab, for example a school or government document; the page, the thumbnails and the toolbar (zoom, print, download) appear as in Chrome.
+
+### Security
+- **Vex runs on the newest security release of its Electron (42.11.18, still Chromium 148).** The version it shipped with had eight published problems, among them website permission checks (USB and other devices, pointer lock, opening other apps) being credited to the wrong site, and a cookie rule not applied to windows opened from links. The two network libraries Vex uses (undici) are updated for three published problems as well.
+
+### Checked
+Opened in the real app, on the new Electron: an eight-page Turkish regulation from a school site and a one-page test PDF, both drawn in full with their thumbnails. Found by taking Vex's page scripts away one at a time until the PDF drew; two of them were each enough to break it, and a new test fails without the change. The tests that read those two scripts all pass.
+
 ## v37.85.6 (2026-10-23) — The toolbar AI button is just an icon, and Settings no longer ends up with the wrong menu after it opens
 
 ### Changed

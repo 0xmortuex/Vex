@@ -2,6 +2,17 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
+## v37.89.4 (2026-10-24) — PDF’ler Vex’te yeniden açılıyor
+
+### Düzeltildi
+- **Bir PDF boş, koyu bir sayfa olarak açılıyordu.** Her sitedeki her PDF, belge yerine boş koyu bir sekme gösteriyordu. Vex’in kendi sayfa betikleri yerleşik PDF görüntüleyicinin içinde çalışıp görüntüleyicinin kendi nesnelerini değiştiriyordu; bu da hiçbir şey çizmesini engelliyordu. Artık görüntüleyiciye dokunmuyorlar. Deneyin: bir sekmede herhangi bir PDF bağlantısını açın, örneğin bir okul ya da kamu belgesi; sayfa, küçük resimler ve araç çubuğu (yakınlaştırma, yazdırma, indirme) Chrome’daki gibi görünür.
+
+### Güvenlik
+- **Vex, kullandığı Electron’un en yeni güvenlik sürümüyle çalışıyor (42.11.18, hâlâ Chromium 148).** Önceki sürümün yayımlanmış sekiz sorunu vardı; bunların arasında web sitesi izinlerinin (USB ve diğer aygıtlar, işaretçi kilidi, başka uygulamaları açma) yanlış siteye yazılması ve bağlantıdan açılan pencerelere bir çerez kuralının uygulanmaması da var. Vex’in kullandığı ağ kitaplığı (undici) da yayımlanmış üç sorun için güncellendi.
+
+### Denetlendi
+Gerçek uygulamada, yeni Electron ile açıldı: bir okul sitesinden sekiz sayfalık Türkçe bir yönerge ve bir sayfalık bir deneme PDF’i; ikisi de küçük resimleriyle eksiksiz çizildi. Vex’in sayfa betikleri tek tek çıkarılarak bulundu; ikisi de tek başına PDF’i bozmaya yetiyordu, ve yeni bir test değişiklik olmadan başarısız oluyor. Bu iki betiği okuyan testlerin hepsi geçiyor.
+
 ## v37.85.6 (2026-10-23) — Araç çubuğundaki YZ düğmesi artık yalnızca bir simge ve Ayarlar açıldıktan sonra yanlış menüyle kalmıyor
 
 ### Değişti
