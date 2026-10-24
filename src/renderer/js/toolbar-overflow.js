@@ -31,7 +31,7 @@
   // Simple mode's All features is the way back to everything: it never hides.
   // The site icon (js/site-panel.js) is the address field's own: it says
   // whether the connection is secure, so it stays beside the address.
-  const NEVER = new Set(['tor-running', 'game-mode-chip', 'battery-saving', 'timer-pill', 'btn-routing', 'btn-site-rules', 'btn-page-watch', 'btn-ai-news', 'btn-userscripts', 'window-controls', 'btn-toolbar-overflow', 'btn-all-features', 'url-zoom', 'url-site-btn']);
+  const NEVER = new Set(['tor-running', 'game-mode-chip', 'battery-saving', 'timer-pill', 'btn-routing', 'btn-incognito', 'btn-site-rules', 'btn-page-watch', 'btn-ai-news', 'btn-userscripts', 'window-controls', 'btn-toolbar-overflow', 'btn-all-features', 'url-zoom', 'url-site-btn']);
 
   let bar = null, more = null, menu = null;
   let moved = [];          // elements currently in the menu, in ORDER order

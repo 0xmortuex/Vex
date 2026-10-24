@@ -475,7 +475,7 @@ const SitePanel = {
     return this._section('behaviour', 'This site', `
       ${this._switch('never-sleep', 'Never let this site sleep', {
         checked: never || !!(route && route.awake), disabled: off || !!(route && route.awake),
-        note: route && route.awake ? 'Its site rule keeps it awake (Private routing › Site rules).' : 'Its tabs stay loaded in the background — no memory saver, no auto-sleep.' })}
+        note: route && route.awake ? 'Its site rule keeps it awake (Route all of Vex › Site rules).' : 'Its tabs stay loaded in the background — no memory saver, no auto-sleep.' })}
       ${this._switch('translate', 'Always translate this site', {
         checked: translate, disabled: off,
         note: 'Into ' + langName + ', side by side with the original, every time a page of it loads.' + (c.proxyRoute || c.torRoute ? ' Not on its own while it goes through a route.' : '') })}

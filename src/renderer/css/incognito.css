@@ -1,0 +1,41 @@
+/* === Incognito (js/incognito.js) ========================================== */
+/* The mask is slate, the onion (Tor) is purple: two different things, two colours. */
+#btn-incognito:hover, #btn-incognito:focus-visible { color: #94a3b8; }
+#btn-tor:hover, #btn-tor:focus-visible { color: #a855f7; }
+
+#vex-incognito-note {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 100045;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(720px, calc(100vw - 32px));
+  padding: 8px 12px;
+  background: var(--surface, #1f1f24);
+  color: var(--text, #eee);
+  border: 1px solid var(--border, #444);
+  border-left: 4px solid #94a3b8;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  box-shadow: 0 6px 20px var(--vex-shadow-color, rgba(0, 0, 0, 0.35));
+}
+#vex-incognito-note[data-route="tor"] { border-left-color: #a855f7; }
+#vex-incognito-note[data-route="proxy"] { border-left-color: #f59e0b; }
+#vex-incognito-note .vex-incognito-note-icon { display: inline-flex; flex: none; line-height: 0; }
+#vex-incognito-note .vex-incognito-note-text { flex: 1 1 auto; }
+#vex-incognito-note .vex-incognito-note-ok {
+  flex: none;
+  padding: 3px 10px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--border, #555);
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+#vex-incognito-note .vex-incognito-note-ok:hover { background: var(--vex-hover-fill, rgba(127, 127, 127, 0.18)); }
+#vex-incognito-note .vex-incognito-note-ok:focus-visible { outline: 2px solid #94a3b8; outline-offset: 1px; }

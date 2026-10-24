@@ -305,6 +305,7 @@ function vexOwnTextFocused(doc) {
     catch (err) { window.showToast?.('Could not restart: ' + ((err && err.message) || 'unknown'), 'error'); }
   });
   document.getElementById('btn-command').addEventListener('click', () => CommandBar.toggle());
+  document.getElementById('btn-incognito')?.addEventListener('click', () => { if (typeof VexIncognito !== 'undefined') VexIncognito.open(); });
   document.getElementById('btn-tor')?.addEventListener('click', () => { if (typeof TorSession !== 'undefined') TorSession.open(); });
   // Notes quick-access in the top toolbar (beside Tor), in addition to the
   // sidebar button — toggles the Notes panel.
@@ -1789,8 +1790,7 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('lock-vex', () => VexLock.lock());
     // Refused while Vex is locked, or before this profile has agreed to the
     // privacy policy and terms (main.js): said, not dropped.
-    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode())
-      ?.catch(err => window.showToast?.(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'error')));
+    ShortcutsRegistry.register('private-window', () => VexIncognito.open());
     ShortcutsRegistry.register('fullscreen',     () => { console.log('[Vex F11] renderer ShortcutsRegistry fullscreen handler fired — calling window.vex.toggleFullscreen()'); window.vex?.toggleFullscreen?.(); });
     ShortcutsRegistry.register('focus-url',      focusAddressBar); // was #url-bar (doesn't exist) → Ctrl+L did nothing
     // Ctrl+Tab by recency (js/tab-mru.js) steps in the main process and leaves the key-down to reach the
@@ -2145,6 +2145,8 @@ function vexOwnTextFocused(doc) {
 
   // The toolbar marker for a route that is on (js/private-routing.js).
   if (typeof PrivateRouting !== 'undefined') PrivateRouting.init().catch(err => console.warn('[routing] ' + (err && err.message)));
+  // The one-time note in an incognito window (js/incognito.js), after the route is known so it can say Tor when it is Tor.
+  if (typeof VexIncognito !== 'undefined') VexIncognito.init().catch(err => console.warn('[incognito] ' + (err && err.message)));
 
   // === Phase 10: Multi-Tab AI ===
   TabSelector.init();

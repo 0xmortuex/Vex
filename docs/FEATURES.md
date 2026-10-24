@@ -369,12 +369,12 @@ Blocking, isolation, Tor, and the things that follow you.
   - Open: Settings > privacy-panel-content.
 - **Referrer trimming** (`referrer-trim`): Stops a site you click through to from being told the whole address you came from. Off until you choose it, with a one-click exception per site.
   - Open: Settings > privacy-panel-content.
-- **tor** (`tor`): A tab routed through Tor — requests and DNS both. Vex downloads and runs Tor itself; you do not need Tor Browser.
+- **Tor tab** (`tor`): A tab routed through Tor — requests and DNS both. Vex downloads and runs Tor itself; you do not need Tor Browser. This hides your connection; it is not the same as an incognito window.
   - Open: Ctrl+K: "New Tor Tab".
 - **routing** (`routing`): Send a whole container through Tor or your own proxy, and keep it that way.
   - Open: Ctrl+K: "Route Through Tor / Proxy".
-- **All of Vex through one route** (`routing-all`): One route for every tab and every container at once, put back after a restart — and a check that asks what address the internet sees with it and without it.
-  - Open: Ctrl+K: "Private Routing — All of Vex Through Tor or a Proxy".
+- **Route all of Vex through Tor or a proxy** (`routing-all`): One route for every tab and every container at once, put back after a restart — and a check that asks what address the internet sees with it and without it.
+  - Open: Ctrl+K: "Route All of Vex Through Tor or a Proxy".
 - **Sites that always go through a route** (`site-routes`): Name a site and it opens in a routed session of its own every time — without routing the rest of your browsing.
   - Open: Ctrl+K: "Site Rules — Always Open These Sites Through Tor".
 - **Censorship bypass** (`dpi`): A local proxy that defeats DNS and SNI blocking without a VPN or admin rights, plus a stronger desync mode for stubborn blocks.
@@ -383,8 +383,8 @@ Blocking, isolation, Tor, and the things that follow you.
   - Open: Ctrl+K: "New Off-the-Record Tab".
 - **identity** (`identity`): A fresh session AND a fresh fingerprint — nothing carries over from anything you are signed into.
   - Open: Ctrl+K: "New Identity Tab".
-- **private-window** (`private-window`): A separate window that remembers nothing at all when it closes.
-  - Open: Ctrl+K: "Private Window".
+- **Incognito window** (`private-window`): A separate window that saves no history, cookies or logins when it closes. It does not hide your connection: for that, use a Tor tab.
+  - Open: Ctrl+K: "New Incognito Window".
 - **Site permissions** (`permissions`): Who got your location, mic, camera, notifications or USB — and taking it back.
   - Open: Settings > permissions-panel-content.
 - **clearsite** (`clearsite`): Wipes one site's cookies and storage and reloads — the cure for a stuck login or a stale "unsupported browser".

@@ -98,7 +98,7 @@ const SiteProfiles = {
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
     const sites = this.customizedSites();
     container.innerHTML = `
-      <p class="setting-info muted" style="margin-bottom:10px">Everything set for one site at a time. Change the site in front from the icon at the left of the address field; its permissions are under Site Permissions, and where it opens under Private routing › Site rules.</p>
+      <p class="setting-info muted" style="margin-bottom:10px">Everything set for one site at a time. Change the site in front from the icon at the left of the address field; its permissions are under Site Permissions, and where it opens under Route all of Vex › Site rules.</p>
       ${sites.length ? `<div class="site-settings-list">${sites.map(s => `
         <div class="site-settings-row" data-host="${esc(s.host)}">
           <div class="site-settings-info">
@@ -106,7 +106,7 @@ const SiteProfiles = {
             <div class="site-settings-what">${esc(this.describeSite(s))}</div>
           </div>
           <button type="button" class="btn-secondary-sm" data-act="go">Open</button>
-          <button type="button" class="btn-secondary-sm" data-act="reset" ${s.route && !s.zoom && !s.dark && !s.neverSleep && !s.translate && !s.adsAllowed && !s.switchesOff && !s.siteOptions && !s.boost ? 'disabled title="Remove its rule under Private routing › Site rules"' : ''}>Reset</button>
+          <button type="button" class="btn-secondary-sm" data-act="reset" ${s.route && !s.zoom && !s.dark && !s.neverSleep && !s.translate && !s.adsAllowed && !s.switchesOff && !s.siteOptions && !s.boost ? 'disabled title="Remove its rule under Route all of Vex › Site rules"' : ''}>Reset</button>
         </div>`).join('')}</div>`
         : '<div style="color:var(--text-muted);font-size:12px;padding:8px 0">No site has anything set yet.</div>'}`;
     container.querySelectorAll('[data-host]').forEach(row => {

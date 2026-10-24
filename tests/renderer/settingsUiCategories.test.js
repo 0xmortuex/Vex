@@ -45,7 +45,7 @@ describe('SettingsUI category matching', () => {
 
   it('files the sections that fell into Other where they belong', () => {
     expect(PANEL_LABELS.length).toBeGreaterThan(40);
-    expect(catFor('Private routing')).toBe('Privacy');
+    expect(catFor('Route all of Vex')).toBe('Privacy');
     expect(catFor('Site Settings')).toBe('Permissions');
     expect(catFor('Gaming and streaming')).toBe('Performance');
     expect(catFor('Discord hotkeys')).toBe('Performance');
@@ -227,7 +227,7 @@ describe('the AI sections share one chip', () => {
     expect(find('startup')).toContain('Sessions');
     expect(find('download folder')).toContain('Downloads');
     expect(find('dil')).toContain('General');
-    expect(find('proxy')).toContain('Private routing');
+    expect(find('proxy')).toContain('Route all of Vex');
     expect(find('notifications')).toContain('Site Permissions');
     // A section still "Loading…" is found by its name's words.
     expect(find('password manager')).toContain('Passwords');

@@ -32,13 +32,14 @@ body[data-gui-family="browser"] > *:not(#top-tab-bar):not(#top-bar):not(#gui-sho
 
 /* ---- 2. Vex-only chrome a mainstream browser does not have -------------- */
 /* Hidden here, and reachable elsewhere: Notes and the other panels are on the
-   icon rail, Tor and Copy address are in the command bar, workspaces are in
+   icon rail, Copy address is in the command bar, workspaces are in
    the workspace switcher, and onboarding and Restart are in Settings.
-   NOT hidden: the AI panel and Split view. They are Vex's own, they have no
+   NOT hidden: Incognito and Tor (two different things, each with its own button),
+   the AI panel and Split view. They are Vex's own, they have no
    rail entry and no other button, so hiding them left the two of them
    unreachable with a mouse in the look this browser is mostly used in. */
 body[data-gui-family="browser"] :is(#vex-logo, #workspace-btn, #sync-indicator,
-  #btn-toggle-tabs-left, #btn-onboarding, #btn-restart-app, #btn-tor, #btn-notes-top,
+  #btn-toggle-tabs-left, #btn-onboarding, #btn-restart-app, #btn-notes-top,
   #btn-copy-url, #btn-ai-summarize) { display: none !important; }
 /* #btn-site-rules is deliberately NOT in that list: it only appears when the
    site you are on has something switched off, and hiding it is how a site

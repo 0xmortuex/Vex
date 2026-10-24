@@ -9765,7 +9765,7 @@ async function applyRouting(partition, mode, custom, sender) {
     _useTor(ses, port, true);
     return { mode: 'tor', port };
   }
-  // Every way in (Private routing, a container, a site route, a restore) is
+  // Every way in (Route all of Vex, a container, a site route, a restore) is
   // checked here, so nothing but one scheme://host:port reaches setProxy; an
   // empty proxy used to go direct without a word (found 2026-09-29).
   if (mode === 'proxy') {

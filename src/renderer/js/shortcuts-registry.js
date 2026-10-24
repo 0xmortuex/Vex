@@ -60,7 +60,7 @@ const ShortcutsRegistry = (() => {
     // Ctrl+Shift+N is claimed by Notes at the main-process level, so this used a
     // dead key. Ctrl+Alt+N is free (and not intercepted by main.js), so the
     // renderer registry actually fires it — and it stays user-rebindable.
-    'private-window': { default: 'Ctrl+Alt+N',   label: 'Private Window',             category: 'Panels' },
+    'private-window': { default: 'Ctrl+Alt+N',   label: 'New Incognito Window',        category: 'Panels' },
     'sessions':       { default: 'Ctrl+Shift+O', label: 'Sessions Menu',              category: 'Panels' },
     'schedules':      { default: 'Ctrl+Shift+L', label: 'Scheduled tasks (Clock panel)', category: 'Panels' },
 

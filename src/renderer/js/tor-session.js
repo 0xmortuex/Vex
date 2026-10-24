@@ -123,6 +123,7 @@ const TorSession = {
     // alone left the download and tor.exe running (found 2026-09-29).
     m.querySelector('#tor-prog-cancel').addEventListener('click', () => {
       api.cancelled = true; api.close();
+      if (api.onCancel) api.onCancel();
       Promise.resolve(window.vex?.cancelTor?.()).catch(err => window.showToast?.('Tor could not be stopped: ' + err.message, 'error'));
     });
     return api;
@@ -186,6 +187,9 @@ const TorSession = {
     if (this._reviveUi || this._busy) return;   // a Tor tab opening shows the same start already
     const ui = this._showProgress();
     ui.unsub = window.vex.onTorProgress((p) => ui.update(p));
+    // Tor was started for a route (often the one for all of Vex), not asked for: after Cancel, offer to go direct
+    // instead of letting the next page start it again without a word.
+    ui.onCancel = () => { if (typeof PrivateRouting !== 'undefined') PrivateRouting.offerDirect().catch(err => window.showToast?.(err.message, 'error')); };
     this._reviveUi = ui;
   },
   _revived(r) {
