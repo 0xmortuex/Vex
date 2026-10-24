@@ -326,7 +326,8 @@ const ExtensionsSettings = (() => {
         ${commandsError ? `<div class="ext-state-error">Extension shortcuts: ${_esc(commandsError)}</div>` : ''}
 
         <div class="extensions-actions">
-          <button class="btn-primary" id="btn-install-zip">${VexIcons.svg('box', { size: 14 })} Install from .zip / .crx</button>
+          <button class="btn-primary" id="btn-open-ext-store">${VexIcons.svg('grid', { size: 14 })} Open the extension store</button>
+          <button class="btn-secondary" id="btn-install-zip">${VexIcons.svg('box', { size: 14 })} Install from .zip / .crx</button>
           <button class="btn-secondary" id="btn-install-folder">${VexIcons.svg('folder', { size: 14 })} Install from folder</button>
           <button class="btn-link" id="btn-open-ext-folder">Open extensions folder</button>
         </div>
@@ -513,6 +514,10 @@ const ExtensionsSettings = (() => {
       if (r && r.ok) { _toast(_installedText(r), 'success'); render(container); }
       else _toast('Install failed: ' + ((r && r.error) || 'unknown'), 'error');
     };
+    document.getElementById('btn-open-ext-store')?.addEventListener('click', () => {
+      if (typeof VexExtensionStore === 'undefined') { _toast('The extension store is not available in this window', 'error'); return; }
+      VexExtensionStore.open().catch(err => _toast('Extension store: ' + ((err && err.message) || err), 'error'));
+    });
     document.getElementById('btn-install-zip')?.addEventListener('click', () => pickAndInstall(() => window.vex.extensionsInstallZip()).catch(err => _toast('Could not install: ' + ((err && err.message) || err), 'error')));
     document.getElementById('btn-install-folder')?.addEventListener('click', () => pickAndInstall(() => window.vex.extensionsInstallFolder()));
     container.querySelector('#ext-auto-update')?.addEventListener('change', async (ev) => {

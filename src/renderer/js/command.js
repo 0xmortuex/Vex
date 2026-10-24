@@ -389,6 +389,8 @@ const CommandBar = {
     { id: 'split3', label: 'Split into 3 panes', hint: 'Three tabs side by side', icon: 'split', action: () => SplitScreen.setLayout(3) },
     { id: 'split4', label: 'Split into 4 panes', hint: 'Four tabs in a 2×2 grid', icon: 'grid', action: () => SplitScreen.setLayout(4) },
     // Only on an extension's page on the Chrome Web Store (js/web-store.js).
+    // The Vex Extension Store: a hand-picked shelf that installs from each extension's real source (js/extension-store.js).
+    { id: 'extension-store', label: 'Open the extension store', hint: 'Hand-picked extensions for YouTube, privacy, dark mode and developer tools, added in one click', icon: 'grid', action: () => { if (typeof VexExtensionStore !== 'undefined') VexExtensionStore.open().catch(err => window.showToast?.('Extension store: ' + err.message, 'error')); } },
     { id: 'webstore-install', label: 'Install this extension from the Web Store', hint: 'Add the extension on this Chrome Web Store page to Vex', icon: 'puzzle', when: () => !!(window.VexWebStore && window.VexWebStore.activeStorePage()), action: () => window.VexWebStore.installActive() },
     // Tool commands
     { id: 'flashmind', label: 'FlashMind', hint: 'AI-powered flashcard study tool', icon: 'bulb', when: () => typeof VexTools !== 'undefined' && VexTools.tools.some(t => t.id === 'flashmind'), action: () => VexTools.openToolById('flashmind') },
