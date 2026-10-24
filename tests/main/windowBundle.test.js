@@ -35,7 +35,7 @@ describe('the window bundle matches index.html', () => {
   });
 
   it('splits at the break comments, so problems.js and start-up each begin a chunk', () => {
-    expect(plan.chunks.map(c => c.files[0])).toEqual(['../diagnostics.js', 'js/problems.js', 'js/tabs.js', 'js/toolbox-workbench.js', 'js/app.js']);
+    expect(plan.chunks.map(c => c.files[0])).toEqual(['js/early-look.js', '../diagnostics.js', 'js/problems.js', 'js/tabs.js', 'js/toolbox-workbench.js', 'js/app.js']);
   });
 
   it('the packaged page loads only the chunks, preloaded, and says how many there are', () => {
