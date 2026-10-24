@@ -5,6 +5,10 @@
 // preloads run sandboxed, where require() only resolves 'electron', so this
 // file cannot require the registry locally.
 
+// The built-in PDF viewer is an extension frame of its own (chrome-extension://mhjfbm.../index.html) inside the page, and it gets this preload
+// too. Nothing here is for it, and the stand-ins below rewrite the viewer's own chrome.* object: every PDF showed a blank dark page (found 2026-10-24).
+if (typeof location !== 'undefined' && location.protocol === 'chrome-extension:' && location.host === 'mhjfbmdgcfjbbpaeojofohoefgiehjai') return;
+
 // Surface media decode failures to the host. Two signals, both reported at
 // most once per element via sendToHost so the embedder (webview.js) can log
 // them against the tab:

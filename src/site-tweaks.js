@@ -286,6 +286,8 @@ function tweaksForHost(hostname, options = {}) {
 // silently no-op while documentElement is still null).
 (function () {
   if (typeof document === 'undefined' || typeof location === 'undefined') return;
+  // The built-in PDF viewer is an extension frame inside the page and gets this preload too; patching its world left a blank dark page.
+  if (location.protocol === 'chrome-extension:' && location.host === 'mhjfbmdgcfjbbpaeojofohoefgiehjai') return;
   let tweaks;
   try {
     let options = {};
