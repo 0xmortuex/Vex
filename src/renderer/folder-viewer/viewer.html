@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folder</title>
+<link rel="stylesheet" href="/css/theme-tokens.css">
+<link rel="stylesheet" href="/css/theme-extra.css">
+<link rel="stylesheet" href="/css/fonts.css">
+<link rel="stylesheet" href="/app/viewer.css">
+<link rel="stylesheet" href="/css/a11y.css">
+</head>
+<body class="fv" data-view="details" data-kind="loading" data-pane="on">
+<a class="fv-skip" href="#fv-wrap" data-i18n="Skip to the file list">Skip to the file list</a>
+
+<div id="fv-app" class="fv-app">
+  <header class="fv-top">
+    <div class="fv-navbtns" role="group" aria-label="Move around" data-i18n-aria="Move around">
+      <button id="fv-back" class="fv-btn" type="button" data-icon="arrow-left" data-i18n-title="Back (Alt+Left)" data-i18n-aria="Back"></button>
+      <button id="fv-fwd" class="fv-btn" type="button" data-icon="arrow-right" data-i18n-title="Forward (Alt+Right)" data-i18n-aria="Forward"></button>
+      <button id="fv-up" class="fv-btn" type="button" data-icon="arrow-up" data-i18n-title="Up one folder (Alt+Up or Backspace)" data-i18n-aria="Up one folder"></button>
+      <button id="fv-refresh" class="fv-btn" type="button" data-icon="refresh" data-i18n-title="Refresh (F5)" data-i18n-aria="Refresh"></button>
+    </div>
+    <div id="fv-address" class="fv-address">
+      <nav id="fv-crumbs" class="fv-crumbs" aria-label="Path" data-i18n-aria="Path"><ol id="fv-crumb-list"></ol></nav>
+      <button id="fv-edit-path" class="fv-btn fv-edit" type="button" data-icon="edit" data-icon-size="15" data-i18n-title="Type a path (F4)" data-i18n-aria="Type a path"></button>
+      <input id="fv-path" class="fv-path-input" type="text" hidden spellcheck="false" autocomplete="off" aria-label="Path" data-i18n-aria="Path" data-i18n-placeholder="Type a path, such as C:\Users">
+    </div>
+    <label class="fv-search">
+      <span class="fv-search-ico" data-icon="search" data-icon-size="15" aria-hidden="true"></span>
+      <input id="fv-filter" type="text" spellcheck="false" autocomplete="off" data-i18n-aria="Filter this folder" data-i18n-placeholder="Filter this folder (Ctrl+F)">
+    </label>
+  </header>
+
+  <div id="fv-tools" class="fv-tools" role="toolbar" aria-label="Actions" data-i18n-aria="Actions">
+    <button id="fv-new" class="fv-tool" type="button" data-icon="folder-plus" data-i18n-title="New folder (Ctrl+Shift+N)"><span class="fv-tool-label" data-i18n="New folder">New folder</span></button>
+    <button id="fv-rename" class="fv-tool" type="button" data-icon="edit" data-i18n-title="Rename (F2)"><span class="fv-tool-label" data-i18n="Rename">Rename</span></button>
+    <button id="fv-delete" class="fv-tool" type="button" data-icon="trash" data-i18n-title="Move to the Recycle Bin (Delete)"><span class="fv-tool-label" data-i18n="Delete">Delete</span></button>
+    <span class="fv-sep" aria-hidden="true"></span>
+    <button id="fv-copy" class="fv-tool" type="button" data-icon="copy" data-i18n-title="Copy the path (Ctrl+C)"><span class="fv-tool-label" data-i18n="Copy path">Copy path</span></button>
+    <button id="fv-reveal" class="fv-tool" type="button" data-icon="external" data-i18n-title="Show in File Explorer"><span class="fv-tool-label" data-i18n="File Explorer">File Explorer</span></button>
+    <span class="fv-sep" aria-hidden="true"></span>
+    <button id="fv-sort" class="fv-tool" type="button" data-icon="swap" aria-haspopup="menu" aria-expanded="false" data-i18n-title="Sort"><span class="fv-tool-label" data-i18n="Sort">Sort</span></button>
+    <button id="fv-viewmode" class="fv-tool" type="button" data-icon="table" aria-haspopup="menu" aria-expanded="false" data-i18n-title="View"><span class="fv-tool-label" data-i18n="View">View</span></button>
+    <span class="fv-grow"></span>
+    <button id="fv-hidden" class="fv-tool" type="button" data-icon="eye-off" aria-pressed="false" data-i18n-title="Show hidden files"><span class="fv-tool-label" data-i18n="Hidden files">Hidden files</span></button>
+    <button id="fv-pane-toggle" class="fv-tool" type="button" data-icon="sidebar-right" aria-pressed="true" aria-controls="fv-pane" data-i18n-title="Preview pane"><span class="fv-tool-label" data-i18n="Preview">Preview</span></button>
+    <button id="fv-more" class="fv-tool" type="button" data-icon="dots" aria-haspopup="menu" aria-expanded="false" data-i18n-title="More" data-i18n-aria="More"></button>
+  </div>
+
+  <div id="fv-main" class="fv-main">
+    <aside id="fv-places" class="fv-places" aria-label="Places" data-i18n-aria="Places"></aside>
+
+    <section id="fv-center" class="fv-center">
+      <div id="fv-banner" class="fv-banner" role="status" hidden></div>
+
+      <div id="fv-wrap" class="fv-wrap" role="grid" aria-multiselectable="true" aria-label="Files" data-i18n-aria="Files">
+        <div id="fv-head" class="fv-head" role="row" aria-rowindex="1">
+          <div class="fv-hcell fv-c-name" role="columnheader" data-sort="name"><button type="button" class="fv-hbtn"><span data-i18n="Name">Name</span><span class="fv-arrow" aria-hidden="true"></span></button></div>
+          <div class="fv-hcell fv-c-date" role="columnheader" data-sort="date"><button type="button" class="fv-hbtn"><span data-i18n="Modified">Modified</span><span class="fv-arrow" aria-hidden="true"></span></button></div>
+          <div class="fv-hcell fv-c-type" role="columnheader" data-sort="type"><button type="button" class="fv-hbtn"><span data-i18n="Type">Type</span><span class="fv-arrow" aria-hidden="true"></span></button></div>
+          <div class="fv-hcell fv-c-size" role="columnheader" data-sort="size"><button type="button" class="fv-hbtn"><span data-i18n="Size">Size</span><span class="fv-arrow" aria-hidden="true"></span></button></div>
+        </div>
+        <div id="fv-scroll" class="fv-scroll" role="rowgroup">
+          <div id="fv-content" class="fv-content"></div>
+        </div>
+        <div id="fv-empty" class="fv-empty" role="status" hidden></div>
+      </div>
+
+      <div id="fv-state" class="fv-state" hidden></div>
+    </section>
+
+    <aside id="fv-pane" class="fv-pane" aria-label="Preview" data-i18n-aria="Preview"></aside>
+  </div>
+
+  <footer class="fv-status">
+    <span id="fv-count" class="fv-count"></span>
+    <span id="fv-progress" class="fv-progress"></span>
+    <span class="fv-grow"></span>
+    <button id="fv-changed" class="fv-btn-text" type="button" hidden data-i18n="This folder changed. Refresh">This folder changed. Refresh</button>
+  </footer>
+</div>
+
+<div id="fv-menu-root"></div>
+<div id="fv-toast" class="fv-toast" role="status" hidden></div>
+<div id="fv-live" class="fv-sr" aria-live="polite" aria-atomic="true"></div>
+
+<script src="/icons.js"></script>
+<script type="module" src="/app/app.js"></script>
+</body>
+</html>

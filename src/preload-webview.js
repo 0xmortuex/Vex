@@ -9,6 +9,40 @@
 // too. Nothing here is for it, and the stand-ins below rewrite the viewer's own chrome.* object: every PDF showed a blank dark page (found 2026-10-24).
 if (typeof location !== 'undefined' && location.protocol === 'chrome-extension:' && location.host === 'mhjfbmdgcfjbbpaeojofohoefgiehjai') return;
 
+// Vex's own folder browser (vex-files://browse/, main/folder-viewer.js, pages in src/renderer/folder-viewer). It is not a web page: none of
+// what follows is for it. It gets one small bridge, and each call lands in a folderview:* channel that main only answers when the asking
+// frame is that page (the top frame of a normal tab). The bridge names no path: a file is always a name inside the folder the page's own
+// address names. The theme arrives from the interface (webview.send), and the page asks for it once it is up.
+if (typeof location !== 'undefined' && location.protocol === 'vex-files:') {
+  try {
+    const { contextBridge, ipcRenderer } = require('electron');
+    const listeners = [];
+    let lastTheme = null;
+    ipcRenderer.on('folderview:theme', (_event, payload) => { lastTheme = payload; for (const fn of listeners) { try { fn(payload); } catch (err) { console.error('[Folder browser] theme listener failed:', err); } } });
+    const ask = (channel) => (request) => ipcRenderer.invoke(channel, request);
+    contextBridge.exposeInMainWorld('vexFolderHost', {
+      list: ask('folderview:list'), stat: ask('folderview:stat'), ping: ask('folderview:ping'), places: ask('folderview:places'), thumb: ask('folderview:thumb'),
+      preview: ask('folderview:preview'), sizeStart: ask('folderview:size-start'), sizePoll: ask('folderview:size-poll'), sizeCancel: ask('folderview:size-cancel'),
+      external: ask('folderview:external'), reveal: (request) => ipcRenderer.invoke('folderview:reveal', request), mkdir: ask('folderview:mkdir'), rename: ask('folderview:rename'),
+      trash: ask('folderview:trash'), copy: ask('folderview:copy'), drag: ask('folderview:drag'), plainList: () => ipcRenderer.invoke('folderview:plain-list'),
+      openAsFile: () => ipcRenderer.invoke('folderview:open-as-file'),
+      onTheme: (fn) => { listeners.push(fn); if (lastTheme) fn(lastTheme); ipcRenderer.sendToHost('folderview:need-theme'); },
+      tell: (what, detail) => ipcRenderer.sendToHost('folderview:' + String(what).slice(0, 40), detail),
+    });
+    // Ctrl+B, Ctrl+H, Ctrl+D and the other keys of Vex's own that the page leaves alone still work here, as in any page
+    // (the same report as the page preload below makes; main/guest-shortcuts.js PAGE_FIRST says which keys count).
+    window.addEventListener('keydown', function (e) {
+      if (!e.isTrusted || !(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
+      const k = String(e.key || '').toLowerCase();
+      if (!/^[a-z0-9]$/.test(k) || (!e.shiftKey && 'acvxyz'.indexOf(k) !== -1)) return;
+      const target = e.target;
+      if (target && target.nodeType === 1 && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      setTimeout(function () { if (!e.defaultPrevented) ipcRenderer.send('guest:page-shortcut', { key: k, shift: !!e.shiftKey }); }, 0);
+    }, false);
+  } catch (err) { console.error('[Folder browser] its bridge could not be made:', err); }
+  return;
+}
+
 // Surface media decode failures to the host. Two signals, both reported at
 // most once per element via sendToHost so the embedder (webview.js) can log
 // them against the tab:

@@ -740,6 +740,22 @@ define('tabsnap:save', [shape({
 })]);
 define('tabsnap:drop', [string(2048)]);
 define('quiet:set', [object]);
+// Vex's own folder browser (main/folder-viewer.js, pages in src/renderer/folder-viewer). No channel takes a path: the folder is the
+// one the asking page's own address names, and everything else is a leaf name inside it (main checks every name again).
+const leafName = string(255);
+const leafNames = max => value => Array.isArray(value) && value.length >= 1 && value.length <= max && value.every(leafName);
+define('folderview:list folderview:ping folderview:places folderview:plain-list folderview:open-as-file folderview:forget-recent', []);
+define('folderview:set-enabled', [boolean]);
+define('folderview:stat', [shape({ names: value => Array.isArray(value) && value.length <= 1500 && value.every(leafName) })]);
+define('folderview:thumb', [shape({ name: leafName, size: finiteNumber })]);
+define('folderview:preview folderview:size-start folderview:mkdir', [shape({ name: leafName })]);
+define('folderview:size-poll folderview:size-cancel', [shape({ id: string(32) })]);
+define('folderview:external', [shape({ name: leafName, confirmed: optional(boolean) })]);
+define('folderview:reveal', [optional(shape({ name: optional(leafName) }))]);
+define('folderview:rename', [shape({ name: leafName, to: leafName })]);
+define('folderview:trash', [shape({ names: leafNames(2000), confirmed: boolean })]);
+define('folderview:copy', [shape({ names: optional(leafNames(5000)), as: oneOf(['path', 'url', 'name']) })]);
+define('folderview:drag', [shape({ names: leafNames(50) })]);
 function validate(channel, args) {
   if (channel.startsWith('@ghostery/')) return; // Vendor-owned API; the outer policy still bounds JSON and verifies its sender.
   const checks = schemas.get(channel);

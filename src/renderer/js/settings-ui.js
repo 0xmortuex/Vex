@@ -62,7 +62,7 @@ const SettingsUI = {
   // name/weather — so they keep their chips.
   CATS: [
     { name: 'General',         icon: 'search',   color: '#6366f1', match: ['general', 'search engine', 'search by what you want'] },
-    { name: 'Browser',         icon: 'globe',    color: '#0ea5e9', match: ['default browser'] },
+    { name: 'Browser',         icon: 'globe',    color: '#0ea5e9', match: ['default browser', 'folder browser'] },
     { name: 'Appearance',      icon: 'palette',  color: '#a855f7', match: ['appearance', 'theme', 'gui style', 'tab layout', 'vex packs', 'mouse cursor', 'click effect', 'sounds'] },
     { name: 'Layout',          icon: 'grid',     color: '#c084fc', match: ['layout'] },
     { name: 'Sidebar',         icon: 'panel',    color: '#818cf8', match: ['sidebar', 'links and panels', 'panels and messages'] },

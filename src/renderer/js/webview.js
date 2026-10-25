@@ -419,6 +419,8 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // Vex's own folder browser page asking for the theme, or to open a file (js/folder-viewer-host.js).
+      if (typeof VexFolderViewer !== 'undefined' && VexFolderViewer.handleMessage(webview, tab, e)) return;
       // A paste holding a secret, held back by the page-side hook (js/secret-guard.js).
       if (e.channel === 'vex-secret-paste') {
         if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.onPaste(webview, e.args && e.args[0]).catch(err => window.VexProblems?.note('Secret guard', 'A held paste could not be handled', err));
@@ -560,7 +562,8 @@ const WebviewManager = {
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     onWebview('did-navigate', (e) => {
       this._noteHistory(tab, webview);
-      const url = e.url;
+      // A folder shown in Vex's own folder browser keeps the folder's own file: address (VexFolderViewer.original).
+      const url = this.folderOriginal(e.url) || e.url;
       // A 404, 410 or 5xx page you archived: offer your copy (js/archive-library.js).
       if (typeof ArchiveLibrary !== 'undefined' && e.httpResponseCode >= 400 && TabManager.activeTabId === tab.id) {
         ArchiveLibrary.offerForDeadPage(url, { isMainFrame: true, httpStatus: e.httpResponseCode });
@@ -645,9 +648,10 @@ const WebviewManager = {
     onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
         this._noteHistory(tab, webview);
-        TabManager.updateTab(tab.id, { url: e.url });
-        window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: e.url } }));
-        document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: e.url } }));
+        const shown = this.folderOriginal(e.url) || e.url;
+        TabManager.updateTab(tab.id, { url: shown });
+        window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: shown } }));
+        document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: shown } }));
       }
     });
     // A full load, once the page is there to be talked to (js/sponsor-skip.js).
@@ -1222,6 +1226,19 @@ const WebviewManager = {
         wv.src = url;
       }
     }
+  },
+
+  // The folder a Vex folder browser address stands for (vex-files://browse/?u=file:///C:/...), else null. The tab, its address bar,
+  // history and bookmarks keep the folder's own file: address. The twin of VexFolderViewer.original (js/folder-viewer-host.js, which
+  // loads later) and of parseViewerUrl in main/folder-viewer.js; a test holds the three equal.
+  folderOriginal(url) {
+    const s = String(url || '');
+    if (!/^vex-files:\/\/browse\/(?:\?|$)/i.test(s)) return null;
+    let u;
+    try { u = new URL(s); } catch { return null; }
+    if (u.pathname !== '/') return null;
+    const original = u.searchParams.get('u');
+    return original && /^file:/i.test(original) ? original : null;
   },
 
   goBack() {

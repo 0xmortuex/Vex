@@ -635,6 +635,10 @@
       commands: ['pdf-highlight-save', 'pdf-highlights'], permissions: { reads: ['the passage you paste and the page number the PDF viewer shows, when you ask'], writes: ['your PDF highlights and, if you left it on, a PDF highlights note'], sends: [] } },
     { id: 'pdf-tools', title: 'PDF toolkit', group: 'PDF toolkit', maturity: 'new', storageKeys: ['vex.pdfTools.prefs'],
       commands: ['pdf-toolkit'], permissions: { reads: ['the PDF files you choose in the file picker', 'a signature picture you draw or type, kept in the window only while it is open'], writes: ['new PDF files where you choose to save them; the originals are never changed'], sends: [] } },
+    // Vex's own folder browser (src/renderer/folder-viewer, main/folder-viewer.js, js/folder-viewer-host.js). It replaces the plain list a tab had
+    // for a folder, so it is on for everyone, an existing profile included; its recent folders live in the page's own storage, not in a vex.* key.
+    { id: 'folder-browser', title: 'Folder browser', group: 'Folder browser', tiers: { minimal: true, standard: true }, storageKeys: ['vex.folderBrowser.prefs'],
+      commands: ['folder-browser-settings'], permissions: { reads: ['the folder you open and, for what you select, the start of a text file, a picture, a sound or a video, and a thumbnail Windows makes of it'], writes: ['a new folder, a new name or the Recycle Bin, only when you press it and confirm a delete', 'the folders you opened last, on this computer only, never from a private or Tor tab'], sends: [] } },
 
     // ---- Wave 3: daily life (all new: off on a profile that already existed, offered to try) -----------
     { id: 'rituals', title: 'Rituals', group: 'Rituals', maturity: 'new', storageKeys: ['vex.rituals', 'vex.rituals.enabled'], commands: ['rituals'],
