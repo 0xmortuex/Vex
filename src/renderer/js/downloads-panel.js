@@ -273,6 +273,7 @@ const DownloadsPanel = {
     const search = panel.querySelector('#downloads-search');
     search.value = this._query || '';
     search.addEventListener('input', () => { this._query = search.value; this._applyFilter(); });
+    this._bindListKeys(panel.querySelector('#downloads-list'));
     panel.querySelector('#btn-open-dl-folder')?.addEventListener('click', () => window.vex.downloadsOpenFolder?.());
     panel.querySelector('#btn-dl-rules')?.addEventListener('click', () => this.editRules());
     panel.querySelector('#downloads-clear-btn')?.addEventListener('click', () => {
@@ -281,6 +282,63 @@ const DownloadsPanel = {
       this.renderList();
       this._updateBadge();
     });
+  },
+
+  // Keys on the list (one listener, rows come and go): Up/Down move between rows, Space is Quick look
+  // (js/download-quicklook.js), and a right-click offers Quick look, Open, Show in folder and Copy path.
+  // Space on a button still presses that button; only a row that has focus itself looks.
+  _bindListKeys(list) {
+    if (!list || list.dataset.keys) return;
+    list.dataset.keys = '1';
+    const rowsShown = () => [...list.querySelectorAll('.download-item:not([hidden])')];
+    list.addEventListener('keydown', (e) => {
+      const row = e.target.classList && e.target.classList.contains('download-item') ? e.target : null;
+      if (!row || e.ctrlKey || e.metaKey || e.altKey) return;
+      const rows = rowsShown(), at = rows.indexOf(row);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const next = rows[at + (e.key === 'ArrowDown' ? 1 : -1)];
+        if (next) { this._rovingTo(next); next.focus(); }
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        this.quickLook(row.dataset.id);
+      }
+    });
+    list.addEventListener('contextmenu', (e) => {
+      const row = e.target.closest && e.target.closest('.download-item');
+      const dl = row && this.downloads.find(d => d.id === row.dataset.id);
+      if (!dl || dl.state !== 'completed' || !dl.path || dl.missing || typeof VexQuickLook === 'undefined') return;
+      e.preventDefault();
+      VexQuickLook.menu(e.clientX, e.clientY, dl);
+    });
+  },
+  // One row is the tab stop (the others are reached with the arrows), so a long list is not a hundred Tab presses.
+  _rovingTo(row) {
+    const list = document.getElementById('downloads-list');
+    if (!list) return;
+    list.querySelectorAll('.download-item[tabindex="0"]').forEach(r => { if (r !== row) r.tabIndex = -1; });
+    if (row) row.tabIndex = 0;
+  },
+  _syncRoving() {
+    const list = document.getElementById('downloads-list');
+    if (!list) return;
+    const rows = [...list.querySelectorAll('.download-item:not([hidden])')];
+    if (!rows.length || rows.some(r => r.tabIndex === 0)) return;
+    rows[0].tabIndex = 0;
+  },
+  quickLook(id) {
+    if (typeof VexQuickLook === 'undefined') { window.showToast?.('Quick look is still loading. Try again in a moment.', 'info'); return false; }
+    return VexQuickLook.open(id);
+  },
+  // Open with Windows, through the same checks as the Open button: deleted since, then the signature question.
+  async openChecked(dl) {
+    if (!dl || !dl.path) return false;
+    try { if (await this._deletedNow(dl)) return false; }
+    catch (err) { window.VexProblems?.note('Downloads', 'Could not check the file is still there', err); }
+    if (!(await this._okToOpen(dl.path, dl.url || ''))) return false;
+    const result = await window.vex.downloadsOpenFile?.(dl.path);
+    if (result && !result.ok) { window.showToast?.(result.error || 'Could not open that file', 'error'); return false; }
+    return true;
   },
 
   // --- where downloads land ------------------------------------------------
@@ -455,6 +513,7 @@ const DownloadsPanel = {
     list.innerHTML = this.downloads.map(dl => this._rowHtml(dl)).join('');
     list.querySelectorAll('.download-item').forEach(row => this._bindRowActions(row));
     this._applyFilter();
+    this._syncRoving();
   },
 
   // Search: by file name or by the address it came from. Rows that do not
@@ -707,6 +766,7 @@ const DownloadsPanel = {
     rowEl.querySelectorAll('[data-action="extract-here"]').forEach(b => b.addEventListener('click', () => {
       this._extractHere(b.dataset.path).catch(err => window.showToast?.(err.message, 'error'));
     }));
+    rowEl.querySelectorAll('[data-action="quick-look"]').forEach(b => b.addEventListener('click', () => this.quickLook(b.dataset.id)));
     rowEl.querySelectorAll('[data-action="show-in-folder"]').forEach(b => b.addEventListener('click', () => window.vex.downloadsShowInFolder?.(b.dataset.path)));
     rowEl.querySelectorAll('[data-action="pause"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'pause')));
     rowEl.querySelectorAll('[data-action="resume"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'resume')));
@@ -761,6 +821,7 @@ const DownloadsPanel = {
     list.prepend(row);
     this._bindRowActions(row);
     this._applyFilter();
+    this._syncRoving();
   },
 
   // Swap a finished download's row in place (buttons differ between states).
@@ -768,9 +829,13 @@ const DownloadsPanel = {
     const row = this._rowFor(dl.id);
     if (!row) { this.renderList(); return; }
     const newRow = this._buildRow(dl);
+    const hadTab = row.tabIndex === 0, hadFocus = document.activeElement === row;
     row.replaceWith(newRow);
+    if (hadTab) newRow.tabIndex = 0;
+    if (hadFocus) newRow.focus();
     this._bindRowActions(newRow);
     this._applyFilter();
+    this._syncRoving();
   },
 
   // Update a single row's progress bar without full re-render (smoother).
@@ -853,7 +918,8 @@ const DownloadsPanel = {
       const wants = this.openWhenDone.has(dl.id);
       actions = `<button class="dl-btn${wants ? ' on' : ''}" data-action="open-when-done" data-id="${id}" aria-pressed="${wants}" title="${wants ? 'Vex will open this the moment it finishes \u2014 press again to stop' : 'Open this the moment it finishes'}">${wants ? 'Will open' : 'Open when done'}</button>` + actions;
     } else if (isComplete) {
-      actions = `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
+      actions = `<button class="dl-btn" data-action="quick-look" data-id="${id}" title="Quick look (Space)" aria-label="Quick look">${typeof VexIcons !== 'undefined' ? VexIcons.svg('eye', { size: 14 }) : 'Look'}</button>
+            <button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
             <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>
             ${this._scanButton(dl)}
             ${this._extractButton(dl)}
@@ -874,7 +940,7 @@ const DownloadsPanel = {
     // A finished file can be dragged out of the panel into a folder, a mail
     // or a chat, as from Explorer (main starts the drag: webContents.startDrag).
     return `
-      <div class="download-item ${dl.state}${dl.paused ? ' paused' : ''}" data-id="${id}"${isComplete ? ' draggable="true"' : ''}>
+      <div class="download-item ${dl.state}${dl.paused ? ' paused' : ''}" data-id="${id}" tabindex="-1"${isComplete ? ' draggable="true"' : ''}>
         <div class="download-icon${isComplete ? ' complete' : ''}${isFailed ? ' failed' : ''}">${icon}</div>
         <div class="download-info">
           <div class="download-filename">${this._esc(dl.filename)}</div>

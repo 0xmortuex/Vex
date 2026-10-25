@@ -9272,7 +9272,7 @@ const _fileCheck = require('./main/file-check').createFileCheck({
 });
 // What is inside a .zip, without unpacking it: names and sizes only, read
 // through the same guards that protect an extract (src/main/archive-security.js).
-ipcMain.handle('archive:list', async (_e, filePath) => {
+const _archiveListing = async (filePath) => {
   try {
     // .rar and .7z (Wave 6): only their headers are read, in plain JavaScript (main/archive-list.js); nothing is unpacked.
     const other = /\.(rar|7z)$/i.exec(String(filePath || ''));
@@ -9298,7 +9298,8 @@ ipcMain.handle('archive:list', async (_e, filePath) => {
     const why = String((err && err.message) || '');
     return { ok: false, error: /^ADM-ZIP/.test(why) ? 'that file could not be read as a .zip' : (why || 'that file could not be read') };
   }
-});
+};
+ipcMain.handle('archive:list', (_e, filePath) => _archiveListing(filePath));
 
 ipcMain.handle('file:inspect', async (_e, filePath, from) => {
   try { return { ok: true, ...(await _fileCheck.inspect(String(filePath || ''), String(from || ''))) }; }
@@ -9341,6 +9342,21 @@ ipcMain.handle('downloads:extract-here', async (_e, filePath) => {
 });
 ipcMain.handle('downloads:delete-file', async (_e, filePath) => {
   try { return await _downloadFiles.deleteFile(filePath); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+// Quick look at a finished download (src/main/download-peek.js): reads the file here, only if Vex downloaded it,
+// within size caps. A program (.exe .msi .bat ...) is never read, only named.
+const _downloadPeek = require('./main/download-peek').createDownloadPeek({
+  fs, path, crypto: require('crypto'), isDownloadedFile: (p) => _downloadService.isDownloadedFile(p),
+  listArchive: (p) => _archiveListing(p),
+  openZip: (file) => new (require('adm-zip'))(file), validateZip: (zip) => require('./main/archive-security').validateZip(zip),
+});
+ipcMain.handle('downloads:peek', async (_e, filePath) => {
+  try { return await _downloadPeek.peek(filePath); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('downloads:peek-hash', async (_e, filePath) => {
+  try { return await _downloadPeek.hash(filePath); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('downloads:start-drag', async (e, filePath) => {
