@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="vex-persist" content="0">
+<title>PDF</title>
+<link rel="icon" href="data:,">
+<!-- No icon of its own: the tab shows the PDF's site (js/webview.js), and the page does not ask for /favicon.ico (a 404 is a console error on the tab). -->
+<link rel="stylesheet" href="/css/theme-tokens.css">
+<link rel="stylesheet" href="/css/theme-extra.css">
+<link rel="stylesheet" href="/lib/pdf_viewer.css">
+<link rel="stylesheet" href="/app/viewer.css">
+</head>
+<body class="pv" data-tool="select" data-rail="closed" data-tone="theme">
+<a class="pv-skip" href="#pv-scroller" data-i18n="Skip to the document">Skip to the document</a>
+
+<header id="pv-bar" class="pv-bar" role="toolbar" aria-label="PDF toolbar" data-i18n-aria="PDF toolbar" inert>
+  <div class="pv-group pv-group-start">
+    <button id="pv-rail-toggle" class="pv-btn" type="button" data-icon="sidebar" aria-pressed="false" aria-controls="pv-rail"
+            data-i18n-title="Pages, outline and marks" data-i18n-aria="Pages, outline and marks"></button>
+    <div class="pv-doc">
+      <span id="pv-doc-title" class="pv-doc-title" dir="auto"></span>
+      <span id="pv-doc-sub" class="pv-doc-sub"></span>
+    </div>
+  </div>
+
+  <div class="pv-group pv-tools" role="group" aria-label="Tools" data-i18n-aria="Tools">
+    <button class="pv-btn" type="button" data-tool="select" data-icon="cursor" aria-pressed="true" data-i18n-title="Select text (V)" data-i18n-aria="Select text"></button>
+    <button class="pv-btn" type="button" data-tool="hand" data-icon="hand" aria-pressed="false" data-i18n-title="Hand: drag the page (H)" data-i18n-aria="Hand"></button>
+    <span class="pv-sep" aria-hidden="true"></span>
+    <button class="pv-btn" type="button" data-tool="highlight" data-icon="marker" aria-pressed="false" data-i18n-title="Highlight (1)" data-i18n-aria="Highlight"></button>
+    <button class="pv-btn" type="button" data-tool="underline" data-icon="underline" aria-pressed="false" data-i18n-title="Underline (2)" data-i18n-aria="Underline"></button>
+    <button class="pv-btn" type="button" data-tool="strike" data-icon="strikethrough" aria-pressed="false" data-i18n-title="Strikethrough (3)" data-i18n-aria="Strikethrough"></button>
+    <span class="pv-sep" aria-hidden="true"></span>
+    <button class="pv-btn" type="button" data-tool="ink" data-icon="scribble" aria-pressed="false" data-i18n-title="Draw (D)" data-i18n-aria="Draw"></button>
+    <button class="pv-btn" type="button" data-tool="text" data-icon="type" aria-pressed="false" data-i18n-title="Text note (T)" data-i18n-aria="Text note"></button>
+    <button id="pv-shape-btn" class="pv-btn pv-btn-menu" type="button" data-tool="rect" data-icon="shapes" aria-pressed="false" aria-haspopup="menu" aria-expanded="false" data-i18n-title="Shapes (S)" data-i18n-aria="Shapes"></button>
+    <button class="pv-btn" type="button" data-tool="signature" data-icon="signature" aria-pressed="false" data-i18n-title="Place a signature (G)" data-i18n-aria="Place a signature"></button>
+    <span class="pv-sep" aria-hidden="true"></span>
+    <button id="pv-color-btn" class="pv-btn pv-btn-menu" type="button" aria-haspopup="menu" aria-expanded="false" data-i18n-title="Mark colour and thickness" data-i18n-aria="Mark colour and thickness"><span id="pv-color-dot" class="pv-dot" aria-hidden="true"></span></button>
+    <button id="pv-undo" class="pv-btn" type="button" data-icon="undo" disabled data-i18n-title="Undo (Ctrl+Z)" data-i18n-aria="Undo"></button>
+    <button id="pv-redo" class="pv-btn" type="button" data-icon="redo" disabled data-i18n-title="Redo (Ctrl+Y)" data-i18n-aria="Redo"></button>
+  </div>
+
+  <div class="pv-group pv-group-end">
+    <button id="pv-find-btn" class="pv-btn" type="button" data-icon="search" aria-pressed="false" aria-controls="pv-find" data-i18n-title="Find in the document (Ctrl+F)" data-i18n-aria="Find in the document"></button>
+    <div class="pv-zoom" role="group" aria-label="Zoom" data-i18n-aria="Zoom">
+      <button id="pv-zoom-out" class="pv-btn" type="button" data-icon="minus" data-i18n-title="Zoom out (Ctrl+-)" data-i18n-aria="Zoom out"></button>
+      <button id="pv-zoom-btn" class="pv-zoom-value" type="button" aria-haspopup="menu" aria-expanded="false" data-i18n-title="Zoom" data-i18n-aria="Zoom level"><span id="pv-zoom-text">100%</span></button>
+      <button id="pv-zoom-in" class="pv-btn" type="button" data-icon="plus" data-i18n-title="Zoom in (Ctrl+=)" data-i18n-aria="Zoom in"></button>
+    </div>
+    <button id="pv-view-btn" class="pv-btn pv-btn-menu" type="button" data-icon="page-scroll" aria-haspopup="menu" aria-expanded="false" data-i18n-title="View" data-i18n-aria="View"></button>
+    <button id="pv-save" class="pv-btn pv-btn-text" type="button" disabled>
+      <span data-icon="save"></span><span class="pv-btn-label" data-i18n="Save a copy">Save a copy</span>
+    </button>
+    <button id="pv-more-btn" class="pv-btn" type="button" data-icon="more" aria-haspopup="menu" aria-expanded="false" data-i18n-title="More" data-i18n-aria="More"></button>
+  </div>
+</header>
+
+<div id="pv-body" class="pv-body">
+  <aside id="pv-rail" class="pv-rail" aria-label="Pages, outline and marks" data-i18n-aria="Pages, outline and marks" hidden>
+    <div class="pv-rail-tabs" role="tablist" aria-label="Side panel" data-i18n-aria="Side panel">
+      <button class="pv-rail-tab" type="button" role="tab" id="pv-tab-pages" data-pane="pages" aria-selected="true" aria-controls="pv-pane-pages" data-icon="grid"><span data-i18n="Pages">Pages</span></button>
+      <button class="pv-rail-tab" type="button" role="tab" id="pv-tab-outline" data-pane="outline" aria-selected="false" aria-controls="pv-pane-outline" tabindex="-1" data-icon="list"><span data-i18n="Outline">Outline</span></button>
+      <button class="pv-rail-tab" type="button" role="tab" id="pv-tab-marks" data-pane="marks" aria-selected="false" aria-controls="pv-pane-marks" tabindex="-1" data-icon="marker"><span data-i18n="Marks">Marks</span><span id="pv-marks-count" class="pv-count" hidden></span></button>
+    </div>
+    <div id="pv-pane-pages" class="pv-pane" role="tabpanel" aria-labelledby="pv-tab-pages" tabindex="-1"><div id="pv-thumbs" class="pv-thumbs" role="list"></div></div>
+    <div id="pv-pane-outline" class="pv-pane" role="tabpanel" aria-labelledby="pv-tab-outline" tabindex="-1" hidden><div id="pv-outline" class="pv-outline"></div></div>
+    <div id="pv-pane-marks" class="pv-pane" role="tabpanel" aria-labelledby="pv-tab-marks" tabindex="-1" hidden><div id="pv-marks" class="pv-marklist"></div></div>
+    <div id="pv-rail-grip" class="pv-grip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize the side panel" data-i18n-aria="Resize the side panel"></div>
+  </aside>
+
+  <main id="pv-main" class="pv-main">
+    <div id="pv-banner" class="pv-banner" role="status" hidden></div>
+
+    <div id="pv-find" class="pv-find" role="search" aria-label="Find in the document" data-i18n-aria="Find in the document" hidden>
+      <input id="pv-find-input" class="pv-input" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="Find in the document" data-i18n-aria="Find in the document">
+      <span id="pv-find-count" class="pv-find-count" aria-live="polite"></span>
+      <button id="pv-find-prev" class="pv-btn" type="button" data-icon="chevron-up" data-i18n-title="Previous match (Shift+Enter)" data-i18n-aria="Previous match"></button>
+      <button id="pv-find-next" class="pv-btn" type="button" data-icon="chevron-down" data-i18n-title="Next match (Enter)" data-i18n-aria="Next match"></button>
+      <button id="pv-find-case" class="pv-chip" type="button" aria-pressed="false" data-i18n="Aa" data-i18n-title="Match case" data-i18n-aria="Match case">Aa</button>
+      <button id="pv-find-word" class="pv-chip" type="button" aria-pressed="false" data-i18n="Word" data-i18n-title="Whole words only" data-i18n-aria="Whole words only">Word</button>
+      <button id="pv-find-close" class="pv-btn" type="button" data-icon="x" data-i18n-title="Close (Esc)" data-i18n-aria="Close the search"></button>
+    </div>
+
+    <div id="pv-scroller" class="pv-scroller" tabindex="0" role="document" aria-label="Document" data-i18n-aria="Document">
+      <div id="viewer" class="pdfViewer"></div>
+    </div>
+
+    <div id="pv-pager" class="pv-pager" role="group" aria-label="Page navigation" data-i18n-aria="Page navigation">
+      <button id="pv-first" class="pv-btn" type="button" data-icon="page-first" data-i18n-title="First page (Home)" data-i18n-aria="First page"></button>
+      <button id="pv-prev" class="pv-btn" type="button" data-icon="chevron-up" data-i18n-title="Previous page (P)" data-i18n-aria="Previous page"></button>
+      <label class="pv-pager-field"><span class="pv-sr" data-i18n="Page number">Page number</span>
+        <input id="pv-page-input" class="pv-page-input" type="text" inputmode="numeric" autocomplete="off" value="1" aria-describedby="pv-page-total"></label>
+      <span id="pv-page-total" class="pv-page-total"></span>
+      <button id="pv-next" class="pv-btn" type="button" data-icon="chevron-down" data-i18n-title="Next page (N)" data-i18n-aria="Next page"></button>
+      <button id="pv-last" class="pv-btn" type="button" data-icon="page-last" data-i18n-title="Last page (End)" data-i18n-aria="Last page"></button>
+    </div>
+
+    <div id="pv-selbar" class="pv-selbar" role="toolbar" aria-label="Selected text" data-i18n-aria="Selected text" hidden>
+      <button class="pv-btn" type="button" data-sel="highlight" data-icon="marker" data-i18n-title="Highlight" data-i18n-aria="Highlight"></button>
+      <button class="pv-btn" type="button" data-sel="underline" data-icon="underline" data-i18n-title="Underline" data-i18n-aria="Underline"></button>
+      <button class="pv-btn" type="button" data-sel="strike" data-icon="strikethrough" data-i18n-title="Strikethrough" data-i18n-aria="Strikethrough"></button>
+      <button class="pv-btn" type="button" data-sel="copy" data-icon="copy" data-i18n-title="Copy" data-i18n-aria="Copy"></button>
+    </div>
+
+    <div id="pv-markbar" class="pv-selbar pv-markbar" role="toolbar" aria-label="Selected mark" data-i18n-aria="Selected mark" hidden>
+      <button class="pv-btn" type="button" data-markact="color" data-icon="palette" data-i18n-title="Change colour" data-i18n-aria="Change colour"></button>
+      <button class="pv-btn" type="button" data-markact="delete" data-icon="trash" data-i18n-title="Delete the mark (Delete)" data-i18n-aria="Delete the mark"></button>
+    </div>
+
+    <div id="pv-state" class="pv-state" hidden></div>
+    <div id="pv-toasts" class="pv-toasts" role="status" aria-live="polite"></div>
+  </main>
+</div>
+
+<div id="pv-menu-root"></div>
+<div id="pv-dialog-root"></div>
+<div id="pv-print-area" class="pv-print-area" aria-hidden="true"></div>
+
+<script src="/icons.js"></script>
+<script type="module" src="/app/app.js"></script>
+</body>
+</html>

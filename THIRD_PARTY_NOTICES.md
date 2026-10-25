@@ -42,7 +42,7 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 ## Code copied into the Vex source
 
 - **jsQR** (`src/renderer/vendor/jsQR.js`) — QR code reader used by the Authenticator to read 2FA QR codes. Apache License 2.0. Copyright 2017 Cosmo Wolfe. https://github.com/cozmo/jsQR. The file is the published `dist/jsQR.js` build and has no version header. Apache-2.0 text below.
-- **Runtime copies of shipped packages** (`src/renderer/vendor/runtime/`) — at build time Vex copies the browser builds of `@mlc-ai/web-llm`, `tesseract.js`, `tesseract.js-core`, `@huggingface/transformers` and `onnxruntime-web` into this folder (with their licence files) so the app can load them in its pages. Their npm packages are build-time only and are not otherwise packed; they and the packages their builds draw on are listed in [Packages inside the runtime copies](#packages-inside-the-runtime-copies), and their licence texts are below.
+- **Runtime copies of shipped packages** (`src/renderer/vendor/runtime/`) — at build time Vex copies the browser builds of `@mlc-ai/web-llm`, `tesseract.js`, `tesseract.js-core`, `@huggingface/transformers`, `onnxruntime-web` and `pdfjs-dist` (pdf.js, which draws the PDFs in Vex's own PDF viewer) into this folder (with their licence files) so the app can load them in its pages. Their npm packages are build-time only and are not otherwise packed; they and the packages their builds draw on are listed in [Packages inside the runtime copies](#packages-inside-the-runtime-copies), and their licence texts are below.
 
 ## Word lists in the Vex source
 
@@ -159,7 +159,7 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 
 ### Packages inside the runtime copies
 
-36 packages whose browser builds (or code bundled into them) ship in `src/renderer/vendor/runtime/`. Licence names are as each package declares them in its `package.json`.
+37 packages whose browser builds (or code bundled into them) ship in `src/renderer/vendor/runtime/`. Licence names are as each package declares them in its `package.json`.
 
 | Package | Version | Licence |
 |---|---|---|
@@ -188,6 +188,7 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | onnxruntime-common | 1.31.0-dev.20260911-2a43ec07e | MIT |
 | onnxruntime-web | 1.31.0-dev.20260914-8d85527a0 | MIT |
 | opencollective-postinstall | 2.0.3 | MIT |
+| pdfjs-dist | 6.4.299 | Apache-2.0 |
 | platform | 1.3.6 | MIT |
 | protobufjs | 7.6.6 | BSD-3-Clause |
 | regenerator-runtime | 0.13.11 | MIT |
@@ -347,6 +348,7 @@ Used by jsQR and the packages below. Any NOTICE file a package ships is reproduc
 - **flatbuffers@25.9.23** — by The FlatBuffers project (https://github.com/google/flatbuffers)
 - **idb-keyval@6.3.0** — Copyright 2016, Jake Archibald (https://github.com/jakearchibald/idb-keyval)
 - **long@5.3.2** — by Daniel Wirtz <dcode@dcode.io> (https://github.com/dcodeIO/long.js)
+- **pdfjs-dist@6.4.299** — Copyright 2024 Mozilla Foundation and the pdf.js contributors (https://github.com/mozilla/pdf.js). Its image decoders (JBIG2, OpenJPEG, QCMS) and its standard fonts (Liberation, Foxit) ship with their own licence files in `pdfjs/wasm` and `pdfjs/standard_fonts` next to it.
 - **tesseract.js@7.0.0** (https://github.com/naptha/tesseract.js)
 - **tesseract.js-core@7.0.0** — by antimatter15 (https://github.com/naptha/tesseract.js-core)
 - **wasm-feature-detect@1.9.0** — Copyright 2017 Google Inc. (GoogleChromeLabs/wasm-feature-detect)

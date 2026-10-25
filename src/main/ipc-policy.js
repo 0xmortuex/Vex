@@ -8,7 +8,10 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   'userscripts:page', 'userscripts:gm',
   // Whether this page gets dark mode (dark-mode-preload.js): main judges the
   // tab and the frame's own address; a refused page simply gets none.
-  'darkmode:page']);
+  'darkmode:page',
+  // Vex's own PDF viewer page (vex-pdf://view/, main/pdf-viewer.js): saving a copy with its marks, downloading, the
+  // browser's viewer instead, printing. Each handler checks that the asking frame is that page.
+  'pdfview:save-copy', 'pdfview:download', 'pdfview:open-native', 'pdfview:print', 'pdfview:reveal']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
@@ -83,6 +86,8 @@ const UI_ONLY_CHANNELS = new Set([
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
   'printpreview:open', 'printpreview:render', 'printpreview:simplify', 'printpreview:print', 'printpreview:save-pdf', 'printpreview:close',
   'sources:resolve-doi', 'sources:resolve-id', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
+  // Whether Vex's own PDF viewer is on (main/pdf-viewer.js): the interface tells main, never a page.
+  'pdfview:set-enabled', 'pdfview:forget-places',
   // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
   'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send', 'comms:bridge-status', 'comms:bridge-pick', 'comms:bridge-read', 'comms:bridge-forget', 'comms:status-write',
   // The local-service launcher and the webhook inspector: starting programs and opening a port are Vex's own window only.

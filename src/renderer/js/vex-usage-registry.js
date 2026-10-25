@@ -269,6 +269,7 @@ const VexUsageRegistry = {
       VexStudyNotes: () => (typeof VexStudyNotes !== 'undefined' ? VexStudyNotes : null),
       VexPdfHighlights: () => (typeof VexPdfHighlights !== 'undefined' ? VexPdfHighlights : null),
       VexPdfTools: () => (typeof VexPdfTools !== 'undefined' ? VexPdfTools : null),
+      VexPdfViewer: () => (typeof VexPdfViewer !== 'undefined' ? VexPdfViewer : null),
       VexRituals: () => (typeof VexRituals !== 'undefined' ? VexRituals : null),
       VexFollowUps: () => (typeof VexFollowUps !== 'undefined' ? VexFollowUps : null),
       VexTwoMinute: () => (typeof VexTwoMinute !== 'undefined' ? VexTwoMinute : null),
@@ -564,6 +565,7 @@ const VexUsageRegistry = {
       ['study-notes', A.api(G.VexStudyNotes, 'enabled', 'setEnabled')],
       ['pdf-highlights', A.api(G.VexPdfHighlights, 'enabled', 'setEnabled')],
       ['pdf-tools', A.api(G.VexPdfTools, 'enabled', 'setEnabled')],
+      ['pdf-viewer', A.api(G.VexPdfViewer, 'enabled', 'setEnabled')],
       // Wave 3, daily life: new features, staged off on a profile that already existed.
       ['rituals', A.api(G.VexRituals, 'enabled', 'setEnabled')],
       ['follow-ups', A.api(G.VexFollowUps, 'enabled', 'setEnabled')],

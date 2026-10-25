@@ -52,6 +52,19 @@ const VexI18nUI = {
   // English.
   TABLE: {
     tr: {
+      // --- PDF viewer (js/pdf-viewer-host.js) ---
+      'PDF viewer': 'PDF görüntüleyici',
+      'Settings for the viewer that opens your PDFs': 'PDF\'lerinizi açan görüntüleyicinin ayarları',
+      'PDFs open in Vex\'s own viewer: thumbnails, an outline, search, marks you can save into a copy, forms, print and a presentation mode, in the colours of your theme. It reads the PDF through the tab it is in, so a PDF behind a sign-in works and a private tab\'s PDF stays in that tab. Nothing is sent anywhere. Your original file is never changed: a copy is saved where you choose.': 'PDF\'ler Vex\'in kendi görüntüleyicisinde açılır: küçük resimler, içindekiler, arama, bir kopyaya kaydedebileceğiniz işaretler, formlar, yazdırma ve sunum kipi; hepsi temanızın renklerinde. PDF\'yi içinde bulunduğu sekme üzerinden okur; böylece oturum gerektiren bir PDF de çalışır ve gizli sekmedeki PDF o sekmede kalır. Hiçbir şey bir yere gönderilmez. Özgün dosyanız asla değişmez: kopya sizin seçtiğiniz yere kaydedilir.',
+      'Show PDFs in Vex\'s own viewer': 'PDF\'leri Vex\'in kendi görüntüleyicisinde göster',
+      'PDFs open in Vex\'s own viewer': 'PDF\'ler Vex\'in kendi görüntüleyicisinde açılıyor',
+      'PDFs open in the browser\'s own viewer again': 'PDF\'ler yine tarayıcının kendi görüntüleyicisinde açılıyor',
+      'Switched off, PDFs open in Chromium\'s viewer as before. The viewer\'s More menu also has "Open in the browser\'s viewer" for a single PDF.': 'Kapatılırsa PDF\'ler eskisi gibi Chromium\'un görüntüleyicisinde açılır. Görüntüleyicinin Daha fazla menüsünde tek bir PDF için "Tarayıcının görüntüleyicisinde aç" seçeneği de vardır.',
+      'Forget the pages I was on': 'Kaldığım sayfaları unut',
+      'Vex forgot where you were in each PDF': 'Vex her PDF\'de nerede kaldığınızı unuttu',
+      'Vex remembers the page and zoom of each PDF on this computer only. Private and Tor tabs never keep them. They are not synced.': 'Vex her PDF\'nin sayfasını ve yakınlaştırmasını yalnızca bu bilgisayarda hatırlar. Gizli ve Tor sekmeleri bunları asla tutmaz. Eşitlenmezler.',
+      'This window cannot do that': 'Bu pencere bunu yapamaz',
+      'It did not work': 'Çalışmadı',
       // --- Did you know? (js/feature-faq.js) : generated block start ---
       'Did you know?': 'Biliyor muydunuz?',
       'Questions you might never think to ask, each with a button that tries the answer.': 'Aklınıza hiç gelmeyebilecek sorular; her birinde yanıtı deneyen bir düğme var.',

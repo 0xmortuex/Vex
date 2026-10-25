@@ -423,6 +423,9 @@ contextBridge.exposeInMainWorld('vex', {
   pdftoolRun: (req) => ipcRenderer.invoke('pdftool:run', req),
   pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
   pdftoolInspect: (token) => ipcRenderer.invoke('pdftool:inspect', token),
+  // Whether Vex's own PDF viewer takes the PDFs a tab meets (main/pdf-viewer.js; js/pdf-viewer-host.js).
+  pdfviewSetEnabled: (on) => ipcRenderer.invoke('pdfview:set-enabled', !!on),
+  pdfviewForgetPlaces: () => ipcRenderer.invoke('pdfview:forget-places'),
 
   // Vex's own print preview (main/print-preview.js): open it for a tab, render and print with the chosen options.
   printPreviewOpen: (wcId) => ipcRenderer.invoke('printpreview:open', wcId),

@@ -42,6 +42,67 @@ const WebviewManager = {
     window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: address } }));
   },
 
+  // === Vex's own PDF viewer (main/pdf-viewer.js, pages in src/renderer/pdf-viewer) ===================
+  //
+  // A PDF is shown by a page of Vex's own at vex-pdf://view/?u=<the PDF's address>[#page=3]. The tab, its address bar, its
+  // history, its bookmarks and its reload keep the PDF's own address: this maps the viewer's address back, and the
+  // twin in main/pdf-viewer.js (parseViewerUrl) does the same on the other side (a test holds them equal).
+  // A .pdf file: address is sent to the viewer here, before anything loads. (Main cannot take such a navigation over once it has
+  // started: Chromium's own PDF viewer starting and then being cancelled froze Vex's main process, measured 2026-10-25. A PDF from the
+  // web is answered with a redirect instead, in main/pdf-viewer.js.) VexPdfViewerOff is set by js/pdf-viewer-host.js when it is switched off.
+  viewerAddress(url) {
+    const s = String(url || '');
+    if ((typeof window !== 'undefined' && window.VexPdfViewerOff) || !/^file:\/\/[^?#]*\.pdf(?:[?#]|$)/i.test(s)) return s;
+    const at = s.indexOf('#');
+    return 'vex-pdf://view/?u=' + encodeURIComponent(at < 0 ? s : s.slice(0, at)) + (at < 0 ? '' : s.slice(at));
+  },
+
+  pdfOriginal(url) {
+    const s = String(url || '');
+    if (!/^vex-pdf:\/\/view\/(?:\?|#|$)/i.test(s)) return null;
+    let u;
+    try { u = new URL(s); } catch { return null; }
+    const original = u.searchParams.get('u');
+    return original ? original + (u.hash ? u.hash : '') : null;
+  },
+
+  // The colours and type of the interface as the viewer needs them: the values this window resolves for the theme, the
+  // browser look, the custom theme and the chosen font, so the viewer matches every one of them without carrying a copy.
+  PDF_THEME_VARS: ['--vex-bg-base', '--vex-bg-elevated', '--vex-bg-deep', '--vex-glass-strong', '--vex-glass-medium', '--vex-glass-light', '--vex-glass-input',
+    '--vex-border-subtle', '--vex-border-medium', '--vex-border-strong', '--vex-border-accent', '--vex-accent', '--vex-accent-dim', '--vex-accent-glow',
+    '--vex-text-primary', '--vex-text-secondary', '--vex-text-muted', '--vex-text-accent', '--vex-success', '--vex-danger', '--vex-danger-hover', '--vex-warning',
+    '--vex-hover-fill', '--vex-shadow-color', '--vex-radius-sm', '--vex-radius-md', '--vex-radius-lg', '--vex-font-base', '--vex-font-display', '--vex-font-heading',
+    '--vex-font-mono', '--on-primary', '--b-font', '--b-btn-radius', '--b-ring-w', '--b-accent-ring',
+    // The older names the calm panels (css/ai-panel.css) are written in.
+    '--bg', '--bg-2', '--surface', '--border', '--text', '--text-muted', '--primary', '--primary-hover', '--danger', '--success', '--accent'],
+  pdfThemePayload() {
+    const cs = getComputedStyle(document.body);
+    const vars = {};
+    for (const name of this.PDF_THEME_VARS) { const v = cs.getPropertyValue(name).trim(); if (v) vars[name] = v; }
+    const root = document.documentElement;
+    return {
+      vars, lang: root.lang || 'en',
+      attrs: { 'data-theme': root.getAttribute('data-theme') || '', 'data-scheme': root.getAttribute('data-scheme') || '', 'data-gui-style': document.body.getAttribute('data-gui-style') || '', 'data-gui-family': document.body.getAttribute('data-gui-family') || '' },
+    };
+  },
+  // Whether this webview shows Vex's own PDF viewer now.
+  pdfPage(webview) {
+    let url;
+    try { url = webview.getURL(); } catch (err) { return false; }   // not attached yet
+    return !!this.pdfOriginal(url);
+  },
+  sendPdfTheme(webview) {
+    try { webview.send('pdfview:theme', this.pdfThemePayload()); }
+    catch (err) { if (!/dom-ready|attached/i.test(String(err && err.message))) console.warn('[Vex] the PDF viewer could not be given the theme:', err && err.message); }
+  },
+  sendPdfThemeToAll() {
+    for (const wv of this.webviews.values()) {
+      let url = '';
+      try { url = wv.getURL(); } catch { continue; }
+      if (this.pdfOriginal(url)) this.sendPdfTheme(wv);
+    }
+  },
+
   createWebview(tab) {
     if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
     // A container's own route is asked for now, before anything reads the
@@ -71,7 +132,7 @@ const WebviewManager = {
       // A site that gets dark mode shows dark, not white, behind it until it paints (js/dark-mode.js).
       if (!event.isInPlace && typeof VexDarkMode !== 'undefined') VexDarkMode.onNavigate(webview, event.url);
     });
-    webview.setAttribute('src', tab.url);
+    webview.setAttribute('src', this.viewerAddress(tab.url));
     // The New Tab page paints a moment after its tab appears (its process starts first), and the empty webview was white for that moment, in
     // a dark theme a flash of a white screen (measured: 150 ms and more). Its own page colour is the theme's base colour, so it stands in.
     if (typeof isStartPage === 'function' && isStartPage(tab.url)) webview.style.background = 'var(--vex-bg-base)';
@@ -192,6 +253,8 @@ const WebviewManager = {
     onWebview('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
+      // The viewer needs none of what follows (a page's colour base, zoom per site, dark mode, notification shims).
+      if (this.pdfPage(webview)) return;
 
       // Leak Canary: warn if a saved email of yours is pre-filled on a site that
       // isn't where you saved it (a tracker leak). Best-effort, throttled inside.
@@ -343,6 +406,8 @@ const WebviewManager = {
     });
 
     onWebview('dom-ready', () => {
+      // Vex's own PDF viewer is not a site: no site's boosts, autofill, highlights or page tools go into it; it is given the theme.
+      if (this.pdfPage(webview)) { this.sendPdfTheme(webview); return; }
       if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.push(webview);
       // Site notifications held for the hourly bundle (js/push-bundle.js): tell this page which
       // hosts are listed. A page that is not listed, a private tab and a private window get nothing.
@@ -442,6 +507,8 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // The PDF viewer page is up and asks for the theme (preload-webview.js).
+      if (e.channel === 'pdfview:need-theme') { this.sendPdfTheme(webview); return; }
       // A paste holding a secret, held back by the page-side hook (js/secret-guard.js).
       if (e.channel === 'vex-secret-paste') {
         if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.onPaste(webview, e.args && e.args[0]).catch(err => window.VexProblems?.note('Secret guard', 'A held paste could not be handled', err));
@@ -583,7 +650,8 @@ const WebviewManager = {
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     onWebview('did-navigate', (e) => {
       this._noteHistory(tab, webview);
-      const url = e.url;
+      // A PDF shown in Vex's own viewer keeps the PDF's address (pdfOriginal above).
+      const url = this.pdfOriginal(e.url) || e.url;
       // A 404, 410 or 5xx page you archived: offer your copy (js/archive-library.js).
       if (typeof ArchiveLibrary !== 'undefined' && e.httpResponseCode >= 400 && TabManager.activeTabId === tab.id) {
         ArchiveLibrary.offerForDeadPage(url, { isMainFrame: true, httpStatus: e.httpResponseCode });
@@ -630,7 +698,7 @@ const WebviewManager = {
       TabManager.updateTab(tab.id, { url });
       window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url } }));
       this._updateFavicon(tab.id, url);
-      if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
+      if (typeof VexBoosts !== 'undefined' && !this.pdfOriginal(e.url)) { try { VexBoosts.applyTo(webview, url); } catch {} }
       // A site rule's "always muted" and "never let it sleep" apply to where
       // the tab has ARRIVED, which a link followed inside an existing tab
       // makes different from where it was made (js/site-routes.js).
@@ -668,9 +736,10 @@ const WebviewManager = {
     onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
         this._noteHistory(tab, webview);
-        TabManager.updateTab(tab.id, { url: e.url });
-        window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: e.url } }));
-        document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: e.url } }));
+        const shown = this.pdfOriginal(e.url) || e.url;
+        TabManager.updateTab(tab.id, { url: shown });
+        window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: shown } }));
+        document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: shown } }));
       }
     });
     // A full load, once the page is there to be talked to (js/sponsor-skip.js).
@@ -710,7 +779,7 @@ const WebviewManager = {
                 } catch (err) { window.VexProblems?.note('Tabs', 'Could not put a reloaded tab back where it was', err); }
               }, { once: true });
             }
-            try { Promise.resolve(webview.loadURL(real)).catch(() => {}); } catch { webview.src = real; }
+            try { Promise.resolve(webview.loadURL(this.viewerAddress(real))).catch(() => {}); } catch { webview.src = this.viewerAddress(real); }
           };
           if (lifecycle) cancelRecovery = lifecycle.timeout(recover, 400 * 2 ** (crashCount - 1));
           else { const timer = setTimeout(recover, 400 * 2 ** (crashCount - 1)); cancelRecovery = () => clearTimeout(timer); }
@@ -991,6 +1060,8 @@ const WebviewManager = {
 
   systemPrint(wv = this.getActiveWebview()) {
     if (!wv || typeof wv.print !== 'function') { window.showToast?.('Open a page to print first'); return; }
+    // The PDF viewer prints the document's pages (with the marks), not its own toolbar.
+    if (this.pdfPage(wv)) { wv.send('pdfview:command', 'print'); return; }
     // A page named "site - title - date" when that extra is on (js/tabs-nav.js): the name Windows offers for the PDF.
     const named = typeof VexTabsNav !== 'undefined' ? VexTabsNav.namePrintJob(wv).catch(err => { window.VexProblems?.note('Print', 'Could not name the printout', err); return null; }) : Promise.resolve(null);
     named.then(restore => Promise.resolve(wv.print())
@@ -1016,7 +1087,7 @@ const WebviewManager = {
   // logged. A webview not attached yet still throws, for the caller's own
   // fallback.
   _loadUnwatched(wv, url, why) {
-    wv.loadURL(url).catch((err) => {
+    wv.loadURL(this.viewerAddress(url)).catch((err) => {
       const m = String((err && err.message) || err);
       if (/ERR_ABORTED|\(-3\)/.test(m)) return;
       console.warn(`[Vex] ${why}: could not load ${url} —`, m);
@@ -1219,7 +1290,7 @@ const WebviewManager = {
           delete tab._typedUrl;
           return tab;
         };
-        const load = () => wv.loadURL(url).then(settle, err => {
+        const load = () => wv.loadURL(this.viewerAddress(url)).then(settle, err => {
           const m = String((err && err.message) || err);
           if (/ERR_ABORTED|\(-3\)|ERR_FAILED \(-2\)/.test(m)) {
             const tab = settle();
@@ -1631,6 +1702,7 @@ const WebviewManager = {
 
     const curUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
     const isTab = !!(webview.dataset && webview.dataset.tabId);
+    const viewerOriginal = this.pdfOriginal(curUrl);   // set only on Vex's own PDF viewer page
     const imageSrc = this.contextImage(e.params, webview);
 
     const menu = document.createElement('div');
@@ -1917,7 +1989,7 @@ const WebviewManager = {
           });
         }
       }
-      if (typeof Annotations !== 'undefined') {
+      if (typeof Annotations !== 'undefined' && !viewerOriginal) {
         textItems.push({
           label: 'Highlight',
           action: () => Annotations.highlight('yellow')
@@ -1927,7 +1999,7 @@ const WebviewManager = {
       // question — without leaving the page or opening a panel first.
       {
         const sel = e.params.selectionText;
-        const pageUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
+        const pageUrl = viewerOriginal || (() => { try { return webview.getURL(); } catch { return ''; } })();
         const pageTitle = (() => { try { return webview.getTitle(); } catch { return ''; } })();
         textItems.push({ sep: true });
         if (typeof VexQuickReminder !== 'undefined') {
@@ -2163,8 +2235,18 @@ const WebviewManager = {
       if (extRows.length) items.push({ sep: true }, ...extRows);
     }
     items.push({ sep: true });
-    items.push({ label: 'Page', icon: 'file', sub: pageItems });
-    items.push({ label: 'This site', icon: 'globe', sub: siteItems });
+    if (viewerOriginal) {
+      // The viewer is Vex's own page: its address is the PDF's, and the page tools (source, dark mode, zapper, watch, archive)
+      // do not apply to it.
+      items.push({ label: 'PDF', icon: 'file', sub: [
+        { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(viewerOriginal) },
+        { label: 'Open in New Tab', action: () => TabManager.createTab(viewerOriginal, true, null, { partition: webview.getAttribute?.('partition') }) },
+        { label: 'Print…', action: () => this.printPage(webview) },
+      ] });
+    } else {
+      items.push({ label: 'Page', icon: 'file', sub: pageItems });
+      items.push({ label: 'This site', icon: 'globe', sub: siteItems });
+    }
     items.push({ sep: true });
     items.push({
       label: 'Inspect Element',
@@ -2454,6 +2536,18 @@ const WebviewManager = {
 // guards like `window.WebviewManager && ...` (gui-style.js, formerly
 // sidebar.js) were always undefined and silently skipped their branch.
 if (typeof window !== 'undefined') window.WebviewManager = WebviewManager;
+
+// An open PDF viewer follows the theme, the look and the font as they change here.
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+  const pushPdfTheme = () => { try { WebviewManager.sendPdfThemeToAll(); } catch (err) { console.warn('[Vex] the PDF viewers could not be given the theme:', err && err.message); } };
+  document.addEventListener('theme-changed', pushPdfTheme);
+  document.addEventListener('vex:font-changed', pushPdfTheme);
+  // A look is applied a moment after the event that names it.
+  window.addEventListener('vex:gui-style', () => setTimeout(pushPdfTheme, 150));
+  window.addEventListener('vex:gui-colors', () => setTimeout(pushPdfTheme, 150));
+  // The window's language (js/i18n-ui.js sets <html lang>) goes with it.
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(pushPdfTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+}
 
 // Renderer-safe export — the renderer loads this file via <script> tag where
 // `module` is undefined, so the guard keeps the global WebviewManager surface

@@ -297,6 +297,110 @@ async function annotate(bytes, { items, signature, ascii, fonts } = {}, name) {
   return { bytes: await save(doc), marks: list.length, signed };
 }
 
+// ---- marks from Vex's own PDF viewer (main/pdf-viewer.js) ---------------------------------------------------------
+// The viewer measures in the page's own units (PDF user space, origin at the bottom left, as pdf-lib draws), so a page
+// that is turned (/Rotate) needs no special case: the viewer has already converted what the person drew to where it is on
+// the unturned page, and gives the angle that makes text and pictures read upright on the turned one.
+//   highlight  rects: [{ x, y, w, h }]                          drawn multiplied, so the words stay readable
+//   underline  lines: [{ x1, y1, x2, y2 }], width               strike  the same, through the middle of the words
+//   ink        points: [[x, y], ...], width                     a free-hand stroke
+//   text       x, y (left end of the first line's baseline), size, text, angle, w (wrap width, optional)
+//   rect | ellipse  x, y, w, h (lower left corner), width        line  x1, y1, x2, y2, width, arrow
+//   signature  x, y, w, h (lower left corner), angle             the picture passed as `signature`
+const VIEW_MARKS = Object.freeze({ items: 400, rects: 400, points: 4000, lines: 400, text: 500 });
+const VIEW_KINDS = Object.freeze(['highlight', 'underline', 'strike', 'ink', 'text', 'rect', 'ellipse', 'line', 'signature']);
+
+function hexColor(value, n) {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(value || ''));
+  if (!m) throw new Error('Mark ' + n + ' needs a colour like #ffcc00');
+  const v = parseInt(m[1], 16);
+  return [(v >> 16 & 255) / 255, (v >> 8 & 255) / 255, (v & 255) / 255];
+}
+
+function checkViewMark(it, box, pageCount, n) {
+  if (!it || typeof it !== 'object') throw new Error('Mark ' + n + ' is not valid');
+  if (!VIEW_KINDS.includes(it.kind)) throw new Error('Mark ' + n + ' is of a kind Vex cannot save (' + String(it.kind).slice(0, 20) + ')');
+  if (!Number.isInteger(it.page) || it.page < 1 || it.page > pageCount) throw new Error('Mark ' + n + ' is on page ' + it.page + ', but this PDF has ' + pageCount + ' page' + (pageCount === 1 ? '' : 's'));
+  const slack = Math.max(box.width, box.height) * 0.25;
+  const inside = (x, y) => Number.isFinite(x) && Number.isFinite(y) && x >= box.x - slack && x <= box.x + box.width + slack && y >= box.y - slack && y <= box.y + box.height + slack;
+  const num = (v, lo, hi, what) => { if (!(Number.isFinite(v) && v >= lo && v <= hi)) throw new Error('Mark ' + n + ': ' + what + ' is out of range'); };
+  hexColor(it.color || '#000000', n);
+  if (it.width != null) num(it.width, 0.1, 40, 'the line width');
+  if (it.kind === 'highlight') {
+    if (!Array.isArray(it.rects) || !it.rects.length || it.rects.length > VIEW_MARKS.rects) throw new Error('Mark ' + n + ' has no highlighted text');
+    for (const r of it.rects) { if (!inside(r.x, r.y) || !inside(r.x + r.w, r.y + r.h) || !(r.w > 0) || !(r.h > 0)) throw new Error('Mark ' + n + ' is placed outside the page'); }
+  } else if (it.kind === 'underline' || it.kind === 'strike') {
+    if (!Array.isArray(it.lines) || !it.lines.length || it.lines.length > VIEW_MARKS.lines) throw new Error('Mark ' + n + ' has no line');
+    for (const l of it.lines) if (!inside(l.x1, l.y1) || !inside(l.x2, l.y2)) throw new Error('Mark ' + n + ' is placed outside the page');
+  } else if (it.kind === 'ink') {
+    if (!Array.isArray(it.points) || it.points.length < 2 || it.points.length > VIEW_MARKS.points) throw new Error('Mark ' + n + ' is a stroke with no length');
+    for (const p of it.points) if (!Array.isArray(p) || !inside(p[0], p[1])) throw new Error('Mark ' + n + ' is placed outside the page');
+  } else if (it.kind === 'line') {
+    if (!inside(it.x1, it.y1) || !inside(it.x2, it.y2)) throw new Error('Mark ' + n + ' is placed outside the page');
+  } else {
+    if (!inside(it.x, it.y)) throw new Error('Mark ' + n + ' is placed outside the page');
+    if (it.kind !== 'text') { num(it.w, 0.5, 20000, 'the width'); num(it.h, 0.5, 20000, 'the height'); }
+  }
+  if (it.kind === 'text') {
+    if (typeof it.text !== 'string' || !it.text.trim()) throw new Error('Mark ' + n + ' has no text');
+    if (it.text.length > VIEW_MARKS.text) throw new Error('Mark ' + n + ' has more than ' + VIEW_MARKS.text + ' letters');
+    num(it.size, 4, 144, 'the text size');
+    if (it.w != null) num(it.w, 5, 20000, 'the text width');
+  }
+  if (it.angle != null && ![0, 90, 180, 270].includes(it.angle)) throw new Error('Mark ' + n + ': the angle is 0, 90, 180 or 270');
+}
+
+async function placeMarks(bytes, { marks, signature, ascii, fonts } = {}, name) {
+  const { rgb, degrees, BlendMode, LineCapStyle } = lib();
+  const doc = await load(bytes, name);
+  const list = Array.isArray(marks) ? marks : [];
+  if (!list.length) throw new Error('Add at least one mark first');
+  if (list.length > VIEW_MARKS.items) throw new Error('That is more than ' + VIEW_MARKS.items + ' marks');
+  const pages = doc.getPages();
+  list.forEach((it, i) => checkViewMark(it, it && Number.isInteger(it.page) && pages[it.page - 1] ? pages[it.page - 1].getMediaBox() : pages[0].getMediaBox(), pages.length, i + 1));
+  let image = null;
+  if (list.some(it => it.kind === 'signature')) {
+    if (!(signature instanceof Uint8Array) || !signature.length) throw new Error('Draw or type a signature first');
+    if (signature.length > MARK.signatureBytes) throw new Error('The signature picture is larger than ' + Math.round(MARK.signatureBytes / 1024) + ' KB');
+    if (!(signature[0] === 0x89 && signature[1] === 0x50 && signature[2] === 0x4E && signature[3] === 0x47)) throw new Error('The signature has to be a PNG picture');
+    image = await doc.embedPng(signature);
+  }
+  const { font, unicode } = await chooseFont(doc, list.filter(it => it.kind === 'text').map(it => it.text), ascii, 'A mark', fonts);
+  let signed = 0;
+  list.forEach((it, i) => {
+    const page = pages[it.page - 1];
+    const color = rgb(...hexColor(it.color || '#000000', i + 1));
+    const thickness = it.width || 1.5;
+    if (it.kind === 'highlight') {
+      for (const r of it.rects) page.drawRectangle({ x: r.x, y: r.y, width: r.w, height: r.h, color, opacity: 0.55, blendMode: BlendMode.Multiply });
+    } else if (it.kind === 'underline' || it.kind === 'strike') {
+      for (const l of it.lines) page.drawLine({ start: { x: l.x1, y: l.y1 }, end: { x: l.x2, y: l.y2 }, thickness: it.width || 1, color });
+    } else if (it.kind === 'ink') {
+      for (let k = 1; k < it.points.length; k++) page.drawLine({ start: { x: it.points[k - 1][0], y: it.points[k - 1][1] }, end: { x: it.points[k][0], y: it.points[k][1] }, thickness, color, lineCap: LineCapStyle.Round });
+    } else if (it.kind === 'text') {
+      const text = unicode ? String(it.text) : drawable(it.text, ascii, 'Mark ' + (i + 1));
+      page.drawText(text, { x: it.x, y: it.y, size: it.size, font, color, lineHeight: it.size * 1.25, rotate: degrees(it.angle || 0), ...(it.w ? { maxWidth: it.w } : {}) });
+    } else if (it.kind === 'rect') {
+      page.drawRectangle({ x: it.x, y: it.y, width: it.w, height: it.h, borderColor: color, borderWidth: thickness });
+    } else if (it.kind === 'ellipse') {
+      page.drawEllipse({ x: it.x + it.w / 2, y: it.y + it.h / 2, xScale: it.w / 2, yScale: it.h / 2, borderColor: color, borderWidth: thickness });
+    } else if (it.kind === 'line') {
+      page.drawLine({ start: { x: it.x1, y: it.y1 }, end: { x: it.x2, y: it.y2 }, thickness, color, lineCap: LineCapStyle.Round });
+      if (it.arrow) {
+        const a = Math.atan2(it.y2 - it.y1, it.x2 - it.x1), head = Math.max(6, thickness * 4);
+        for (const side of [-1, 1]) {
+          const b = a + Math.PI + side * 0.45;
+          page.drawLine({ start: { x: it.x2, y: it.y2 }, end: { x: it.x2 + Math.cos(b) * head, y: it.y2 + Math.sin(b) * head }, thickness, color, lineCap: LineCapStyle.Round });
+        }
+      }
+    } else {
+      page.drawImage(image, { x: it.x, y: it.y, width: it.w, height: it.h, rotate: degrees(it.angle || 0) });
+      signed++;
+    }
+  });
+  return { bytes: await save(doc), marks: list.length, signed };
+}
+
 // Repacks the structure. Pictures are not re-encoded. Refuses when nothing was gained.
 async function compress(bytes, name) {
   const { PDFDocument } = lib();
@@ -471,4 +575,4 @@ function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs, nativ
   return { tokens: () => picked.size };
 }
 
-module.exports = { registerPdfToolkit, parsePageSpec, merge, extract, split, rotate, pageCount, inspect, fillForm, annotate, compress, shrink, unsupportedChars, LIMITS, MARK, COLORS };
+module.exports = { registerPdfToolkit, parsePageSpec, merge, extract, split, rotate, pageCount, inspect, fillForm, annotate, placeMarks, compress, shrink, unsupportedChars, LIMITS, MARK, COLORS };
