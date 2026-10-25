@@ -42,6 +42,29 @@ const WebviewManager = {
     window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: address } }));
   },
 
+  // === Vex's own video and sound player (main/media-viewer.js, pages in src/renderer/media-viewer) ===================
+  //
+  // A media file opened as a document is shown by a page of Vex's own at vex-media://view/?u=<the file's address>[#t=30]. The tab, its
+  // address bar, its history, its bookmarks and its reload keep the media's own address: this maps the player's address back, and the
+  // twin in main/media-viewer.js (parseViewerUrl) does the same on the other side (a test holds them equal). A file: media address is
+  // sent to the player here, before anything loads; a web one is caught by main (a redirect, main/doc-viewers.js).
+  // VexMediaViewerOff is set by js/media-viewer-host.js when it is switched off.
+  viewerAddress(url) {
+    const s = String(url || '');
+    if ((typeof window !== 'undefined' && window.VexMediaViewerOff) || !/^file:\/\/[^?#]*\.(?:mp4|m4v|webm|mkv|mov|ogv|mp3|m4a|aac|flac|ogg|oga|opus|wav|weba)(?:[?#]|$)/i.test(s)) return s;
+    const at = s.indexOf('#');
+    return 'vex-media://view/?u=' + encodeURIComponent(at < 0 ? s : s.slice(0, at)) + (at < 0 ? '' : s.slice(at));
+  },
+
+  mediaOriginal(url) {
+    const s = String(url || '');
+    if (!/^vex-media:\/\/view\/(?:\?|#|$)/i.test(s)) return null;
+    let u;
+    try { u = new URL(s); } catch { return null; }
+    const original = u.searchParams.get('u');
+    return original ? original + (u.hash ? u.hash : '') : null;
+  },
+
   createWebview(tab) {
     if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
     // A container's own route is asked for now, before anything reads the
@@ -69,7 +92,7 @@ const WebviewManager = {
       // the ones it starts (js/userscripts.js).
       if (!event.isInPlace && typeof VexUserscripts !== 'undefined') VexUserscripts.noteActive(tab.id, null);
     });
-    webview.setAttribute('src', tab.url);
+    webview.setAttribute('src', this.viewerAddress(tab.url));
     // The New Tab page paints a moment after its tab appears (its process starts first), and the empty webview was white for that moment, in
     // a dark theme a flash of a white screen (measured: 150 ms and more). Its own page colour is the theme's base colour, so it stands in.
     if (typeof isStartPage === 'function' && isStartPage(tab.url)) webview.style.background = 'var(--vex-bg-base)';
@@ -560,7 +583,8 @@ const WebviewManager = {
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     onWebview('did-navigate', (e) => {
       this._noteHistory(tab, webview);
-      const url = e.url;
+      // A media file shown in Vex's own player keeps the file's address (mediaOriginal above).
+      const url = this.mediaOriginal(e.url) || e.url;
       // A 404, 410 or 5xx page you archived: offer your copy (js/archive-library.js).
       if (typeof ArchiveLibrary !== 'undefined' && e.httpResponseCode >= 400 && TabManager.activeTabId === tab.id) {
         ArchiveLibrary.offerForDeadPage(url, { isMainFrame: true, httpStatus: e.httpResponseCode });
@@ -645,9 +669,10 @@ const WebviewManager = {
     onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
         this._noteHistory(tab, webview);
-        TabManager.updateTab(tab.id, { url: e.url });
-        window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: e.url } }));
-        document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: e.url } }));
+        const shown = this.mediaOriginal(e.url) || e.url;
+        TabManager.updateTab(tab.id, { url: shown });
+        window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: shown } }));
+        document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: shown } }));
       }
     });
     // A full load, once the page is there to be talked to (js/sponsor-skip.js).
@@ -687,7 +712,7 @@ const WebviewManager = {
                 } catch (err) { window.VexProblems?.note('Tabs', 'Could not put a reloaded tab back where it was', err); }
               }, { once: true });
             }
-            try { Promise.resolve(webview.loadURL(real)).catch(() => {}); } catch { webview.src = real; }
+            try { Promise.resolve(webview.loadURL(this.viewerAddress(real))).catch(() => {}); } catch { webview.src = this.viewerAddress(real); }
           };
           if (lifecycle) cancelRecovery = lifecycle.timeout(recover, 400 * 2 ** (crashCount - 1));
           else { const timer = setTimeout(recover, 400 * 2 ** (crashCount - 1)); cancelRecovery = () => clearTimeout(timer); }
@@ -985,7 +1010,7 @@ const WebviewManager = {
   // logged. A webview not attached yet still throws, for the caller's own
   // fallback.
   _loadUnwatched(wv, url, why) {
-    wv.loadURL(url).catch((err) => {
+    wv.loadURL(this.viewerAddress(url)).catch((err) => {
       const m = String((err && err.message) || err);
       if (/ERR_ABORTED|\(-3\)/.test(m)) return;
       console.warn(`[Vex] ${why}: could not load ${url} —`, m);
@@ -1188,7 +1213,7 @@ const WebviewManager = {
           delete tab._typedUrl;
           return tab;
         };
-        const load = () => wv.loadURL(url).then(settle, err => {
+        const load = () => wv.loadURL(this.viewerAddress(url)).then(settle, err => {
           const m = String((err && err.message) || err);
           if (/ERR_ABORTED|\(-3\)|ERR_FAILED \(-2\)/.test(m)) {
             const tab = settle();

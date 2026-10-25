@@ -560,6 +560,7 @@ const VexUsageRegistry = {
       ['sources', A.api(G.VexSources, 'enabled', 'setEnabled')],
       ['archive-on-cite', A.api(G.VexArchiveOnCite, 'enabled', 'setEnabled')],
       ['media-control', A.api(G.VexMediaControl, 'enabled', 'setEnabled')],
+      ['media-viewer', A.api(G.VexMediaViewer, 'enabled', 'setEnabled')],
       ['phone-share', A.api(G.VexPhoneShare, 'enabled', 'setEnabled')],
       ['study-notes', A.api(G.VexStudyNotes, 'enabled', 'setEnabled')],
       ['pdf-highlights', A.api(G.VexPdfHighlights, 'enabled', 'setEnabled')],

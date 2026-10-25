@@ -2516,6 +2516,44 @@ require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, window
 // The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
 require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), nativeImage });
 
+// Vex's own video and sound player (main/media-viewer.js, pages in src/renderer/media-viewer): a video or sound opened as a document
+// (a link to one, a file, a drop) is shown there instead of in Chromium's bare player. The registry (main/doc-viewers.js) is the one
+// place that turns a main-frame answer into a viewer's page; every session's onHeadersReceived asks it first.
+let _mediaViewerOn = true;
+const _docViewers = require('./main/doc-viewers').createDocViewers({
+  isGuest: (wc) => { try { return !!wc && !wc.isDestroyed() && wc.getType() === 'webview' && !!secureSessions.owner(wc); } catch { return false; } },
+});
+function _mediaViewerLook() {
+  const read = (key) => {
+    const file = getStorageFile(key);
+    if (!fs.existsSync(file)) return null;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return raw?.$vexStore === 1 ? raw.data : raw;
+  };
+  let theme = 'oxford', guiStyle = 'classic';
+  try { const t = read('theme'); if (typeof t === 'string') theme = t; } catch (err) { console.warn('[Media viewer] the saved theme could not be read:', err.message); }
+  try { const g = read('gui-style'); if (typeof g === 'string') guiStyle = g; } catch (err) { console.warn('[Media viewer] the saved look could not be read:', err.message); }
+  return { theme, guiStyle, lang: String(_readPersistString('vex.lang', 'en')) };
+}
+const _mediaViewer = require('./main/media-viewer').createMediaViewer({
+  rendererDir: path.join(__dirname, 'renderer'), docViewers: _docViewers, isEnabled: () => _mediaViewerOn, owner: (contents) => secureSessions.owner(contents),
+  look: _mediaViewerLook,
+});
+require('./main/media-viewer').registerMediaViewerIpc({ ipcMain, viewer: _mediaViewer, shell });
+ipcMain.handle('mediaview:set-enabled', (_e, on) => { _mediaViewerOn = !!on; return { ok: true, on: _mediaViewerOn }; });
+// Where the player remembers each file lives in its own page's storage, in each browsing session: this clears them.
+ipcMain.handle('mediaview:forget-places', async () => {
+  try {
+    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-media://view', storages: ['localstorage'] });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+// A media file dragged onto a page, or a link to one, goes to the player before the request starts.
+app.on('web-contents-created', (_e, contents) => {
+  contents.on('will-navigate', (evt, url) => { if (_mediaViewer.takeFile(contents, url)) evt.preventDefault(); });
+});
+
+
 // === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
 // Keys are made and kept here, encrypted like the vault, and only finished
 // signatures leave. Refused in private, Tor and burner tabs and while Vex is
@@ -7751,7 +7789,9 @@ app.on('before-quit', () => {
 
 // Register custom protocol BEFORE app ready
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } }
+  { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  // Vex's own video and sound player page and the media it plays (main/media-viewer.js). stream: media elements may play from it.
+  { scheme: 'vex-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
 ]);
 
 // Where the window was last time, put on a screen that exists now (src/main/window-placement.js, T2-082).
@@ -7891,6 +7931,7 @@ function createWindow() {
 
   // Header stripping for webviews
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
     const responseHeaders = { ...details.responseHeaders };
     _dnrResponseHeaders(session.defaultSession, details, responseHeaders);
     _addMediaCorsHeaders(details, responseHeaders);
@@ -7921,6 +7962,7 @@ function createWindow() {
     const stripAllCsp = (partName === 'persist:discord');
 
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
       if (stripAllCsp && /^https:\/\/(?:[a-z0-9-]+\.)?discord\.com(?::443)?\//i.test(details.url) && details.resourceType === 'mainFrame') {
@@ -8259,6 +8301,7 @@ function createWindow() {
   try {
     for (const p of BROWSING_SESSIONS) {
       secureSessions.fromPartition(p).webRequest.onHeadersReceived((details, callback) => {
+        if (_docViewers.take(details, callback)) return;
         const responseHeaders = { ...details.responseHeaders };
         _dnrResponseHeaders(secureSessions.fromPartition(p), details, responseHeaders);
         _addMediaCorsHeaders(details, responseHeaders);
@@ -8577,6 +8620,9 @@ app.whenReady().then(async () => {
   // While all of Vex goes through one route, a session made later goes
   // through it too (a private window, a container, a panel, a burner).
   secureSessions.onSessionCreated(_coverWithAllRoute);
+  // Vex's own player is served to every session a tab can run in (main/media-viewer.js).
+  secureSessions.onSessionCreated((ses, partition) => _mediaViewer.wireSession(ses, partition));
+  _mediaViewer.wireSession(session.defaultSession, '');
   await applyStoredRoutings();
   createWindow();
   _profileGate.finish();
@@ -9457,6 +9503,7 @@ ipcMain.handle('identity:create', () => {
     try { wireMediaSnifferOnSession(ses); } catch {}
     // Header stripping + ad blocker, mirroring the private-window session.
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
       _paranoidSetCookie(details, rh);
@@ -9679,6 +9726,7 @@ ipcMain.handle('tor:create', async (event) => {
     try { ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false)); } catch {}
     try { ses.setPermissionCheckHandler(() => false); } catch {}
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
       _paranoidSetCookie(details, rh);
@@ -10037,6 +10085,7 @@ function _wireBrowsingSession(ses, partition) {
   // The built-in containers get theirs in createWindow.
   if (!BROWSING_SESSIONS.includes(partition)) {
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
       _addMediaCorsHeaders(details, responseHeaders);
@@ -10078,6 +10127,7 @@ function _wireEphemeralBrowsing(ses, tag) {
   attachGuestPreloads(ses);
   // Header stripping + ad blocker, as in the main session.
   ses.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
     const rh = { ...details.responseHeaders };
     // Per-site switches hold in a private window too: a site whose cookies
     // are off may not set any here either — they were ignored in private
