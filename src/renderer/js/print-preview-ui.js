@@ -342,6 +342,14 @@ const VexPrintPreview = {
     const o = this.s.o, show = (id, on) => { const el = this.$('#' + id); if (el) el.hidden = !on; };
     const real = o.dest !== this.PDF && o.dest !== this.SYSTEM;
     show('vpp-copies-row', real);
+    // A saved PDF cannot be made black and white here (Chromium's PDF output ignores a grayscale filter, measured in the real app); a printer can.
+    const colourSel = this.$('#vpp-colour');
+    if (colourSel) {
+      const pdf = o.dest === this.PDF;
+      if (pdf) { colourSel.value = 'color'; o.gray = false; }
+      colourSel.disabled = pdf;
+      colourSel.title = pdf ? 'Black and white applies when printing to a printer' : '';
+    }
     show('vpp-pages-text-row', o.pagesMode === 'custom');
     show('vpp-percent-row', o.scaleMode === 'percent');
     show('vpp-margin-row', o.marginMode === 'custom');

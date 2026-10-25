@@ -20,8 +20,8 @@
 // same way and leaves nothing behind: the simplified page is a data: address, never a temp file.
 //
 // Limits worth knowing (they are said in the window too):
-//   * Colour or black and white for a PDF is a CSS grayscale filter on the page while it is rendered, which
-//     makes Chromium draw the page as a picture (the file is larger and its text cannot be selected).
+//   * Black and white is honoured by a real print job (Chromium's own colour setting) but not by a saved PDF: Chromium's PDF output
+//     ignores a grayscale filter (measured in the real app, 2026-10-25), so the window disables the choice for Save as PDF.
 //   * A real print job goes through Chromium's own print settings. It honours paper, orientation, margins, scale,
 //     copies, pages, pages per sheet, background and colour. Its header and footer are Chromium's pair
 //     (title and address you can set; the date and the page numbers come with them).

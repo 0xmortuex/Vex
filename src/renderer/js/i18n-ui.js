@@ -10139,7 +10139,7 @@ const VexI18nUI = {
       'Keeps the article and drops menus, ads and other clutter.': 'Makaleyi korur; menüleri, reklamları ve diğer karmaşayı çıkarır.',
       'This page is already in reading mode, or reading mode is not available.': 'Bu sayfa zaten okuma kipinde ya da okuma kipi kullanılamıyor.',
       'Headers and footers need a margin.': 'Üst ve alt bilgi için kenar boşluğu gerekir.',
-      'Save as PDF…': 'PDF olarak kaydet…',
+      'Save as PDF…': 'PDF olarak kaydet…', 'Black and white applies when printing to a printer': 'Siyah beyaz, bir yazıcıya yazdırırken uygulanır',
       'Continue in the Windows dialog': 'Windows penceresinde devam et',
       'Tor tab: nothing about this print is kept': 'Tor sekmesi: bu yazdırmayla ilgili hiçbir şey saklanmaz',
       'Private tab: nothing about this print is kept': 'Gizli sekme: bu yazdırmayla ilgili hiçbir şey saklanmaz',
