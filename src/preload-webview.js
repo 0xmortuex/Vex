@@ -56,8 +56,10 @@ if (typeof location !== 'undefined' && location.protocol === 'vex-files:') {
     let lastTheme = null;
     ipcRenderer.on('folderview:theme', (_event, payload) => { lastTheme = payload; for (const fn of listeners) { try { fn(payload); } catch (err) { console.error('[Folder browser] theme listener failed:', err); } } });
     const ask = (channel) => (request) => ipcRenderer.invoke(channel, request);
+    // These channels take no argument at all: an invoke with an undefined one is a payload of one value and the schema refuses it.
+    const ask0 = (channel) => () => ipcRenderer.invoke(channel);
     contextBridge.exposeInMainWorld('vexFolderHost', {
-      list: ask('folderview:list'), stat: ask('folderview:stat'), ping: ask('folderview:ping'), places: ask('folderview:places'), thumb: ask('folderview:thumb'),
+      list: ask0('folderview:list'), stat: ask('folderview:stat'), ping: ask0('folderview:ping'), places: ask0('folderview:places'), thumb: ask('folderview:thumb'),
       preview: ask('folderview:preview'), sizeStart: ask('folderview:size-start'), sizePoll: ask('folderview:size-poll'), sizeCancel: ask('folderview:size-cancel'),
       external: ask('folderview:external'), reveal: (request) => ipcRenderer.invoke('folderview:reveal', request), mkdir: ask('folderview:mkdir'), rename: ask('folderview:rename'),
       trash: ask('folderview:trash'), copy: ask('folderview:copy'), drag: ask('folderview:drag'), plainList: () => ipcRenderer.invoke('folderview:plain-list'),
