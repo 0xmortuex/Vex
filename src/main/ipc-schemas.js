@@ -352,6 +352,21 @@ define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
 define('page:save', [integer, string(10), optional(string(500))]);
 define('page:capture-full', [integer]);
+// Vex's own print preview (main/print-preview.js): the page by its tab id, then the preview by the token main
+// handed out. The options are checked again in main; this bounds their shape.
+const previewToken = value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
+const previewOptions = shape({
+  dest: string(256), copies: integer, perSheet: integer, landscape: boolean, paper: string(20), background: boolean, gray: boolean,
+  pages: shape({ mode: oneOf(['all', 'current', 'custom']), text: optional(string(1000)), current: optional(integer) }),
+  scale: shape({ mode: oneOf(['fit', 'percent']), percent: optional(finiteNumber) }),
+  margins: shape({ mode: oneOf(['default', 'none', 'custom']), top: optional(finiteNumber), right: optional(finiteNumber), bottom: optional(finiteNumber), left: optional(finiteNumber) }),
+  headerFooter: shape({ title: optional(boolean), url: optional(boolean), date: optional(boolean), pages: optional(boolean) }),
+});
+define('printpreview:open', [integer]);
+define('printpreview:render', [previewToken, previewOptions, optional(boolean)]);
+define('printpreview:print printpreview:save-pdf', [previewToken, previewOptions]);
+define('printpreview:simplify', [previewToken, optional(string(1500000))]);
+define('printpreview:close', [previewToken]);
 // Archive library (main/archive-library.js): the tab to keep and the text read
 // from it; a saved copy is named by its id.
 const archiveId = value => typeof value === 'string' && /^[a-f0-9]{16}$/.test(value);

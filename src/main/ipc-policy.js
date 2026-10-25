@@ -16,6 +16,8 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle',
   // A page saved or captured by its id: only one of the asking window's own
   // (security scan L1).
   'page:save', 'page:capture-full', 'pagearchive:save',
+  // Vex's own print preview names the page in front by its id (main/print-preview.js); the other channels name the preview.
+  'printpreview:open',
   // A picture for the AI, fetched through that page's own session (main.js).
   'image:for-ai']);
 // siterules:set: a private window starts with an empty list, and saving it
@@ -74,6 +76,7 @@ const UI_ONLY_CHANNELS = new Set([
   'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind',
   'devext:vencord-pick', 'devext:vencord-status', 'devext:vencord-reload', 'devext:vencord-restore', 'devext:console-start', 'devext:console-stop', 'devext:console-clear', 'devext:console-list',
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
+  'printpreview:open', 'printpreview:render', 'printpreview:simplify', 'printpreview:print', 'printpreview:save-pdf', 'printpreview:close',
   'sources:resolve-doi', 'sources:resolve-id', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
   // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
   'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send', 'comms:bridge-status', 'comms:bridge-pick', 'comms:bridge-read', 'comms:bridge-forget', 'comms:status-write',

@@ -979,7 +979,22 @@ const WebviewManager = {
 
   // Print and View Page Source: Vex had neither — no command, no menu row,
   // and Ctrl+P / Ctrl+U did nothing (found 2026-09-29).
+  // Vex draws a print preview of its own (js/print-preview-ui.js, a late module); the plain Windows dialog is what
+  // the switch in Settings > Print preview falls back to, and what the preview's own "Windows print dialog…" uses.
   printPage(wv = this.getActiveWebview()) {
+    if (typeof VexPrintPreview === 'undefined' && typeof VexBoot !== 'undefined' && !VexBoot.marks.settled) {
+      // The preview is still loading (right after start-up): wait for it, then try again.
+      VexBoot.whenSettled().then(() => this.printPage(wv));
+      return;
+    }
+    if (typeof VexPrintPreview !== 'undefined' && VexPrintPreview.enabled()) {
+      VexPrintPreview.open(wv).catch(err => window.showToast?.('Could not print: ' + ((err && err.message) || err), 'error'));
+      return;
+    }
+    this.systemPrint(wv);
+  },
+
+  systemPrint(wv = this.getActiveWebview()) {
     if (!wv || typeof wv.print !== 'function') { window.showToast?.('Open a page to print first'); return; }
     // A page named "site - title - date" when that extra is on (js/tabs-nav.js): the name Windows offers for the PDF.
     const named = typeof VexTabsNav !== 'undefined' ? VexTabsNav.namePrintJob(wv).catch(err => { window.VexProblems?.note('Print', 'Could not name the printout', err); return null; }) : Promise.resolve(null);

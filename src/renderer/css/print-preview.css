@@ -1,0 +1,191 @@
+/* === Vex print preview ======================================================
+ *
+ * A full-window layer under the toolbar (js/print-preview-ui.js): the pages as
+ * they will print on a neutral desk on the left, the options in a column on the
+ * right. Calm and flat like the AI panel: one hairline border, one accent, no
+ * gradients and no blur. Every colour is a theme token (--bg, --bg-2, --surface,
+ * --border, --text, --primary, --danger ...) so it follows the colour theme and
+ * the browser look; type is the theme's own font; sizes scale with --vex-density.
+ * Only the sheet of paper is always white, because paper is.
+ */
+
+.vpp-overlay {
+  --vpp-pad: calc(14px * var(--vex-density, 1));
+  --vpp-ctl: 30px;
+  --vpp-r: var(--vex-radius-lg, 10px);
+  --vpp-r-sm: var(--vex-radius-md, 6px);
+  --vpp-desk: color-mix(in srgb, var(--text) 9%, var(--bg));
+  --vpp-soft: color-mix(in srgb, var(--text) 5%, var(--bg-2));
+  /* Secondary text is the theme's text, softened, not the theme's grey: that grey reads below 4.5:1 on a card in several themes. */
+  --text-muted: color-mix(in srgb, var(--text) 88%, var(--bg-2));
+  --vpp-line: color-mix(in srgb, var(--text) 26%, var(--bg-2));
+  position: fixed; left: 0; right: 0; bottom: 0; top: var(--ai-top, 0px);
+  z-index: 1100;
+  display: flex; flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--vex-font-base);
+  font-size: 13.5px;
+}
+html[data-vex-scale] .vpp-overlay { top: calc(var(--ai-top, 0px) / var(--vex-ui-scale, 1)); }
+.vpp-overlay[hidden] { display: none; }
+.vpp-overlay *, .vpp-overlay *::before, .vpp-overlay *::after { box-sizing: border-box; }
+html body .vpp-overlay :is(button, input, select, textarea) { font-family: inherit !important; }
+.vpp-overlay ::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
+
+/* ---------- header ---------------------------------------------------------- */
+
+.vpp-head {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  padding: calc(8px * var(--vex-density, 1)) var(--vpp-pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.vpp-mark { display: inline-flex; color: var(--primary); }
+.vpp-title { margin: 0; font-family: var(--vex-font-display, inherit); font-size: 15px; font-weight: 600; line-height: 1.25; }
+.vpp-doc { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 12.5px; }
+.vpp-count { flex: none; color: var(--text); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.vpp-count:not(:empty)::before { content: "\00b7"; margin-right: 10px; color: var(--text-muted); }
+.vpp-spacer { flex: 1; }
+.vpp-private {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px;
+  min-height: 24px; border-radius: 999px; font-size: 11.5px;
+  color: var(--text); background: color-mix(in srgb, var(--primary) 13%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--primary) 26%, var(--border));
+}
+.vpp-private[hidden] { display: none; }
+
+.vpp-icon-btn {
+  width: var(--vpp-ctl); height: var(--vpp-ctl); min-width: 28px; flex: none; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; color: var(--text-muted);
+  border-radius: var(--vpp-r-sm); cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.vpp-icon-btn:hover:not(:disabled) { background: var(--vex-hover-fill, var(--tab-hover)); color: var(--text); }
+.vpp-icon-btn:disabled { opacity: 0.45; cursor: default; }
+.vpp-icon-btn.is-text { width: auto; padding: 0 10px; gap: 6px; font-size: 12.5px; color: var(--text); }
+
+/* ---------- body: desk + options -------------------------------------------- */
+
+.vpp-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
+
+.vpp-desk { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--vpp-desk); }
+.vpp-deskbar {
+  flex: none; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 6px var(--vpp-pad); border-bottom: 1px solid var(--border); background: var(--bg-2);
+}
+.vpp-pageno { margin-right: auto; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text); }
+.vpp-zoomval { min-width: 46px; text-align: center; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text); }
+
+.vpp-scroll {
+  flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
+  padding: calc(22px * var(--vex-density, 1)) var(--vpp-pad) 40px;
+  display: flex; flex-direction: column; align-items: center; gap: calc(16px * var(--vex-density, 1));
+}
+.vpp-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.vpp-scroll::-webkit-scrollbar-track { background: transparent; }
+.vpp-scroll::-webkit-scrollbar-thumb { background: var(--vex-border-medium, var(--border)); border-radius: 5px; }
+.vpp-scroll::-webkit-scrollbar-thumb:hover { background: var(--vex-accent, var(--primary)); }
+.vpp-scroll.is-busy .vpp-sheet { opacity: 0.55; }
+
+/* A sheet of paper: always white, with the page drawn on it. */
+.vpp-sheet {
+  position: relative; flex: none; background: #fff; color: #111;
+  box-shadow: 0 1px 2px var(--vex-shadow-color, rgba(0, 0, 0, 0.25)), 0 6px 18px color-mix(in srgb, var(--vex-shadow-color, #000) 55%, transparent);
+  transition: opacity 0.15s ease;
+}
+.vpp-sheet canvas { display: block; width: 100%; height: 100%; }
+.vpp-sheet-no {
+  position: absolute; left: 50%; bottom: -22px; transform: translateX(-50%);
+  font-size: 11.5px; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums;
+}
+.vpp-sheet { margin-bottom: 14px; }
+
+/* What is happening: preparing, or why it failed. */
+.vpp-state {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
+  width: min(420px, calc(100% - 40px)); padding: 18px 20px; text-align: center;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--vpp-r);
+  box-shadow: 0 8px 24px var(--vex-shadow-color, color-mix(in srgb, var(--text) 25%, transparent));
+  display: flex; flex-direction: column; align-items: center; gap: 10px; line-height: 1.5;
+}
+.vpp-state[hidden] { display: none; }
+.vpp-state.is-bar { top: 0; transform: translateX(-50%); width: auto; max-width: calc(100% - 40px); margin-top: 52px; padding: 6px 14px; border-radius: 999px; flex-direction: row; font-size: 12.5px; }
+.vpp-state-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.vpp-spin {
+  width: 16px; height: 16px; flex: none; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--primary) 25%, var(--border)); border-top-color: var(--primary);
+  animation: vpp-turn 0.8s linear infinite;
+}
+@keyframes vpp-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .vpp-spin { animation: none; border-top-color: color-mix(in srgb, var(--primary) 25%, var(--border)); border-right-color: var(--primary); } .vpp-sheet { transition: none; } }
+html[data-reduce-motion] .vpp-spin { animation: none; border-top-color: color-mix(in srgb, var(--primary) 25%, var(--border)); border-right-color: var(--primary); }
+html[data-reduce-motion] .vpp-sheet { transition: none; }
+
+/* ---------- options ---------------------------------------------------------- */
+
+.vpp-options { min-height: 0; display: flex; flex-direction: column; background: var(--bg-2); border-left: 1px solid var(--border); }
+.vpp-form { flex: 1; min-height: 0; overflow-y: auto; padding: var(--vpp-pad); display: flex; flex-direction: column; gap: calc(14px * var(--vex-density, 1)); }
+.vpp-group { display: flex; flex-direction: column; gap: 8px; padding-bottom: calc(14px * var(--vex-density, 1)); border-bottom: 1px solid var(--border); }
+.vpp-group:last-child { border-bottom: none; padding-bottom: 0; }
+.vpp-group-title { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.vpp-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 8px; }
+.vpp-row[hidden], .vpp-sub[hidden] { display: none; }
+.vpp-row > label, .vpp-lbl { font-size: 12.5px; color: var(--text); }
+.vpp-sub { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; align-items: center; }
+.vpp-sub > :first-child { grid-column: 2; }
+.vpp-fine { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--text-muted); }
+
+.vpp-overlay :is(select, input[type="text"], input[type="number"]) {
+  width: 100%; height: var(--vpp-ctl); padding: 0 8px; font-size: 12.5px;
+  color: var(--text); background: var(--surface); border: 1px solid var(--vpp-line); border-radius: var(--vpp-r-sm);
+}
+.vpp-overlay select { padding-right: 4px; }
+.vpp-overlay :is(select, input[type="text"], input[type="number"]):hover:not(:disabled) { border-color: var(--primary); }
+.vpp-overlay :is(select, input):disabled { opacity: 0.5; }
+.vpp-overlay input[aria-invalid="true"] { border-color: var(--danger); }
+.vpp-overlay input::placeholder { color: var(--text-muted); }
+.vpp-margins { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.vpp-margins label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--text-muted); }
+
+.vpp-check { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: 12.5px; cursor: pointer; }
+.vpp-check input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--primary); }
+.vpp-check.is-off { opacity: 0.55; cursor: default; }
+.vpp-checks-nest { display: flex; flex-direction: column; padding-left: 24px; }
+.vpp-error { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--danger); }
+.vpp-error[hidden] { display: none; }
+.vpp-overlay .vpp-error { color: color-mix(in srgb, var(--danger) 80%, var(--text)); }
+
+/* ---------- buttons ----------------------------------------------------------- */
+
+.vpp-actions {
+  flex: none; display: flex; flex-direction: column; gap: 8px;
+  padding: var(--vpp-pad); border-top: 1px solid var(--border); background: var(--bg-2);
+}
+.vpp-actions-row { display: flex; gap: 8px; }
+.vpp-btn {
+  min-height: 32px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-size: 13px; line-height: 1.2; cursor: pointer;
+  color: var(--text); background: var(--surface); border: 1px solid var(--vpp-line); border-radius: var(--vpp-r-sm);
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+.vpp-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--vex-hover-fill, var(--tab-hover)); }
+.vpp-btn:disabled, .vpp-btn[aria-busy="true"] { opacity: 0.6; cursor: default; }
+.vpp-btn.is-primary { flex: 1; color: var(--on-primary, #fff); background: var(--primary); border-color: var(--primary); font-weight: 600; }
+.vpp-btn.is-primary:hover:not(:disabled) { background: var(--primary-hover, var(--primary)); border-color: var(--primary-hover, var(--primary)); }
+.vpp-btn[hidden] { display: none; }
+.vpp-status { margin: 0; min-height: 1.4em; font-size: 12px; line-height: 1.4; color: var(--text); }
+.vpp-status.is-error { color: color-mix(in srgb, var(--danger) 80%, var(--text)); }
+
+/* ---------- a page that is a PDF ---------------------------------------------- */
+
+.vpp-pdf { margin: auto; max-width: 440px; padding: 28px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; line-height: 1.55; }
+.vpp-pdf-ico { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; color: var(--primary); background: var(--vex-accent-glow); }
+
+/* ---------- narrow windows ------------------------------------------------------ */
+
+@media (max-width: 820px) {
+  .vpp-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 52%); }
+  .vpp-options { border-left: none; border-top: 1px solid var(--border); }
+}

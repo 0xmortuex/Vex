@@ -15,7 +15,8 @@ const { app, BrowserWindow, session, ipcMain, protocol, globalShortcut, Menu, ne
 // appendSwitch('enable-features', …) call.
 //
 // PrintPreview: see above — Electron has no print preview to turn on, so
-// printing shows the Windows system print dialog either way.
+// printing shows the Windows system print dialog either way. Vex draws a
+// preview of its own instead (src/main/print-preview.js, js/print-preview-ui.js).
 //
 // HardwareSecureDecryption: use the MediaFoundation-based Widevine CDM (the
 // "Google Widevine Windows CDM" component, installed but idle by default in
@@ -3250,6 +3251,14 @@ const _pageSave = require('./main/page-save').createPageSave({
 ipcMain.handle('page:save', async (_e, wcId, format, title) => {
   try { return await _pageSave.save(wcId, format, title, _askingWindow(_e)); }
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not save the page' }; }
+});
+
+// Vex's own print preview (src/main/print-preview.js): the page rendered with printToPDF and shown by the
+// interface, then printed with the same choices or saved where the person picks.
+require('./main/print-preview').registerPrintPreview({
+  ipcMain, dialog, webContents, BrowserWindow, app,
+  windowFor: _askingWindow, partitionOf: (wc) => secureSessions.partitionOf(wc),
+  downloadFolder: _chosenDownloadFolder, safeFileName: require('./main/page-save').safeFileName,
 });
 
 // Archive library: pages you chose to keep, in a folder Vex manages under the
