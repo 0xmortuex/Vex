@@ -257,8 +257,6 @@ function wireDownloadsOnSession(ses, tag) {
   if (!ses || ses.__vexDownloadsWired) return;
   ses.__vexDownloadsWired = true;
   ses.on('will-download', (event, item, contents) => {
-    // A file: document a viewer took over (main/doc-viewers.js takeDownload, run first on this session) is not a download.
-    if (event.defaultPrevented) return;
     let owner = contents ? secureSessions.owner(contents) : null;
     // A retry made through the session itself has no page.
     const partition = contents ? secureSessions.partitionOf(contents) : secureSessions.partitionOf({ session: ses });

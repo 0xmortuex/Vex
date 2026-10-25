@@ -110,25 +110,28 @@ describe('handing a navigation to the viewer', () => {
     expect(run(details()).took).toBe(true);
   });
 
-  it('sends a file: download to the viewer and cancels the download', async () => {
-    const calls = { prevented: 0, loaded: null };
-    guest.loadURL = (u) => { calls.loaded = u; };
-    const event = { preventDefault: () => { calls.prevented++; } };
-    const item = { getURL: () => 'file:///C:/Users/a/Homework%20one.docx' };
-    expect(registry.takeDownload(event, item, guest)).toBe(true);
-    expect(calls.prevented).toBe(1);
-    await new Promise((r) => setImmediate(r));
-    expect(calls.loaded).toBe(ov.viewerUrl('file:///C:/Users/a/Homework%20one.docx'));
-    // a file that is not one of ours, a web download and a window that is not a tab are left alone
-    expect(registry.takeDownload(event, { getURL: () => 'file:///C:/x/setup.exe' }, guest)).toBe(false);
-    expect(registry.takeDownload(event, { getURL: () => 'https://example.org/a.docx' }, guest)).toBe(false);
-    expect(registry.takeDownload(event, item, { id: 3, isDestroyed: () => false })).toBe(false);
-    expect(calls.prevented).toBe(1);
+  it('does not take a file: download over: cancelling one and loading a page froze the packaged app\'s main process (2026-10-25)', () => {
+    expect(registry.takeDownload).toBeUndefined();
+    expect(fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'main', 'office-viewer.js'), 'utf8')).not.toMatch(/will-download/);
+    expect(fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'main', 'doc-viewers.js'), 'utf8')).not.toMatch(/takeDownload/);
   });
-  it('sends a click on a file: link to the viewer', () => {
+  it('the window sends an office file: address to the viewer, written exactly as main writes it, and leaves every other address alone', () => {
+    const { WebviewManager } = require('../../src/renderer/js/webview.js');
+    for (const file of ['file:///C:/Users/a/Homework%20one.docx', 'file:///C:/b/Sheet.XLSX#sheet2', 'file:///C:/b/deck.pptx?x=1', 'file:///C:/b/book.epub']) {
+      const viewer = WebviewManager.officeAddress(file);
+      expect(viewer).toBe(ov.viewerUrl(file));
+      expect(WebviewManager.officeOriginal(viewer)).toBe(file);
+      expect(WebviewManager.viewerAddress(file)).toBe(viewer);   // and every load site calls the chain
+    }
+    for (const other of ['file:///C:/x/setup.exe', 'file:///C:/a.docx.exe', 'https://example.org/a.docx', 'vex://start', 'file:///C:/docx']) expect(WebviewManager.officeAddress(other)).toBe(other);
+    expect([...WebviewManager.OFFICE_FILE_EXTENSIONS].sort()).toEqual([...ov.EXTENSIONS].sort());
+  });
+  it('sends a click on a file: link to the viewer, once the event has finished', async () => {
     const calls = { prevented: 0, loaded: null };
     guest.loadURL = (u) => { calls.loaded = u; };
     expect(registry.takeNavigation({ preventDefault: () => { calls.prevented++; } }, 'file:///C:/a/b.xlsx', guest)).toBe(true);
+    expect(calls.loaded).toBe(null);
+    await new Promise((r) => setImmediate(r));
     expect(calls.loaded).toBe(ov.viewerUrl('file:///C:/a/b.xlsx'));
     expect(registry.takeNavigation({ preventDefault: () => {} }, 'file:///C:/a/b.txt', guest)).toBe(false);
   });

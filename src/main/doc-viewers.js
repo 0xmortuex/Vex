@@ -13,7 +13,7 @@
 //     wire?(session, partition)                     // serve the viewer's own scheme on that session
 //     attachments?() -> boolean                     // also take answers the server marked "attachment" (default: no, a site that says
 //                                                   // "save this" is believed)
-//     fileTypes?: RegExp                            // file: addresses the viewer takes (takeDownload / takeNavigation)
+//     fileTypes?: RegExp                            // file: addresses the viewer takes from a link click (takeNavigation)
 //   })
 //
 // What the registry does for every kind, so a viewer cannot get it wrong:
@@ -27,9 +27,9 @@
 //     SAME session the tab runs in, so a private or Tor tab never fetches through another session;
 //   * "Download instead" / "Open in the browser's own view" mark one navigation as not to be caught (allowOnce).
 //
-// Three seams: take(details, callback) is the one line each onHeadersReceived handler in main.js starts with; takeDownload(event, item,
-// contents) runs first on a session's will-download (a file: address Chromium turned into a download goes to its viewer instead);
-// takeNavigation(event, url, contents) is the same for a link click to a file: address (will-navigate).
+// Two seams: take(details, callback) is the one line each onHeadersReceived handler in main.js starts with; takeNavigation(event, url, contents) is
+// for a link click to a file: address (will-navigate). A file: address typed, bookmarked or restored is sent to its viewer by the window (js/webview.js
+// viewerAddress), before anything loads.
 
 const BYPASS_MS = 20000;
 
@@ -122,24 +122,8 @@ function createDocViewers(deps) {
     return null;
   }
 
-  // Called from a session's will-download. A file: download is sent to its viewer: the download is cancelled (event.preventDefault())
-  // and the tab loads the viewer page. The Downloads panel's listener checks event.defaultPrevented and leaves it alone.
-  function takeDownload(event, item, contents) {
-    let url = '';
-    try { url = item.getURL(); } catch { return false; }
-    if (!/^file:\/\//i.test(url)) return false;
-    if (!contents || contents.isDestroyed() || !isGuest(contents)) return false;
-    if (consumeBypass(contents.id, url)) return false;
-    const e = fileViewerFor(url);
-    if (!e) return false;
-    event.preventDefault();
-    const page = e.page(url, '');
-    // After this event has finished: loading from inside it would run before the cancelled download is gone.
-    setImmediate(() => { try { if (!contents.isDestroyed()) contents.loadURL(page); } catch (err) { console.error('[Viewers] could not show ' + url + ' in "' + e.id + '":', err.message); } });
-    return true;
-  }
-
-  // A link click to a file: address inside a tab (will-navigate): the same, without the download ever starting.
+  // A link click to a file: address inside a tab (will-navigate): the viewer page is loaded once the event has finished. (Cancelling a file: DOWNLOAD and
+  // loading the viewer from main froze the packaged app's main process, so a file the window did not send to its viewer is simply a download.)
   function takeNavigation(event, url, contents) {
     if (!/^file:\/\//i.test(String(url || ''))) return false;
     if (!contents || contents.isDestroyed() || !isGuest(contents)) return false;
@@ -147,7 +131,8 @@ function createDocViewers(deps) {
     const e = fileViewerFor(url);
     if (!e) return false;
     event.preventDefault();
-    contents.loadURL(e.page(url, ''));
+    const page = e.page(url, '');
+    setImmediate(() => { try { if (!contents.isDestroyed()) contents.loadURL(page); } catch (err) { console.error('[Viewers] could not show ' + url + ' in "' + e.id + '":', err.message); } });
     return true;
   }
 
@@ -163,7 +148,7 @@ function createDocViewers(deps) {
     }
   }
 
-  return { register, take, takeDownload, takeNavigation, wireSession, viewerFor, allowOnce, consumeBypass, isGuest, entries: () => entries.slice(), ids: () => entries.map((e) => e.id), headerValue };
+  return { register, take, takeNavigation, wireSession, viewerFor, allowOnce, consumeBypass, isGuest, entries: () => entries.slice(), ids: () => entries.map((e) => e.id), headerValue };
 }
 
 module.exports = { createDocViewers, createDocViewerRegistry: createDocViewers, headerValue, BYPASS_MS };

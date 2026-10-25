@@ -9,8 +9,8 @@
 //   * A web address whose answer is one of these types (and is not marked "attachment") is caught in the session's
 //     onHeadersReceived by the viewer registry (main/doc-viewers.js take) and turned into a redirect to
 //     vex-office://view/?u=<the file's address> , so the tab makes one ordinary navigation.
-//   * A file: address that Chromium turned into a download (it cannot show these) is caught in will-download and sent to the viewer;
-//     a link click to one is caught in will-navigate. (registry.takeDownload / takeNavigation)
+//   * A file: address (typed, bookmarked, restored) is sent to the viewer by the window before anything loads (js/webview.js officeAddress); a link
+//     click to one is caught in will-navigate (registry.takeNavigation). Main never cancels a download to load a page: that froze the main process.
 //   * The viewer page is served by this module (protocol.handle on every session). The file is fetched through
 //     vex-office://view/doc?u=... , which main answers with session.fetch of THE SAME SESSION the tab runs in: a file behind a login uses
 //     the tab's own cookies; a private or Tor tab's file goes through that tab's own session and proxy; nothing is ever fetched
@@ -204,8 +204,6 @@ function createOfficeViewer(deps) {
     if (!ses || !ses.protocol || wired.has(ses)) return;
     wired.add(ses);
     ses.protocol.handle(SCHEME, makeHandler(ses, partition));
-    // First in line on this session's will-download: a file: document goes to the viewer instead of the Downloads panel.
-    if (typeof ses.prependListener === 'function') ses.prependListener('will-download', (event, item, contents) => { deps.registry.takeDownload(event, item, contents); });
   }
 
   return { SCHEME, HOST, entry, wireSession, makeHandler, roots, servePage, serveStatic, serveDocument };

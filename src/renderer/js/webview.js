@@ -95,6 +95,24 @@ const WebviewManager = {
   // twin in main/media-viewer.js (parseViewerUrl) does the same on the other side (a test holds them equal). A file: media address is
   // sent to the player here, before anything loads; a web one is caught by main (a redirect, main/doc-viewers.js).
   // VexMediaViewerOff is set by js/media-viewer-host.js when it is switched off.
+  // Office documents and e-books on this computer go to the viewer here, before anything loads. (Main used to cancel the download Chromium made of
+  // such a file and load the viewer instead: in the packaged app that froze Vex's main process, measured 2026-10-25.) OFFICE_FILE_EXTENSIONS is the twin of
+  // EXTENSIONS in main/office-viewer.js; a test holds them equal.
+  OFFICE_FILE_EXTENSIONS: ['docx', 'docm', 'dotx', 'dotm', 'doc', 'dot', 'xlsx', 'xlsm', 'xltx', 'xltm', 'xls', 'xlt', 'pptx', 'pptm', 'ppsx', 'ppsm', 'potx', 'ppt', 'pps', 'pot', 'odt', 'ott', 'ods', 'ots', 'odp', 'otp', 'rtf', 'epub'],
+  officeAddress(url) {
+    const s = String(url || '');
+    const m = /^file:\/\/[^?#]*\.([a-z0-9]+)(?:[?#]|$)/i.exec(s);
+    if (!m || !this.OFFICE_FILE_EXTENSIONS.includes(m[1].toLowerCase()) || this._officeViewerOff()) return s;
+    const at = s.indexOf('#');
+    return 'vex-office://view/?u=' + encodeURIComponent(at < 0 ? s : s.slice(0, at)) + (at < 0 ? '' : s.slice(at));
+  },
+  // The switch (js/office-viewer-host.js) is a late module: until it has run the saved choice is read from where it is kept, so a tab restored at start-up honours "off".
+  _officeViewerOff() {
+    if (typeof window !== 'undefined' && typeof window.VexOfficeViewer !== 'undefined' && typeof window.VexOfficeViewer.enabled === 'function') return !window.VexOfficeViewer.enabled();
+    try { const raw = JSON.parse(localStorage.getItem('vex.officeViewer.prefs') || 'null'); return !!raw && raw.enabled === false; }
+    catch (err) { console.warn('[Vex] the office viewer switch could not be read:', err && err.message); return false; }
+  },
+
   mediaAddress(url) {
     const s = String(url || '');
     if ((typeof window !== 'undefined' && window.VexMediaViewerOff) || !/^file:\/\/[^?#]*\.(?:mp4|m4v|webm|mkv|mov|ogv|mp3|m4a|aac|flac|ogg|oga|opus|wav|weba)(?:[?#]|$)/i.test(s)) return s;
@@ -276,7 +294,7 @@ const WebviewManager = {
   // viewer's page, anything else is returned as it came. Every load site calls this; a new viewer adds one mapper to the list.
   viewerAddress(url) {
     const s = String(url || '');
-    for (const map of [this.pdfAddress, this.docAddress, this.imageViewerAddress, this.mediaAddress]) {
+    for (const map of [this.pdfAddress, this.docAddress, this.imageViewerAddress, this.mediaAddress, this.officeAddress]) {
       const to = map.call(this, s);
       if (to !== s) return to;
     }
