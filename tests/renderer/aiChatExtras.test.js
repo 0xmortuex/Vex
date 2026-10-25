@@ -86,7 +86,8 @@ describe('a picture in the box', () => {
     const send = vi.spyOn(AIPanel, 'sendMessage').mockResolvedValue();
     vi.spyOn(AIPanel, 'isOpen').mockReturnValue(true);
     AIPanel._attachImage(new File([new Uint8Array([137, 80, 78, 71])], 'shot.png', { type: 'image/png' }));
-    await new Promise(r => setTimeout(r, 20));
+    // The picture is read by a FileReader, which on a loaded runner took longer than a fixed 20 ms (CI run 40181090478): wait for it, up to 3 s.
+    for (let i = 0; i < 150 && !document.getElementById('ai-attach'); i++) await new Promise(r => setTimeout(r, 20));
     expect(document.getElementById('ai-attach')).not.toBeNull();
     document.getElementById('ai-input').value = '';
     await AIPanel._sendChat();
