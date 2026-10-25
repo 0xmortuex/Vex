@@ -219,3 +219,6 @@ body.iv {
   .iv-btn[aria-pressed="true"] { outline: 2px solid Highlight; }
   .iv-crop { outline-color: Highlight; }
 }
+
+/* A read that takes a while over a picture already on screen: the words sit on a veil, the old picture stays behind. */
+.iv-state[data-kind="loading"] { background: color-mix(in srgb, var(--iv-bg) 72%, transparent); }

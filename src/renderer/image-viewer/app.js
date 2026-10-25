@@ -23,7 +23,7 @@ const S = {
   turn: 0, flipX: false, flipY: false, zoom: 1, pan: { x: 0, y: 0 }, mode: 'fit',
   checker: false, info: false, edit: false, crop: null,
   urls: [], index: -1, slide: 0, slideTimer: 0, slideSeconds: 5,
-  token: 0, abort: null,
+  token: 0, abort: null, shown: false, loadingTimer: 0,
 };
 
 const stage = $('#iv-stage'), frame = $('#iv-frame'), img = $('#iv-img'), cropBox = $('#iv-crop');
@@ -80,14 +80,18 @@ const hideState = () => { stateBox.hidden = true; stateBox.replaceChildren(); };
 
 const NEEDS_PICTURE = ['#iv-zoom-out', '#iv-zoom-in', '#iv-zoom-input', '#iv-fit', '#iv-actual', '#iv-fill', '#iv-rot-left', '#iv-rot-right', '#iv-flip-h', '#iv-flip-v',
   '#iv-checker', '#iv-copy', '#iv-edit-btn', '#iv-info-btn'];
-function setReady(on) {
+// keepStage: the picture on screen stays while the next one is read (a slideshow does not flash), unless it is being replaced by an error.
+function setReady(on, keepStage) {
   S.ready = on;
   for (const id of NEEDS_PICTURE) { const n = $(id); if (n) n.disabled = !on; }
   document.body.dataset.state = on ? 'ready' : 'idle';
-  stage.hidden = !on;
+  stage.hidden = !on && !(keepStage && S.shown);
+  if (on) S.shown = true;
 }
 
 function failure(message) {
+  clearTimeout(S.loadingTimer);
+  S.shown = false;
   setReady(false);
   document.title = S.name || t('Picture');
   $('#iv-title').textContent = S.name || t('Picture');
@@ -108,8 +112,11 @@ async function load(original) {
   document.title = S.name;
   $('#iv-title').textContent = S.name;
   $('#iv-sub').textContent = '';
-  setReady(false);
-  showState('loading', t('Opening the picture'), '');
+  const keep = S.shown;
+  setReady(false, keep);
+  clearTimeout(S.loadingTimer);
+  // Only a read that takes a moment is announced: a picture next door opens without a flash.
+  S.loadingTimer = setTimeout(() => { if (token === S.token && !S.ready) showState('loading', t('Opening the picture'), ''); }, keep ? 300 : 0);
   try {
     const res = await fetch('/doc?u=' + encodeURIComponent(original), { signal: abort.signal, cache: 'no-store' });
     if (token !== S.token) return;
@@ -131,7 +138,7 @@ async function load(original) {
       got += value.length;
       if (token !== S.token) { reader.cancel().catch((err) => console.warn("[Image viewer] the old download could not be stopped:", err.message)); return; }
       const now = performance.now();
-      if (now - last > 120 && got > 262144) { last = now; showState('loading', t('Opening the picture'), total ? t('{got} of {total}', { got: formatBytes(got), total: formatBytes(total) }) : formatBytes(got)); }
+      if (now - last > 120 && got > 262144 && !stateBox.hidden) { last = now; showState('loading', t('Opening the picture'), total ? t('{got} of {total}', { got: formatBytes(got), total: formatBytes(total) }) : formatBytes(got)); }
     }
     if (!got) throw new Error(t('The file is empty'));
     let type = String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
@@ -157,6 +164,7 @@ async function load(original) {
     if (token !== S.token) return;
     await naturalSize();
     S.turn = 0; S.flipX = S.flipY = false; S.crop = null;
+    clearTimeout(S.loadingTimer);
     setReady(true);
     hideState();
     $('#iv-title').textContent = S.name;
