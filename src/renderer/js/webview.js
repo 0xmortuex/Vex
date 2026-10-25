@@ -1304,6 +1304,8 @@ const WebviewManager = {
   // Vex draws a print preview of its own (js/print-preview-ui.js, a late module); the plain Windows dialog is what
   // the switch in Settings > Print preview falls back to, and what the preview's own "Windows print dialog…" uses.
   printPage(wv = this.getActiveWebview()) {
+    // A PDF shown in Vex's own viewer prints the document's pages with its marks (the viewer's own print), never the viewer's page with its toolbar.
+    if (wv && this.pdfPage(wv)) { wv.send('pdfview:command', 'print'); return; }
     if (typeof VexPrintPreview === 'undefined' && typeof VexBoot !== 'undefined' && !VexBoot.marks.settled) {
       // The preview is still loading (right after start-up): wait for it, then try again.
       VexBoot.whenSettled().then(() => this.printPage(wv));
