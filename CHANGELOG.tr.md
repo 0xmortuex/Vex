@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v38.67.7 (2026-10-25) — Vex Eklenti Mağazası, Opera GX tarzı arayüz sesleri ve Tor ile karışmayan, tek tıkla Gizli pencere
+## v38.69.2 (2026-10-25) — Vex Eklenti Mağazası, Opera GX tarzı arayüz sesleri ve Tor ile karışmayan, tek tıkla Gizli pencere
 
 ### Yeni
 - **Vex Eklenti Mağazası.** 39 eklentilik elle seçilmiş bir raf (YouTube, gizlilik, koyu mod, geliştirici araçları, medya ve fazlası); Eklentiler menüsünden, Ayarlar > Eklentiler’den ya da Ctrl+K > Eklenti mağazasını aç ile açılır. Her kart, eklentinin Vex’te tam mı kısmen mi çalıştığını ve nedenini söyler; Ekle, eklentiyi gerçek kaynağından kurar: paket imzaları denetlenen Chrome Web Mağazası ya da yayıncının kendi GitHub’ı. Vex kopya barındırmaz; böylece geliştiricilerin lisansları ve güncellemeleri onlarda kalır. Ambient Light for YouTube, SponsorBlock, DeArrow, Return YouTube Dislike, Enhancer for YouTube, ImprovedTube, Dark Reader, Stylus, Refined GitHub ve daha fazlası var. Başka bir eklenti için aramaya herhangi bir Chrome Web Mağazası bağlantısı ya da kimliği yapıştırın. Deneyin: Ctrl+K, “eklenti mağazası” yazın, “ambient” arayın, Ekle.

@@ -1,6 +1,6 @@
 # Changelog
 
-## v38.67.7 (2026-10-25) — The Vex Extension Store, Opera GX-style interface sounds, and a one-click Incognito button that is no longer mixed up with Tor
+## v38.69.2 (2026-10-25) — The Vex Extension Store, Opera GX-style interface sounds, and a one-click Incognito button that is no longer mixed up with Tor
 
 ### New
 - **The Vex Extension Store.** A hand-picked shelf of 39 extensions (YouTube, privacy, dark mode, developer tools, media and more), open from the Extensions menu, Settings > Extensions, or Ctrl+K > Open the extension store. Every card says whether the extension works fully or partly in Vex and why, and Add installs it from its real source: the Chrome Web Store with the package signatures checked, or the publisher's own GitHub. Vex hosts no copies, so the developers' licences and updates stay theirs. It includes Ambient Light for YouTube, SponsorBlock, DeArrow, Return YouTube Dislike, Enhancer for YouTube, ImprovedTube, Dark Reader, Stylus, Refined GitHub and more. Paste any Chrome Web Store link or id into its search to add another one. Try: Ctrl+K, type "extension store", search "ambient", Add.
