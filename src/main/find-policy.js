@@ -18,6 +18,9 @@ const OWNS_FIND = [
   /(^|\.)docs\.google\.com$/i,
 ];
 
+// Vex's own image viewer (main/image-viewer.js) zooms the picture itself: Ctrl+= / Ctrl+- / Ctrl+0 are the viewer's while it has the focus.
+function isImageViewerUrl(url) { return /^vex-image:\/\/view\//i.test(String(url || '')); }
+
 function guestOwnsFind(url) {
   try {
     const { hostname, protocol } = new URL(url);
@@ -53,5 +56,5 @@ function handFindToPage(webview) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { guestOwnsFind, handFindToPage, OWNS_FIND };
+  module.exports = { guestOwnsFind, handFindToPage, isImageViewerUrl, OWNS_FIND };
 }

@@ -52,6 +52,13 @@ for (const file of ['src', 'workers', 'scripts', 'build'].flatMap(d => fs.exists
     const ref = match[2];
     if (/^(?:[a-z]+:|\/\/|#)/i.test(ref) || ref.includes('${')) continue;
     refCount++;
+    // The image viewer's page is served by main/image-viewer.js under its own roots (/css, /app and /icons.js).
+    if (ref.startsWith('/') && relative.replace(/\\/g, '/') === 'src/renderer/image-viewer/viewer.html') {
+      const roots = [['/css/', 'src/renderer/css/'], ['/app/', 'src/renderer/image-viewer/'], ['/icons.js', 'src/renderer/js/vex-icons.js']];
+      const hit = roots.find(([from]) => ref.startsWith(from));
+      if (!hit || !fs.existsSync(path.join(root, hit[1] + ref.slice(hit[0].length)))) failures.push(relative + ': missing ' + ref);
+      continue;
+    }
     if (!fs.existsSync(path.resolve(path.dirname(file), ref.split(/[?#]/)[0]))) failures.push(relative + ': missing ' + ref);
   }
   for (const match of source.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {

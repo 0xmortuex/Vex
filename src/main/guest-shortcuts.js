@@ -114,9 +114,11 @@ function comboOf(input) {
   return mods.join('+');
 }
 
-function shortcutFor(input, { ownsFind = false, wanted = null } = {}) {
+function shortcutFor(input, { ownsFind = false, ownsZoom = false, wanted = null } = {}) {
   if (!input || input.type !== 'keyDown') return null;
   const ctrl = input.control || input.meta;
+  // A document viewer of Vex's own (the image viewer) zooms the picture itself: the zoom keys are its own while it has the focus.
+  if (ownsZoom && ctrl && !input.alt && ['=', '+', '-', '_', '0'].includes(String(input.key || ''))) return null;
 
   const browserCombo = comboOf(input);
   if (Object.prototype.hasOwnProperty.call(BROWSER_KEYS, browserCombo)) {

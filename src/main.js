@@ -755,7 +755,7 @@ function handleBrowserShortcut(event, input, contents) {
   if (!win) return false;
   let url;
   try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
-  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), wanted: _guestWantedKeys }), contents.id);
+  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), ownsZoom: isImageViewerUrl(url), wanted: _guestWantedKeys }), contents.id);
   if (!hit) return false;
   win.webContents.send(hit.channel, ...(hit.args || []));
   event.preventDefault();
@@ -1420,6 +1420,8 @@ app.on('child-process-gone', (_e, d) => {
 // did-stop-loading wait (src/main/load-wait.js): the New Tab page's dom-ready
 // injections passed Node's 10-listener limit on every boot (walkthrough L13).
 app.on('web-contents-created', (_e, wc) => { if (wc.getType() === 'webview') require('./main/load-wait').shareLoadWait(wc); });
+// A link a page offers to a picture on this computer opens in Vex's image viewer (main/image-viewer.js watch()).
+app.on('web-contents-created', (_e, wc) => { _imageViewer.watch(wc); });
 app.on('web-contents-created', (_e, wc) => {
   // Only a Vex window may hold a <webview> (session-security.js, guardWebviews).
   secureSessions.guardWebviews(wc);
@@ -2515,6 +2517,41 @@ require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, window
 // Built-in PDF toolkit: merge, split, extract and rotate pages, all local with pdf-lib (main/pdf-toolkit.js).
 // The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
 require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), nativeImage });
+
+// Documents Vex shows with a page of its own (main/doc-viewers.js is the shared catch: one registry, one line in each
+// onHeadersReceived handler). The image viewer (main/image-viewer.js, pages in src/renderer/image-viewer) is the first entry;
+// a viewer for another kind of document is one more register() call in its own module.
+const _docViewers = require('./main/doc-viewers').createDocViewers({ owner: (contents) => secureSessions.owner(contents), log: (msg) => console.warn(msg) });
+let _imageViewerOn = true;
+function _imageViewerLook() {
+  const read = (key) => {
+    const file = getStorageFile(key);
+    if (!fs.existsSync(file)) return null;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return raw?.$vexStore === 1 ? raw.data : raw;
+  };
+  let theme = 'oxford', guiStyle = 'classic';
+  try { const t = read('theme'); if (typeof t === 'string') theme = t; } catch (err) { console.warn('[Image viewer] the saved theme could not be read:', err.message); }
+  try { const g = read('gui-style'); if (typeof g === 'string') guiStyle = g; } catch (err) { console.warn('[Image viewer] the saved look could not be read:', err.message); }
+  return { theme, guiStyle, lang: String(_readPersistString('vex.lang', 'en')) };
+}
+const _imageViewer = require('./main/image-viewer').createImageViewer({
+  rendererDir: path.join(__dirname, 'renderer'), docViewers: _docViewers, isEnabled: () => _imageViewerOn, look: _imageViewerLook,
+  log: (msg) => console.warn(msg),
+});
+require('./main/image-viewer').registerImageViewerIpc({
+  ipcMain, dialog, viewer: _imageViewer, docViewers: _docViewers, clipboard, nativeImage, shell,
+  windowFor: (e) => (secureSessions.owner(e.sender) || {}).win || null,
+  downloadsDir: () => app.getPath('downloads'),
+});
+ipcMain.handle('imageview:set-enabled', (_e, on) => { _imageViewerOn = !!on; return { ok: true, on: _imageViewerOn }; });
+// The view settings the viewer keeps (checkerboard, details panel, slideshow speed) live in its own page's storage, in each browsing session.
+ipcMain.handle('imageview:forget-settings', async () => {
+  try {
+    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-image://view', storages: ['localstorage'] });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
 
 // === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
 // Keys are made and kept here, encrypted like the vault, and only finished
@@ -7751,7 +7788,9 @@ app.on('before-quit', () => {
 
 // Register custom protocol BEFORE app ready
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } }
+  { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  // Vex's own image viewer page and the picture it reads (main/image-viewer.js).
+  { scheme: 'vex-image', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 // Where the window was last time, put on a screen that exists now (src/main/window-placement.js, T2-082).
@@ -7891,6 +7930,7 @@ function createWindow() {
 
   // Header stripping for webviews
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
     const responseHeaders = { ...details.responseHeaders };
     _dnrResponseHeaders(session.defaultSession, details, responseHeaders);
     _addMediaCorsHeaders(details, responseHeaders);
@@ -7921,6 +7961,7 @@ function createWindow() {
     const stripAllCsp = (partName === 'persist:discord');
 
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
       if (stripAllCsp && /^https:\/\/(?:[a-z0-9-]+\.)?discord\.com(?::443)?\//i.test(details.url) && details.resourceType === 'mainFrame') {
@@ -8259,6 +8300,7 @@ function createWindow() {
   try {
     for (const p of BROWSING_SESSIONS) {
       secureSessions.fromPartition(p).webRequest.onHeadersReceived((details, callback) => {
+        if (_docViewers.take(details, callback)) return;
         const responseHeaders = { ...details.responseHeaders };
         _dnrResponseHeaders(secureSessions.fromPartition(p), details, responseHeaders);
         _addMediaCorsHeaders(details, responseHeaders);
@@ -8577,6 +8619,9 @@ app.whenReady().then(async () => {
   // While all of Vex goes through one route, a session made later goes
   // through it too (a private window, a container, a panel, a burner).
   secureSessions.onSessionCreated(_coverWithAllRoute);
+  // Every document viewer serves its own page to every session a tab can run in (main/doc-viewers.js).
+  secureSessions.onSessionCreated((ses, partition) => _docViewers.wireSession(ses, partition));
+  _docViewers.wireSession(session.defaultSession, '');
   await applyStoredRoutings();
   createWindow();
   _profileGate.finish();
@@ -9457,6 +9502,7 @@ ipcMain.handle('identity:create', () => {
     try { wireMediaSnifferOnSession(ses); } catch {}
     // Header stripping + ad blocker, mirroring the private-window session.
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
       _paranoidSetCookie(details, rh);
@@ -9679,6 +9725,7 @@ ipcMain.handle('tor:create', async (event) => {
     try { ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false)); } catch {}
     try { ses.setPermissionCheckHandler(() => false); } catch {}
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
       _paranoidSetCookie(details, rh);
@@ -10037,6 +10084,7 @@ function _wireBrowsingSession(ses, partition) {
   // The built-in containers get theirs in createWindow.
   if (!BROWSING_SESSIONS.includes(partition)) {
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
       _addMediaCorsHeaders(details, responseHeaders);
@@ -10078,6 +10126,7 @@ function _wireEphemeralBrowsing(ses, tag) {
   attachGuestPreloads(ses);
   // Header stripping + ad blocker, as in the main session.
   ses.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
     const rh = { ...details.responseHeaders };
     // Per-site switches hold in a private window too: a site whose cookies
     // are off may not set any here either — they were ignored in private

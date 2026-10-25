@@ -635,6 +635,10 @@
       commands: ['pdf-highlight-save', 'pdf-highlights'], permissions: { reads: ['the passage you paste and the page number the PDF viewer shows, when you ask'], writes: ['your PDF highlights and, if you left it on, a PDF highlights note'], sends: [] } },
     { id: 'pdf-tools', title: 'PDF toolkit', group: 'PDF toolkit', maturity: 'new', storageKeys: ['vex.pdfTools.prefs'],
       commands: ['pdf-toolkit'], permissions: { reads: ['the PDF files you choose in the file picker', 'a signature picture you draw or type, kept in the window only while it is open'], writes: ['new PDF files where you choose to save them; the originals are never changed'], sends: [] } },
+    // Vex's own image viewer (src/renderer/image-viewer, main/image-viewer.js, js/image-viewer-host.js). It replaces the bare picture page a
+    // tab had, so it is on for everyone, an existing profile included; its own view settings live in the viewer's page, not in a vex.* key.
+    { id: 'image-viewer', title: 'Image viewer', group: 'Image viewer', tiers: { minimal: true, standard: true }, storageKeys: ['vex.imageViewer.prefs'],
+      commands: ['image-viewer-settings'], permissions: { reads: ['the picture you open, through the tab it is in, with that tab\'s own sign-in', 'the camera details and place a picture carries, to show them to you in the details panel'], writes: ['a copy of a picture you turned, cropped or resized, where you choose to save it (the original is never changed)', 'the checkerboard, details panel and slideshow speed it remembers, on this computer only, never from a private or Tor tab'], sends: [] } },
 
     // ---- Wave 3: daily life (all new: off on a profile that already existed, offered to try) -----------
     { id: 'rituals', title: 'Rituals', group: 'Rituals', maturity: 'new', storageKeys: ['vex.rituals', 'vex.rituals.enabled'], commands: ['rituals'],

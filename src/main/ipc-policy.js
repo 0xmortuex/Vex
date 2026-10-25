@@ -5,7 +5,10 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   'passkeys:request', 'passkeys:cancel', 'passkeys:conditional-list',
   // A page's userscripts (userscripts-preload.js): main judges the tab and the
   // frame's own address; a refused tab is simply given none.
-  'userscripts:page', 'userscripts:gm']);
+  'userscripts:page', 'userscripts:gm',
+  // Vex's own image viewer page (vex-image://view/, main/image-viewer.js): copying the picture or its address, saving it or a copy,
+  // the browser's own view instead, the pictures beside it. Each handler checks that the asking frame is that page.
+  'imageview:save-copy', 'imageview:download', 'imageview:open-native', 'imageview:copy-image', 'imageview:copy-address', 'imageview:reveal', 'imageview:siblings']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
@@ -75,6 +78,8 @@ const UI_ONLY_CHANNELS = new Set([
   'devext:vencord-pick', 'devext:vencord-status', 'devext:vencord-reload', 'devext:vencord-restore', 'devext:console-start', 'devext:console-stop', 'devext:console-clear', 'devext:console-list',
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
   'sources:resolve-doi', 'sources:resolve-id', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
+  // Whether Vex's own image viewer is on, and forgetting its view settings (main/image-viewer.js): the interface tells main, never a page.
+  'imageview:set-enabled', 'imageview:forget-settings',
   // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
   'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send', 'comms:bridge-status', 'comms:bridge-pick', 'comms:bridge-read', 'comms:bridge-forget', 'comms:status-write',
   // The local-service launcher and the webhook inspector: starting programs and opening a port are Vex's own window only.
