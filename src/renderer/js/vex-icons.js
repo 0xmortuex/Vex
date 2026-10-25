@@ -212,6 +212,20 @@ const VexIcons = {
     'gamepad':      '<rect x="2.5" y="7.4" width="19" height="11.2" rx="4"/><path d="M7.2 11v3.2M5.6 12.6h3.2"/><circle cx="16" cy="11.8" r="1.15" fill="currentColor" stroke="none"/><circle cx="18.4" cy="14.2" r="1.15" fill="currentColor" stroke="none"/>',
     'git':          '<circle cx="6.4" cy="5.8" r="2.8"/><circle cx="6.4" cy="18.2" r="2.8"/><circle cx="17.2" cy="7.8" r="2.8"/><path d="M6.4 8.6v6.8M17.2 10.6c0 3.4-2.9 4.6-6.2 5"/>',
 
+    // --- pictures (the image viewer, src/renderer/image-viewer) --------------------
+    'chevron-left': '<path d="m15 6-6 6 6 6"/>',
+    'rotate-cw':    '<path d="M19.5 12.5A7.5 7.5 0 1 1 15 5.6"/><path d="M19.5 3.6v4.6h-4.6"/>',
+    'rotate-ccw':   '<path d="M4.5 12.5A7.5 7.5 0 1 0 9 5.6"/><path d="M4.5 3.6v4.6h4.6"/>',
+    'flip-h':       '<path d="M12 3.5v17" stroke-dasharray="2 2.6"/><path d="M9 7 3.8 17H9z"/><path d="m15 7 5.2 10H15z"/>',
+    'flip-v':       '<path d="M3.5 12h17" stroke-dasharray="2 2.6"/><path d="M7 9l5-5.2L17 9z"/><path d="M7 15l5 5.2L17 15z"/>',
+    'crop':         '<path d="M7 3.5v13.5h13.5"/><path d="M3.5 7H17v13.5"/>',
+    'fit-page':     '<path d="M8 3.5H5A1.5 1.5 0 0 0 3.5 5v3M16 3.5h3A1.5 1.5 0 0 1 20.5 5v3M8 20.5H5A1.5 1.5 0 0 1 3.5 19v-3M16 20.5h3a1.5 1.5 0 0 0 1.5-1.5v-3"/><rect x="8" y="7" width="8" height="10" rx="1"/>',
+    'actual-size':  '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m8 10.2 1.7-1V15"/><path d="M14 10.6h.01M14 13.6h.01" stroke-width="2.4"/>',
+    'fill':         '<rect x="3.5" y="5.5" width="17" height="13" rx="1.6"/><path d="M7 15.5 15.5 7M11 17.5 18 10.5M7 11.5 11.5 7"/>',
+    'checker':      '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/><path d="M6.8 6.8h2.4v2.4H6.8zM14.8 14.8h2.4v2.4h-2.4z"/>',
+    'minimize':     '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
+    'more':         '<circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
+
     // --- documents and drawing (the PDF viewer, src/renderer/pdf-viewer) ---------
     'redo':         '<path d="M19.5 10.5h-10a5 5 0 0 0 0 10H15"/><path d="m15.5 6 4 4.5-4 4.5"/>',
     'cursor':       '<path d="M5.6 4.2 18.8 11l-5.8 1.8-2.4 5.8z"/>',

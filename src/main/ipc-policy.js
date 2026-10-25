@@ -19,7 +19,10 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   'folderview:drag', 'folderview:plain-list', 'folderview:open-as-file',
   // Vex's own viewer page for text-like documents (vex-doc://view/, main/text-viewer.js): save a copy, download, the browser's own view, a link
   // to another file. Each handler checks that the asking frame is that page.
-  'docview:save-as', 'docview:download', 'docview:open-raw', 'docview:navigate']);
+  'docview:save-as', 'docview:download', 'docview:open-raw', 'docview:navigate',
+  // Vex's own image viewer page (vex-image://view/, main/image-viewer.js): copying the picture or its address, saving it or a copy,
+  // the browser's own view instead, the pictures beside it. Each handler checks that the asking frame is that page.
+  'imageview:save-copy', 'imageview:download', 'imageview:open-native', 'imageview:copy-image', 'imageview:copy-address', 'imageview:reveal', 'imageview:siblings']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
@@ -96,6 +99,8 @@ const UI_ONLY_CHANNELS = new Set([
   'docview:set-enabled', 'docview:forget-settings',
   'printpreview:open', 'printpreview:render', 'printpreview:simplify', 'printpreview:print', 'printpreview:save-pdf', 'printpreview:close',
   'sources:resolve-doi', 'sources:resolve-id', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
+  // Whether Vex's own image viewer is on, and forgetting its view settings (main/image-viewer.js): the interface tells main, never a page.
+  'imageview:set-enabled', 'imageview:forget-settings',
   // Whether Vex's own PDF viewer is on (main/pdf-viewer.js): the interface tells main, never a page.
   'pdfview:set-enabled', 'pdfview:forget-places',
   // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.

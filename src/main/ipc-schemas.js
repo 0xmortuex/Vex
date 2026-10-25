@@ -628,6 +628,12 @@ define('sources:resolve-id', [oneOf(['arxiv', 'isbn']), string(120)]);
 // tokens main handed out from its own file picker, and the operation with its small options.
 const pdfToken = value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
 define('pdftool:pick-files pdftool:forget', []);
+// Vex's own image viewer (main/image-viewer.js): bytes of a picture the viewer drew (at most 64 MB, which data-contracts also enforces), a name, the format.
+const binary = value => value instanceof ArrayBuffer;   // an ArrayBuffer on purpose: ipc-policy walks every key of a typed array and stringifies it
+define('imageview:download imageview:open-native imageview:copy-address imageview:reveal imageview:siblings imageview:forget-settings', []);
+define('imageview:set-enabled', [boolean]);
+define('imageview:copy-image', [shape({ bytes: binary })]);
+define('imageview:save-copy', [shape({ bytes: binary, type: oneOf(['png', 'jpeg', 'webp']), name: optional(string(300)), suffix: optional(string(30)) })]);
 // Marks on a page are fractions of it (0 to 1 from the top left); a signature is the PNG of a drawn or typed
 // signature, placed like a stamp (main/pdf-toolkit.js checks everything again).
 const pdfMark = shape({

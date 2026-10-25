@@ -689,7 +689,7 @@ app.on('web-contents-created', (_e, contents) => {
 // page holding both: DOM text 1 match, canvas text 0 matches. Those apps ship
 // their own find, so swallowing Ctrl+F there replaced a working search with a
 // find bar guaranteed to report nothing. Let the key reach the page instead.
-const { guestOwnsFind, isPdfViewerUrl } = require('./main/find-policy');
+const { guestOwnsFind, isPdfViewerUrl, isImageViewerUrl } = require('./main/find-policy');
 // The sessions ordinary browsing happens in: the default one plus the
 // containers. Routing, and anything else that must cover "all of Vex",
 // works through this list.
@@ -760,7 +760,7 @@ function handleBrowserShortcut(event, input, contents) {
   if (!win) return false;
   let url;
   try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
-  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), ownsZoom: isPdfViewerUrl(url), wanted: _guestWantedKeys }), contents.id);
+  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), ownsZoom: isPdfViewerUrl(url) || isImageViewerUrl(url), wanted: _guestWantedKeys }), contents.id);
   if (!hit) return false;
   win.webContents.send(hit.channel, ...(hit.args || []));
   event.preventDefault();
@@ -1425,6 +1425,8 @@ app.on('child-process-gone', (_e, d) => {
 // did-stop-loading wait (src/main/load-wait.js): the New Tab page's dom-ready
 // injections passed Node's 10-listener limit on every boot (walkthrough L13).
 app.on('web-contents-created', (_e, wc) => { if (wc.getType() === 'webview') require('./main/load-wait').shareLoadWait(wc); });
+// A link a page offers to a picture on this computer opens in Vex's image viewer (main/image-viewer.js watch()).
+app.on('web-contents-created', (_e, wc) => { _imageViewer.watch(wc); });
 app.on('web-contents-created', (_e, wc) => {
   // Only a Vex window may hold a <webview> (session-security.js, guardWebviews).
   secureSessions.guardWebviews(wc);
@@ -2521,6 +2523,41 @@ require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, window
 // The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
 require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), nativeImage });
 
+// Documents Vex shows with a page of its own (main/doc-viewers.js is the shared catch: one registry, one line in each
+// onHeadersReceived handler). The image viewer (main/image-viewer.js, pages in src/renderer/image-viewer) is the first entry;
+// a viewer for another kind of document is one more register() call in its own module.
+const _docViewers = require('./main/doc-viewers').createDocViewers({ owner: (contents) => secureSessions.owner(contents), log: (msg) => console.warn(msg) });
+let _imageViewerOn = true;
+function _imageViewerLook() {
+  const read = (key) => {
+    const file = getStorageFile(key);
+    if (!fs.existsSync(file)) return null;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return raw?.$vexStore === 1 ? raw.data : raw;
+  };
+  let theme = 'oxford', guiStyle = 'classic';
+  try { const t = read('theme'); if (typeof t === 'string') theme = t; } catch (err) { console.warn('[Image viewer] the saved theme could not be read:', err.message); }
+  try { const g = read('gui-style'); if (typeof g === 'string') guiStyle = g; } catch (err) { console.warn('[Image viewer] the saved look could not be read:', err.message); }
+  return { theme, guiStyle, lang: String(_readPersistString('vex.lang', 'en')) };
+}
+const _imageViewer = require('./main/image-viewer').createImageViewer({
+  rendererDir: path.join(__dirname, 'renderer'), docViewers: _docViewers, isEnabled: () => _imageViewerOn, look: _imageViewerLook,
+  log: (msg) => console.warn(msg),
+});
+require('./main/image-viewer').registerImageViewerIpc({
+  ipcMain, dialog, viewer: _imageViewer, docViewers: _docViewers, clipboard, nativeImage, shell,
+  windowFor: (e) => (secureSessions.owner(e.sender) || {}).win || null,
+  downloadsDir: () => app.getPath('downloads'),
+});
+ipcMain.handle('imageview:set-enabled', (_e, on) => { _imageViewerOn = !!on; return { ok: true, on: _imageViewerOn }; });
+// The view settings the viewer keeps (checkerboard, details panel, slideshow speed) live in its own page's storage, in each browsing session.
+ipcMain.handle('imageview:forget-settings', async () => {
+  try {
+    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-image://view', storages: ['localstorage'] });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
 // Vex's own viewer for text-like documents (main/text-viewer.js, pages in src/renderer/doc-viewer): a JSON, XML, CSV, Markdown, log or source
 // file a tab meets, and a view-source: page, are shown there instead of as one block of plain text. main/doc-viewers.js is the registry of
 // documents Vex shows in pages of its own; every session's onHeadersReceived asks it first (_docViewers.take). The on/off switch is the
@@ -2538,7 +2575,6 @@ function _docViewerLook() {
   try { const g = read('gui-style'); if (typeof g === 'string') guiStyle = g; } catch (err) { console.warn('[Document viewer] the saved look could not be read:', err.message); }
   return { theme, guiStyle, lang: String(_readPersistString('vex.lang', 'en')) };
 }
-const _docViewers = require('./main/doc-viewers').createDocViewers({ owner: (contents) => secureSessions.owner(contents), log: (msg) => console.warn(msg) });
 const _textViewer = require('./main/text-viewer').createTextViewer({ rendererDir: path.join(__dirname, 'renderer'), registry: _docViewers, isEnabled: () => _docViewerOn, look: _docViewerLook });
 require('./main/text-viewer').registerTextViewerIpc({
   ipcMain, dialog, registry: _docViewers,
@@ -7881,6 +7917,8 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'vex-files', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   // Vex's own viewer page for text-like documents and the document it reads (main/text-viewer.js).
   { scheme: 'vex-doc', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  // Vex's own image viewer page and the picture it reads (main/image-viewer.js).
+  { scheme: 'vex-image', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 // Where the window was last time, put on a screen that exists now (src/main/window-placement.js, T2-082).
@@ -8712,6 +8750,9 @@ app.whenReady().then(async () => {
   // While all of Vex goes through one route, a session made later goes
   // through it too (a private window, a container, a panel, a burner).
   secureSessions.onSessionCreated(_coverWithAllRoute);
+  // Every document viewer serves its own page to every session a tab can run in (main/doc-viewers.js).
+  secureSessions.onSessionCreated((ses, partition) => _docViewers.wireSession(ses, partition));
+  _docViewers.wireSession(session.defaultSession, '');
   // Vex's own text viewer is served to every session a tab can run in (main/text-viewer.js).
   secureSessions.onSessionCreated((ses, partition) => _textViewer.wireSession(ses, partition));
   _textViewer.wireSession(session.defaultSession, '');

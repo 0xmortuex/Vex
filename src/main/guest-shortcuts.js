@@ -117,7 +117,7 @@ function comboOf(input) {
 function shortcutFor(input, { ownsFind = false, ownsZoom = false, wanted = null } = {}) {
   if (!input || input.type !== 'keyDown') return null;
   const ctrl = input.control || input.meta;
-  // Vex's PDF viewer zooms the document itself: the zoom keys are its own while it has the focus.
+  // Vex's own PDF and image viewers zoom the document themselves: the zoom keys are theirs while they have the focus.
   if (ownsZoom && ctrl && !input.alt && ['=', '+', '-', '_', '0'].includes(String(input.key || ''))) return null;
 
   const browserCombo = comboOf(input);

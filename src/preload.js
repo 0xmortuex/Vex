@@ -560,6 +560,9 @@ contextBridge.exposeInMainWorld('vex', {
   // A tab closed: its pages' saved back lists are dropped at once.
   tabClosed:            (pageIds) => ipcRenderer.send('tabs:closed', pageIds),
   tabHistory:           (pageId) => ipcRenderer.invoke('tabs:history', pageId),
+  // Whether Vex's own image viewer takes the pictures a tab meets, and forgetting its view settings (main/image-viewer.js; js/image-viewer-host.js).
+  imageviewSetEnabled:  (on) => ipcRenderer.invoke('imageview:set-enabled', !!on),
+  imageviewForgetSettings: () => ipcRenderer.invoke('imageview:forget-settings'),
   // A tab's back/forward list with each entry's place in the page's history (js/nav-history-menu.js).
   tabNavList:           (pageId) => ipcRenderer.invoke('tabs:nav-list', pageId),
   // Ctrl+Tab by recency: tell main whether it is on, and hear its steps (js/tab-mru.js).

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="vex-persist" content="0">
+<title>Image</title>
+<link rel="stylesheet" href="/css/theme-tokens.css">
+<link rel="stylesheet" href="/css/theme-extra.css">
+<link rel="stylesheet" href="/app/viewer.css">
+</head>
+<body class="iv" data-fit="fit" data-dark="true">
+<a class="iv-skip" href="#iv-stage" data-i18n="Skip to the picture">Skip to the picture</a>
+
+<header id="iv-bar" class="iv-bar" role="toolbar" aria-label="Image toolbar" data-i18n-aria="Image toolbar">
+  <div class="iv-group iv-start">
+    <button id="iv-prev" class="iv-btn" type="button" data-icon="chevron-left" hidden data-i18n-title="Previous picture (PageUp)" data-i18n-aria="Previous picture"></button>
+    <button id="iv-next" class="iv-btn" type="button" data-icon="chevron-right" hidden data-i18n-title="Next picture (PageDown)" data-i18n-aria="Next picture"></button>
+    <div class="iv-doc">
+      <span id="iv-title" class="iv-doc-title" dir="auto"></span>
+      <span id="iv-sub" class="iv-doc-sub"></span>
+    </div>
+  </div>
+
+  <div class="iv-group iv-mid">
+    <div class="iv-zoom" role="group" aria-label="Zoom" data-i18n-aria="Zoom">
+      <button id="iv-zoom-out" class="iv-btn" type="button" data-icon="minus" data-i18n-title="Zoom out (-)" data-i18n-aria="Zoom out"></button>
+      <label class="iv-zoom-field"><span class="iv-sr" data-i18n="Zoom percent">Zoom percent</span>
+        <input id="iv-zoom-input" class="iv-zoom-input" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" value="100%"></label>
+      <button id="iv-zoom-in" class="iv-btn" type="button" data-icon="plus" data-i18n-title="Zoom in (+)" data-i18n-aria="Zoom in"></button>
+    </div>
+    <div class="iv-group iv-fits" role="group" aria-label="Size" data-i18n-aria="Size">
+      <button id="iv-fit" class="iv-btn" type="button" data-icon="fit-page" aria-pressed="true" data-i18n-title="Fit to window (0)" data-i18n-aria="Fit to window"></button>
+      <button id="iv-actual" class="iv-btn" type="button" data-icon="actual-size" aria-pressed="false" data-i18n-title="Actual size (1)" data-i18n-aria="Actual size"></button>
+      <button id="iv-fill" class="iv-btn" type="button" data-icon="fill" aria-pressed="false" data-i18n-title="Fill the window (2)" data-i18n-aria="Fill the window"></button>
+    </div>
+    <span class="iv-sep iv-opt" aria-hidden="true"></span>
+    <div class="iv-group iv-opt" role="group" aria-label="Turn" data-i18n-aria="Turn">
+      <button id="iv-rot-left" class="iv-btn" type="button" data-icon="rotate-ccw" data-i18n-title="Rotate left (Shift+R)" data-i18n-aria="Rotate left"></button>
+      <button id="iv-rot-right" class="iv-btn" type="button" data-icon="rotate-cw" data-i18n-title="Rotate right (R)" data-i18n-aria="Rotate right"></button>
+      <button id="iv-flip-h" class="iv-btn" type="button" data-icon="flip-h" aria-pressed="false" data-i18n-title="Flip left to right (H)" data-i18n-aria="Flip left to right"></button>
+      <button id="iv-flip-v" class="iv-btn" type="button" data-icon="flip-v" aria-pressed="false" data-i18n-title="Flip top to bottom (V)" data-i18n-aria="Flip top to bottom"></button>
+    </div>
+    <button id="iv-checker" class="iv-btn iv-opt" type="button" data-icon="checker" aria-pressed="false" data-i18n-title="Checkerboard behind transparent areas (B)" data-i18n-aria="Checkerboard behind transparent areas"></button>
+  </div>
+
+  <div class="iv-group iv-end">
+    <button id="iv-copy" class="iv-btn iv-opt2" type="button" data-icon="copy" data-i18n-title="Copy the picture (Ctrl+C)" data-i18n-aria="Copy the picture"></button>
+    <button id="iv-save" class="iv-btn iv-opt2" type="button" data-icon="download" data-i18n-title="Save the picture as" data-i18n-aria="Save the picture as"></button>
+    <button id="iv-slide" class="iv-btn iv-opt2" type="button" data-icon="play" aria-pressed="false" hidden data-i18n-title="Slideshow (S)" data-i18n-aria="Slideshow"></button>
+    <button id="iv-full" class="iv-btn" type="button" data-icon="maximize" aria-pressed="false" data-i18n-title="Full screen (F)" data-i18n-aria="Full screen"></button>
+    <button id="iv-info-btn" class="iv-btn" type="button" data-icon="info" aria-pressed="false" aria-controls="iv-info" data-i18n-title="Details (I)" data-i18n-aria="Details"></button>
+    <button id="iv-edit-btn" class="iv-btn" type="button" data-icon="crop" aria-pressed="false" aria-controls="iv-edit" data-i18n-title="Crop and resize (E)" data-i18n-aria="Crop and resize"></button>
+    <button id="iv-more" class="iv-btn" type="button" data-icon="more" aria-haspopup="menu" aria-expanded="false" data-i18n-title="More" data-i18n-aria="More"></button>
+  </div>
+</header>
+
+<div class="iv-body">
+  <main id="iv-main" class="iv-main">
+    <div id="iv-stage" class="iv-stage" tabindex="0" role="img" aria-label="Picture" data-i18n-aria="Picture">
+      <div id="iv-frame" class="iv-frame"><img id="iv-img" class="iv-img" alt="" decoding="async"></div>
+      <div id="iv-crop" class="iv-crop" hidden aria-hidden="true"></div>
+    </div>
+    <div id="iv-state" class="iv-state" hidden></div>
+    <div id="iv-toasts" class="iv-toasts" role="status" aria-live="polite"></div>
+    <div id="iv-live" class="iv-sr" role="status" aria-live="polite"></div>
+  </main>
+
+  <aside id="iv-info" class="iv-info" aria-label="Details" data-i18n-aria="Details" hidden>
+    <div class="iv-info-head">
+      <h2 data-i18n="Details">Details</h2>
+      <button id="iv-info-close" class="iv-btn" type="button" data-icon="x" data-i18n-title="Close (I)" data-i18n-aria="Close the details"></button>
+    </div>
+    <div id="iv-info-body" class="iv-info-body"></div>
+  </aside>
+</div>
+
+<section id="iv-edit" class="iv-edit" aria-label="Crop and resize" data-i18n-aria="Crop and resize" hidden>
+  <div class="iv-edit-row">
+    <fieldset class="iv-fieldset">
+      <legend data-i18n="Crop">Crop</legend>
+      <label class="iv-field"><span data-i18n="Left">Left</span><input id="iv-crop-x" class="iv-num" type="text" inputmode="numeric" autocomplete="off"></label>
+      <label class="iv-field"><span data-i18n="Top">Top</span><input id="iv-crop-y" class="iv-num" type="text" inputmode="numeric" autocomplete="off"></label>
+      <label class="iv-field"><span data-i18n="Width">Width</span><input id="iv-crop-w" class="iv-num" type="text" inputmode="numeric" autocomplete="off"></label>
+      <label class="iv-field"><span data-i18n="Height">Height</span><input id="iv-crop-h" class="iv-num" type="text" inputmode="numeric" autocomplete="off"></label>
+      <button id="iv-crop-reset" class="iv-chip" type="button" data-i18n="Whole picture">Whole picture</button>
+    </fieldset>
+    <fieldset class="iv-fieldset">
+      <legend data-i18n="Resize">Resize</legend>
+      <label class="iv-field"><span data-i18n="Width">Width</span><input id="iv-size-w" class="iv-num" type="text" inputmode="numeric" autocomplete="off"></label>
+      <label class="iv-field"><span data-i18n="Height">Height</span><input id="iv-size-h" class="iv-num" type="text" inputmode="numeric" autocomplete="off"></label>
+      <label class="iv-check"><input id="iv-size-lock" type="checkbox" checked><span data-i18n="Keep the proportions">Keep the proportions</span></label>
+    </fieldset>
+    <fieldset class="iv-fieldset">
+      <legend data-i18n="Save as">Save as</legend>
+      <label class="iv-field"><span class="iv-sr" data-i18n="Format">Format</span>
+        <select id="iv-edit-type" class="iv-select"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></label>
+      <button id="iv-edit-save" class="iv-action primary" type="button" data-i18n="Save a copy">Save a copy</button>
+    </fieldset>
+  </div>
+  <p id="iv-edit-note" class="iv-edit-note" data-i18n="Your picture is never changed. The copy is saved where you choose, as a new file.">Your picture is never changed. The copy is saved where you choose, as a new file.</p>
+</section>
+
+<div id="iv-menu-root"></div>
+
+<script src="/icons.js"></script>
+<script type="module" src="/app/app.js"></script>
+</body>
+</html>

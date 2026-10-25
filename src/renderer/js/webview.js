@@ -42,6 +42,60 @@ const WebviewManager = {
     window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: address } }));
   },
 
+  // === Vex's own image viewer (main/image-viewer.js, pages in src/renderer/image-viewer) ==============
+  //
+  // A picture is shown by a page of Vex's own at vex-image://view/?u=<the picture's address>. The tab, its address bar, its
+  // history, its bookmarks and its reload keep the picture's own address: imageOriginal maps the viewer's address back, and the
+  // twin in main/image-viewer.js (parseViewerUrl) does the same on the other side (a test holds them equal).
+  // A file: picture is sent to the viewer here, before anything loads; a picture from the web is turned into a redirect to the
+  // viewer in main (main/doc-viewers.js). VexImageViewerOff is set by js/image-viewer-host.js when the viewer is switched off.
+  imageViewerAddress(url) {
+    const s = String(url || '');
+    if ((typeof window !== 'undefined' && window.VexImageViewerOff) || !/^file:\/\/[^?#]*\.(?:png|apng|jpe?g|jpe|jfif|gif|webp|avif|bmp|ico|svg)(?:[?#]|$)/i.test(s)) return s;
+    const at = s.indexOf('#');
+    return 'vex-image://view/?u=' + encodeURIComponent(at < 0 ? s : s.slice(0, at)) + (at < 0 ? '' : s.slice(at));
+  },
+
+  imageOriginal(url) {
+    const s = String(url || '');
+    if (!/^vex-image:\/\/view\/(?:\?|#|$)/i.test(s)) return null;
+    let u;
+    try { u = new URL(s); } catch { return null; }
+    const original = u.searchParams.get('u');
+    return original ? original + (u.hash ? u.hash : '') : null;
+  },
+
+  // The colours and type of the interface as a Vex document viewer needs them: the values this window resolves for the theme, the
+  // browser look, the custom theme and the chosen font, so the viewer matches every one of them without carrying a copy.
+  VIEWER_THEME_VARS: ['--vex-bg-base', '--vex-bg-elevated', '--vex-bg-deep', '--vex-glass-strong', '--vex-glass-medium', '--vex-glass-light', '--vex-glass-input',
+    '--vex-border-subtle', '--vex-border-medium', '--vex-border-strong', '--vex-border-accent', '--vex-accent', '--vex-accent-dim', '--vex-accent-glow',
+    '--vex-text-primary', '--vex-text-secondary', '--vex-text-muted', '--vex-text-accent', '--vex-success', '--vex-danger', '--vex-danger-hover', '--vex-warning',
+    '--vex-hover-fill', '--vex-shadow-color', '--vex-radius-sm', '--vex-radius-md', '--vex-radius-lg', '--vex-font-base', '--vex-font-display', '--vex-font-heading',
+    '--vex-font-mono', '--on-primary', '--b-font', '--b-btn-radius', '--b-ring-w', '--b-accent-ring',
+    // The older names the calm panels (css/ai-panel.css) are written in.
+    '--bg', '--bg-2', '--surface', '--border', '--text', '--text-muted', '--primary', '--primary-hover', '--danger', '--success', '--accent'],
+  viewerThemePayload() {
+    const cs = getComputedStyle(document.body);
+    const vars = {};
+    for (const name of this.VIEWER_THEME_VARS) { const v = cs.getPropertyValue(name).trim(); if (v) vars[name] = v; }
+    const root = document.documentElement;
+    return {
+      vars, lang: root.lang || 'en',
+      attrs: { 'data-theme': root.getAttribute('data-theme') || '', 'data-scheme': root.getAttribute('data-scheme') || '', 'data-gui-style': document.body.getAttribute('data-gui-style') || '', 'data-gui-family': document.body.getAttribute('data-gui-family') || '' },
+    };
+  },
+  sendImageTheme(webview) {
+    try { webview.send('imageview:theme', this.viewerThemePayload()); }
+    catch (err) { if (!/dom-ready|attached/i.test(String(err && err.message))) console.warn('[Vex] the image viewer could not be given the theme:', err && err.message); }
+  },
+  sendImageThemeToAll() {
+    for (const wv of this.webviews.values()) {
+      let url = '';
+      try { url = wv.getURL(); } catch { continue; }
+      if (this.imageOriginal(url)) this.sendImageTheme(wv);
+    }
+  },
+
   // === Vex's own viewer for text-like documents (main/text-viewer.js, pages in src/renderer/doc-viewer) =============
   //
   // A JSON, XML, CSV, Markdown, log or source document, and a view-source: page, is shown by a page of Vex's own at
@@ -146,7 +200,7 @@ const WebviewManager = {
   // viewer's page, anything else is returned as it came. Every load site calls this; a new viewer adds one mapper to the list.
   viewerAddress(url) {
     const s = String(url || '');
-    for (const map of [this.pdfAddress, this.docAddress]) {
+    for (const map of [this.pdfAddress, this.docAddress, this.imageViewerAddress]) {
       const to = map.call(this, s);
       if (to !== s) return to;
     }
@@ -156,7 +210,7 @@ const WebviewManager = {
   // The address a Vex viewer page (the PDF viewer, the folder browser, ...) stands for, else null: one place that asks each viewer's
   // mapper, so the address bar, history and bookmarks keep the original and a new viewer adds a single term here.
   viewerOriginal(url) {
-    return this.pdfOriginal(url) || this.docOriginal(url) || this.folderOriginal(url) || null;
+    return this.pdfOriginal(url) || this.docOriginal(url) || this.imageOriginal(url) || this.folderOriginal(url) || null;
   },
 
   pdfOriginal(url) {
@@ -613,6 +667,8 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // The image viewer page is up and asks for the theme (preload-webview.js).
+      if (e.channel === 'imageview:need-theme') { this.sendImageTheme(webview); return; }
       // The document viewer page is up and asks for the theme (preload-webview.js).
       if (e.channel === 'docview:need-theme') { this.sendDocTheme(webview); return; }
       // Vex's own folder browser page asking for the theme, or to open a file (js/folder-viewer-host.js).
@@ -2666,6 +2722,17 @@ const WebviewManager = {
 // guards like `window.WebviewManager && ...` (gui-style.js, formerly
 // sidebar.js) were always undefined and silently skipped their branch.
 if (typeof window !== 'undefined') window.WebviewManager = WebviewManager;
+
+// An open image viewer follows the theme, the look, the font and the language as they change here.
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+  const pushImageTheme = () => { try { WebviewManager.sendImageThemeToAll(); } catch (err) { console.warn('[Vex] the image viewers could not be given the theme:', err && err.message); } };
+  document.addEventListener('theme-changed', pushImageTheme);
+  document.addEventListener('vex:font-changed', pushImageTheme);
+  // A look is applied a moment after the event that names it.
+  window.addEventListener('vex:gui-style', () => setTimeout(pushImageTheme, 150));
+  window.addEventListener('vex:gui-colors', () => setTimeout(pushImageTheme, 150));
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(pushImageTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+}
 
 // An open document viewer follows the theme, the look and the font as they change here.
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
