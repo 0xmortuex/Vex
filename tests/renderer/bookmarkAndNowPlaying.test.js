@@ -80,4 +80,20 @@ describe('the Now Playing bar', () => {
     expect([...NowPlaying.playing.keys()]).toEqual(['b']);
     expect(document.querySelectorAll('#vex-nowplaying [data-dismiss]').length).toBe(1);
   });
+
+  it('leaves out the tab in front when it is the player of Vex itself (its controls are on its page, and the bar sat over them)', () => {
+    const { NowPlaying } = require('../../src/renderer/js/tab-ai-media.js');
+    const player = { getURL: () => 'vex-media://view/?u=http%3A%2F%2Fx%2Fa.mp3' };
+    const page = { getURL: () => 'https://video.test/watch' };
+    globalThis.TabManager = { tabs: [{ id: 'p', title: 'Song' }, { id: 'w', title: 'Video' }], switchTab() {}, activeTabId: 'p' };
+    globalThis.WebviewManager = { webviews: new Map([['p', player], ['w', page]]), mediaOriginal: (u) => (/^vex-media:/.test(u) ? 'http://x/a.mp3' : null) };
+    NowPlaying.playing.clear();
+    NowPlaying.playing.set('p', 'Song');
+    NowPlaying.playing.set('w', 'Video');
+    NowPlaying._render();
+    expect(document.querySelectorAll('#vex-nowplaying [data-dismiss]').length).toBe(1);   // only the video in another tab
+    globalThis.TabManager.activeTabId = 'w';
+    NowPlaying._render();
+    expect(document.querySelectorAll('#vex-nowplaying [data-dismiss]').length).toBe(2);   // the player is behind another tab: its row is useful again
+  });
 });

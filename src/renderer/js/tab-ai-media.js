@@ -132,11 +132,18 @@ const NowPlaying = {
     webview.addEventListener('close', gone);
   },
 
+  _ownPlayerInFront(tabId) {
+    if (tabId !== TabManager.activeTabId || typeof WebviewManager === 'undefined' || typeof WebviewManager.mediaOriginal !== 'function') return false;
+    try { return !!WebviewManager.mediaOriginal(WebviewManager.webviews.get(tabId).getURL()); } catch { return false; }   // no page yet: not the player
+  },
+
   _render() {
     let bar = document.getElementById('vex-nowplaying');
     // Drop entries whose tabs are gone.
     [...this.playing.keys()].forEach(id => { if (!TabManager.tabs.some(t => t.id === id)) this.playing.delete(id); });
-    if (!this.playing.size) { bar?.remove(); return; }
+    // The tab in front that is Vex's own player has the controls on its page: the bar sat over them (bottom-left, found in the real app).
+    const shown = new Map([...this.playing].filter(([id]) => !this._ownPlayerInFront(id)));
+    if (!shown.size) { bar?.remove(); return; }
     if (!bar) {
       bar = document.createElement('div');
       bar.id = 'vex-nowplaying';
@@ -146,7 +153,7 @@ const NowPlaying = {
     }
     bar.innerHTML = '';
     const esc = (s) => window.escapeHtml(s);
-    this.playing.forEach((title, tabId) => {
+    shown.forEach((title, tabId) => {
       const t = TabManager.tabs.find(x => x.id === tabId);
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 10px;box-shadow:0 8px 24px rgba(0,0,0,0.35);cursor:pointer';
@@ -176,6 +183,8 @@ const NowPlaying = {
     });
   },
 };
+// Switching tabs changes which row would sit over a player's own controls.
+if (typeof window !== 'undefined') window.addEventListener('vex:tab-activated', () => { if (NowPlaying.playing.size) NowPlaying._render(); });
 // A tab closed while playing sends no pause or destroy event, so its row stayed with buttons that did nothing.
 document.addEventListener('vex:tab-closed', (e) => {
   const id = e && e.detail && e.detail.tabId;
