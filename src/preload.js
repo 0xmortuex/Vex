@@ -423,6 +423,9 @@ contextBridge.exposeInMainWorld('vex', {
   pdftoolRun: (req) => ipcRenderer.invoke('pdftool:run', req),
   pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
   pdftoolInspect: (token) => ipcRenderer.invoke('pdftool:inspect', token),
+  // Whether Vex's own text viewer takes the JSON, XML, CSV, Markdown, log and source documents a tab meets (main/text-viewer.js; js/doc-viewer-host.js).
+  docviewSetEnabled: (on) => ipcRenderer.invoke('docview:set-enabled', !!on),
+  docviewForgetSettings: () => ipcRenderer.invoke('docview:forget-settings'),
 
   // Developer desk, plugin dev loop, Electron ticker (main/dev-desk.js, dev-extension.js, castlabs-ticker.js)
   devdeskPorts: (ports) => ipcRenderer.invoke('devdesk:ports', ports),

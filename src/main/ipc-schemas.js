@@ -641,6 +641,11 @@ define('pdftool:run', [shape({
   mode: optional(oneOf(['each', 'every', 'ranges'])),
   n: optional(value => Number.isSafeInteger(value) && value >= 1 && value <= 4000),
 })]);
+// Vex's own viewer for text-like documents (main/text-viewer.js, pages in src/renderer/doc-viewer): the page names no path and sends no bytes;
+// main reads the document again through the page's own session.
+define('docview:set-enabled', [boolean]);
+define('docview:save-as docview:download docview:open-raw docview:forget-settings', []);
+define('docview:navigate', [string(4096)]);
 define('fx:tcmb', []);
 // Community and chat tools (main/comms-tools.js). The webhook address goes in once and never comes back;
 // a post is one text of at most 2000 characters. The bridge channels take no arguments: main reads one fixed file.

@@ -42,6 +42,85 @@ const WebviewManager = {
     window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: address } }));
   },
 
+  // === Vex's own viewer for text-like documents (main/text-viewer.js, pages in src/renderer/doc-viewer) =============
+  //
+  // A JSON, XML, CSV, Markdown, log or source document, and a view-source: page, is shown by a page of Vex's own at
+  // vex-doc://view/?u=<the document's address>[&m=source]. The tab, its address bar, its history, its bookmarks and its reload keep the
+  // document's own address (view-source:<address> for a source view): this maps the viewer's address back, and the twin in
+  // main/text-viewer.js (parseViewerUrl) does the same on the other side (a test holds them equal).
+  // A file: address with a text-like extension and a view-source: address are sent to the viewer here, before anything loads, because no
+  // response headers exist for them. A web document is caught from its response instead (main/doc-viewers.js).
+  // VexDocViewerOff is set by js/doc-viewer-host.js when the viewer is switched off. DOC_FILE_EXTENSIONS is the twin of FILE_EXTENSIONS in
+  // main/text-viewer.js.
+  DOC_FILE_EXTENSIONS: ['json', 'jsonl', 'ndjson', 'geojson', 'json5', 'jsonc', 'xml', 'csv', 'tsv', 'md', 'markdown', 'mdx', 'txt', 'text', 'log', 'out',
+    'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'css', 'scss', 'less', 'py', 'sh', 'bash', 'zsh', 'bat', 'ps1', 'ini', 'cfg', 'conf', 'toml', 'yaml', 'yml',
+    'env', 'sql', 'java', 'kt', 'c', 'h', 'cc', 'cpp', 'cxx', 'hpp', 'cs', 'go', 'rs', 'rb', 'php', 'lua', 'swift', 'r', 'diff', 'patch', 'properties', 'gitignore'],
+  docAddress(url) {
+    const s = String(url || '');
+    if (this._docViewerOff()) return s;
+    const source = /^view-source:((?:https?|file):\/\/.+)$/i.exec(s);
+    const target = source ? source[1] : s;
+    if (!source) {
+      if (!/^file:\/\//i.test(s)) return s;
+      const path = s.replace(/[?#].*$/, '');
+      const name = path.slice(path.lastIndexOf('/') + 1);
+      const dot = name.lastIndexOf('.');
+      if (dot < 0 || !this.DOC_FILE_EXTENSIONS.includes(name.slice(dot + 1).toLowerCase())) return s;
+    }
+    const at = target.indexOf('#');
+    return 'vex-doc://view/?u=' + encodeURIComponent(at < 0 ? target : target.slice(0, at)) + (source ? '&m=source' : '') + (at < 0 ? '' : target.slice(at));
+  },
+
+  // The switch (js/doc-viewer-host.js) is a late module: until it has run, the saved choice is read from where it is kept, so a tab restored at
+  // start-up honours "off" too.
+  _docViewerOff() {
+    if (typeof window === 'undefined') return false;
+    if (window.VexDocViewerOff !== undefined) return !!window.VexDocViewerOff;
+    try { const raw = JSON.parse(localStorage.getItem('vex.docViewer.prefs') || 'null'); return !!raw && raw.enabled === false; }
+    catch (err) { console.warn('[Vex] the document viewer switch could not be read:', err && err.message); return false; }
+  },
+
+  docOriginal(url) {
+    const s = String(url || '');
+    if (!/^vex-doc:\/\/view\/(?:\?|#|$)/i.test(s)) return null;
+    let u;
+    try { u = new URL(s); } catch { return null; }
+    const original = u.searchParams.get('u');
+    if (!original) return null;
+    return (u.searchParams.get('m') === 'source' ? 'view-source:' : '') + original + (u.hash ? u.hash : '');
+  },
+
+  // The colours and type of the interface as the viewer needs them: the values this window resolves for the theme, the browser look, the
+  // custom theme and the chosen font, so the viewer matches every one of them without carrying a copy.
+  DOC_THEME_VARS: ['--vex-bg-base', '--vex-bg-elevated', '--vex-bg-deep', '--vex-glass-strong', '--vex-glass-medium', '--vex-glass-light', '--vex-glass-input',
+    '--vex-border-subtle', '--vex-border-medium', '--vex-border-strong', '--vex-border-accent', '--vex-accent', '--vex-accent-dim', '--vex-accent-glow',
+    '--vex-text-primary', '--vex-text-secondary', '--vex-text-muted', '--vex-text-accent', '--vex-success', '--vex-danger', '--vex-danger-hover', '--vex-warning',
+    '--vex-hover-fill', '--vex-shadow-color', '--vex-radius-sm', '--vex-radius-md', '--vex-radius-lg', '--vex-font-base', '--vex-font-display', '--vex-font-heading',
+    '--vex-font-mono', '--on-primary', '--b-font', '--b-btn-radius', '--b-ring-w', '--b-accent-ring',
+    // The older names the calm panels (css/ai-panel.css) are written in.
+    '--bg', '--bg-2', '--surface', '--border', '--text', '--text-muted', '--primary', '--primary-hover', '--danger', '--success', '--accent'],
+  docThemePayload() {
+    const cs = getComputedStyle(document.body);
+    const vars = {};
+    for (const name of this.DOC_THEME_VARS) { const v = cs.getPropertyValue(name).trim(); if (v) vars[name] = v; }
+    const root = document.documentElement;
+    return {
+      vars, lang: root.lang || 'en',
+      attrs: { 'data-theme': root.getAttribute('data-theme') || '', 'data-scheme': root.getAttribute('data-scheme') || '', 'data-gui-style': document.body.getAttribute('data-gui-style') || '', 'data-gui-family': document.body.getAttribute('data-gui-family') || '' },
+    };
+  },
+  sendDocTheme(webview) {
+    try { webview.send('docview:theme', this.docThemePayload()); }
+    catch (err) { if (!/dom-ready|attached/i.test(String(err && err.message))) console.warn('[Vex] the document viewer could not be given the theme:', err && err.message); }
+  },
+  sendDocThemeToAll() {
+    for (const wv of this.webviews.values()) {
+      let url = '';
+      try { url = wv.getURL(); } catch { continue; }
+      if (this.docOriginal(url)) this.sendDocTheme(wv);
+    }
+  },
+
   createWebview(tab) {
     if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
     // A container's own route is asked for now, before anything reads the
@@ -69,7 +148,7 @@ const WebviewManager = {
       // the ones it starts (js/userscripts.js).
       if (!event.isInPlace && typeof VexUserscripts !== 'undefined') VexUserscripts.noteActive(tab.id, null);
     });
-    webview.setAttribute('src', tab.url);
+    webview.setAttribute('src', this.docAddress(tab.url));
     // The New Tab page paints a moment after its tab appears (its process starts first), and the empty webview was white for that moment, in
     // a dark theme a flash of a white screen (measured: 150 ms and more). Its own page colour is the theme's base colour, so it stands in.
     if (typeof isStartPage === 'function' && isStartPage(tab.url)) webview.style.background = 'var(--vex-bg-base)';
@@ -419,6 +498,8 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // The document viewer page is up and asks for the theme (preload-webview.js).
+      if (e.channel === 'docview:need-theme') { this.sendDocTheme(webview); return; }
       // A paste holding a secret, held back by the page-side hook (js/secret-guard.js).
       if (e.channel === 'vex-secret-paste') {
         if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.onPaste(webview, e.args && e.args[0]).catch(err => window.VexProblems?.note('Secret guard', 'A held paste could not be handled', err));
@@ -560,7 +641,8 @@ const WebviewManager = {
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     onWebview('did-navigate', (e) => {
       this._noteHistory(tab, webview);
-      const url = e.url;
+      // A document shown in Vex's own viewer keeps the document's address (docOriginal above).
+      const url = this.docOriginal(e.url) || e.url;
       // A 404, 410 or 5xx page you archived: offer your copy (js/archive-library.js).
       if (typeof ArchiveLibrary !== 'undefined' && e.httpResponseCode >= 400 && TabManager.activeTabId === tab.id) {
         ArchiveLibrary.offerForDeadPage(url, { isMainFrame: true, httpStatus: e.httpResponseCode });
@@ -645,9 +727,10 @@ const WebviewManager = {
     onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
         this._noteHistory(tab, webview);
-        TabManager.updateTab(tab.id, { url: e.url });
-        window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: e.url } }));
-        document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: e.url } }));
+        const shown = this.docOriginal(e.url) || e.url;
+        TabManager.updateTab(tab.id, { url: shown });
+        window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: shown } }));
+        document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: shown } }));
       }
     });
     // A full load, once the page is there to be talked to (js/sponsor-skip.js).
@@ -687,7 +770,7 @@ const WebviewManager = {
                 } catch (err) { window.VexProblems?.note('Tabs', 'Could not put a reloaded tab back where it was', err); }
               }, { once: true });
             }
-            try { Promise.resolve(webview.loadURL(real)).catch(() => {}); } catch { webview.src = real; }
+            try { Promise.resolve(webview.loadURL(this.docAddress(real))).catch(() => {}); } catch { webview.src = this.docAddress(real); }
           };
           if (lifecycle) cancelRecovery = lifecycle.timeout(recover, 400 * 2 ** (crashCount - 1));
           else { const timer = setTimeout(recover, 400 * 2 ** (crashCount - 1)); cancelRecovery = () => clearTimeout(timer); }
@@ -985,7 +1068,7 @@ const WebviewManager = {
   // logged. A webview not attached yet still throws, for the caller's own
   // fallback.
   _loadUnwatched(wv, url, why) {
-    wv.loadURL(url).catch((err) => {
+    wv.loadURL(this.docAddress(url)).catch((err) => {
       const m = String((err && err.message) || err);
       if (/ERR_ABORTED|\(-3\)/.test(m)) return;
       console.warn(`[Vex] ${why}: could not load ${url} —`, m);
@@ -1188,7 +1271,7 @@ const WebviewManager = {
           delete tab._typedUrl;
           return tab;
         };
-        const load = () => wv.loadURL(url).then(settle, err => {
+        const load = () => wv.loadURL(this.docAddress(url)).then(settle, err => {
           const m = String((err && err.message) || err);
           if (/ERR_ABORTED|\(-3\)|ERR_FAILED \(-2\)/.test(m)) {
             const tab = settle();
@@ -2423,6 +2506,16 @@ const WebviewManager = {
 // guards like `window.WebviewManager && ...` (gui-style.js, formerly
 // sidebar.js) were always undefined and silently skipped their branch.
 if (typeof window !== 'undefined') window.WebviewManager = WebviewManager;
+
+// An open document viewer follows the theme, the look and the font as they change here.
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+  const pushDocTheme = () => { try { WebviewManager.sendDocThemeToAll(); } catch (err) { console.warn('[Vex] the document viewers could not be given the theme:', err && err.message); } };
+  document.addEventListener('theme-changed', pushDocTheme);
+  document.addEventListener('vex:font-changed', pushDocTheme);
+  // A look is applied a moment after the event that names it.
+  window.addEventListener('vex:gui-style', () => setTimeout(pushDocTheme, 150));
+  window.addEventListener('vex:gui-colors', () => setTimeout(pushDocTheme, 150));
+}
 
 // Renderer-safe export — the renderer loads this file via <script> tag where
 // `module` is undefined, so the guard keeps the global WebviewManager surface

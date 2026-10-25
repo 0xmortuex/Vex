@@ -52,6 +52,19 @@ const VexI18nUI = {
   // English.
   TABLE: {
     tr: {
+      // --- Document viewer (js/doc-viewer-host.js) ---
+      'Document viewer': 'Belge görüntüleyici',
+      'Settings for the viewer that opens your text documents': 'Metin belgelerinizi açan görüntüleyicinin ayarları',
+      'JSON, XML, CSV, Markdown, log and source files open in Vex\'s own viewer: a tree you can search and fold, a table you can sort and filter, a rendered page with its contents, or numbered lines with colours, wrapping and a search. It reads the document through the tab it is in, so a document behind a sign-in works and a private tab\'s document stays in that tab. Nothing is sent anywhere. Pages that are not documents, and what a page loads for itself, are never touched.': 'JSON, XML, CSV, Markdown, günlük ve kaynak dosyaları Vex\'in kendi görüntüleyicisinde açılır: aranabilen ve katlanabilen bir ağaç, sıralayıp süzebileceğiniz bir tablo, içindekileriyle biçimlenmiş bir sayfa ya da renkli, kaydırmalı ve aramalı numaralı satırlar. Belgeyi içinde bulunduğu sekme üzerinden okur; böylece oturum gerektiren bir belge de çalışır ve gizli sekmedeki belge o sekmede kalır. Hiçbir şey bir yere gönderilmez. Belge olmayan sayfalara ve bir sayfanın kendi yüklediği şeylere asla dokunulmaz.',
+      'Show text documents in Vex\'s own viewer': 'Metin belgelerini Vex\'in kendi görüntüleyicisinde göster',
+      'Text documents open in Vex\'s own viewer': 'Metin belgeleri Vex\'in kendi görüntüleyicisinde açılıyor',
+      'Text documents open in the browser\'s own view again': 'Metin belgeleri yine tarayıcının kendi görünümünde açılıyor',
+      'Switched off, they open as plain text as before. The viewer\'s "Open raw" button shows a single document the browser\'s own way.': 'Kapatılırsa eskisi gibi düz metin olarak açılırlar. Görüntüleyicideki "Ham aç" düğmesi tek bir belgeyi tarayıcının kendi yöntemiyle gösterir.',
+      'Forget the view settings': 'Görünüm ayarlarını unut',
+      'Vex forgot the viewer\'s view settings': 'Vex görüntüleyicinin görünüm ayarlarını unuttu',
+      'Vex remembers, per kind of document, whether you wrapped the lines, showed line numbers, kept the first column in view, and similar choices. They stay on this computer, are not synced, and are never kept for a private or Tor tab.': 'Vex, belge türüne göre satırları kaydırıp kaydırmadığınızı, satır numaralarını gösterip göstermediğinizi, ilk sütunu görünür tutup tutmadığınızı ve benzeri seçimlerinizi hatırlar. Bunlar bu bilgisayarda kalır, eşitlenmez ve gizli ya da Tor sekmeleri için asla tutulmaz.',
+      'This window cannot do that': 'Bu pencere bunu yapamaz',
+      'It did not work': 'Çalışmadı',
       // --- Did you know? (js/feature-faq.js) : generated block start ---
       'Did you know?': 'Biliyor muydunuz?',
       'Questions you might never think to ask, each with a button that tries the answer.': 'Aklınıza hiç gelmeyebilecek sorular; her birinde yanıtı deneyen bir düğme var.',
