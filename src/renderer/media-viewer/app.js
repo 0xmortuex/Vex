@@ -529,8 +529,8 @@ for (const type of ['pointermove', 'pointerdown', 'keydown', 'focusin']) stage.a
 }
 
 // ---- menus -------------------------------------------------------------------------------------------------------
-function speedMenu() {
-  openMenu($('mv-speed'), {
+function speedMenu(anchor) {
+  openMenu(anchor || $('mv-speed'), {
     label: t('Playback speed'), title: t('Playback speed'),
     items: RATES.map((r) => ({ label: r === 1 ? t('Normal') : fmtRate(r), role: 'menuitemradio', checked: Math.abs(media.playbackRate - r) < 0.001, onSelect: () => setRate(r) })),
   });
@@ -588,7 +588,7 @@ function moreMenu() {
   const items = [];
   if (S.chapters.length) items.push({ label: t('Chapters'), icon: 'list', hint: String(S.chapters.length), onSelect: () => chaptersMenu($('mv-more')) });
   items.push({ label: t('Subtitles'), icon: 'captions', onSelect: () => subsPanel($('mv-more')) });
-  items.push({ label: t('Playback speed'), icon: 'gauge', hint: fmtRate(media.playbackRate), onSelect: speedMenu });
+  items.push({ label: t('Playback speed'), icon: 'gauge', hint: fmtRate(media.playbackRate), onSelect: () => speedMenu($('mv-more')) });
   items.push({ label: S.ab.a == null ? t('Loop a section: set the start') : S.ab.b == null ? t('Loop a section: set the end') : t('Loop a section: clear'), icon: 'ab-loop', hint: 'A', onSelect: cycleAB });
   if (video) {
     items.push({ label: t('Previous frame'), icon: 'frame-back', hint: ',', onSelect: () => frameStep(-1) });
@@ -725,7 +725,7 @@ $('mv-next').addEventListener('click', () => goNext());
 $('mv-mute').addEventListener('click', toggleMute);
 $('mv-vol').addEventListener('input', () => { media.volume = Number($('mv-vol').value) / 100; if (media.volume > 0) media.muted = false; store.write('volume', media.volume); });
 const toggler = (anchor, open) => () => { if (openAnchor() === anchor) closePop(true); else open(); };
-$('mv-speed').addEventListener('click', toggler($('mv-speed'), speedMenu));
+$('mv-speed').addEventListener('click', toggler($('mv-speed'), () => speedMenu()));
 $('mv-shot').addEventListener('click', toggler($('mv-shot'), shotMenu));
 $('mv-tracks').addEventListener('click', toggler($('mv-tracks'), tracksMenu));
 $('mv-more').addEventListener('click', toggler($('mv-more'), moreMenu));

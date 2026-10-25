@@ -180,6 +180,11 @@ ipcMain.handle('tabs:history', (_event, pageId) => {
 // Only a window around the current entry, so a very long history stays small.
 // The page is one of the asking window's own (ipc-policy.js, TARGET_CHANNELS).
 const NAV_LIST_SPAN = 40;
+// Vex's own players stand for the file's own address in a tab's list (main/media-viewer.js).
+function _shownAddress(url) {
+  const player = require('./main/media-viewer').parseViewerUrl(url);
+  return String(player ? player.original + (player.hash ? '#' + player.hash : '') : url || '').slice(0, 2048);
+}
 ipcMain.handle('tabs:nav-list', (_event, pageId) => {
   const guest = webContents.fromId(pageId);
   if (!guest || guest.isDestroyed()) return null;
@@ -190,7 +195,7 @@ ipcMain.handle('tabs:nav-list', (_event, pageId) => {
   return {
     index,
     total: all.length,
-    entries: all.slice(from, to).map((entry, k) => ({ at: from + k, url: String(entry.url || '').slice(0, 2048), title: String(entry.title || '').slice(0, 200) })),
+    entries: all.slice(from, to).map((entry, k) => ({ at: from + k, url: _shownAddress(entry.url), title: String(entry.title || '').slice(0, 200) })),
   };
 });
 ipcMain.on('tabs:carry-history', (event, token, partition, list) => {

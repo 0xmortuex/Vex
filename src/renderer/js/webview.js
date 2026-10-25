@@ -65,6 +65,13 @@ const WebviewManager = {
     return original ? original + (u.hash ? u.hash : '') : null;
   },
 
+  // Whether this webview shows Vex's own video and sound player now.
+  mediaPage(webview) {
+    let url;
+    try { url = webview.getURL(); } catch { return false; }   // not attached yet
+    return !!this.mediaOriginal(url);
+  },
+
   createWebview(tab) {
     if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
     // A container's own route is asked for now, before anything reads the
@@ -198,6 +205,8 @@ const WebviewManager = {
     onWebview('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
+      // The player needs none of what follows (a page's colour base, zoom per site, dark mode, notification shims).
+      if (this.mediaPage(webview)) return;
 
       // Leak Canary: warn if a saved email of yours is pre-filled on a site that
       // isn't where you saved it (a tracker leak). Best-effort, throttled inside.
@@ -343,6 +352,17 @@ const WebviewManager = {
     });
 
     onWebview('dom-ready', () => {
+      // Vex's own player is not a site: no site's boosts, autofill, highlights or page tools go into it; it is given the theme (by
+      // js/media-viewer-host.js). The site's speakers and speed, and the accessibility pack, still apply, as does the volume (below).
+      if (this.mediaPage(webview)) {
+        const t = TabManager.tabs.find(x => x.id === tab.id);
+        try {
+          if (typeof AudioOutput !== 'undefined' && t && t.url) AudioOutput.apply(webview, t.url);
+          if (typeof PageTools !== 'undefined' && t && t.url) PageTools.applySpeed(webview, t.url);
+          if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.applyTo(webview);
+        } catch (err) { window.VexProblems?.note('Player', 'Could not set up the player page', err); }
+        return;
+      }
       if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.push(webview);
       // Site notifications held for the hourly bundle (js/push-bundle.js): tell this page which
       // hosts are listed. A page that is not listed, a private tab and a private window get nothing.
@@ -631,7 +651,7 @@ const WebviewManager = {
       TabManager.updateTab(tab.id, { url });
       window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url } }));
       this._updateFavicon(tab.id, url);
-      if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
+      if (typeof VexBoosts !== 'undefined' && !this.mediaOriginal(e.url)) { try { VexBoosts.applyTo(webview, url); } catch {} }
       // A site rule's "always muted" and "never let it sleep" apply to where
       // the tab has ARRIVED, which a link followed inside an existing tab
       // makes different from where it was made (js/site-routes.js).
@@ -1623,7 +1643,7 @@ const WebviewManager = {
     // divs across repeated right-clicks.
     document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove());
 
-    const curUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
+    const curUrl = (() => { let raw; try { raw = webview.getURL(); } catch { return ''; } return this.mediaOriginal(raw) || raw; })();
     const isTab = !!(webview.dataset && webview.dataset.tabId);
     const imageSrc = this.contextImage(e.params, webview);
 

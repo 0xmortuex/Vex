@@ -33,7 +33,9 @@ function place(el, anchor) {
   el.style.visibility = 'hidden';
   poproot().appendChild(el);
   const box = el.getBoundingClientRect();
-  const a = anchor ? anchor.getBoundingClientRect() : { left: stage.right - 20, right: stage.right - 20, top: stage.bottom - 90 };
+  // A button that is not shown at this width has no place: the menu then opens at the right end above the bar.
+  const shown = anchor && anchor.getBoundingClientRect().width > 0;
+  const a = shown ? anchor.getBoundingClientRect() : { left: stage.right - 20, right: stage.right - 20, top: stage.bottom - 90 };
   let left = a.right - stage.left - box.width;
   left = Math.max(8, Math.min(left, stage.width - box.width - 8));
   el.style.left = left + 'px';
