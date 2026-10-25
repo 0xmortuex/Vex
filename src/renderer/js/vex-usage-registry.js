@@ -269,6 +269,7 @@ const VexUsageRegistry = {
       VexStudyNotes: () => (typeof VexStudyNotes !== 'undefined' ? VexStudyNotes : null),
       VexPdfHighlights: () => (typeof VexPdfHighlights !== 'undefined' ? VexPdfHighlights : null),
       VexPdfTools: () => (typeof VexPdfTools !== 'undefined' ? VexPdfTools : null),
+      VexPdfViewer: () => (typeof VexPdfViewer !== 'undefined' ? VexPdfViewer : null),
       VexRituals: () => (typeof VexRituals !== 'undefined' ? VexRituals : null),
       VexFollowUps: () => (typeof VexFollowUps !== 'undefined' ? VexFollowUps : null),
       VexTwoMinute: () => (typeof VexTwoMinute !== 'undefined' ? VexTwoMinute : null),

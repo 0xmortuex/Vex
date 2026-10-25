@@ -24,9 +24,11 @@ html {
   --pv-text: var(--text, var(--vex-text-primary, #1b1b1b));
   /* Secondary text is the theme's text, softened, rather than the theme's own muted grey: that grey is tuned for a
      page and reads below 4.5:1 on a card in several themes (the AI panel does the same). */
-  --pv-muted: color-mix(in srgb, var(--pv-text) 82%, var(--pv-chrome));
+  --pv-muted: color-mix(in srgb, var(--pv-text) 90%, var(--pv-chrome));
   --pv-accent: var(--primary, var(--vex-accent, #1e3a5f));
-  --pv-on-accent: var(--on-primary, #fff);
+  --pv-on-accent: #fff;
+  /* The accent as a background for text: darkened or lightened until the text on it reads (js/theme.js refreshScheme). */
+  --pv-accent-bg: var(--pv-accent);
   --pv-accent-soft: color-mix(in srgb, var(--pv-accent) 14%, var(--pv-chrome));
   --pv-accent-line: color-mix(in srgb, var(--pv-accent) 32%, var(--pv-line));
   --pv-danger: var(--danger, var(--vex-danger, #b3261e));
@@ -54,7 +56,7 @@ body.pv {
   font-family: var(--pv-font); font-size: 13.5px; line-height: 1.4;
   -webkit-font-smoothing: antialiased;
 }
-.pv :is(button, input, select, textarea) { font-family: inherit; font-size: inherit; color: inherit; }
+.pv :where(button, input, select, textarea) { font-family: inherit; font-size: inherit; color: inherit; }
 .pv button { cursor: pointer; }
 .pv ::selection { background: color-mix(in srgb, var(--pv-accent) 30%, transparent); }
 .pv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -67,7 +69,7 @@ body.pv {
 
 .pv-skip {
   position: absolute; left: 8px; top: -60px; z-index: 100; padding: 8px 12px; border-radius: var(--pv-r);
-  background: var(--pv-accent); color: var(--pv-on-accent); text-decoration: none; font-weight: 600;
+  background: var(--pv-accent-bg); color: var(--pv-on-accent); text-decoration: none; font-weight: 600;
 }
 .pv-skip:focus { top: 8px; }
 
@@ -97,14 +99,14 @@ body.pv {
 .pv-btn:hover:not(:disabled) { background: var(--pv-hover); }
 .pv-btn:active:not(:disabled) { background: color-mix(in srgb, var(--pv-text) 14%, transparent); }
 .pv-btn:disabled { opacity: 0.45; cursor: default; }
-.pv-btn[aria-pressed="true"] { background: var(--pv-accent); color: var(--pv-on-accent); }
-.pv-btn[aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--pv-accent) 88%, var(--pv-text)); }
+.pv-btn[aria-pressed="true"] { background: var(--pv-accent-bg); color: var(--pv-on-accent); }
+.pv-btn[aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--pv-accent-bg) 90%, var(--pv-on-accent)); }
 .pv-btn svg { display: block; }
 /* A button that opens a menu: a small tick at its corner. */
 .pv-btn-menu { padding-right: 4px; min-width: 40px; }
 .pv-btn-menu::after { content: ""; width: 0; height: 0; margin-left: 2px; border-left: 3.5px solid transparent; border-right: 3.5px solid transparent; border-top: 4px solid currentColor; opacity: 0.7; }
-.pv-btn-text { padding: 0 11px 0 9px; font-weight: 600; background: var(--pv-accent); color: var(--pv-on-accent); }
-.pv-btn-text:hover:not(:disabled) { background: color-mix(in srgb, var(--pv-accent) 88%, var(--pv-text)); }
+.pv-btn-text { padding: 0 11px 0 9px; font-weight: 600; background: var(--pv-accent-bg); color: var(--pv-on-accent); }
+.pv-btn-text:hover:not(:disabled) { background: color-mix(in srgb, var(--pv-accent-bg) 90%, var(--pv-on-accent)); }
 .pv-btn-text:disabled { background: transparent; color: var(--pv-text); border-color: var(--pv-line); }
 .pv-btn-text[data-dirty="true"]:not(:disabled) { box-shadow: 0 0 0 2px color-mix(in srgb, var(--pv-accent) 30%, transparent); }
 
@@ -176,8 +178,8 @@ body.pv {
   min-height: var(--pv-ctl); padding: 0 14px; border: 1px solid var(--pv-line); border-radius: var(--pv-r); background: transparent; color: var(--pv-text); font-weight: 500;
 }
 .pv-action:hover { background: var(--pv-hover); }
-.pv-action.primary { background: var(--pv-accent); border-color: var(--pv-accent); color: var(--pv-on-accent); font-weight: 600; }
-.pv-action.primary:hover { background: color-mix(in srgb, var(--pv-accent) 88%, var(--pv-text)); }
+.pv-action.primary { background: var(--pv-accent-bg); border-color: var(--pv-accent-bg); color: var(--pv-on-accent); font-weight: 600; }
+.pv-action.primary:hover { background: color-mix(in srgb, var(--pv-accent-bg) 90%, var(--pv-on-accent)); }
 .pv-action.danger { border-color: var(--pv-danger); color: var(--pv-danger); }
 .pv-props { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 8px 0 0; }
 .pv-props dt { color: var(--pv-muted); }
@@ -199,7 +201,7 @@ body.pv {
 .pv-rail-tab:hover { background: var(--pv-hover); color: var(--pv-text); }
 .pv-rail-tab[aria-selected="true"] { color: var(--pv-text); border-bottom-color: var(--pv-accent); font-weight: 600; }
 .pv-rail-tab:focus-visible { outline-offset: -2px; }
-.pv-count { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--pv-accent); color: var(--pv-on-accent); font-size: 11px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.pv-count { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--pv-accent-bg); color: var(--pv-on-accent); font-size: 11px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
 .pv-pane { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px; }
 .pv-grip { position: absolute; top: 0; bottom: 0; right: -4px; width: 8px; cursor: col-resize; z-index: 5; }
 .pv-grip:hover, .pv-grip:focus-visible, .pv-grip.drag { background: color-mix(in srgb, var(--pv-accent) 45%, transparent); }
@@ -304,7 +306,7 @@ body[data-tone="night"] .pv-signmark img, body[data-tone="theme-dark"] .pv-signm
   min-width: 36px; height: 28px; padding: 0 8px; border: 1px solid var(--pv-line); border-radius: var(--pv-r); background: transparent; font-size: 12px;
 }
 .pv-chip:hover { background: var(--pv-hover); }
-.pv-chip[aria-pressed="true"] { background: var(--pv-accent); border-color: var(--pv-accent); color: var(--pv-on-accent); }
+.pv-chip[aria-pressed="true"] { background: var(--pv-accent-bg); border-color: var(--pv-accent-bg); color: var(--pv-on-accent); }
 @media (max-width: 640px) { .pv-find { left: 8px; right: 8px; } .pv-find .pv-input { flex: 1; width: auto; min-width: 0; } .pv-find-count { min-width: 0; } }
 
 .pv-pager {
@@ -378,11 +380,14 @@ body.pv[data-present="true"].pv-awake { cursor: default; }
 
 .pv-print-area { display: none; }
 @media print {
+  html, body.pv { height: auto; }
   body.pv { display: block; overflow: visible; background: #fff; }
   body.pv > *:not(.pv-print-area) { display: none !important; }
   .pv-print-area { display: block; }
-  .pv-print-page { break-after: page; page-break-after: always; text-align: center; }
-  .pv-print-page img { max-width: 100%; max-height: 100vh; }
+  /* One picture of a page per sheet, as tall as the sheet and no taller: one that spilled over made a blank sheet after every page. */
+  .pv-print-page { box-sizing: border-box; width: 100%; height: 100vh; overflow: hidden; display: flex; align-items: center; justify-content: center; break-after: page; page-break-after: always; }
+  .pv-print-page:last-child { break-after: auto; page-break-after: auto; }
+  .pv-print-page img { max-width: 100%; max-height: 100%; object-fit: contain; }
   @page { margin: 0; }
 }
 

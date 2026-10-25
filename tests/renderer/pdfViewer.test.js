@@ -289,7 +289,7 @@ describe('the page\'s own markup', () => {
   });
   it('links only what main serves, loads its icons first, and has no inline script', () => {
     for (const m of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
-      if (m[1].startsWith('#')) continue;
+      if (m[1].startsWith('#') || m[1] === 'data:,') continue;      // data:, is the page saying it has no icon of its own
       expect(m[1]).toMatch(/^\/(css|lib|app)\/|^\/icons\.js$/);
     }
     expect(html.indexOf('/icons.js')).toBeLessThan(html.indexOf('/app/app.js'));

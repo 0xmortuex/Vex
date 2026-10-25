@@ -75,7 +75,7 @@ function drawMarksOnCanvas(g, marks, viewport) {
     g.save();
     g.strokeStyle = m.color; g.fillStyle = m.color; g.lineCap = 'round'; g.lineJoin = 'round';
     if (m.kind === 'highlight') {
-      g.globalAlpha = 0.42;
+      g.globalAlpha = 0.5;
       for (const r of m.rects) { const a = P(r.x, r.y), b = P(r.x + r.w, r.y + r.h); g.fillRect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])); }
     } else if (m.kind === 'underline' || m.kind === 'strike') {
       g.lineWidth = Math.max(1, (m.width || 1) * k);

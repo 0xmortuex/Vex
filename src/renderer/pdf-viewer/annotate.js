@@ -429,6 +429,20 @@ export function createAnnotator(ctx) {
   }
 
   // ---- selecting and changing a mark ------------------------------------------------------
+  // A note or a signature is a box on the page; it is found by where it is drawn, which also holds when the page is turned.
+  function markUnder(n, view, event, p, tol) {
+    const entry = pages.get(n);
+    return store.byPage(n).slice().reverse().find((m) => {
+      if ((m.kind === 'text' || m.kind === 'signature') && entry) {
+        const node = entry.marksEl.querySelector(`[data-mid="${m.id}"]`);
+        if (!node) return false;
+        const r = node.getBoundingClientRect();
+        return event.clientX >= r.left - 4 && event.clientX <= r.right + 4 && event.clientY >= r.top - 4 && event.clientY <= r.bottom + 4;
+      }
+      return hits(m, p[0], p[1], tol);
+    });
+  }
+
   function selectByPointer(event) {
     if (event.target.closest('a, input, textarea, select, button, .pv-handle, .pv-mk-box')) return;
     const page = event.target.closest('.page');
@@ -436,9 +450,7 @@ export function createAnnotator(ctx) {
     const n = Number(page.dataset.pageNumber), view = viewOf(n);
     const r = page.getBoundingClientRect();
     const p = toPdf(view, event.clientX - r.left, event.clientY - r.top);
-    const tol = 4 / scaleOf(view);
-    const list = store.byPage(n).slice().reverse();
-    const found = list.find((m) => hits(m, p[0], p[1], tol));
+    const found = markUnder(n, view, event, p, 4 / scaleOf(view));
     if (!found) { deselect(); return; }
     drag = { type: 'click', id: found.id, x: event.clientX, y: event.clientY };
   }
@@ -609,8 +621,8 @@ export function createAnnotator(ctx) {
     if (!page) return;
     const n = Number(page.dataset.pageNumber), view = viewOf(n), r = page.getBoundingClientRect();
     const p = toPdf(view, event.clientX - r.left, event.clientY - r.top);
-    const found = store.byPage(n).slice().reverse().find((m) => m.kind === 'text' && hits(m, p[0], p[1], 4 / scaleOf(view)));
-    if (found) { event.preventDefault(); editNote(found.id); }
+    const found = markUnder(n, view, event, p, 4 / scaleOf(view));
+    if (found && found.kind === 'text') { event.preventDefault(); editNote(found.id); }
   });
 
   return {

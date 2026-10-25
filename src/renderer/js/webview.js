@@ -85,6 +85,12 @@ const WebviewManager = {
       attrs: { 'data-theme': root.getAttribute('data-theme') || '', 'data-scheme': root.getAttribute('data-scheme') || '', 'data-gui-style': document.body.getAttribute('data-gui-style') || '', 'data-gui-family': document.body.getAttribute('data-gui-family') || '' },
     };
   },
+  // Whether this webview shows Vex's own PDF viewer now.
+  pdfPage(webview) {
+    let url;
+    try { url = webview.getURL(); } catch (err) { return false; }   // not attached yet
+    return !!this.pdfOriginal(url);
+  },
   sendPdfTheme(webview) {
     try { webview.send('pdfview:theme', this.pdfThemePayload()); }
     catch (err) { if (!/dom-ready|attached/i.test(String(err && err.message))) console.warn('[Vex] the PDF viewer could not be given the theme:', err && err.message); }
@@ -215,6 +221,8 @@ const WebviewManager = {
     onWebview('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
+      // The viewer needs none of what follows (a page's colour base, zoom per site, dark mode, notification shims).
+      if (this.pdfPage(webview)) return;
 
       // Leak Canary: warn if a saved email of yours is pre-filled on a site that
       // isn't where you saved it (a tracker leak). Best-effort, throttled inside.
@@ -360,6 +368,8 @@ const WebviewManager = {
     });
 
     onWebview('dom-ready', () => {
+      // Vex's own PDF viewer is not a site: no site's boosts, autofill, highlights or page tools go into it; it is given the theme.
+      if (this.pdfPage(webview)) { this.sendPdfTheme(webview); return; }
       if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.push(webview);
       // Site notifications held for the hourly bundle (js/push-bundle.js): tell this page which
       // hosts are listed. A page that is not listed, a private tab and a private window get nothing.
@@ -650,7 +660,7 @@ const WebviewManager = {
       TabManager.updateTab(tab.id, { url });
       window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url } }));
       this._updateFavicon(tab.id, url);
-      if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
+      if (typeof VexBoosts !== 'undefined' && !this.pdfOriginal(e.url)) { try { VexBoosts.applyTo(webview, url); } catch {} }
       // A site rule's "always muted" and "never let it sleep" apply to where
       // the tab has ARRIVED, which a link followed inside an existing tab
       // makes different from where it was made (js/site-routes.js).
@@ -2472,6 +2482,8 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   // A look is applied a moment after the event that names it.
   window.addEventListener('vex:gui-style', () => setTimeout(pushPdfTheme, 150));
   window.addEventListener('vex:gui-colors', () => setTimeout(pushPdfTheme, 150));
+  // The window's language (js/i18n-ui.js sets <html lang>) goes with it.
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(pushPdfTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
 }
 
 // Renderer-safe export — the renderer loads this file via <script> tag where

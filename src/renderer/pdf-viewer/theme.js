@@ -68,10 +68,17 @@ function refreshScheme() {
   const dark = interfaceIsDark();
   document.body.dataset.dark = dark ? 'true' : 'false';
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-  // The text on the accent colour: white or near black, whichever reads better on it, whatever the theme says.
-  const accent = resolveColor(cssColor('var(--pv-accent)'));
+  // The text on the accent colour: white or near black, whichever reads better on it, whatever the theme says. When even that is under
+  // 4.7:1 (a middling accent), the accent used as a background is darkened (for white text) or lightened (for dark text) until it reads.
+  const accent = resolveColor(cssColor('var(--pv-accent)')).slice(0, 3);
   const white = [255, 255, 255], ink = [17, 19, 24];
-  document.documentElement.style.setProperty('--pv-on-accent', contrast(accent, white) >= contrast(accent, ink) ? '#ffffff' : '#111318');
+  const useWhite = contrast(accent, white) >= contrast(accent, ink);
+  const text = useWhite ? white : ink;
+  let bg = accent;
+  for (let guard = 0; contrast(bg, text) < 4.7 && guard < 40; guard++) bg = bg.map((v) => Math.round(useWhite ? v * 0.94 : v + (255 - v) * 0.08));
+  const root = document.documentElement.style;
+  root.setProperty('--pv-on-accent', useWhite ? '#ffffff' : '#111318');
+  root.setProperty('--pv-accent-bg', bg === accent ? 'var(--pv-accent)' : toHex(bg));
 }
 export { refreshScheme };
 
