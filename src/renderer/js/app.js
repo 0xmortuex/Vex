@@ -829,6 +829,8 @@ function vexOwnTextFocused(doc) {
     'vex.font', 'vex.fontMono', 'vex.fontCss', 'vex.uiScale', 'vex.uiDensity', 'vex.sitePanels',
     // Settings > Appearance (js/appearance-prefs.js).
     'vex.websiteAppearance', 'vex.reduceMotion', 'vex.cursor', 'vex.clickFx', 'vex.setupAgainOff',
+    // Dark mode for websites (js/dark-mode.js): how it is done. The person's own site lists are not here and stay.
+    'vex.darkMode.mode', 'vex.darkMode.engine', 'vex.darkMode.look', 'vex.darkMode.keepImages', 'vex.darkMode.readerDefer',
     // The sleep model (js/sleep-consent.js) and Discord's memory rows.
     'vex.sleepConsent', 'vex.sleepAlways', 'vex.panelAutoSleep', 'vex.panelSleepMinutes',
     'vex.panelSleepExempt', 'vex.panelKeepAwake', 'vex.memoryNoticeMB',

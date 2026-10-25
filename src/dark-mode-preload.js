@@ -232,6 +232,8 @@
     return s.length;
   }
   function splitTop(s, sep) {
+    // no bracket and no quote in the text: the native split is the whole answer
+    if (s.indexOf('(') < 0 && s.indexOf('"') < 0 && s.indexOf("'") < 0) return s.split(sep);
     const out = []; let depth = 0; let start = 0;
     for (let i = 0; i < s.length; i++) {
       const ch = s[i];
@@ -275,7 +277,17 @@
   // `look` the brightness/contrast/sepia. var(--x) becomes
   // var(--vexdm-ROLE--x, var(--x)): the converted twin of the variable
   // (see defineVarTwins) when there is one, the page's own value when not.
+  const valueCache = new Map();
   function convertValue(value, role, look) {
+    const key = role + (look ? look.brightness + ',' + look.contrast + ',' + look.sepia : '') + '|' + value;
+    const hit = valueCache.get(key);
+    if (hit !== undefined) return hit;
+    const result = convertValueUncached(value, role, look);
+    if (valueCache.size > 6000) valueCache.clear();
+    valueCache.set(key, result);
+    return result;
+  }
+  function convertValueUncached(value, role, look) {
     const out = [];
     let i = 0; const n = value.length;
     while (i < n) {
@@ -376,11 +388,68 @@
     return out;
   }
 
+  // For a variable the site itself defined for its dark design: the twins carry its own value for every role, so a
+  // use of the variable reads the dark value and not a converted twin of the same name from the light rules.
+  const COLORVAL = /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(|gradient\(|var\(|\b(?:white|black|gr[ae]y|red|blue|green|yellow|orange|purple|pink|navy|teal|silver|maroon|olive|lime|aqua|fuchsia|transparent)\b/i;
+  function identityTwins(name, value) {
+    if (!COLORVAL.test(value)) return [];
+    const key = name.slice(2);
+    return ['bg', 'fg', 'bd'].map((role) => '--vexdm-' + role + '-' + key + ':' + value);
+  }
+
   // --- which declarations carry colours ---------------------------------------
   const BORDER_PROP = /^(?:border|outline|column-rule)(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?(?:-color)?$/;
   const FG_PROPS = new Set(['color', 'caret-color', 'text-decoration', 'text-decoration-color', 'text-emphasis', 'text-emphasis-color',
     '-webkit-text-fill-color', '-webkit-text-stroke-color', '-webkit-text-stroke', 'fill', 'stroke', 'stop-color', 'flood-color', 'lighting-color']);
   const BG_PROPS = new Set(['background', 'background-color', 'background-image']);
+
+  // An icon kept in the stylesheet itself (background: url("data:image/svg+xml,...")) is a dark drawing on a page
+  // that is about to be dark: its fills and strokes get the colour a dark page gives text. An address is never
+  // rewritten (a relative one would mean something else here), so a value with any url() that is not such an
+  // icon returns null.
+  function convertSvgUrls(value, look) {
+    let out = ''; let i = 0; let found = false;
+    const re = /url\(/gi;
+    let m;
+    while ((m = re.exec(value))) {
+      const open = m.index + 3;
+      const end = matchParen(value, open);
+      let inner = value.slice(open + 1, end).trim();
+      if ((inner[0] === '"' || inner[0] === "'") && inner[inner.length - 1] === inner[0]) inner = inner.slice(1, -1);
+      if (!/^data:image\/svg\+xml/i.test(inner)) return null;
+      const converted = convertSvgDataUrl(inner, look);
+      out += value.slice(i, m.index) + (converted || value.slice(m.index, end + 1));
+      if (converted) found = true;
+      i = end + 1;
+      re.lastIndex = i;
+    }
+    return found ? out + value.slice(i) : value;
+  }
+  function convertSvgDataUrl(url, look) {
+    const comma = url.indexOf(',');
+    if (comma < 0) return null;
+    const head = url.slice(0, comma); const payload = url.slice(comma + 1);
+    let svg;
+    try {
+      if (/;base64/i.test(head)) svg = new TextDecoder().decode(Uint8Array.from(atob(payload), (c) => c.charCodeAt(0)));
+      else { try { svg = decodeURIComponent(payload); } catch (err) { svg = payload; /* vex-allow-empty-catch: a data URL that is not percent-encoded is already the drawing */ } }
+    } catch (err) { return null; }
+    const ink = toCss(convertColor({ r: 0, g: 0, b: 0, a: 1 }, 'fg', look));
+    let touched = false;
+    svg = svg.replace(/(\b(?:fill|stroke|stop-color|flood-color|color)\s*[=:]\s*)(["']?)([^"';>\s]+)\2/gi, (all, pre, q, val) => {
+      if (/^(none|inherit|url\(.*)$/i.test(val)) return all;
+      if (/^currentcolor$/i.test(val)) { touched = true; return pre + q + ink + q; }
+      const next = convertValue(val, 'fg', look);
+      if (next !== val) touched = true;
+      return pre + q + next + q;
+    });
+    // a drawing that names no colour is black: give its root the text colour
+    if (!/\b(?:fill|stroke)\s*[=:]/i.test(svg) && /<(?:path|circle|rect|polygon|ellipse|line|polyline|g)\b/i.test(svg)) {
+      svg = svg.replace(/<svg\b/i, '<svg fill="' + ink + '"');
+      touched = true;
+    }
+    return touched ? 'url("data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '")' : null;
+  }
 
   // One declaration -> the overriding declaration text, or '' for none.
   function overrideDeclaration(d, look, keepImages) {
@@ -394,6 +463,13 @@
         return v === value ? '' : 'background-color:' + v + '!important';
       }
       const hasUrl = /url\(|image-set\(/i.test(value);
+      if (hasUrl && /data:image\/svg\+xml/i.test(value) && !/image-set\(/i.test(value)) {
+        const svgOnly = convertSvgUrls(value, look);
+        if (svgOnly !== null && svgOnly !== value) {
+          const v = convertValue(svgOnly, 'bg', look);
+          return (name === 'background-image' ? 'background-image:' : 'background:') + v + '!important';
+        }
+      }
       if (name === 'background-image') {
         if (hasUrl) return '';
         const v = convertValue(value, 'bg', look);
@@ -463,15 +539,30 @@
   }
 
   // The declarations of one rule's style -> override text ('' when nothing).
-  function overrideBlock(styleText, look, keepImages) {
+  // wantVar(name): does anything use this variable as a colour? (a twin for every variable of a big design
+  // system would be most of the output); undefined means every one.
+  function overrideBlock(styleText, look, keepImages, wantVar) {
     const decls = parseDeclarations(styleText);
     const out = [];
     for (const d of decls) {
-      if (d.name.startsWith('--')) { for (const t of varTwins(d.name, d.value, look)) out.push(t); continue; }
+      if (d.name.startsWith('--')) {
+        if (!wantVar || wantVar(d.name)) for (const t of varTwins(d.name, d.value, look)) out.push(t);
+        continue;
+      }
       const o = overrideDeclaration(d, look, keepImages);
       if (o) out.push(o);
     }
     return out.join(';');
+  }
+
+  const COLORISH = /color|background|border|outline|fill|stroke|stop-|column-rule|text-decoration|text-emphasis|--/;
+  const isColorProp = (name) => BG_PROPS.has(name) || FG_PROPS.has(name) || BORDER_PROP.test(name) || name === 'scrollbar-color';
+  const VAR_REF = /var\(\s*(--[\w-]+)/g;
+  function varRefs(value) {
+    const out = []; let m;
+    VAR_REF.lastIndex = 0;
+    while ((m = VAR_REF.exec(value))) out.push(m[1]);
+    return out;
   }
 
   // --- the engine (needs a DOM) ------------------------------------------------
@@ -494,14 +585,15 @@
     const palette = { bg: new Map(), fg: new Map(), bd: new Map(), fill: new Map() };
     const ATTR_KINDS = ['bg', 'fg', 'bd', 'fill', 'img'];
     const marked = new Set(); // elements carrying a data-vexdm-* attribute
-    const stats = { ms: 0, rules: 0, sheets: 0, audited: 0, fixes: 0, logos: 0, passes: 0 };
+    const stats = { ms: 0, msBrowserParse: 0, outChars: 0, msSheets: 0, msAudit: 0, msDetect: 0, rules: 0, sheets: 0, audited: 0, fixes: 0, logos: 0, passes: 0 };
     let lastStateKey = '';
 
     const nowMs = () => (win.performance ? win.performance.now() : Date.now());
     const look = () => cfg.look;
 
-    function makeSheet(text) {
-      const s = new win.CSSStyleSheet();
+    // baseUrl: where a relative url() in the copy points (the address of the stylesheet it was copied from)
+    function makeSheet(text, baseUrl) {
+      const s = baseUrl ? new win.CSSStyleSheet({ baseURL: baseUrl }) : new win.CSSStyleSheet();
       s.replaceSync(text);
       ours.add(s);
       return s;
@@ -516,6 +608,22 @@
     function setAdopted(root, list) {
       try { root.adoptedStyleSheets = list; } catch (err) { env.error('could not adopt a stylesheet', err); }
     }
+    // The veil: html hidden (on a dark canvas) while a stylesheet that has just arrived is being copied dark.
+    let veilSheet = null; let veilCount = 0; let veilTimer = 0;
+    function veilHold() {
+      if (!active || paused) return;
+      veilCount++;
+      if (!veilSheet) { veilSheet = makeSheet('', null); syncRoot(rootState(doc)); }
+      veilSheet.replaceSync('html{visibility:hidden!important}');
+      if (veilTimer) win.clearTimeout(veilTimer);
+      veilTimer = win.setTimeout(() => { veilCount = 0; veilRelease(); }, 1000);
+    }
+    function veilRelease() {
+      if (veilCount > 0) veilCount--;
+      if (veilCount > 0 || !veilSheet) return;
+      if (veilTimer) { win.clearTimeout(veilTimer); veilTimer = 0; }
+      veilSheet.replaceSync('');
+    }
     // Our sheets live at the end of the adopted list: after the page's own.
     function syncRoot(st) {
       const page = Array.from(st.root.adoptedStyleSheets || []).filter((s) => !ours.has(s));
@@ -523,6 +631,7 @@
       if (st.base) mine.push(st.base);
       for (const src of st.sheets) { const o = sheetOut.get(src); if (o && o.out) mine.push(o.out); }
       if (st.tail) mine.push(st.tail);
+      if (st.root === doc && veilSheet) mine.push(veilSheet);
       setAdopted(st.root, page.concat(mine));
     }
 
@@ -543,7 +652,9 @@
       if (depthGuard > 8) return '';
       const T = rule.type;
       if (T === 1) { // style rule
-        let body = overrideBlock(rule.style.cssText, look(), cfg.keepImages);
+        // most rules only lay things out: one test of the text spares reading them declaration by declaration
+        const css = rule.style.cssText;
+        const body = COLORISH.test(css) ? overrideBlock(css, look(), cfg.keepImages, wantVar) : '';
         let nested = '';
         if (rule.cssRules && rule.cssRules.length) for (const r of rule.cssRules) nested += ruleText(r, depthGuard + 1);
         if (!body && !nested) return '';
@@ -557,6 +668,10 @@
         if (!inner) return '';
         const mt = rule.media && rule.media.mediaText;
         return mt && mt !== 'all' ? '@media ' + mt + '{' + inner + '}' : inner;
+      }
+      if (T === 4) { // the site's own dark design: @media (prefers-color-scheme: dark) is taken as true, light as false
+        const scheme = schemeBlock(rule, depthGuard);
+        if (scheme !== null) return scheme;
       }
       if (T === 4 || T === 12 || rule.constructor.name === 'CSSContainerRule' || rule.constructor.name === 'CSSScopeRule') { // media / supports / container
         let inner = '';
@@ -574,17 +689,48 @@
         let frames = '';
         for (const fr of rule.cssRules) {
           const decls = parseDeclarations(fr.style.cssText);
-          let changed = false;
           const parts = decls.map((d) => {
             const o = overrideDeclaration(d, look(), cfg.keepImages);
-            if (!o) return d.name + ':' + d.value;
-            changed = true;
-            return o.replace(/!important$/, '');
+            return o ? o.replace(/!important$/, '') : d.name + ':' + d.value;
           });
-          if (changed) frames += fr.keyText + '{' + parts.join(';') + '}';
-          else frames += fr.keyText + '{' + parts.join(';') + '}';
+          frames += fr.keyText + '{' + parts.join(';') + '}';
         }
         return /color|background|fill|stroke|border/i.test(rule.cssText) ? '@keyframes ' + rule.name + '{' + frames + '}' : '';
+      }
+      return '';
+    }
+    // A site that ships a dark theme keeps it in @media (prefers-color-scheme: dark). Those rules are what the
+    // site's own designers made for dark, so they are applied as they are (every declaration important, to stand
+    // above our own converted copy of the light rules), with the dark condition taken as true; a block for light
+    // is dropped. Returns null for a media rule that has nothing to do with the colour scheme (or that says it
+    // in a way not understood: a list, "not").
+    function schemeBlock(rule, depthGuard) {
+      const cond = String(rule.conditionText || (rule.media && rule.media.mediaText) || '');
+      const m = /\(\s*prefers-color-scheme\s*:\s*(dark|light)\s*\)/i.exec(cond);
+      if (!m || cond.indexOf(',') >= 0 || /\bnot\b|\bor\b/i.test(cond)) return null;
+      if (m[1].toLowerCase() === 'light') return '';
+      const rest = cond.split(/\s+and\s+/i).map(p => p.trim()).filter(p => !/^\(\s*prefers-color-scheme\s*:\s*dark\s*\)$/i.test(p)).join(' and ');
+      let inner = '';
+      for (const r of rule.cssRules) inner += nativeText(r, depthGuard + 1);
+      if (!inner) return '';
+      return rest ? '@media ' + rest + '{' + inner + '}' : inner;
+    }
+    function nativeText(rule, depthGuard) {
+      if (depthGuard > 8) return '';
+      if (rule.type === 1) {
+        const decls = parseDeclarations(rule.style.cssText);
+        const out = [];
+        for (const d of decls) {
+          out.push(d.name + ':' + d.value + '!important');
+          if (d.name.startsWith('--') && wantVar(d.name)) for (const t of identityTwins(d.name, d.value)) out.push(t);
+        }
+        return out.length ? rule.selectorText + '{' + out.join(';') + '}' : '';
+      }
+      if (rule.cssRules && (rule.type === 4 || rule.type === 12 || rule.constructor.name === 'CSSContainerRule')) {
+        let inner = '';
+        for (const r of rule.cssRules) inner += nativeText(r, depthGuard + 1);
+        if (!inner) return '';
+        return rule.cssText.slice(0, rule.cssText.indexOf('{')).trim() + '{' + inner + '}';
       }
       return '';
     }
@@ -595,11 +741,14 @@
       for (const r of rules) text += ruleText(r, depthGuard);
       return text;
     }
-    function mediaWrap(sheet, text) {
-      let mt = '';
-      try { mt = sheet.media && sheet.media.mediaText; } catch (err) { mt = ''; }
-      if (!mt || mt === 'all' || mt === '') return text;
-      if (/^print$/i.test(mt.trim())) return '';
+    function sheetMedia(sheet) {
+      try { return String((sheet.media && sheet.media.mediaText) || '').trim(); } catch (err) { return ''; }
+    }
+    const DARK_ONLY = /^\(\s*prefers-color-scheme\s*:\s*dark\s*\)$/i;
+    const LIGHT_ONLY = /^\(\s*prefers-color-scheme\s*:\s*light\s*\)$/i;
+    function mediaWrap(mt, text) {
+      if (!mt || mt === 'all' || DARK_ONLY.test(mt)) return text;
+      if (/^print$/i.test(mt)) return '';
       return '@media ' + mt + '{' + text + '}';
     }
 
@@ -611,26 +760,100 @@
       const prev = sheetOut.get(sheet);
       if (prev && prev.count === count && prev.key === cfg.key) return;
       const t0 = nowMs();
-      const text = sheetText(sheet, 0);
-      const wrapped = mediaWrap(sheet, text || '');
+      const mt = sheetMedia(sheet);
+      let text = '';
+      if (DARK_ONLY.test(mt)) { for (const r of sheet.cssRules) text += nativeText(r, 0); } // a stylesheet the site made for dark
+      else if (!LIGHT_ONLY.test(mt)) text = sheetText(sheet, 0);
+      const wrapped = mediaWrap(mt, text || '');
       let o = prev;
-      if (!o) { o = { out: makeSheet(''), count: 0, key: '' }; sheetOut.set(sheet, o); }
+      if (!o) { o = { out: makeSheet('', sheet.href), count: 0, key: '' }; sheetOut.set(sheet, o); }
+      const tSync = nowMs();
       try { o.out.replaceSync(wrapped); } catch (err) { env.error('could not build the dark copy of a stylesheet', err); }
+      stats.msBrowserParse += nowMs() - tSync; stats.outChars += wrapped.length;
+      if (env.debug) (stats.log || (stats.log = [])).push({ href: String(sheet.href || 'inline').slice(-48), rules: count, ms: Math.round((nowMs() - t0) * 10) / 10, out: wrapped.length, redo: !!prev });
       o.count = count; o.key = cfg.key;
       st.sheets.add(sheet);
       stats.sheets = st.sheets.size;
       stats.ms += nowMs() - t0;
+      stats.msSheets += nowMs() - t0;
       stats.passes++;
     }
     // A sheet another origin owns cannot be read rule by rule. The audit pass
     // (computed styles) covers what it styles.
     function unreadable(st, sheet) { st.unreadable = (st.unreadable || 0) + 1; }
 
+    // ---- which variables need a converted twin ----
+    // A design system defines thousands of variables and a page uses a few hundred as colours. A twin is written
+    // only for a variable that some colour declaration uses (directly or through another variable's value).
+    const usedVars = new Set(); const defRefs = new Map(); const defIndex = new Map();
+    let newlyUsed = []; let scanned = new WeakMap();
+    const wantVar = (name) => usedVars.has(name);
+    function markUsed(name) {
+      if (usedVars.has(name)) return;
+      usedVars.add(name); newlyUsed.push(name);
+      const refs = defRefs.get(name);
+      if (refs) for (const r of refs) markUsed(r);
+    }
+    function noteDeclaration(d, sheet) {
+      if (d.name.startsWith('--')) {
+        let owners = defIndex.get(d.name);
+        if (!owners) defIndex.set(d.name, owners = new Set());
+        owners.add(sheet);
+        if (d.value.indexOf('var(') >= 0) {
+          let refs = defRefs.get(d.name);
+          for (const r of varRefs(d.value)) {
+            if (!refs) defRefs.set(d.name, refs = new Set());
+            refs.add(r);
+            if (usedVars.has(d.name)) markUsed(r);
+          }
+        }
+      } else if (d.value.indexOf('var(') >= 0 && isColorProp(d.name)) {
+        for (const r of varRefs(d.value)) markUsed(r);
+      }
+    }
+    function scanRules(rules, sheet, depth) {
+      if (depth > 8) return;
+      for (const rule of rules) {
+        if (rule.type === 1) {
+          const css = rule.style.cssText;
+          if (COLORISH.test(css)) for (const d of parseDeclarations(css)) noteDeclaration(d, sheet);
+          if (rule.cssRules && rule.cssRules.length) scanRules(rule.cssRules, sheet, depth + 1);
+        } else if (rule.type === 3) { if (rule.styleSheet) scanSheet(rule.styleSheet, sheet, depth + 1); }
+        else if (rule.cssRules && rule.type !== 7) scanRules(rule.cssRules, sheet, depth + 1);
+      }
+    }
+    function scanSheet(sheet, owner, depth) {
+      let rules;
+      try { rules = sheet.cssRules; } catch (err) { return; }
+      scanRules(rules, owner || sheet, depth || 0);
+    }
+    function scanNew(sheet) {
+      let n = -1;
+      try { n = sheet.cssRules.length; } catch (err) { return; }
+      if (scanned.get(sheet) === n) return;
+      scanned.set(sheet, n);
+      const t0 = nowMs();
+      scanSheet(sheet, null, 0);
+      stats.msSheets += nowMs() - t0; stats.ms += nowMs() - t0;
+    }
+    // A sheet already copied that defines a variable which has become used since needs its copy again.
+    function dirtyForNewVars() {
+      if (!newlyUsed.length) return;
+      for (const name of newlyUsed) {
+        const owners = defIndex.get(name);
+        if (owners) for (const s of owners) { const o = sheetOut.get(s); if (o) o.count = -1; }
+      }
+      newlyUsed = [];
+    }
+
     function collectSheets(st) {
       const list = st.root.styleSheets;
+      const adopted = st.root.adoptedStyleSheets;
+      for (let i = 0; i < list.length; i++) if (!ours.has(list[i]) && !list[i].disabled) scanNew(list[i]);
+      for (let i = 0; i < adopted.length; i++) if (!ours.has(adopted[i])) scanNew(adopted[i]);
+      dirtyForNewVars();
       for (let i = 0; i < list.length; i++) processSheet(st, list[i]);
       // an adopted sheet of the page's own
-      const adopted = st.root.adoptedStyleSheets;
       for (let i = 0; i < adopted.length; i++) if (!ours.has(adopted[i])) processSheet(st, adopted[i]);
       // sheets removed from the page: forget them
       for (const s of Array.from(st.sheets)) {
@@ -643,20 +866,14 @@
     }
     function collectAll() {
       for (const st of roots.values()) collectSheets(st);
-      discoverShadowRoots();
+      if (nowMs() - lastDiscover > 300) discoverShadowRoots();
     }
 
+    let lastDiscover = -1000;
     function discoverShadowRoots() {
+      lastDiscover = nowMs();
       let found = false;
-      const walk = (root) => {
-        const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
-        for (let i = 0; i < all.length; i++) {
-          const el = all[i];
-          const sr = el.shadowRoot;
-          if (sr && !roots.has(sr)) { adopt(sr); found = true; }
-        }
-      };
-      // custom elements only: the cheap check that finds nearly every shadow root
+      // custom elements first: the cheap check that finds nearly every shadow root
       const customs = doc.querySelectorAll('*');
       for (let i = 0; i < customs.length; i++) {
         const el = customs[i];
@@ -693,25 +910,29 @@
     }
     // What is painted behind an element's text, as an opaque colour; null when a
     // picture or gradient is behind it (not knowable from here).
+    // Remembered for the length of one audit slice (an element's answer builds on its parent's).
+    let bgMemo = new WeakMap();
     function effectiveBackground(el) {
-      const layers = []; let cur = el; let depth = 0;
-      while (cur && depth < 50) {
-        if (cur.nodeType === 1) {
-          const cs = win.getComputedStyle(cur);
-          if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
-          const c = parseColor(cs.backgroundColor);
-          if (c && c.a > 0) { layers.push(c); if (c.a >= 0.99) break; }
+      if (!el || el.nodeType !== 1) return base();
+      if (bgMemo.has(el)) return bgMemo.get(el);
+      const cs = win.getComputedStyle(el);
+      let result;
+      if (cs.backgroundImage && cs.backgroundImage !== 'none') result = null;
+      else {
+        const c = parseColor(cs.backgroundColor);
+        if (c && c.a >= 0.99) result = c;
+        else {
+          let parent = el.parentNode;
+          if (parent && parent.nodeType === 11) parent = parent.host;
+          const under = parent && parent.nodeType === 1 ? effectiveBackground(parent) : base();
+          result = under === null ? null : (c && c.a > 0 ? over(c, under) : under);
         }
-        cur = cur.parentNode;
-        if (cur && cur.nodeType === 11) cur = cur.host;
-        if (!cur || cur.nodeType === 9) break;
-        depth++;
       }
-      let acc = base();
-      for (let i = layers.length - 1; i >= 0; i--) acc = over(layers[i], acc);
-      return acc;
+      bgMemo.set(el, result);
+      return result;
     }
     function base() { return convertColor({ r: 255, g: 255, b: 255, a: 1 }, 'bg', look()); }
+    const RAISE = ':not(#vexdm):not(#vexdm):not(#vexdm)';
     const PALETTE_PROP = { bg: 'background-color', fg: 'color', bd: 'border-color', fill: 'fill' };
     function paletteAttr(kind, rgbaText) {
       const map = palette[kind];
@@ -720,7 +941,8 @@
         idx = map.size + 1;
         map.set(rgbaText, idx);
         const prop = PALETTE_PROP[kind];
-        const rule = '[data-vexdm-' + kind + '="' + idx + '"]{' + prop + ':' + rgbaText + '!important}';
+        // The :not(#x) terms only raise the specificity (an id each): this fix must beat the copy of the page's own rule it follows.
+        const rule = '[data-vexdm-' + kind + '="' + idx + '"]' + RAISE + '{' + prop + ':' + rgbaText + '!important}';
         const st = roots.get(doc);
         pendingTail.push(rule);
         if (st) flushTail();
@@ -763,6 +985,7 @@
         if (l > 0.55) {
           const conv = toCss(convertColor(bgc, 'bg', look()));
           mark(el, 'bg', paletteAttr('bg', conv));
+          bgMemo.delete(el); // its own answer has changed; its children ask after it
         }
       }
       if (!nearlyBlankText(el) || el.localName === 'input' || el.localName === 'textarea' || el.localName === 'select' || el.localName === 'button') {
@@ -808,6 +1031,7 @@
       if (!active || paused) return;
       const t0 = nowMs();
       let n = 0;
+      bgMemo = new WeakMap();
       while (auditQueue.length && nowMs() - t0 < 8 && n < 600) {
         const el = auditQueue.shift();
         n++;
@@ -817,6 +1041,7 @@
       }
       flushTail();
       stats.ms += nowMs() - t0;
+      stats.msAudit += nowMs() - t0;
       if (auditQueue.length) scheduleAudit(16);
       else reportState();
     }
@@ -857,7 +1082,7 @@
     function logoRule() {
       if (logoRuleOn) return;
       logoRuleOn = true;
-      pendingTail.push('img[data-vexdm-img="logo"]{filter:invert(1) hue-rotate(180deg)!important}');
+      pendingTail.push('img[data-vexdm-img="logo"]' + RAISE + '{filter:invert(1) hue-rotate(180deg)!important}');
       flushTail();
     }
     // 'logo' (line art on transparency, dark ink) or 'photo'. Throws when the
@@ -913,7 +1138,12 @@
       if (!html) return false;
       const hcs = win.getComputedStyle(html);
       const scheme = (hcs.colorScheme || '');
-      const canvas = /dark/.test(scheme) && !/light/.test(scheme.replace(/dark/, '')) ? { r: 18, g: 18, b: 18, a: 1 } : { r: 255, g: 255, b: 255, a: 1 };
+      let canvas = /dark/.test(scheme) && !/light/.test(scheme.replace(/dark/, '')) ? { r: 18, g: 18, b: 18, a: 1 } : { r: 255, g: 255, b: 255, a: 1 };
+      // The canvas is the root's background, or the body's when the root has none (it is handed up).
+      const rootBg = parseColor(hcs.backgroundColor);
+      const bodyBg = body ? parseColor(win.getComputedStyle(body).backgroundColor) : null;
+      if (rootBg && rootBg.a > 0.99) canvas = rootBg;
+      else if (bodyBg && bodyBg.a > 0.99) canvas = bodyBg;
       const samples = [];
       const pts = [[0.5, 0.5], [0.25, 0.3], [0.75, 0.3], [0.5, 0.8], [0.15, 0.6], [0.85, 0.6]];
       const vw = win.innerWidth || 800; const vh = win.innerHeight || 600;
@@ -947,10 +1177,14 @@
       if (!active) return;
       const darkReader = !!doc.querySelector('meta[name="darkreader"]');
       if (darkReader) { setPaused('dark-reader'); return; }
+      if (paused === 'dark-reader') setPaused(null); // it went away: judge the page as any other
+      const t0 = nowMs();
+      lastJudged = t0;
       const restore = suspendOurs();
       let dark = false;
       try { dark = pageIsDark(); } catch (err) { env.error('could not tell whether the page is dark', err); }
       restore();
+      stats.msDetect += nowMs() - t0;
       if (dark && !paused) setPaused('already-dark');
       else if (!dark && paused === 'already-dark') setPaused(null);
     }
@@ -969,6 +1203,11 @@
         clearMarks();
         auditDone = new WeakSet(); auditQueued = new WeakSet(); auditQueue.length = 0;
         stopWork();
+        // while left alone, only Dark Reader's marker coming or going is worth hearing about
+        observer = new win.MutationObserver((records) => {
+          for (const rec of records) for (const n of [...rec.removedNodes, ...rec.addedNodes]) if (n.nodeType === 1 && n.localName === 'meta' && n.name === 'darkreader') { scheduleRecheck(0); return; }
+        });
+        if (doc.head) observer.observe(doc.head, { childList: true });
       } else {
         for (const st of roots.values()) syncRoot(st);
         collectAll();
@@ -978,9 +1217,12 @@
       }
       reportState();
     }
+    // Judging the page means taking our sheets off and putting them back: at most about once a second.
+    let lastJudged = -10000;
     function scheduleRecheck(delay) {
       if (recheckTimer || !active) return;
-      recheckTimer = win.setTimeout(() => { recheckTimer = 0; checkPageDark(); }, delay == null ? 120 : delay);
+      const wait = Math.max(delay == null ? 120 : delay, lastJudged + 1000 - nowMs());
+      recheckTimer = win.setTimeout(() => { recheckTimer = 0; checkPageDark(); }, wait);
     }
 
     // ---- watching the page ----
@@ -991,11 +1233,29 @@
       if (auditTimer) { win.clearTimeout(auditTimer); auditTimer = 0; }
     }
     // The page switching its own dark mode shows on the root or the body.
+    // Only a change that can be the site's own light/dark switch is worth judging the page again: a class or style
+    // that toggles on the body all the time (a menu open, scrolling locked) is not.
+    const THEMEISH = /dark|light|theme|night|mode|scheme|contrast|colou?r|bg|background/i;
+    function themeRelevant(rec) {
+      const name = rec.attributeName;
+      const now = rec.target.getAttribute(name) || '';
+      const before = rec.oldValue || '';
+      if (now === before) return false;
+      if (name === 'class') {
+        const a = new Set(before.split(/\s+/)); const b = new Set(now.split(/\s+/));
+        for (const t of a) if (!b.has(t) && THEMEISH.test(t)) return true;
+        for (const t of b) if (!a.has(t) && THEMEISH.test(t)) return true;
+        return false;
+      }
+      if (name === 'style') return /color-scheme|background|--/i.test(before) || /color-scheme|background|--/i.test(now);
+      return true; // data-theme, data-color-mode ...: a switch by its very name
+    }
     function watchAttrs() {
       if (attrObserver) attrObserver.disconnect();
-      attrObserver = new win.MutationObserver(() => scheduleRecheck());
-      if (doc.documentElement) attrObserver.observe(doc.documentElement, { attributes: true, attributeFilter: THEME_ATTRS });
-      if (doc.body) { attrObserver.observe(doc.body, { attributes: true, attributeFilter: THEME_ATTRS }); watchedBody = doc.body; }
+      attrObserver = new win.MutationObserver((records) => { for (const rec of records) if (themeRelevant(rec)) { scheduleRecheck(); break; } });
+      const opts = { attributes: true, attributeFilter: THEME_ATTRS, attributeOldValue: true };
+      if (doc.documentElement) attrObserver.observe(doc.documentElement, opts);
+      if (doc.body) { attrObserver.observe(doc.body, opts); watchedBody = doc.body; }
     }
     let watchedBody = null;
     function watchDom() {
@@ -1005,13 +1265,22 @@
         for (const rec of records) {
           const tgt = rec.target;
           if (tgt.localName === 'style' || tgt.localName === 'link') sheetsChanged = true;
+          for (const node of rec.removedNodes) if (node.nodeType === 1 && node.localName === 'meta' && node.name === 'darkreader') scheduleRecheck(0); // Dark Reader left
           for (const node of rec.addedNodes) {
             if (node.nodeType !== 1) continue;
             const ln = node.localName;
             if (ln === 'style' || (ln === 'link' && /stylesheet/i.test(node.rel || ''))) {
               sheetsChanged = true;
-              if (ln === 'link' && !node.sheet) node.addEventListener('load', () => { if (active && !paused) collectAll(); }, { once: true });
-            } else queueSubtree(node);
+              if (ln === 'link' && !node.sheet && !paused) {
+                // A stylesheet that lands can be painted a frame before its load event lets us copy it dark: the page
+                // is held out of sight (the canvas is dark already) until it has been, or for a second at most.
+                veilHold();
+                const done = () => { if (active && !paused) collectAll(); veilRelease(); };
+                node.addEventListener('load', done, { once: true });
+                node.addEventListener('error', veilRelease, { once: true });
+              }
+            } else if (ln === 'meta' && node.name === 'darkreader') scheduleRecheck(0); // Dark Reader arrived on the page
+            else queueSubtree(node);
           }
         }
         if (sheetsChanged) collectAll();
@@ -1100,6 +1369,7 @@
     function afterParsed() {
       if (!active) return;
       collectAll();
+      discoverShadowRoots();
       checkPageDark();
       // the page's first sheets are in: the base can settle (no !important root colour)
       const st = roots.get(doc);
@@ -1111,7 +1381,7 @@
     function afterLoad() {
       if (!active) return;
       collectAll();
-      checkPageDark();
+      discoverShadowRoots();
       queueSubtree(doc.documentElement);
       scheduleAudit(0);
       scheduleRecheck(700);
@@ -1127,6 +1397,9 @@
       roots.clear();
       ours.clear();
       sheetOut = new WeakMap();
+      if (veilTimer) { win.clearTimeout(veilTimer); veilTimer = 0; }
+      veilSheet = null; veilCount = 0;
+      usedVars.clear(); defRefs.clear(); defIndex.clear(); newlyUsed = []; scanned = new WeakMap();
       auditQueue.length = 0; auditQueued = new WeakSet(); auditDone = new WeakSet();
       imageVerdict.clear();
       paused = null;
@@ -1145,7 +1418,9 @@
       lastStateKey = key;
       report(st);
     }
-    return { start, stop, state: () => ({ active, paused, stats: { ...stats } }), _audit: runAudit };
+    const self = { start, stop, state: () => ({ active, paused, stats: { ...stats }, queued: auditQueue.length, sheets: Array.from(roots.values()).map((r) => r.sheets.size) }) };
+    if (env.debug) self._debug = { runAudit, collectAll };
+    return self;
   }
 
   const api = {
@@ -1176,8 +1451,13 @@
     window, document,
     report: (s) => { try { ipcRenderer.sendToHost('vex-darkmode:state', s); } catch (err) { console.error('[Dark mode] could not tell the tab:', err && err.message); } },
     error: (what, err) => console.error('[Dark mode] ' + what + ':', err && err.message),
+    // Only a probe sets this (a decision with debug: true); it leaves the engine in this preload's own world, out of the page's sight.
+    debug: !!(decision && decision.debug),
   };
-  function get() { return engine || (engine = createEngine(env)); }
+  function get() {
+    if (!engine) { engine = createEngine(env); if (env.debug) window.__vexdm = engine; }
+    return engine;
+  }
   function whenRoot(fn) {
     if (document.documentElement) { fn(); return; }
     const obs = new MutationObserver(() => {

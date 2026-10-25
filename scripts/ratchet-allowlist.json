@@ -340,7 +340,7 @@
     "src/renderer/js/web-store-link.js": 1,
     "src/renderer/js/web-taming.js": 4,
     "src/renderer/js/webllm.js": 4,
-    "src/renderer/js/webview.js": 45,
+    "src/renderer/js/webview.js": 40,
     "src/renderer/js/weekly-note.js": 6,
     "src/renderer/js/weekly-review.js": 3,
     "src/renderer/js/whats-new.js": 2,
