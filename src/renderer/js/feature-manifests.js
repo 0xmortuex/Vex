@@ -162,6 +162,11 @@
     // The window's saved look (js/early-look.js): how the window looked, kept so the next start paints it from the first frame. Not staged: it is how the window opens.
     { id: 'early-look', title: 'Window look at start-up', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.bootLook'],
       permissions: { reads: ['the theme and look attributes of the window'], writes: ['a snapshot of them, to paint the next start from the first frame'], sends: [] } },
+    // Dark mode for websites (js/dark-mode.js, src/dark-mode-preload.js, main/dark-mode.js): a choice in Settings > Appearance whose "Off" is its own
+    // switch, not an extra to hold back. It owns the per-site list the page menu always kept (vex.forceDarkHosts) and the old everywhere flag.
+    { id: 'dark-mode-websites', title: 'Dark mode for websites', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.darkMode.', 'vex.forceDarkHosts', 'vex.forceDarkSites'],
+      settingsKeys: ['setting-dark-mode', 'setting-dark-engine', 'setting-dark-images', 'setting-dark-reader'],
+      permissions: { reads: ['the colours and style rules of the page you are on, inside that page', 'the sites you listed', 'whether the Dark Reader extension is installed'], writes: ['your dark mode choices and site lists', 'a darker copy of the page’s colours, on the page only and never saved'], sends: [] } },
     { id: 'setup-again', title: 'Setup offered again', group: 'Setup wizard', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.setupLastAt', 'vex.setupAgainOff', 'vex.importOffered'],
       permissions: { reads: ['a note the uninstaller leaves in the profile folder when someone uninstalls Vex by hand'], writes: ['when the setup wizard last ran, and whether to offer it again every month'], sends: [] } },
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],

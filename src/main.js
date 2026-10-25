@@ -263,6 +263,10 @@ const GUEST_PRELOADS = [
   path.join(__dirname, 'preload-passkeys.js'),
   // Userscripts (main/userscripts.js): its own preload for the same reason.
   path.join(__dirname, 'userscripts-preload.js'),
+  // Dark mode for websites (main/dark-mode.js): its own preload for the same
+  // reason. Off, it costs one question to main; it never runs in an extension
+  // page (the PDF viewer), on a file:// page or in a sub-frame.
+  path.join(__dirname, 'dark-mode-preload.js'),
   // Cosmetic ad-filtering preload (@ghostery). Self-contained bundle that only
   // require()s 'electron', so it's safe in the sandboxed guest context. It asks
   // main (ipc) for element-hiding rules per page and applies them — this is what
@@ -10952,6 +10956,10 @@ function _usTabAllowed(contents) {
   return _usCore.tabAllowed({ partition, tor: !!(contents.session && contents.session.__vexTor), routed });
 }
 function _usOrigin(url) { try { return new URL(url).origin; } catch { return ''; } }
+
+// Dark mode for websites: a page asks while it loads (a synchronous question,
+// so this is wired at once, not at ready), the window changes it (src/main/dark-mode.js).
+require('./main/dark-mode').wireDarkMode({ ipcMain, webContents, persistLoad: _persistLoad, sessionFor: (partition) => secureSessions.fromPartition(partition) });
 
 ipcMain.on('userscripts:page', (event) => {
   const none = { scripts: [] };

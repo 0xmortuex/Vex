@@ -74,6 +74,9 @@ const VexBoot = {
     { src: 'js/reading-aids-lists.js', usage: [] },
     { src: 'js/turkish-lemma.js', usage: [] },
     { src: 'js/reading-aids.js', usage: ['reading-aids'] },
+    // Dark mode for websites: the Settings rows and the page-menu toggle. The pages themselves are handled by
+    // src/dark-mode-preload.js and main, which read the saved settings, so a tab never waits for this file.
+    { src: 'js/dark-mode.js', usage: [] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

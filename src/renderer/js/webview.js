@@ -68,6 +68,8 @@ const WebviewManager = {
       // A new page starts with no userscripts running; its own preload reports
       // the ones it starts (js/userscripts.js).
       if (!event.isInPlace && typeof VexUserscripts !== 'undefined') VexUserscripts.noteActive(tab.id, null);
+      // A site that gets dark mode shows dark, not white, behind it until it paints (js/dark-mode.js).
+      if (!event.isInPlace && typeof VexDarkMode !== 'undefined') VexDarkMode.onNavigate(webview, event.url);
     });
     webview.setAttribute('src', tab.url);
     // The New Tab page paints a moment after its tab appears (its process starts first), and the empty webview was white for that moment, in
@@ -885,40 +887,33 @@ const WebviewManager = {
   },
 
   // === Per-site dark mode ===
-  DARK_CSS: 'html{filter:invert(1) hue-rotate(180deg);background:#0a0c10!important}img,video,iframe,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}',
+  // The work is done by src/dark-mode-preload.js (the smart engine, or the old
+  // invert filter as "Simple invert") before the page's first paint, on the
+  // decision main takes from the saved settings. The rules and the Settings rows
+  // are js/dark-mode.js (a late module). What stays here are the entry points
+  // the page menu, the site panel and the site reset already call.
   _forceDarkHosts() {
     try { return new Set(JSON.parse(localStorage.getItem('vex.forceDarkHosts') || '[]')); } catch { return new Set(); }
   },
   _hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } },
   _shouldForceDark(url) {
     try {
+      if (typeof VexDarkMode !== 'undefined') return VexDarkMode.isOnFor(url);
       if (localStorage.getItem('vex.forceDarkSites') === 'true') return true; // legacy global
       const host = this._hostOf(url);
       return !!host && this._forceDarkHosts().has(host);
     } catch { return false; }
   },
+  // Tell the page what its decision is now; the saved lists and settings decide.
   _applyForceDark(wv) {
-    try {
-      if (wv._forceDarkKey || typeof wv.insertCSS !== 'function') return;
-      const p = wv.insertCSS(this.DARK_CSS);
-      if (p && typeof p.then === 'function') p.then(key => { wv._forceDarkKey = key; }).catch(() => {});
-    } catch {}
+    if (typeof VexDarkMode === 'undefined') return;
+    VexDarkMode.pushTo(wv).catch(err => console.error('[Webview] dark mode:', err && err.message));
   },
-  _removeForceDark(wv) {
-    try {
-      if (wv._forceDarkKey && typeof wv.removeInsertedCSS === 'function') wv.removeInsertedCSS(wv._forceDarkKey).catch(() => {});
-    } catch {}
-    wv._forceDarkKey = null;
-  },
+  _removeForceDark(wv) { this._applyForceDark(wv); },
   toggleForceDarkForSite(webview) {
-    try {
-      const host = this._hostOf(webview.getURL());
-      if (!host) return;
-      const hosts = this._forceDarkHosts();
-      if (hosts.has(host)) { hosts.delete(host); this._removeForceDark(webview); window.showToast?.(`Dark mode off — ${host}`); }
-      else { hosts.add(host); this._applyForceDark(webview); window.showToast?.(`Dark mode on — ${host}`); }
-      localStorage.setItem('vex.forceDarkHosts', JSON.stringify([...hosts]));
-    } catch {}
+    if (typeof VexDarkMode === 'undefined') { window.showToast?.('Dark mode is still starting — try again in a moment'); return; }
+    try { VexDarkMode.toggleSite(webview); }
+    catch (err) { console.error('[Webview] dark mode toggle:', err); window.showToast?.('Could not change dark mode: ' + err.message, 'error'); }
   },
   // A tab's page: the site panel's own Reset (js/site-panel.js) — every
   // setting of the site at once, with Undo. An app panel's page (no tab):

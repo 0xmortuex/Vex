@@ -833,6 +833,9 @@ contextBridge.exposeInMainWorld('vex', {
   getSystemDark: () => ipcRenderer.invoke('system-theme:get'),
   // Website appearance (js/website-appearance.js): 'system', 'light' or 'dark'.
   setWebsiteAppearance: (source) => ipcRenderer.invoke('theme:set-website-appearance', source),
+  // Dark mode for websites (js/dark-mode.js): the tab's id, the saved settings, and { force } for a preview.
+  darkModeApply: (id, raw, opts) => ipcRenderer.invoke('darkmode:apply', id, raw, opts || undefined),
+  darkModeStatus: () => ipcRenderer.invoke('darkmode:status'),
   onSystemThemeChanged: (cb) => subscribe('system-theme:changed', cb),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   composeMail: (subject, body, to) => ipcRenderer.invoke('mail:compose', { subject, body, ...(to ? { to } : {}) }),

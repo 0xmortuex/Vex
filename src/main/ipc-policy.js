@@ -5,7 +5,10 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   'passkeys:request', 'passkeys:cancel', 'passkeys:conditional-list',
   // A page's userscripts (userscripts-preload.js): main judges the tab and the
   // frame's own address; a refused tab is simply given none.
-  'userscripts:page', 'userscripts:gm']);
+  'userscripts:page', 'userscripts:gm',
+  // Whether this page gets dark mode (dark-mode-preload.js): main judges the
+  // tab and the frame's own address; a refused page simply gets none.
+  'darkmode:page']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
@@ -17,7 +20,9 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle',
   // (security scan L1).
   'page:save', 'page:capture-full', 'pagearchive:save',
   // A picture for the AI, fetched through that page's own session (main.js).
-  'image:for-ai']);
+  'image:for-ai',
+  // Handing a tab its dark mode decision (main/dark-mode.js).
+  'darkmode:apply']);
 // siterules:set: a private window starts with an empty list, and saving it
 // wiped every per-site rule. adblocker-set-state: main keeps one switch, so a
 // private window turned blocking off for every window (both found 2026-09-29).
@@ -151,7 +156,9 @@ const UI_ONLY_CHANNELS = new Set([
   // Local transcription of the person's own speech (main/transcribe.js): choosing the engine, listening and running it are Vex's own window only.
   'transcribe:config', 'transcribe:pick', 'transcribe:clear', 'transcribe:set', 'transcribe:begin', 'transcribe:chunk', 'transcribe:end',
   // Unpacking an archive writes files into the downloads folder: the person's own window only, closed in a private window.
-  'downloads:extract-here']);
+  'downloads:extract-here',
+  // Dark mode for websites: changing a tab's look and asking about Dark Reader are Vex's own window only.
+  'darkmode:apply', 'darkmode:status']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');
@@ -273,6 +280,7 @@ function installIpcPolicy(ipcMain, security) {
       // The start-page check waits on this one (sendSync): refused, it is told no.
       if (channel === 'userscripts:page') { try { event.returnValue = { scripts: [] }; } catch (replyErr) { console.error('[IPC] could not answer "userscripts:page":', replyErr.message); } return; }
       // The preload waits on this one (sendSync) while the window loads: refused, it is told none are left out.
+      if (channel === 'darkmode:page') { try { event.returnValue = { on: false }; } catch (replyErr) { console.error('[IPC] could not answer "darkmode:page":', replyErr.message); } return; }
       if (channel === 'app:boot-disabled') { console.warn('[IPC] refused "app:boot-disabled": %s', (err && err.message) || err); try { event.returnValue = []; } catch (replyErr) { console.error('[IPC] could not answer "app:boot-disabled":', replyErr.message); } return; }
       if (channel === 'start-page:is-own') { try { event.returnValue = false; } catch (replyErr) { console.error('[IPC] could not answer "' + channel + '":', replyErr.message); } return; }
       if (channel === 'page-dialog') {

@@ -688,6 +688,11 @@ const profileLook = value => object(value) && Object.keys(value).every(k => ['na
 // list and, by the id main gave it, one of a few operations; the manager's
 // channels are Vex's own window only (ipc-policy.js).
 define('userscripts:page userscripts:list', []);
+// Dark mode for websites (main/dark-mode.js): a page asks for its own decision;
+// the window hands a tab the saved settings (text or null per key) and, for a
+// preview, force.
+define('darkmode:page darkmode:status', []);
+define('darkmode:apply', [integer, object, optional(value => object(value) && optional(boolean)(value.force))]);
 define('userscripts:gm', [shape({ id: string(64), op: oneOf(['setValue', 'deleteValue', 'xhr', 'xhr-abort', 'clipboard', 'notification', 'openTab']), args: value => Array.isArray(value) && value.length <= 4 })]);
 define('userscripts:preview', [string(450000), optional(string(64))]);
 define('userscripts:install', [shape({ source: string(450000), anyHost: optional(boolean), sourceUrl: optional(string(2000)), replaceId: optional(string(64)), reviewed: optional(boolean) })]);

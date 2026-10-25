@@ -61,6 +61,8 @@ const SyncEngine = (() => {
     // lived in 'vex.forceDarkHosts' since the right-click menu replaced it, and
     // was left out of this list, so the choice never reached another device.
     'vex.forceDarkSites', 'vex.forceDarkHosts',
+    // Dark mode for websites (js/dark-mode.js): the mode, how it is done, the look and the sites kept light travel with the dark sites.
+    'vex.darkMode.mode', 'vex.darkMode.engine', 'vex.darkMode.look', 'vex.darkMode.keepImages', 'vex.darkMode.readerDefer', 'vex.darkMode.neverHosts',
     // Auto-sleep lives in settings.json; app.js mirrors it here and adopts a
     // copy that arrived from another device on the next start. (The old
     // names — vex.autosleep, vex.autosleepMinutes, vex.autosleepExcludePinned
@@ -127,7 +129,7 @@ const SyncEngine = (() => {
   // which is its own id: sync-records.js flatten). A device on an older Vex
   // still sends these whole; its copy then wins whole, as notes did.
   const LIST_PREFERENCES = ['vex.bookmarks', 'vex.sessions', 'vex.history', 'vex.notes',
-    'vex.tools', 'vex.schedules', 'vex.personas', 'vex.reminders', 'vex.forceDarkHosts',
+    'vex.tools', 'vex.schedules', 'vex.personas', 'vex.reminders', 'vex.forceDarkHosts', 'vex.darkMode.neverHosts',
     // The site panel's other per-site lists, merged the same way.
     'vex.neverSleepHosts', 'vex.translateAlwaysHosts',
     // Colour themes the user made (js/theme-custom.js), merged theme by theme.
