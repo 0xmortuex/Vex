@@ -641,6 +641,21 @@ define('pdftool:run', [shape({
   mode: optional(oneOf(['each', 'every', 'ranges'])),
   n: optional(value => Number.isSafeInteger(value) && value >= 1 && value <= 4000),
 })]);
+// Vex's own PDF viewer (main/pdf-viewer.js, pages in src/renderer/pdf-viewer). The page names no path and sends no PDF bytes: it sends
+// its marks (in the page's own units), the form answers and the turn, and main reads the PDF again through the page's own session.
+// main/pdf-toolkit.js checks every mark again.
+define('pdfview:set-enabled', [boolean]);
+define('pdfview:download pdfview:open-native pdfview:print pdfview:reveal', []);
+define('pdfview:save-copy', [shape({
+  name: optional(string(200)),
+  marks: optional(value => Array.isArray(value) && value.length <= 400 && value.every(object)),
+  values: optional(value => object(value) && Object.keys(value).length <= 300 && Object.entries(value).every(([k, v]) => k.length <= 200 && (typeof v === 'boolean' || (typeof v === 'string' && v.length <= 2000)))),
+  signature: optional(string(560 * 1024)),
+  flatten: optional(boolean),
+  ascii: optional(boolean),
+  rotate: optional(finiteNumber),
+  toDownloads: optional(boolean),
+})]);
 define('fx:tcmb', []);
 // Community and chat tools (main/comms-tools.js). The webhook address goes in once and never comes back;
 // a post is one text of at most 2000 characters. The bridge channels take no arguments: main reads one fixed file.

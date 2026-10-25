@@ -9,6 +9,28 @@
 // too. Nothing here is for it, and the stand-ins below rewrite the viewer's own chrome.* object: every PDF showed a blank dark page (found 2026-10-24).
 if (typeof location !== 'undefined' && location.protocol === 'chrome-extension:' && location.host === 'mhjfbmdgcfjbbpaeojofohoefgiehjai') return;
 
+// Vex's own PDF viewer (vex-pdf://view/, main/pdf-viewer.js, pages in src/renderer/pdf-viewer). It is not a web page: none of
+// what follows is for it. It gets one small bridge, and each call lands in a pdfview:* channel that main only answers
+// when the asking frame is that page. The theme arrives from the interface (webview.send), and the page asks for it once it is up.
+if (typeof location !== 'undefined' && location.protocol === 'vex-pdf:') {
+  try {
+    const { contextBridge, ipcRenderer } = require('electron');
+    const listeners = [];
+    let lastTheme = null;
+    ipcRenderer.on('pdfview:theme', (_event, payload) => { lastTheme = payload; for (const fn of listeners) { try { fn(payload); } catch (err) { console.error('[PDF viewer] theme listener failed:', err); } } });
+    contextBridge.exposeInMainWorld('vexPdfHost', {
+      saveCopy: (request) => ipcRenderer.invoke('pdfview:save-copy', request),
+      download: () => ipcRenderer.invoke('pdfview:download'),
+      openNative: () => ipcRenderer.invoke('pdfview:open-native'),
+      print: () => ipcRenderer.invoke('pdfview:print'),
+      reveal: () => ipcRenderer.invoke('pdfview:reveal'),
+      onTheme: (fn) => { listeners.push(fn); if (lastTheme) fn(lastTheme); ipcRenderer.sendToHost('pdfview:need-theme'); },
+      tell: (what, detail) => ipcRenderer.sendToHost('pdfview:' + String(what).slice(0, 40), detail),
+    });
+  } catch (err) { console.error('[PDF viewer] its bridge could not be made:', err); }
+  return;
+}
+
 // Surface media decode failures to the host. Two signals, both reported at
 // most once per element via sendToHost so the embedder (webview.js) can log
 // them against the tab:
