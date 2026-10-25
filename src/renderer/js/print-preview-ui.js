@@ -481,7 +481,7 @@ const VexPrintPreview = {
     this._fieldError(null);
     const lib = await this._pdfjs();
     const doc = await lib.getDocument({ data: r.bytes, isEvalSupported: false }).promise;
-    if (!this.s || mine !== s.seq) { doc.destroy(); return; }
+    if (!this.s || mine !== s.seq) { this._release(doc); return; }
     const old = s.doc;
     s.doc = doc; s.total = r.total; s.sheets = r.sheets; s.pageMap = r.pageMap;
     const first = await doc.getPage(1);
@@ -489,7 +489,7 @@ const VexPrintPreview = {
     s.base = { w: vp.width, h: vp.height };
     first.cleanup();
     this._layout(true);
-    if (old) old.destroy();
+    if (old) this._release(old);
     this._busy(false);
     this._count(r);
   },
@@ -669,6 +669,12 @@ const VexPrintPreview = {
     }
   },
 
+  // pdf.js lets go of a document through its loading task: the document object itself has no destroy() in this version, and calling it
+  // threw inside close(), so the window could never be closed (found in the real app, 2026-10-25).
+  _release(doc) {
+    try { doc.loadingTask.destroy(); } catch (err) { console.error('[PrintPreview] could not release a page set:', err.message); }
+  },
+
   close() {
     const s = this.s;
     if (!s) return;
@@ -676,7 +682,7 @@ const VexPrintPreview = {
     clearTimeout(s.timer);
     window.removeEventListener('resize', this._onResize);
     s.observer?.disconnect();
-    if (s.doc) s.doc.destroy();
+    if (s.doc) this._release(s.doc);
     s.root.remove();
     if (s.id) {
       window.vex.printPreviewClose(s.id).catch(err => console.error('[PrintPreview] could not close the preview in main:', err.message));
