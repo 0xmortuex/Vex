@@ -418,6 +418,7 @@ const VexPrintPreview = {
     const s = this.s;
     if (!s || s.pdf) return;
     clearTimeout(s.timer);
+    s.queued = true;
     s.timer = setTimeout(() => this._render(fresh).catch(err => this._fail(err)), delay);
   },
 
@@ -464,6 +465,7 @@ const VexPrintPreview = {
     const s = this.s;
     if (!s) return;
     const o = s.o;
+    s.queued = false;
     const bad = this.problem(o);
     if (bad) { this._fieldError(bad.field, bad.message); return; }
     const mine = ++s.seq;
