@@ -99,6 +99,25 @@ export const prefs = {
   },
 };
 
+// A page cannot make an element taller than about 33 million pixels, so a list of millions of rows cannot simply be as tall as its rows.
+// Past MAX_PX the scrollbar covers the list at a smaller scale (a pixel of scroll is several pixels of rows) and the rows on screen are
+// placed by where the scroll is, not by their own index. Below it, scale is 1 and nothing changes.
+export const MAX_PX = 16000000;
+export function scaler(total, rowH, viewH) {
+  const full = total * rowH;
+  const height = Math.min(full, MAX_PX);
+  const scale = full <= MAX_PX || height <= viewH ? 1 : (full - viewH) / (height - viewH);
+  return {
+    height, scale, full,
+    // the pixel of the list that is at the top of the screen
+    virtualTop: (scrollTop) => scrollTop * scale,
+    // where to put row i, in the scrolled element's own coordinates
+    topFor: (i, scrollTop) => (scale === 1 ? i * rowH : scrollTop + i * rowH - scrollTop * scale),
+    // the scroll position that puts row i at the top of the screen
+    scrollFor: (i) => (i * rowH) / scale,
+  };
+}
+
 // An error in the reader's language: the worker names its sentences (tpl) so they can be translated.
 export function errText(err) { return err && err.tpl ? t(err.tpl, err.args) : String(err && err.message ? err.message : err); }
 

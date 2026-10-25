@@ -2,7 +2,7 @@
 // column, the first column kept in view when you scroll sideways, and only the visible rows built. The rows are read, sorted and
 // filtered in the worker.
 
-import { el, icon, marked, debounce, toast } from './ui.js';
+import { el, icon, marked, debounce, toast, scaler, errText } from './ui.js';
 import { t, num } from './strings.js';
 
 const ROWH = 28;
@@ -57,9 +57,9 @@ export class CsvView {
     this.ctx.host.replaceChildren(grid);
     this.applyWidths();
     this.buildHead();
-    body.style.height = this.total * ROWH + 'px';
     this.viewH = grid.clientHeight || 600;
-    this.ro = new ResizeObserver(() => { this.viewH = grid.clientHeight; this.schedule(); });
+    this.fit();
+    this.ro = new ResizeObserver(() => { this.viewH = grid.clientHeight; this.fit(); this.schedule(); });
     this.ro.observe(grid);
     grid.addEventListener('scroll', () => this.schedule(), { passive: true });
     grid.addEventListener('keydown', (e) => this.onKey(e));
@@ -114,6 +114,8 @@ export class CsvView {
   }
 
   destroy() { this.ro.disconnect(); this.gen++; }
+  // the height of the list (past what a page can hold, at a smaller scale: see scaler in ui.js)
+  fit() { this.sc = scaler(this.total, ROWH, this.viewH); this.body.style.height = this.sc.height + 'px'; }
   focus() { this.grid.focus(); }
   schedule() { if (this.raf) return; this.raf = requestAnimationFrame(() => { this.raf = 0; this.render(); }); }
 
@@ -142,7 +144,7 @@ export class CsvView {
     for (const e of this.els.values()) e.remove();
     this.els.clear();
     this.total = total;
-    this.body.style.height = total * ROWH + 'px';
+    this.fit();
     this.grid.setAttribute('aria-rowcount', String(total + 1));
     this.ctx.onCount && this.ctx.onCount(total);
   }
@@ -150,13 +152,16 @@ export class CsvView {
   // ---- drawing
   async render() {
     const top = this.grid.scrollTop;
-    const first = Math.max(0, Math.floor(top / ROWH) - OVERSCAN);
-    const last = Math.min(this.total - 1, Math.ceil((top + this.viewH) / ROWH) + OVERSCAN);
+    const scrollTop = top;
+    const v = this.sc.virtualTop(top);
+    const first = Math.max(0, Math.floor(v / ROWH) - OVERSCAN);
+    const last = Math.min(this.total - 1, Math.ceil((v + this.viewH) / ROWH) + OVERSCAN);
     const gen = this.gen;
     const need = [];
     for (let p = this.pageOf(first); p <= this.pageOf(Math.max(first, last)); p++) if (!this.pages.has(p) || !(this.nums && this.nums.has(p))) need.push(this.load(p));
     if (need.length) { await Promise.all(need); if (gen !== this.gen) return; }
     for (const [i, node] of this.els) if (i < first || i > last) { node.remove(); this.els.delete(i); }
+    if (this.sc.scale !== 1) for (const [i, node] of this.els) node.style.top = this.sc.topFor(i, scrollTop) + 'px';
     const frag = document.createDocumentFragment();
     for (let i = first; i <= last; i++) {
       if (this.els.has(i)) continue;
@@ -171,7 +176,7 @@ export class CsvView {
 
   makeRow(cells, i) {
     const row = el('div', { class: 'dv-grow' + (i % 2 ? ' dv-odd' : ''), role: 'row', 'aria-rowindex': String(i + 2), 'data-i': i });
-    row.style.top = i * ROWH + 'px';
+    row.style.top = this.sc.topFor(i, this.grid.scrollTop) + 'px';
     row.append(el('div', { class: 'dv-gc dv-rn', role: 'rowheader', text: num(this.numOf(i)) }));
     const q = this.filterQ;
     for (let c = 0; c < this.cols; c++) {
@@ -199,7 +204,7 @@ export class CsvView {
       this.grid.scrollTop = 0;
       await this.render();
       this.ctx.setStatus('');
-    } catch (err) { toast(err.message, 'error'); }
+    } catch (err) { toast(errText(err), 'error'); }
   }
 
   async applyFilter() {
@@ -211,7 +216,7 @@ export class CsvView {
       this.grid.scrollTop = 0;
       await this.render();
       this.ctx.setStatus('');
-    } catch (err) { toast(err.message, 'error'); }
+    } catch (err) { toast(errText(err), 'error'); }
   }
 
   async search(query) {
@@ -266,7 +271,7 @@ export class CsvView {
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (!this.sel) {
-      if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key) && this.total) { e.preventDefault(); this.moveTo(Math.floor(this.grid.scrollTop / ROWH), 0); }
+      if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key) && this.total) { e.preventDefault(); this.moveTo(Math.floor(this.sc.virtualTop(this.grid.scrollTop) / ROWH), 0); }
       return;
     }
     const { row, col } = this.sel;
@@ -279,8 +284,9 @@ export class CsvView {
     i = Math.max(0, Math.min(this.total - 1, i)); c = Math.max(0, Math.min(this.cols - 1, c));
     const top = this.grid.scrollTop;
     const headH = this.head.offsetHeight + (this.showFilters ? this.filtersRow.offsetHeight : 0);
-    if (i * ROWH < top) this.grid.scrollTop = i * ROWH;
-    else if ((i + 1) * ROWH + headH > top + this.viewH) this.grid.scrollTop = (i + 1) * ROWH + headH - this.viewH;
+    const v = this.sc.virtualTop(top);
+    if (i * ROWH < v) this.grid.scrollTop = this.sc.scrollFor(i);
+    else if ((i + 1) * ROWH + headH > v + this.viewH) this.grid.scrollTop = this.sc.scrollFor(i + 1 + (headH - this.viewH) / ROWH);
     await this.render();
     this.select(i, c);
     // keep the cell in view sideways

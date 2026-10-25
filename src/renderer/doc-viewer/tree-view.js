@@ -2,7 +2,7 @@
 // worker holds the whole document. A branch opens in the worker (which rebuilds the list of visible rows), so a tree of millions of
 // nodes scrolls as lightly as one of ten.
 
-import { el, icon, button, marked, debounce, toast } from './ui.js';
+import { el, icon, button, marked, debounce, toast, scaler, errText } from './ui.js';
 import { t, num } from './strings.js';
 
 const ROW = 26;           // px
@@ -38,9 +38,9 @@ export class TreeView {
     scroller.append(pad);
     this.scroller = scroller; this.pad = pad; this.layer = layer;
     this.ctx.host.replaceChildren(scroller);
-    pad.style.height = this.total * ROW + 'px';
     this.viewH = scroller.clientHeight || 600;
-    this.ro = new ResizeObserver(() => { this.viewH = scroller.clientHeight; this.schedule(); });
+    this.fit();
+    this.ro = new ResizeObserver(() => { this.viewH = scroller.clientHeight; this.fit(); this.schedule(); });
     this.ro.observe(scroller);
     scroller.addEventListener('scroll', () => this.schedule(), { passive: true });
     scroller.addEventListener('keydown', (e) => this.onKey(e));
@@ -51,6 +51,8 @@ export class TreeView {
   }
 
   destroy() { this.ro.disconnect(); this.gen++; }
+  // the height of the list (past what a page can hold, at a smaller scale: see scaler in ui.js)
+  fit() { this.sc = scaler(this.total, ROW, this.viewH); this.pad.style.height = this.sc.height + 'px'; }
   schedule() { if (this.raf) return; this.raf = requestAnimationFrame(() => { this.raf = 0; this.render(); }); }
   focus() { this.focusRow(this.focusIdx, true); }
 
@@ -77,13 +79,14 @@ export class TreeView {
     for (const e of this.els.values()) e.remove();
     this.els.clear();
     this.total = total;
-    this.pad.style.height = total * ROW + 'px';
+    this.fit();
     if (this.focusIdx >= total) this.focusIdx = Math.max(0, total - 1);
   }
 
   // ---- drawing
   async render() {
-    const top = this.scroller.scrollTop;
+    const scrollTop = this.scroller.scrollTop;
+    const top = this.sc.virtualTop(scrollTop);
     const first = Math.max(0, Math.floor(top / ROW) - OVERSCAN);
     const last = Math.min(this.total - 1, Math.ceil((top + this.viewH) / ROW) + OVERSCAN);
     const gen = this.gen;
@@ -94,6 +97,8 @@ export class TreeView {
       if (gen !== this.gen) return;
     }
     for (const [i, node] of this.els) if (i < first || i > last) { node.remove(); this.els.delete(i); }
+    // at a smaller scale the rows move with the scroll
+    if (this.sc.scale !== 1) for (const [i, node] of this.els) node.style.top = this.sc.topFor(i, scrollTop) + 'px';
     const frag = document.createDocumentFragment();
     for (let i = first; i <= last; i++) {
       if (this.els.has(i)) continue;
@@ -113,7 +118,7 @@ export class TreeView {
 
   makeRow(r, i) {
     const row = el('div', { class: 'dv-row', role: 'treeitem', 'data-i': i, 'data-n': r.n, 'aria-level': r.d + 1, tabindex: '-1' });
-    row.style.top = i * ROW + 'px';
+    row.style.top = this.sc.topFor(i, this.scroller.scrollTop) + 'px';
     row.style.setProperty('--d', r.d);
     if (r.e) row.setAttribute('aria-expanded', r.x ? 'true' : 'false');
     if (i === this.selected) row.setAttribute('aria-selected', 'true');
@@ -185,7 +190,7 @@ export class TreeView {
     try {
       const r = await this.worker.call('treeValue', { node, what: what === 'path' ? 'path' : 'full' });
       await this.ctx.copy(what === 'path' ? r.path : r.text, what === 'path' ? 'path' : 'value');
-    } catch (err) { toast(err.message, 'error'); }
+    } catch (err) { toast(errText(err), 'error'); }
   }
 
   async showPath() {
@@ -194,7 +199,7 @@ export class TreeView {
     try {
       const r = await this.worker.call('treeValue', { node: data.n, what: 'path' });
       this.ctx.setStatus(r.path);
-    } catch (err) { this.ctx.setStatus(err.message); }
+    } catch (err) { this.ctx.setStatus(errText(err)); }
   }
 
   async toggle(i, open) {
@@ -246,9 +251,10 @@ export class TreeView {
     i = Math.max(0, Math.min(this.total - 1, i));
     this.focusIdx = i;
     const top = this.scroller.scrollTop;
-    if (!keepScroll || i * ROW < top || (i + 1) * ROW > top + this.viewH) {
-      if (i * ROW < top) this.scroller.scrollTop = i * ROW;
-      else if ((i + 1) * ROW > top + this.viewH) this.scroller.scrollTop = (i + 1) * ROW - this.viewH;
+    const v = this.sc.virtualTop(top);
+    if (!keepScroll || i * ROW < v || (i + 1) * ROW > v + this.viewH) {
+      if (i * ROW < v) this.scroller.scrollTop = this.sc.scrollFor(i);
+      else if ((i + 1) * ROW > v + this.viewH) this.scroller.scrollTop = this.sc.scrollFor((i + 1) * 1 - this.viewH / ROW);
     }
     this.wantFocus = true;
     this.select(i);
@@ -318,7 +324,7 @@ export class TreeView {
     this.invalidate(r.total);
     this.focusIdx = r.row;
     this.selected = r.row;
-    this.scroller.scrollTop = Math.max(0, r.row * ROW - this.viewH / 2 + ROW);
+    this.scroller.scrollTop = Math.max(0, this.sc.scrollFor(r.row - this.viewH / ROW / 2 + 1));
     await this.render();
     this.showPath();
     this.ctx.onRows && this.ctx.onRows(this.total);
