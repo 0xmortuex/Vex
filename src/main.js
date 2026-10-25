@@ -190,7 +190,7 @@ function _shownAddress(url) {
       const u = new URL(s);
       const original = u.searchParams.get('u');
       if (original) return ((u.searchParams.get('m') === 'source' ? 'view-source:' : '') + original + u.hash).slice(0, 2048);
-    } catch { /* not an address: shown as it is */ }
+    } catch { /* vex-allow-empty-catch: not an address, so it is shown as it is */ }
   }
   return s.slice(0, 2048);
 }
