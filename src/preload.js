@@ -426,6 +426,9 @@ contextBridge.exposeInMainWorld('vex', {
   mediaviewSetEnabled: (on) => ipcRenderer.invoke('mediaview:set-enabled', !!on),
   mediaviewForgetPlaces: () => ipcRenderer.invoke('mediaview:forget-places'),
   pdftoolInspect: (token) => ipcRenderer.invoke('pdftool:inspect', token),
+  // Vex's own viewer for office documents and e-books (main/office-viewer.js; js/office-viewer-host.js): its switches, and forgetting where books were left.
+  officeviewSetOptions: (opts) => ipcRenderer.invoke('officeview:set-options', opts),
+  officeviewForgetBooks: () => ipcRenderer.invoke('officeview:forget-books'),
   // Whether Vex's own text viewer takes the JSON, XML, CSV, Markdown, log and source documents a tab meets (main/text-viewer.js; js/doc-viewer-host.js).
   docviewSetEnabled: (on) => ipcRenderer.invoke('docview:set-enabled', !!on),
   docviewForgetSettings: () => ipcRenderer.invoke('docview:forget-settings'),

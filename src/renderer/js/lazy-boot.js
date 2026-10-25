@@ -72,6 +72,7 @@ const VexBoot = {
     { src: 'js/media-viewer-host.js', usage: ['media-viewer'] },
     { src: 'js/pdf-highlights.js', usage: ['pdf-highlights'] },
     { src: 'js/pdf-tools-ui.js', usage: ['pdf-tools'] },
+    { src: 'js/office-viewer-host.js', usage: ['office-viewer'] },
     { src: 'js/image-viewer-host.js', usage: ['image-viewer'] },
     { src: 'js/doc-viewer-host.js', usage: ['doc-viewer'] },
     { src: 'js/folder-viewer-host.js', usage: ['folder-browser'] },

@@ -177,6 +177,36 @@ if (typeof location !== 'undefined' && location.protocol === 'vex-media:') {
   return;
 }
 
+// Vex's own viewer for office documents and e-books (vex-office://view/, main/office-viewer.js, pages in src/renderer/office-viewer). It is not a
+// web page: none of what follows is for it. It gets one small bridge, and each call lands in a officeview:* channel that main only answers when
+// the asking frame is that page. The theme arrives from the interface (webview.send), and the page asks for it once it is up.
+if (typeof location !== 'undefined' && location.protocol === 'vex-office:') {
+  try {
+    const { contextBridge, ipcRenderer } = require('electron');
+    const listeners = [];
+    let lastTheme = null;
+    ipcRenderer.on('officeview:theme', (_event, payload) => { lastTheme = payload; for (const fn of listeners) { try { fn(payload); } catch (err) { console.error('[Document viewer] theme listener failed:', err); } } });
+    contextBridge.exposeInMainWorld('vexOfficeHost', {
+      download: () => ipcRenderer.invoke('officeview:download'),
+      openExternal: () => ipcRenderer.invoke('officeview:open-external'),
+      print: () => ipcRenderer.invoke('officeview:print'),
+      onTheme: (fn) => { listeners.push(fn); if (lastTheme) fn(lastTheme); ipcRenderer.sendToHost('officeview:need-theme'); },
+      tell: (what, detail) => ipcRenderer.sendToHost('officeview:' + String(what).slice(0, 40), detail),
+    });
+    // Ctrl+B, Ctrl+H, Ctrl+D and the other keys of Vex's own that the page leaves alone still work here, as in any page
+    // (the same report as the page preload below makes; main/guest-shortcuts.js PAGE_FIRST says which keys count).
+    window.addEventListener('keydown', function (e) {
+      if (!e.isTrusted || !(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
+      const k = String(e.key || '').toLowerCase();
+      if (!/^[a-z0-9]$/.test(k) || (!e.shiftKey && 'acvxyz'.indexOf(k) !== -1)) return;
+      const target = e.target;
+      if (target && target.nodeType === 1 && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      setTimeout(function () { if (!e.defaultPrevented) ipcRenderer.send('guest:page-shortcut', { key: k, shift: !!e.shiftKey }); }, 0);
+    }, false);
+  } catch (err) { console.error('[Document viewer] its bridge could not be made:', err); }
+  return;
+}
+
 // Surface media decode failures to the host. Two signals, both reported at
 // most once per element via sendToHost so the embedder (webview.js) can log
 // them against the tab:

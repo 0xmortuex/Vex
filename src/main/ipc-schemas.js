@@ -664,6 +664,10 @@ define('pdftool:run', [shape({
   mode: optional(oneOf(['each', 'every', 'ranges'])),
   n: optional(value => Number.isSafeInteger(value) && value >= 1 && value <= 4000),
 })]);
+// Vex's own viewer for office documents and e-books (main/office-viewer.js). The page names no path and no address: main knows which file the
+// asking page shows. The switches come from the interface.
+define('officeview:download officeview:open-external officeview:print officeview:forget-books', []);
+define('officeview:set-options', [shape({ enabled: boolean, attachments: boolean })]);
 // Vex's own video and sound player (main/media-viewer.js, pages in src/renderer/media-viewer). The page names no path and sends no media:
 // main works from the address of the page that asks, through the page's own session.
 define('mediaview:set-enabled', [boolean]);

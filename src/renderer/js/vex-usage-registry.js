@@ -566,6 +566,7 @@ const VexUsageRegistry = {
       ['study-notes', A.api(G.VexStudyNotes, 'enabled', 'setEnabled')],
       ['pdf-highlights', A.api(G.VexPdfHighlights, 'enabled', 'setEnabled')],
       ['pdf-tools', A.api(G.VexPdfTools, 'enabled', 'setEnabled')],
+      ['office-viewer', A.api(G.VexOfficeViewer, 'enabled', 'setEnabled')],
       ['image-viewer', A.api(G.VexImageViewer, 'enabled', 'setEnabled')],
       ['doc-viewer', A.api(G.VexDocViewer, 'enabled', 'setEnabled')],
       ['folder-browser', A.api(G.VexFolderViewer, 'enabled', 'setEnabled')],

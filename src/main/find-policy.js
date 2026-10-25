@@ -18,6 +18,10 @@ const OWNS_FIND = [
   /(^|\.)docs\.google\.com$/i,
 ];
 
+// Vex's own viewer for office documents and e-books (main/office-viewer.js) has a find of its own, over the words it drew, and its own
+// zoom / text size: Ctrl+F and Ctrl+= / Ctrl+- / Ctrl+0 are the viewer's while it has the focus.
+function isOfficeViewerUrl(url) { return /^vex-office:\/\/view\//i.test(String(url || '')); }
+
 // Vex's own image viewer (main/image-viewer.js) zooms the picture itself: Ctrl+= / Ctrl+- / Ctrl+0 are the viewer's while it has the focus.
 function isImageViewerUrl(url) { return /^vex-image:\/\/view\//i.test(String(url || '')); }
 
@@ -30,6 +34,7 @@ function isDocViewerUrl(url) { return /^vex-doc:\/\/view\//i.test(String(url || 
 function isPdfViewerUrl(url) { return /^vex-pdf:\/\/view\//i.test(String(url || '')); }
 
 function guestOwnsFind(url) {
+  if (isOfficeViewerUrl(url)) return true;
   if (isDocViewerUrl(url)) return true;
   if (isPdfViewerUrl(url)) return true;
   try {
@@ -69,5 +74,5 @@ function handFindToPage(webview) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { guestOwnsFind, handFindToPage, isDocViewerUrl, isImageViewerUrl, isPdfViewerUrl, OWNS_FIND };
+  module.exports = { guestOwnsFind, handFindToPage, isDocViewerUrl, isImageViewerUrl, isOfficeViewerUrl, isPdfViewerUrl, OWNS_FIND };
 }

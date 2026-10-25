@@ -42,7 +42,7 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 ## Code copied into the Vex source
 
 - **jsQR** (`src/renderer/vendor/jsQR.js`) — QR code reader used by the Authenticator to read 2FA QR codes. Apache License 2.0. Copyright 2017 Cosmo Wolfe. https://github.com/cozmo/jsQR. The file is the published `dist/jsQR.js` build and has no version header. Apache-2.0 text below.
-- **Runtime copies of shipped packages** (`src/renderer/vendor/runtime/`) — at build time Vex copies the browser builds of `@mlc-ai/web-llm`, `tesseract.js`, `tesseract.js-core`, `@huggingface/transformers`, `onnxruntime-web` and `pdfjs-dist` (pdf.js, which draws the PDFs in Vex's own PDF viewer) into this folder (with their licence files) so the app can load them in its pages. Their npm packages are build-time only and are not otherwise packed; they and the packages their builds draw on are listed in [Packages inside the runtime copies](#packages-inside-the-runtime-copies), and their licence texts are below.
+- **Runtime copies of shipped packages** (`src/renderer/vendor/runtime/`) — at build time Vex copies the browser builds of `@mlc-ai/web-llm`, `tesseract.js`, `tesseract.js-core`, `@huggingface/transformers`, `onnxruntime-web`, `pdfjs-dist` (pdf.js, which draws the PDFs in Vex's own PDF viewer) and `fflate` (which unzips the documents in Vex's viewer for office documents and e-books) into this folder (with their licence files) so the app can load them in its pages. Their npm packages are build-time only and are not otherwise packed; they and the packages their builds draw on are listed in [Packages inside the runtime copies](#packages-inside-the-runtime-copies), and their licence texts are below.
 
 ## Word lists in the Vex source
 
@@ -178,6 +178,7 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | @protobufjs/utf8 | 1.1.2 | BSD-3-Clause |
 | @types/node | 26.4.1 | MIT |
 | bmp-js | 0.1.0 | MIT |
+| fflate | 0.8.3 | MIT |
 | flatbuffers | 25.9.23 | Apache-2.0 |
 | guid-typescript | 1.0.9 | ISC |
 | idb-keyval | 6.3.0 | Apache-2.0 |
@@ -222,6 +223,7 @@ Used by Electron, castLabs Electron and the packages below. Each package's copyr
 - **decamelize@1.2.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **emoji-regex@8.0.0** — Copyright Mathias Bynens <https://mathiasbynens.be/>
 - **encoding-japanese@2.4.0** — Copyright (c) 2012-present polygonplanet; Copyright (c) Microsoft Corporation.
+- **fflate@0.8.3** — Copyright (c) 2026 Arjun Barrett
 - **find-up@4.1.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **he@1.2.0** — Copyright Mathias Bynens <https://mathiasbynens.be/>
 - **html-to-text@10.0.1** — Copyright (c) Malte Legenhausen <legenhausen@werk85.de>

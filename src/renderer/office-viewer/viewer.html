@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="vex-persist" content="0">
+<title>Document</title>
+<link rel="stylesheet" href="/css/theme-tokens.css">
+<link rel="stylesheet" href="/css/theme-extra.css">
+<link rel="stylesheet" href="/app/viewer.css">
+</head>
+<body class="od" data-rail="closed" data-kind="">
+<a class="od-skip" href="#od-main" data-i18n="Skip to the document">Skip to the document</a>
+
+<header id="od-bar" class="od-bar" role="toolbar" aria-label="Document toolbar" data-i18n-aria="Document toolbar">
+  <div class="od-group od-group-start">
+    <button id="od-rail-toggle" class="od-btn" type="button" data-icon="sidebar" aria-pressed="false" aria-controls="od-rail" hidden
+            data-i18n-title="Side panel" data-i18n-aria="Side panel"></button>
+    <div class="od-doc">
+      <span id="od-title" class="od-doc-title" dir="auto"></span>
+      <span id="od-sub" class="od-doc-sub"></span>
+    </div>
+  </div>
+
+  <div id="od-tools" class="od-group od-tools" role="group" aria-label="View options" data-i18n-aria="View options"></div>
+
+  <div class="od-group od-group-end">
+    <button id="od-find-btn" class="od-btn" type="button" data-icon="search" aria-pressed="false" aria-controls="od-find" disabled
+            data-i18n-title="Find (Ctrl+F)" data-i18n-aria="Find"></button>
+    <button id="od-print-btn" class="od-btn" type="button" data-icon="od-print" disabled data-i18n-title="Print (Ctrl+P)" data-i18n-aria="Print"></button>
+    <button id="od-download-btn" class="od-btn od-btn-text" type="button" data-i18n-title="Download the original file" data-i18n-aria="Download the original file">
+      <span data-icon="download"></span><span class="od-btn-label" data-i18n="Download original">Download original</span>
+    </button>
+    <button id="od-more-btn" class="od-btn" type="button" data-icon="od-more" aria-haspopup="menu" aria-expanded="false" disabled data-i18n-title="More" data-i18n-aria="More"></button>
+  </div>
+</header>
+
+<div id="od-body" class="od-body">
+  <aside id="od-rail" class="od-rail" aria-label="Side panel" data-i18n-aria="Side panel" hidden>
+    <div id="od-rail-tabs" class="od-rail-tabs" role="tablist" aria-label="Side panel" data-i18n-aria="Side panel"></div>
+    <div id="od-rail-panes" class="od-rail-panes"></div>
+  </aside>
+
+  <main id="od-main" class="od-main" tabindex="-1">
+    <div id="od-banner" class="od-banner" role="status" hidden></div>
+
+    <div id="od-find" class="od-find" role="search" aria-label="Find in the document" data-i18n-aria="Find in the document" hidden>
+      <input id="od-find-input" class="od-input" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="Find in the document" data-i18n-aria="Find in the document">
+      <span id="od-find-count" class="od-find-count" aria-live="polite"></span>
+      <button id="od-find-prev" class="od-btn" type="button" data-icon="chevron-up" data-i18n-title="Previous match (Shift+Enter)" data-i18n-aria="Previous match"></button>
+      <button id="od-find-next" class="od-btn" type="button" data-icon="chevron-down" data-i18n-title="Next match (Enter)" data-i18n-aria="Next match"></button>
+      <button id="od-find-case" class="od-chip" type="button" aria-pressed="false" data-i18n="Aa" data-i18n-title="Match case" data-i18n-aria="Match case">Aa</button>
+      <button id="od-find-word" class="od-chip" type="button" aria-pressed="false" data-i18n="Word" data-i18n-title="Whole words only" data-i18n-aria="Whole words only">Word</button>
+      <button id="od-find-close" class="od-btn" type="button" data-icon="x" data-i18n-title="Close (Esc)" data-i18n-aria="Close the search"></button>
+    </div>
+
+    <div id="od-stage" class="od-stage"></div>
+    <div id="od-state" class="od-state" hidden></div>
+    <div id="od-toasts" class="od-toasts" role="status" aria-live="polite"></div>
+    <div id="od-live" class="od-sr" role="status" aria-live="polite"></div>
+  </main>
+</div>
+
+<div id="od-menu-root"></div>
+<div id="od-dialog-root"></div>
+<div id="od-print-area" class="od-print-area" aria-hidden="true"></div>
+
+<script src="/icons.js"></script>
+<script src="/app/zipinfo.js"></script>
+<script type="module" src="/app/app.js"></script>
+</body>
+</html>

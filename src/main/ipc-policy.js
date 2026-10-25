@@ -25,7 +25,10 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   'imageview:save-copy', 'imageview:download', 'imageview:open-native', 'imageview:copy-image', 'imageview:copy-address', 'imageview:reveal', 'imageview:siblings',
   // Vex's own video and sound player page (vex-media://view/, main/media-viewer.js): the other files of the folder, download,
   // open with Windows, show in the folder. Each handler checks that the asking frame is that page.
-  'mediaview:siblings', 'mediaview:download', 'mediaview:open-external', 'mediaview:reveal']);
+  'mediaview:siblings', 'mediaview:download', 'mediaview:open-external', 'mediaview:reveal',
+  // Vex's own viewer for office documents and e-books (vex-office://view/, main/office-viewer.js): downloading the original, opening it with Windows,
+  // printing. Each handler checks that the asking frame is that page.
+  'officeview:download', 'officeview:open-external', 'officeview:print']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
@@ -102,6 +105,8 @@ const UI_ONLY_CHANNELS = new Set([
   'docview:set-enabled', 'docview:forget-settings',
   'printpreview:open', 'printpreview:render', 'printpreview:simplify', 'printpreview:print', 'printpreview:save-pdf', 'printpreview:close',
   'sources:resolve-doi', 'sources:resolve-id', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
+  // The document viewer's switches (main/office-viewer.js): the interface tells main, never a page.
+  'officeview:set-options', 'officeview:forget-books',
   // Whether Vex's own player is on and forgetting where each file was left (main/media-viewer.js): the interface tells main, never a page.
   'mediaview:set-enabled', 'mediaview:forget-places',
   // Whether Vex's own image viewer is on, and forgetting its view settings (main/image-viewer.js): the interface tells main, never a page.
