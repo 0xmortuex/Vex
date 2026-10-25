@@ -684,7 +684,7 @@ app.on('web-contents-created', (_e, contents) => {
 // page holding both: DOM text 1 match, canvas text 0 matches. Those apps ship
 // their own find, so swallowing Ctrl+F there replaced a working search with a
 // find bar guaranteed to report nothing. Let the key reach the page instead.
-const { guestOwnsFind } = require('./main/find-policy');
+const { guestOwnsFind, isDocViewerUrl } = require('./main/find-policy');
 // The sessions ordinary browsing happens in: the default one plus the
 // containers. Routing, and anything else that must cover "all of Vex",
 // works through this list.
@@ -755,7 +755,7 @@ function handleBrowserShortcut(event, input, contents) {
   if (!win) return false;
   let url;
   try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
-  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), wanted: _guestWantedKeys }), contents.id);
+  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), ownsZoom: isDocViewerUrl(url), wanted: _guestWantedKeys }), contents.id);
   if (!hit) return false;
   win.webContents.send(hit.channel, ...(hit.args || []));
   event.preventDefault();
@@ -2515,6 +2515,44 @@ require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, window
 // Built-in PDF toolkit: merge, split, extract and rotate pages, all local with pdf-lib (main/pdf-toolkit.js).
 // The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
 require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), nativeImage });
+
+// Vex's own viewers for files a tab would otherwise download (main/doc-viewers.js is the registry: which viewer takes which file).
+// The office-document and e-book viewer (main/office-viewer.js, pages in src/renderer/office-viewer) is the first entry; its on/off
+// switches are the feature's (js/office-viewer-host.js tells main when they change).
+const _docViewers = require('./main/doc-viewers').createDocViewerRegistry({
+  isGuest: (contents) => { try { return !!contents && !contents.isDestroyed() && contents.getType() === 'webview' && !!secureSessions.owner(contents); } catch { return false; } },
+});
+let _officeViewerOn = true;
+let _officeViewerAttachments = false;
+function _officeViewerLook() {
+  const read = (key) => {
+    const file = getStorageFile(key);
+    if (!fs.existsSync(file)) return null;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return raw?.$vexStore === 1 ? raw.data : raw;
+  };
+  let theme = 'oxford', guiStyle = 'classic';
+  try { const t = read('theme'); if (typeof t === 'string') theme = t; } catch (err) { console.warn('[Document viewer] the saved theme could not be read:', err.message); }
+  try { const g = read('gui-style'); if (typeof g === 'string') guiStyle = g; } catch (err) { console.warn('[Document viewer] the saved look could not be read:', err.message); }
+  return { theme, guiStyle, lang: String(_readPersistString('vex.lang', 'en')) };
+}
+const _officeViewer = require('./main/office-viewer').createOfficeViewer({
+  rendererDir: path.join(__dirname, 'renderer'), registry: _docViewers, isEnabled: () => _officeViewerOn, attachments: () => _officeViewerAttachments, owner: (contents) => secureSessions.owner(contents),
+  look: _officeViewerLook,
+});
+require('./main/office-viewer').registerOfficeViewerIpc({
+  ipcMain, dialog, registry: _docViewers, shell,
+  windowFor: (e) => (secureSessions.owner(e.sender) || {}).win || null,
+  downloadsDir: () => app.getPath('downloads'), tempDir: () => app.getPath('temp'),
+});
+ipcMain.handle('docview:set-options', (_e, opts) => { _officeViewerOn = !!(opts && opts.enabled); _officeViewerAttachments = !!(opts && opts.attachments); return { ok: true, enabled: _officeViewerOn, attachments: _officeViewerAttachments }; });
+// The place a book was left at, and a book's highlights, live in the viewer's own page storage, in each browsing session: this clears them.
+ipcMain.handle('docview:forget-books', async () => {
+  try {
+    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-doc://view', storages: ['localstorage'] });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
 
 // === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
 // Keys are made and kept here, encrypted like the vault, and only finished
@@ -7055,7 +7093,10 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('will-navigate', (evt, url) => {
     if (handleExternalProtocol((evt && evt.url) || url, contents)) {
       evt.preventDefault();
+      return;
     }
+    // A click on a link to a document file: opens the viewer instead of starting a download.
+    _docViewers.takeNavigation(evt, (evt && evt.url) || url, contents);
   });
 
   // Subframe navigations — Roblox's "Play" button sets the src of a hidden
@@ -7751,7 +7792,9 @@ app.on('before-quit', () => {
 
 // Register custom protocol BEFORE app ready
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } }
+  { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  // Vex's own viewer for office documents and e-books, and the file it reads (main/office-viewer.js).
+  { scheme: 'vex-doc', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 // Where the window was last time, put on a screen that exists now (src/main/window-placement.js, T2-082).
@@ -7891,6 +7934,7 @@ function createWindow() {
 
   // Header stripping for webviews
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
     const responseHeaders = { ...details.responseHeaders };
     _dnrResponseHeaders(session.defaultSession, details, responseHeaders);
     _addMediaCorsHeaders(details, responseHeaders);
@@ -7921,6 +7965,7 @@ function createWindow() {
     const stripAllCsp = (partName === 'persist:discord');
 
     ses.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
       if (stripAllCsp && /^https:\/\/(?:[a-z0-9-]+\.)?discord\.com(?::443)?\//i.test(details.url) && details.resourceType === 'mainFrame') {
@@ -8259,6 +8304,7 @@ function createWindow() {
   try {
     for (const p of BROWSING_SESSIONS) {
       secureSessions.fromPartition(p).webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
         const responseHeaders = { ...details.responseHeaders };
         _dnrResponseHeaders(secureSessions.fromPartition(p), details, responseHeaders);
         _addMediaCorsHeaders(details, responseHeaders);
@@ -8577,6 +8623,10 @@ app.whenReady().then(async () => {
   // While all of Vex goes through one route, a session made later goes
   // through it too (a private window, a container, a panel, a burner).
   secureSessions.onSessionCreated(_coverWithAllRoute);
+  // The office-document viewer is served to every session a tab can run in (main/office-viewer.js).
+  secureSessions.onSessionCreated((ses, partition) => _officeViewer.wireSession(ses, partition));
+  _officeViewer.wireSession(session.defaultSession, '');
+  try { require('./main/office-viewer').sweepOpenedCopies(app.getPath('temp'), 24 * 3600 * 1000); } catch (err) { console.warn('[Document viewer] old copies could not be swept:', err.message); }
   await applyStoredRoutings();
   createWindow();
   _profileGate.finish();
@@ -9457,6 +9507,7 @@ ipcMain.handle('identity:create', () => {
     try { wireMediaSnifferOnSession(ses); } catch {}
     // Header stripping + ad blocker, mirroring the private-window session.
     ses.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
       _paranoidSetCookie(details, rh);
@@ -9679,6 +9730,7 @@ ipcMain.handle('tor:create', async (event) => {
     try { ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false)); } catch {}
     try { ses.setPermissionCheckHandler(() => false); } catch {}
     ses.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
       _paranoidSetCookie(details, rh);
@@ -10037,6 +10089,7 @@ function _wireBrowsingSession(ses, partition) {
   // The built-in containers get theirs in createWindow.
   if (!BROWSING_SESSIONS.includes(partition)) {
     ses.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
       _addMediaCorsHeaders(details, responseHeaders);
@@ -10078,6 +10131,7 @@ function _wireEphemeralBrowsing(ses, tag) {
   attachGuestPreloads(ses);
   // Header stripping + ad blocker, as in the main session.
   ses.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
     const rh = { ...details.responseHeaders };
     // Per-site switches hold in a private window too: a site whose cookies
     // are off may not set any here either — they were ignored in private

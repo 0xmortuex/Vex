@@ -198,6 +198,21 @@ const VexIcons = {
     'type':         '<path d="M4.8 7V4.5h14.4V7M12 4.5v15M8.4 19.5h7.2"/>',
     'gamepad':      '<rect x="2.5" y="7.4" width="19" height="11.2" rx="4"/><path d="M7.2 11v3.2M5.6 12.6h3.2"/><circle cx="16" cy="11.8" r="1.15" fill="currentColor" stroke="none"/><circle cx="18.4" cy="14.2" r="1.15" fill="currentColor" stroke="none"/>',
     'git':          '<circle cx="6.4" cy="5.8" r="2.8"/><circle cx="6.4" cy="18.2" r="2.8"/><circle cx="17.2" cy="7.8" r="2.8"/><path d="M6.4 8.6v6.8M17.2 10.6c0 3.4-2.9 4.6-6.2 5"/>',
+
+    // --- office documents and e-books (the document viewer, src/renderer/office-viewer) ---------
+    'od-print':     '<path d="M7 9V3.5h10V9"/><rect x="3.5" y="9" width="17" height="8" rx="2"/><path d="M7 14.5h10v6H7z"/>',
+    'od-more':      '<circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
+    'od-present':   '<rect x="3.5" y="4.5" width="17" height="11.5" rx="1.6"/><path d="M12 16v4M8.5 20.5h7"/><path d="m10.6 8.3 3.6 2.2-3.6 2.2z"/>',
+    'od-page':      '<path d="M6.5 3.5h7.6l3.4 3.4v13.6h-11z"/><path d="M14 3.5V7h3.5"/>',
+    'od-flow':      '<path d="M4.5 6.5h15M4.5 11h15M4.5 15.5h10M4.5 20h12"/>',
+    'od-sheet':     '<rect x="3.5" y="4.5" width="17" height="15" rx="1.6"/><path d="M3.5 9.5h17M3.5 14.5h17M9.2 4.5v15M14.8 4.5v15"/>',
+    'od-comment':   '<path d="M4.5 5.5h15v10.5h-7l-4.2 3.6V16H4.5z"/><path d="M8.5 9.5h7M8.5 12.5h4"/>',
+    'od-formula':   '<path d="M14.5 4.5h-2.2c-1.3 0-2.1.8-2.3 2.2L9.2 19.5"/><path d="M6.5 11h7M14 13.5l4.5 5M18.5 13.5 14 18.5"/>',
+    'od-freeze':    '<rect x="3.5" y="4.5" width="17" height="15" rx="1.6"/><path d="M3.5 9.5h17" stroke-width="2.4"/><path d="M9.2 9.5v10M14.8 9.5v10"/>',
+    'od-sort':      '<path d="M7 4.5v15M7 19.5l-3-3M7 19.5l3-3"/><path d="M15 6h5M15 11h3.5M15 16h2"/>',
+    'od-notes':     '<rect x="4" y="3.8" width="16" height="16.4" rx="2"/><path d="M8 8.5h8M8 12h8M8 15.5h5"/>',
+    'od-fullscreen': '<path d="M4.5 9V4.5H9M15 4.5h4.5V9M19.5 15v4.5H15M9 19.5H4.5V15"/>',
+    'od-font':      '<path d="M4.5 19.5 10 5l5.5 14.5M6.6 14h6.8"/><path d="M16.5 19.5l2.7-7 2.3 7M17.5 17.4h3"/>',
   },
 
   has(name) { return typeof name === 'string' && Object.prototype.hasOwnProperty.call(this.icons, name); },

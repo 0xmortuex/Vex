@@ -633,6 +633,10 @@
       commands: ['cornell-note', 'flag-question', 'questions-to-ask'], permissions: { reads: ['the page in front and the text you selected, when you ask'], writes: ['a Cornell note, and your list of flagged questions'], sends: [] } },
     { id: 'pdf-highlights', title: 'PDF highlights', group: 'PDF highlights', maturity: 'new', storageKeys: ['vex.pdfHighlights', 'vex.pdfHighlights.prefs'], usesKeys: ['vex.notes'],
       commands: ['pdf-highlight-save', 'pdf-highlights'], permissions: { reads: ['the passage you paste and the page number the PDF viewer shows, when you ask'], writes: ['your PDF highlights and, if you left it on, a PDF highlights note'], sends: [] } },
+    // Vex's own viewer for office documents and e-books (src/renderer/office-viewer, main/office-viewer.js, js/office-viewer-host.js). It replaces the download these
+    // files used to start, so it is on for everyone, an existing profile included; where a book was left and its highlights live in the viewer's own page, not in a vex.* key.
+    { id: 'office-viewer', title: 'Documents and e-books viewer', group: 'Documents and e-books', tiers: { minimal: true, standard: true }, storageKeys: ['vex.officeViewer.prefs'],
+      commands: ['office-viewer-settings'], permissions: { reads: ['the Word, Excel, PowerPoint, OpenDocument, RTF or EPUB file you open, through the tab it is in, with that tab\'s own sign-in'], writes: ['where you stopped in a book, your reading settings and your book highlights, on this computer only, never from a private or Tor tab', 'a CSV copy of a sheet, where you choose to save it'], sends: [] } },
     { id: 'pdf-tools', title: 'PDF toolkit', group: 'PDF toolkit', maturity: 'new', storageKeys: ['vex.pdfTools.prefs'],
       commands: ['pdf-toolkit'], permissions: { reads: ['the PDF files you choose in the file picker', 'a signature picture you draw or type, kept in the window only while it is open'], writes: ['new PDF files where you choose to save them; the originals are never changed'], sends: [] } },
 

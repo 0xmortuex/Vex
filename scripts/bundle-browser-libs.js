@@ -17,6 +17,13 @@ async function run() {
     // onnxruntime-web is MIT (its package.json); the package ships no LICENSE file.
     ['onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm','ort-wasm-simd-threaded.asyncify.wasm'],
   ]) await fs.copyFile(path.join(root, 'node_modules', source), path.join(dest, name));
+  // The office-document viewer's unzip (src/renderer/office-viewer, served by main/office-viewer.js as vex-doc://view/lib/...): fflate, MIT.
+  // The browser build is one plain script the viewer's worker loads with importScripts. Its own folder, so the viewer's page can reach only this.
+  const officeTo = path.join(dest, 'office');
+  await fs.rm(officeTo, { recursive: true, force: true });
+  await fs.mkdir(officeTo, { recursive: true });
+  await fs.copyFile(path.join(root, 'node_modules/fflate/umd/index.js'), path.join(officeTo, 'fflate.js'));
+  await fs.copyFile(path.join(root, 'node_modules/fflate/LICENSE'), path.join(dest, 'fflate-LICENSE'));
   const core = path.join(root, 'node_modules/tesseract.js-core');
   // In the browser, worker.min.js loads only the base64-inlined
   // tesseract-core*.wasm.js builds. The plain .wasm files, the Node builds

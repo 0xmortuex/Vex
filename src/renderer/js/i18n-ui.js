@@ -52,6 +52,24 @@ const VexI18nUI = {
   // English.
   TABLE: {
     tr: {
+      // --- Documents and e-books viewer (js/office-viewer-host.js) ---
+      'Documents and e-books': 'Belgeler ve e-kitaplar',
+      'Documents and e-books viewer': 'Belge ve e-kitap görüntüleyici',
+      'Settings for the viewer that opens Word, Excel, PowerPoint and e-book files': 'Word, Excel, PowerPoint ve e-kitap dosyalarını açan görüntüleyicinin ayarları',
+      'Word, Excel and PowerPoint files, OpenDocument files, RTF and e-books (EPUB) open in Vex\'s own viewer instead of being downloaded: in the colours of your theme, with find, print, copy, a sheet grid you can sort and filter, slides with notes and a presentation mode, and a book reader that remembers where you stopped. It reads the file through the tab it is in, so a file behind a sign-in works and a private tab\'s file stays in that tab. Macros are never run, nothing in a document is fetched, and nothing is sent anywhere.': 'Word, Excel ve PowerPoint dosyaları, OpenDocument dosyaları, RTF ve e-kitaplar (EPUB) indirilmek yerine Vex\'in kendi görüntüleyicisinde açılır: temanızın renklerinde; bul, yazdır, kopyala, sıralayıp filtreleyebileceğiniz bir tablo ızgarası, notlu slaytlar ve sunu kipi, ve kaldığınız yeri hatırlayan bir kitap okuyucusuyla. Dosyayı içinde bulunduğu sekme üzerinden okur; böylece oturum gerektiren bir dosya da çalışır ve gizli sekmedeki dosya o sekmede kalır. Makrolar asla çalıştırılmaz, belgedeki hiçbir şey getirilmez ve hiçbir şey bir yere gönderilmez.',
+      'Show office documents and e-books in Vex\'s own viewer': 'Ofis belgelerini ve e-kitapları Vex\'in kendi görüntüleyicisinde göster',
+      'Documents open in Vex\'s own viewer': 'Belgeler Vex\'in kendi görüntüleyicisinde açılıyor',
+      'Documents are downloaded again': 'Belgeler yine indiriliyor',
+      'Switched off, these files are downloaded as before. The viewer\'s "Download original" button saves the file when you want it.': 'Kapatılırsa bu dosyalar eskisi gibi indirilir. Görüntüleyicideki "Özgün dosyayı indir" düğmesi dosyayı istediğinizde kaydeder.',
+      'Also use the viewer when a site says the file is a download': 'Site dosyanın bir indirme olduğunu söylese de görüntüleyiciyi kullan',
+      'The viewer also opens files a site marks as a download': 'Görüntüleyici, sitenin indirme olarak işaretlediği dosyaları da açıyor',
+      'Files a site marks as a download are saved as the site asks': 'Sitenin indirme olarak işaretlediği dosyalar sitenin istediği gibi kaydediliyor',
+      'Off by default: a "Download" button on a site saves the file, as the site intends. Turn it on if you would rather read those files first.': 'Varsayılan olarak kapalı: bir sitedeki "İndir" düğmesi, sitenin amaçladığı gibi dosyayı kaydeder. Bu dosyaları önce okumayı tercih ederseniz açın.',
+      'Forget where I stopped in books': 'Kitaplarda kaldığım yerleri unut',
+      'Vex forgot where you stopped in each book, and your highlights': 'Vex her kitapta kaldığınız yeri ve vurgularınızı unuttu',
+      'Vex remembers where you stopped in each book, your reading settings and your book highlights on this computer only. Private and Tor tabs never keep them. They are not synced.': 'Vex her kitapta kaldığınız yeri, okuma ayarlarınızı ve kitap vurgularınızı yalnızca bu bilgisayarda hatırlar. Gizli ve Tor sekmeleri bunları asla tutmaz. Eşitlenmezler.',
+      'This window cannot do that': 'Bu pencere bunu yapamaz',
+      'It did not work': 'Çalışmadı',
       // --- Did you know? (js/feature-faq.js) : generated block start ---
       'Did you know?': 'Biliyor muydunuz?',
       'Questions you might never think to ask, each with a button that tries the answer.': 'Aklınıza hiç gelmeyebilecek sorular; her birinde yanıtı deneyen bir düğme var.',
