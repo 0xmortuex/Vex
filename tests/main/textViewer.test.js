@@ -18,8 +18,10 @@ function details(over = {}) {
   return { resourceType: 'mainFrame', method: 'GET', statusCode: 200, url: 'https://example.com/data.json', webContents: guest(), responseHeaders: { 'Content-Type': ['application/json; charset=utf-8'] }, ...over };
 }
 function makeRegistry(over = {}) {
-  const registry = createDocViewerRegistry({ owner: () => ({}), ...over });
-  const viewer = tv.createTextViewer({ rendererDir: path.join(ROOT, 'src/renderer'), registry, look: () => ({ theme: 'oxford', guiStyle: 'firefox', lang: 'tr' }) });
+  // The on/off switch belongs to the viewer's entry in the registry, not to the registry.
+  const { isEnabled, ...registryDeps } = over;
+  const registry = createDocViewerRegistry({ owner: () => ({}), ...registryDeps });
+  const viewer = tv.createTextViewer({ rendererDir: path.join(ROOT, 'src/renderer'), registry, isEnabled, look: () => ({ theme: 'oxford', guiStyle: 'firefox', lang: 'tr' }) });
   return { registry, viewer };
 }
 function take(registry, d) {

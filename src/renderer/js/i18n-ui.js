@@ -10009,7 +10009,7 @@ const VexI18nUI = {
       'Type': 'Tür', 'Size': 'Boyut',
       'Copy path': 'Yolu kopyala', 'Path copied': 'Yol kopyalandı', 'SHA-256 hash': 'SHA-256 karması', 'Delete to Recycle Bin': 'Geri Dönüşüm Kutusu’na at',
       'Could not copy the path: {1}': 'Yol kopyalanamadı: {1}',
-      'Working it out…': 'Hesaplanıyor…', 'Could not work out the hash': 'Karma hesaplanamadı', 'Copy the hash': 'Karmayı kopyala', 'Hash copied': 'Karma kopyalandı',
+      'Working it out…': 'Hesaplanıyor…', 'Could not work out the hash': 'Karma hesaplanamadı', 'Copy the hash': 'Karmayı kopyala',
       'This is a program. Vex never runs a program from a preview; it can only show you where the file is.': 'Bu bir program. Vex önizlemeden asla program çalıştırmaz; yalnızca dosyanın nerede olduğunu gösterebilir.',
       'Checking who signed it…': 'Kimin imzaladığı denetleniyor…',
       'Warning:': 'Uyarı:', 'Careful:': 'Dikkat:',
@@ -10039,10 +10039,10 @@ const VexI18nUI = {
       'The file is not there any more': 'Dosya artık orada değil',
       'Quick look shows only files Vex downloaded itself': 'Hızlı bakış yalnızca Vex’in kendisinin indirdiği dosyaları gösterir',
       'Quick look does not follow links': 'Hızlı bakış bağlantıları izlemez',
-      'That is not a file': 'Bu bir dosya değil', 'That is not a file path': 'Bu bir dosya yolu değil', 'That is not a full file path': 'Bu tam bir dosya yolu değil',
+      'That is not a file path': 'Bu bir dosya yolu değil', 'That is not a full file path': 'Bu tam bir dosya yolu değil',
       // --- Print preview (js/print-preview-ui.js, main/print-preview.js) ---
       'Fit the page to the width': 'Sayfayı genişliğe sığdır',
-      'Fit': 'Sığdır',
+      
       'Refresh the preview': 'Önizlemeyi yenile',
       'Pages as they will print': 'Yazdırılacak haliyle sayfalar',
       'Print options': 'Yazdırma seçenekleri',
@@ -10058,8 +10058,8 @@ const VexI18nUI = {
       'e.g. 1-3, 5': 'örn. 1-3, 5',
       'Pages to print': 'Yazdırılacak sayfalar',
       'Pages per sheet': 'Yaprak başına sayfa',
-      '1 page': '1 sayfa',
-      '{1} pages': '{1} sayfa',
+      
+      
       'Orientation': 'Yön',
       'Portrait': 'Dikey',
       'Landscape': 'Yatay',
