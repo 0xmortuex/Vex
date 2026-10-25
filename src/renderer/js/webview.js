@@ -125,9 +125,27 @@ const WebviewManager = {
     }
 
     // Events
+    // A load whose "stopped" event never came left the spinner over the page and the toolbar on Stop for good (seen on a page that kept a
+    // request open after it had drawn): the page asks again whether it is still loading, and if it says no the state is cleared.
+    let loadWatch = null;
+    const clearLoading = () => {
+      clearTimeout(loadWatch);
+      loadWatch = null;
+      TabManager.updateTab(tab.id, { loading: false });
+      container.classList.remove('wv-loading');
+    };
     onWebview('did-start-loading', () => {
       TabManager.updateTab(tab.id, { loading: true });
       container.classList.add('wv-loading');
+      clearTimeout(loadWatch);
+      const ask = (round) => {
+        loadWatch = null;
+        let still = true;
+        try { still = typeof webview.isLoading === 'function' ? webview.isLoading() : true; } catch { still = false; }   // a guest that is gone is not loading
+        if (!still) { clearLoading(); return; }
+        if (round < 40) loadWatch = setTimeout(() => ask(round + 1), 5000);   // up to about 3 minutes; a page that really is loading keeps its spinner
+      };
+      loadWatch = setTimeout(() => ask(0), 8000);
     });
 
     // Whether the page in front is an error page, for the padlock
@@ -152,10 +170,7 @@ const WebviewManager = {
       if (typeof ArchiveLibrary !== 'undefined' && TabManager.activeTabId === tab.id) ArchiveLibrary.offerForDeadPage(e.validatedURL, { isMainFrame: true, errorCode: e.errorCode });
     });
 
-    onWebview('did-stop-loading', () => {
-      TabManager.updateTab(tab.id, { loading: false });
-      container.classList.remove('wv-loading');
-    });
+    onWebview('did-stop-loading', () => { clearLoading(); });
 
     onWebview('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
@@ -1248,6 +1263,10 @@ const WebviewManager = {
     if (!wv) return false;
     wv.stop();
     const tab = TabManager.tabs.find(t => t.id === tabId);
+    // Stop means stopped, as in every browser: Vex's own loading state ends now, whether or not the page sends its "stopped" event (it did
+    // not on a page that kept a request open, and the X then did nothing at all).
+    TabManager.updateTab(tabId, { loading: false });
+    if (tabId === TabManager.activeTabId) { const box = document.getElementById('webviews-container'); if (box) box.classList.remove('wv-loading'); }
     if (tab) {
       delete tab._typedUrl;
       if (tabId === TabManager.activeTabId) TabManager.updateUrlBar(tab);
