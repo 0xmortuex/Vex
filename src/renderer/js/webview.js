@@ -47,6 +47,16 @@ const WebviewManager = {
   // A PDF is shown by a page of Vex's own at vex-pdf://view/?u=<the PDF's address>[#page=3]. The tab, its address bar, its
   // history, its bookmarks and its reload keep the PDF's own address: this maps the viewer's address back, and the
   // twin in main/pdf-viewer.js (parseViewerUrl) does the same on the other side (a test holds them equal).
+  // A .pdf file: address is sent to the viewer here, before anything loads. (Main cannot take such a navigation over once it has
+  // started: Chromium's own PDF viewer starting and then being cancelled froze Vex's main process, measured 2026-10-25. A PDF from the
+  // web is answered with a redirect instead, in main/pdf-viewer.js.) VexPdfViewerOff is set by js/pdf-viewer-host.js when it is switched off.
+  viewerAddress(url) {
+    const s = String(url || '');
+    if (window.VexPdfViewerOff || !/^file:\/\/[^?#]*\.pdf(?:[?#]|$)/i.test(s)) return s;
+    const at = s.indexOf('#');
+    return 'vex-pdf://view/?u=' + encodeURIComponent(at < 0 ? s : s.slice(0, at)) + (at < 0 ? '' : s.slice(at));
+  },
+
   pdfOriginal(url) {
     const s = String(url || '');
     if (!/^vex-pdf:\/\/view\//i.test(s)) return null;
@@ -114,7 +124,7 @@ const WebviewManager = {
       // the ones it starts (js/userscripts.js).
       if (!event.isInPlace && typeof VexUserscripts !== 'undefined') VexUserscripts.noteActive(tab.id, null);
     });
-    webview.setAttribute('src', tab.url);
+    webview.setAttribute('src', this.viewerAddress(tab.url));
     // The New Tab page paints a moment after its tab appears (its process starts first), and the empty webview was white for that moment, in
     // a dark theme a flash of a white screen (measured: 150 ms and more). Its own page colour is the theme's base colour, so it stands in.
     if (typeof isStartPage === 'function' && isStartPage(tab.url)) webview.style.background = 'var(--vex-bg-base)';
@@ -721,7 +731,7 @@ const WebviewManager = {
                 } catch (err) { window.VexProblems?.note('Tabs', 'Could not put a reloaded tab back where it was', err); }
               }, { once: true });
             }
-            try { Promise.resolve(webview.loadURL(real)).catch(() => {}); } catch { webview.src = real; }
+            try { Promise.resolve(webview.loadURL(this.viewerAddress(real))).catch(() => {}); } catch { webview.src = this.viewerAddress(real); }
           };
           if (lifecycle) cancelRecovery = lifecycle.timeout(recover, 400 * 2 ** (crashCount - 1));
           else { const timer = setTimeout(recover, 400 * 2 ** (crashCount - 1)); cancelRecovery = () => clearTimeout(timer); }
@@ -1019,7 +1029,7 @@ const WebviewManager = {
   // logged. A webview not attached yet still throws, for the caller's own
   // fallback.
   _loadUnwatched(wv, url, why) {
-    wv.loadURL(url).catch((err) => {
+    wv.loadURL(this.viewerAddress(url)).catch((err) => {
       const m = String((err && err.message) || err);
       if (/ERR_ABORTED|\(-3\)/.test(m)) return;
       console.warn(`[Vex] ${why}: could not load ${url} —`, m);
@@ -1222,7 +1232,7 @@ const WebviewManager = {
           delete tab._typedUrl;
           return tab;
         };
-        const load = () => wv.loadURL(url).then(settle, err => {
+        const load = () => wv.loadURL(this.viewerAddress(url)).then(settle, err => {
           const m = String((err && err.message) || err);
           if (/ERR_ABORTED|\(-3\)|ERR_FAILED \(-2\)/.test(m)) {
             const tab = settle();

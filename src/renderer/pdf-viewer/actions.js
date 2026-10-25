@@ -12,7 +12,18 @@ export async function saveCopy(ctx, { toDownloads = false } = {}) {
   const { store, pdf, viewer, host } = ctx;
   const marks = store.list();
   let values = {};
-  try { values = formValuesFrom(await pdf.getFieldObjects(), pdf.annotationStorage.getAll() || {}); }
+  try {
+    const map = pdf.annotationStorage.serializable.map;     // field id -> the answer given, for the fields that were changed
+    if (map && map.size) {
+      const widgets = [];
+      for (let n = 1; n <= pdf.numPages; n++) {
+        const page = await pdf.getPage(n);
+        for (const a of await page.getAnnotations({ intent: 'display' })) if (a.annotationType === ctx.pdfjsLib.AnnotationType.WIDGET) widgets.push(a);
+        page.cleanup();
+      }
+      values = formValuesFrom(widgets, Object.fromEntries(map));
+    }
+  }
   catch (err) { toast(t('The form answers could not be read: {why}', { why: err.message }), { kind: 'error' }); return false; }
   const rotate = viewer.pagesRotation % 360;
   if (!marks.length && !Object.keys(values).length && !rotate) { toast(t('There is nothing to save yet: add a mark, fill a field or turn the pages first.')); return false; }
@@ -22,6 +33,7 @@ export async function saveCopy(ctx, { toDownloads = false } = {}) {
   if (payload.length) request.marks = payload;
   if (Object.keys(values).length) request.values = values;
   if (payload.some((m) => m.kind === 'signature')) request.signature = ctx.state.signatureB64;
+  window.__vexPdfLastSave = request;
   const busy = toast(t('Making the copy...'), { ms: 60000 });
   let result;
   try { result = await host.saveCopy(request); } catch (err) { busy.remove(); toast(t('The copy could not be saved: {why}', { why: err.message }), { kind: 'error' }); return false; }

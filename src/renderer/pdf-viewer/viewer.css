@@ -259,6 +259,8 @@ body.pv {
   --highlight-selected-bg-color: color-mix(in srgb, var(--pv-accent) 62%, transparent);
 }
 .pdfViewer .textLayer ::selection { background: color-mix(in srgb, var(--pv-accent) 38%, transparent); }
+/* The words typed into a form are set in a plain sans, as a PDF's own fields are, not in the interface's font. */
+.pdfViewer .annotationLayer :is(input, textarea, select, option) { font-family: Helvetica, Arial, sans-serif; }
 .pdfViewer .annotationLayer .linkAnnotation > a:focus-visible, .pdfViewer .annotationLayer .buttonWidgetAnnotation:focus-visible { outline: 2px solid var(--pv-accent); }
 .pv-banner {
   position: absolute; z-index: 20; left: 50%; top: 10px; transform: translateX(-50%); max-width: min(560px, 92%); display: flex; align-items: center; gap: 10px;

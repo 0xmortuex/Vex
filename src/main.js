@@ -2541,7 +2541,6 @@ require('./main/pdf-viewer').registerPdfViewerIpc({
   downloadsDir: () => app.getPath('downloads'),
 });
 ipcMain.handle('pdfview:set-enabled', (_e, on) => { _pdfViewerOn = !!on; return { ok: true, on: _pdfViewerOn }; });
-app.on('web-contents-created', (_e, contents) => _pdfViewer.wireContents(contents));
 
 // === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
 // Keys are made and kept here, encrypted like the vault, and only finished

@@ -372,7 +372,7 @@ async function placeMarks(bytes, { marks, signature, ascii, fonts } = {}, name) 
     const color = rgb(...hexColor(it.color || '#000000', i + 1));
     const thickness = it.width || 1.5;
     if (it.kind === 'highlight') {
-      for (const r of it.rects) page.drawRectangle({ x: r.x, y: r.y, width: r.w, height: r.h, color, blendMode: BlendMode.Multiply });
+      for (const r of it.rects) page.drawRectangle({ x: r.x, y: r.y, width: r.w, height: r.h, color, opacity: 0.55, blendMode: BlendMode.Multiply });
     } else if (it.kind === 'underline' || it.kind === 'strike') {
       for (const l of it.lines) page.drawLine({ start: { x: l.x1, y: l.y1 }, end: { x: l.x2, y: l.y2 }, thickness: it.width || 1, color });
     } else if (it.kind === 'ink') {

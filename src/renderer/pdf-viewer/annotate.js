@@ -60,7 +60,7 @@ export function createAnnotator(ctx) {
     const box = (x, y, bw, bh) => { const a = pt(x, y), b = pt(x + bw, y + bh); return { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w: Math.abs(b[0] - a[0]), h: Math.abs(b[1] - a[1]) }; };
     const f = (n) => Math.round(n * 100) / 100;
     switch (m.kind) {
-      case 'highlight': return m.rects.map((r) => { const b = box(r.x, r.y, r.w, r.h); return `<rect x="${f(b.x)}" y="${f(b.y)}" width="${f(b.w)}" height="${f(b.h)}" rx="1.5" fill="${c}" fill-opacity="0.42"/>`; }).join('');
+      case 'highlight': return m.rects.map((r) => { const b = box(r.x, r.y, r.w, r.h); return `<rect x="${f(b.x)}" y="${f(b.y)}" width="${f(b.w)}" height="${f(b.h)}" rx="1.5" fill="${c}" fill-opacity="0.5"/>`; }).join('');
       case 'underline': case 'strike': return m.lines.map((l) => { const a = pt(l.x1, l.y1), b = pt(l.x2, l.y2); return `<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" stroke="${c}" stroke-width="${f(Math.max(1, (m.width || 1) * k))}" stroke-linecap="round"/>`; }).join('');
       case 'ink': return `<path d="${m.points.map((p, i) => { const a = pt(p[0], p[1]); return (i ? 'L' : 'M') + f(a[0]) + ' ' + f(a[1]); }).join('')}" fill="none" stroke="${c}" stroke-width="${f(w)}" stroke-linecap="round" stroke-linejoin="round"/>`;
       case 'rect': { const b = box(m.x, m.y, m.w, m.h); return `<rect x="${f(b.x)}" y="${f(b.y)}" width="${f(b.w)}" height="${f(b.h)}" fill="none" stroke="${c}" stroke-width="${f(w)}" stroke-linejoin="round"/>`; }
@@ -168,11 +168,12 @@ export function createAnnotator(ctx) {
       if (!n) continue;
       const view = viewOf(n);
       const pr = view.div.getBoundingClientRect();
-      if (r.height > pr.height * 0.25) continue;       // a whole block, not a line of text
+      // A whole block of the page, not a run of text: skipped.
+      if ((r.width > pr.width * 0.9 && r.height > pr.height * 0.25) || (r.height > pr.height * 0.9 && r.width > pr.width * 0.25)) continue;
       if (!groups.has(n)) groups.set(n, []);
       groups.get(n).push({ x: r.left - pr.left, y: r.top - pr.top, w: r.width, h: r.height });
     }
-    return [...groups].map(([n, list]) => ({ page: n, rects: mergeLineRects(list) })).filter((g) => g.rects.length);
+    return [...groups].map(([n, list]) => ({ page: n, rects: mergeLineRects(list, rotationOf(viewOf(n)) % 180 ? 'v' : 'h') })).filter((g) => g.rects.length);
   }
 
   function makeMarkup(kind) {
@@ -189,12 +190,20 @@ export function createAnnotator(ctx) {
       if (kind === 'highlight') created.push({ kind, page: g.page, color, rects: pdfRects });
       else {
         // A line under (or through) each line of the words, along the page's own bottom edge for that line: in the view's frame, then back to PDF units.
+        // The line goes along the edge the letters stand on: the bottom of a line of text, or the side that is the bottom when the page is turned.
+        const rot = rotationOf(view) % 360;
+        const under = kind === 'underline';
         const lines = g.rects.map((r) => {
-          const yy = kind === 'underline' ? r.y + r.h * 0.92 : r.y + r.h * 0.56;
-          const a = toPdf(view, r.x, yy), b = toPdf(view, r.x + r.w, yy);
+          if (rot === 0 || rot === 180) {
+            const yy = rot === 0 ? r.y + r.h * (under ? 0.92 : 0.56) : r.y + r.h * (under ? 0.08 : 0.44);
+            const a = toPdf(view, r.x, yy), b = toPdf(view, r.x + r.w, yy);
+            return { x1: a[0], y1: a[1], x2: b[0], y2: b[1] };
+          }
+          const xx = rot === 90 ? r.x + r.w * (under ? 0.08 : 0.44) : r.x + r.w * (under ? 0.92 : 0.56);
+          const a = toPdf(view, xx, r.y), b = toPdf(view, xx, r.y + r.h);
           return { x1: a[0], y1: a[1], x2: b[0], y2: b[1] };
         });
-        created.push({ kind, page: g.page, color: onPaper(color), lines, width: Math.max(0.8, Math.min(2.2, g.rects[0].h / scaleOf(view) * 0.07)) });
+        created.push({ kind, page: g.page, color: onPaper(color), lines, width: Math.max(0.8, Math.min(2.2, Math.min(g.rects[0].h, g.rects[0].w) / scaleOf(view) * 0.07)) });
       }
     }
     try { store.addMany(created); } catch (err) { toast(err.message, { kind: 'error' }); return false; }

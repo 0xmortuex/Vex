@@ -217,7 +217,7 @@ async function main() {
       const done = (v, close) => { if (settled) return; settled = true; close && close(); resolve(v); };
       const dlg = openDialog({
         title: t('This PDF needs a password'), lead: t('{name} is protected. Enter its password to read it. The password stays in this window and is not saved.', { name: source.name }), body,
-        onCancel: () => { settled = true; resolve(null); },
+        onCancel: () => { settled = true; resolve(null); }, backdropCancels: false,
         actions: [{ label: t('Cancel'), run: (close) => done(null, close) }, { label: t('Open'), primary: true, run: (close) => { if (!input.value) { input.focus(); return; } done(input.value, close); } }],
       });
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!input.value) return; done(input.value, dlg.close); } });
@@ -227,9 +227,7 @@ async function main() {
 
 // ---- the viewer ---------------------------------------------------------------------------------------------------------------------
 async function run({ pdfjsLib, pv, eventBus, linkService, findController, viewer, pdf, password }) {
-  linkService.setDocument(pdf, null);
-  viewer.setDocument(pdf);
-
+  dom.bar.inert = false;           // the tools are for a document that is open
   const saved = prefs.get();
   const store = createMarkStore();
   const state = {
@@ -271,7 +269,7 @@ async function run({ pdfjsLib, pv, eventBus, linkService, findController, viewer
   const titleEl = $('#pv-doc-title'), subEl = $('#pv-doc-sub');
   retitle = () => {
     titleEl.textContent = shownTitle;
-    subEl.textContent = t('{n} pages', { n: pdf.numPages }) + (source.isFile ? ' · ' + t('On this computer') : ' · ' + hostOf(source.original));
+    subEl.textContent = (pdf.numPages === 1 ? t('1 page') : t('{n} pages', { n: pdf.numPages })) + (source.isFile ? ' · ' + t('On this computer') : ' · ' + hostOf(source.original));
     document.title = shownTitle;
   };
   retitle();
@@ -668,7 +666,7 @@ async function run({ pdfjsLib, pv, eventBus, linkService, findController, viewer
 
   // ---- a form ---------------------------------------------------------------------------------------------------------------------------------------------------------
   pdf.getFieldObjects().then((fields) => {
-    if (!fields || !Object.keys(fields).length) return;
+    if (!fields || !(fields instanceof Map ? fields.size : Object.keys(fields).length)) return;
     dom.banner.hidden = false;
     dom.banner.textContent = '';
     const close = el('button', { class: 'pv-btn', type: 'button', 'aria-label': t('Close'), title: t('Close') });
@@ -684,6 +682,7 @@ async function run({ pdfjsLib, pv, eventBus, linkService, findController, viewer
   const mirror = el('article', { id: 'vex-pdf-text', class: 'pv-sr', 'aria-hidden': 'true' });
   document.body.append(mirror);
   window.vexPdfDoc = { title: shownTitle, pages: pdf.numPages, address: original, currentPage: () => viewer.currentPageNumber, pageText };
+  window.__pdf = pdf;
   (async () => {
     let total = 0;
     const heading = el('h1', { text: shownTitle });
@@ -699,11 +698,11 @@ async function run({ pdfjsLib, pv, eventBus, linkService, findController, viewer
     }
   })().catch((err) => console.warn('[PDF viewer] the document\'s words could not be gathered:', err && err.message));
 
-  // the first look
+  // the first look. The document is handed to the viewer last, so every event it raises finds its listener.
   refreshColors();
   applyTone();
   emitState();
-  if (saved.tone) state.tone = saved.tone;
-  applyTone();
+  linkService.setDocument(pdf, null);
+  viewer.setDocument(pdf);
   host.tell('ready', { pages: pdf.numPages });
 }

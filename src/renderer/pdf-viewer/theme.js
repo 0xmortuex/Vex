@@ -62,16 +62,23 @@ export function interfaceIsDark() {
   return luminance(resolveColor(cssColor('var(--pv-surface)'))) < 0.4;
 }
 
+function contrast(a, b) { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); }
+
 function refreshScheme() {
-  document.body.dataset.dark = interfaceIsDark() ? 'true' : 'false';
-  document.documentElement.style.colorScheme = interfaceIsDark() ? 'dark' : 'light';
+  const dark = interfaceIsDark();
+  document.body.dataset.dark = dark ? 'true' : 'false';
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  // The text on the accent colour: white or near black, whichever reads better on it, whatever the theme says.
+  const accent = resolveColor(cssColor('var(--pv-accent)'));
+  const white = [255, 255, 255], ink = [17, 19, 24];
+  document.documentElement.style.setProperty('--pv-on-accent', contrast(accent, white) >= contrast(accent, ink) ? '#ffffff' : '#111318');
 }
 export { refreshScheme };
 
 // The colours a mark can be: tokens of the theme, resolved to a fixed hex when the mark is made (so a saved copy and the mark on
 // screen stay the same colour if the theme changes later). `yellow` is the theme's warning colour pulled toward a highlighter.
 export const SWATCHES = [
-  { id: 'yellow', css: 'color-mix(in srgb, var(--vex-warning, #c2611a) 40%, #ffe44d)', name: 'Yellow' },
+  { id: 'yellow', css: 'color-mix(in srgb, var(--vex-warning, #c2611a) 20%, #ffe44d)', name: 'Yellow' },
   { id: 'accent', css: 'var(--pv-accent)', name: 'Accent' },
   { id: 'success', css: 'var(--success, var(--vex-success, #2f6b3f))', name: 'Green' },
   { id: 'danger', css: 'var(--pv-danger)', name: 'Red' },

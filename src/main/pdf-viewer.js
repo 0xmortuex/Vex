@@ -8,8 +8,11 @@
 // How a PDF gets there:
 //   * A web page whose RESPONSE says application/pdf (and is not an attachment) is caught
 //     in the session's onHeadersReceived (one line in each of main.js's handlers: take()).
-//     The tab is sent to  vex-pdf://view/?u=<the PDF's address>  and the original request is
-//     cancelled. A .pdf file: address is caught the same way when its navigation starts.
+//     The answer is turned into a redirect to  vex-pdf://view/?u=<the PDF's address>  , so
+//     the tab makes one ordinary navigation. A .pdf file: address is sent there by the
+//     window itself before it loads (js/webview.js viewerAddress): main cannot take over a
+//     navigation to a PDF once it has started, because Chromium's own viewer starting and
+//     being cancelled froze Vex's main process (measured 2026-10-25).
 //   * The viewer page is served by this module (protocol.handle on every session). Its
 //     document is fetched through  vex-pdf://view/doc?u=...  , which main answers with
 //     session.fetch of THE SAME SESSION the tab runs in: a PDF behind a login uses the
@@ -148,25 +151,6 @@ function createPdfViewer(deps) {
     return true;
   }
 
-  // A .pdf file: address has no response headers; its navigation is caught as it starts.
-  function wireContents(wc) {
-    // Whether a page belongs to a Vex window is known only once it is attached, so that is asked at each navigation.
-    if (!wc || wc.isDestroyed() || wc.getType() !== 'webview' || wired.has(wc)) return;
-    wired.add(wc);
-    wc.on('did-start-navigation', (event, urlArg, inPlaceArg, mainArg) => {
-      const url = event && typeof event === 'object' && 'url' in event ? event.url : urlArg;
-      const isMainFrame = event && typeof event === 'object' && 'isMainFrame' in event ? event.isMainFrame : mainArg;
-      const isInPlace = event && typeof event === 'object' && 'isSameDocument' in event ? event.isSameDocument : inPlaceArg;
-      if (!isMainFrame || isInPlace || !isEnabled() || !isPdfFileUrl(url) || !isGuest(wc)) return;
-      if (consumeBypass(wc.id, url)) return;
-      // Not from inside the navigation's own start (that load fails with ERR_FAILED): the next turn of the loop.
-      setImmediate(() => {
-        if (wc.isDestroyed()) return;
-        wc.loadURL(viewerUrl(url)).catch((err) => { if (err && err.code !== 'ERR_ABORTED') log('[PDF viewer] could not open the viewer: ' + err.message); });
-      });
-    });
-  }
-
   // ---- the protocol ---------------------------------------------------------
   function secureHeaders(type, extra) {
     return { 'content-type': type, 'content-security-policy': CSP, 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'cache-control': 'no-cache', ...(extra || {}) };
@@ -268,7 +252,7 @@ function createPdfViewer(deps) {
     ses.protocol.handle(SCHEME, makeHandler(ses, partition));
   }
 
-  return { SCHEME, HOST, take, wireContents, wireSession, allowOnce, consumeBypass, makeHandler, roots, isGuest };
+  return { SCHEME, HOST, take, wireSession, allowOnce, consumeBypass, makeHandler, roots, isGuest };
 }
 
 // ---- what the viewer asks main to do (every channel checks that the asker is the viewer page) -----------------
@@ -392,7 +376,7 @@ function registerPdfViewerIpc(opts) {
         return { ok: true, cancelled: false, name: nodePath.basename(target) };
       }
       // Through the page's own session, so the downloads panel, its scan and the tab's cookies all apply as for any download.
-      allowOnce(event.sender.id, src.original);
+      viewer.allowOnce(event.sender.id, src.original);
       event.sender.downloadURL(src.original);
       return { ok: true, cancelled: false, viaDownloads: true };
     } catch (err) { return { ok: false, error: err.message }; }

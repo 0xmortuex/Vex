@@ -123,7 +123,12 @@ export function hits(mark, px, py, tol) {
 
 // Merges the rectangles of a text selection that sit on one line (the engine gives one per run of text) into one per line.
 // rects: [{ x, y, w, h }] in any one coordinate system with y growing downward (a screen); returns the same shape.
-export function mergeLineRects(rects) {
+export function mergeLineRects(rects, axis) {
+  // 'v': the lines of text run down the page (a page turned a quarter): the same merge with the two directions swapped.
+  if (axis === 'v') {
+    const swap = (r) => ({ x: r.y, y: r.x, w: r.h, h: r.w });
+    return mergeLineRects(rects.map(swap)).map(swap);
+  }
   const sorted = rects.filter((r) => r.w > 0.5 && r.h > 0.5).sort((a, b) => (a.y + a.h / 2) - (b.y + b.h / 2) || a.x - b.x);
   const out = [];
   for (const r of sorted) {
@@ -165,23 +170,22 @@ export function toSavePayload(list) {
   });
 }
 
-// What a form answer from pdf.js's annotation storage comes to, by field name, for main/pdf-toolkit.js fillForm.
-// fieldObjects: pdf.getFieldObjects() -> { name: [{ id, type, exportValue?, ... }] }; storage: { id: { value } }.
-export function formValuesFrom(fieldObjects, storage) {
+// What the answers typed into the form come to, by field name, for main/pdf-toolkit.js fillForm.
+// widgets: the form-field annotations of the pages (page.getAnnotations(), annotationType 20); storage: { id: { value } }, the
+// answers pdf.js keeps (annotationStorage.serializable.map). Only a field that was changed has an entry there.
+export function formValuesFrom(widgets, storage) {
   const out = {};
-  if (!fieldObjects) return out;
-  for (const [name, objs] of Object.entries(fieldObjects)) {
-    for (const obj of objs) {
-      const entry = storage[obj.id];
-      if (!entry || !('value' in entry)) continue;
-      const v = entry.value;
-      if (obj.type === 'text') { if (typeof v === 'string') out[name] = v; }
-      else if (obj.type === 'checkbox') { if (typeof v === 'boolean') out[name] = v; }
-      else if (obj.type === 'radiobutton') { if (v === true && obj.exportValue != null) out[name] = String(obj.exportValue); }
-      else if (obj.type === 'combobox' || obj.type === 'listbox') {
-        const value = Array.isArray(v) ? v[0] : v;
-        if (typeof value === 'string' && value !== '') out[name] = value;
-      }
+  for (const w of widgets || []) {
+    const entry = storage[w.id];
+    if (!entry || !('value' in entry) || !w.fieldName) continue;
+    const v = entry.value;
+    if (w.fieldType === 'Tx') { if (typeof v === 'string') out[w.fieldName] = v; }
+    else if (w.fieldType === 'Btn') {
+      if (w.checkBox) { if (typeof v === 'boolean') out[w.fieldName] = v; }
+      else if (w.radioButton) { if (v === true && w.buttonValue != null) out[w.fieldName] = String(w.buttonValue); }
+    } else if (w.fieldType === 'Ch') {
+      const value = Array.isArray(v) ? v[0] : v;
+      if (typeof value === 'string' && value !== '') out[w.fieldName] = value;
     }
   }
   return out;

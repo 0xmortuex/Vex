@@ -19,7 +19,7 @@ export function el(tag, attrs, ...kids) {
     else if (key === 'text') node.textContent = value;
     else if (key === 'html') throw new Error('el(): no raw html; build the nodes');
     else if (key.startsWith('on') && typeof value === 'function') node.addEventListener(key.slice(2), value);
-    else if (key === 'style' && typeof value === 'object') Object.assign(node.style, value);
+    else if (key === 'style' && typeof value === 'object') { for (const [name, v] of Object.entries(value)) { if (name.startsWith('--')) node.style.setProperty(name, v); else node.style[name] = v; } }
     else node.setAttribute(key, value === true ? '' : String(value));
   }
   for (const kid of kids.flat()) if (kid != null && kid !== false) node.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
@@ -111,7 +111,7 @@ export function openMenu({ anchor, items, label, at }) {
 
 // ---- dialogs ------------------------------------------------------------
 // -> { root, close(), body }. `actions`: [{ label, primary?, danger?, run(close) }]. Esc closes (and calls onCancel) unless modal.
-export function openDialog({ title, lead, body, actions, onCancel, label }) {
+export function openDialog({ title, lead, body, actions, onCancel, label, backdropCancels = true }) {
   const back = el('div', { class: 'pv-dialog-back' });
   const heading = el('h2', { id: 'pv-dlg-title', text: title });
   const bodyBox = el('div', { class: 'pv-dialog-body' }, lead ? el('p', { text: lead }) : null, body);
@@ -140,7 +140,7 @@ export function openDialog({ title, lead, body, actions, onCancel, label }) {
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }
   document.addEventListener('keydown', onKey, true);
-  back.addEventListener('pointerdown', (event) => { if (event.target === back) cancel(); });
+  back.addEventListener('pointerdown', (event) => { if (event.target === back && backdropCancels) cancel(); });
   document.getElementById('pv-dialog-root').append(back);
   const initial = box.querySelector('[data-autofocus]') || box.querySelector('input:not([type=hidden]), textarea, select') || bar.querySelector('.primary') || bar.querySelector('button');
   if (initial) initial.focus();
