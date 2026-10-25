@@ -172,6 +172,21 @@ const WebviewManager = {
 
     onWebview('did-stop-loading', () => { clearLoading(); });
 
+    // The slim load bar goes most of the way once the page's DOM is ready (js/page-chrome.js).
+    onWebview('dom-ready', () => { if (typeof VexLoadBar !== 'undefined') VexLoadBar.milestone(tab.id); });
+
+    // The address of the link under the pointer, in the bar at the bottom-left of the page area (js/page-chrome.js). Only the tab in front
+    // has a pointer over it; a new page starts with no link under it.
+    onWebview('update-target-url', (e) => {
+      if (typeof VexLinkBar === 'undefined' || tab.id !== TabManager.activeTabId) return;
+      let page = '';
+      try { page = webview.getURL(); } catch { /* vex-allow-empty-catch: not attached yet, so there is no page address to compare with */ }
+      VexLinkBar.update(e.url, tab.id, page);
+    });
+    onWebview('did-start-navigation', (e) => {
+      if (e.isMainFrame !== false && !e.isInPlace && typeof VexLinkBar !== 'undefined' && tab.id === TabManager.activeTabId) VexLinkBar.hide();
+    });
+
     onWebview('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
@@ -253,6 +268,12 @@ const WebviewManager = {
           })
           .catch(err => console.warn('[Vex] could not read the page background:', err && err.message));
       } catch (err) { console.warn('[Vex] page background check failed:', err && err.message); }
+
+      // Slim scrollbars on websites, when switched on (Settings > Appearance; js/page-chrome.js).
+      if (typeof VexPageScrollbars !== 'undefined') {
+        VexPageScrollbars.apply(webview)
+          .catch(err => console.warn('[Vex] could not give the page slim scrollbars:', err && err.message));
+      }
 
       // Apply saved zoom for this domain
       try {

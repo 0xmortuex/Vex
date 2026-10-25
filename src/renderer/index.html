@@ -91,6 +91,7 @@
   <link rel="stylesheet" href="css/agent-task.css">
   <link rel="stylesheet" href="css/hygiene.css">
   <link rel="stylesheet" href="css/incognito.css">
+  <link rel="stylesheet" href="css/page-chrome.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -1062,6 +1063,22 @@
               <div class="setting-toggle-row">
                 <span>Reduce motion<br><span style="font-size:11.5px;color:var(--text-muted)">Nothing in Vex slides, spins or zooms. Off, Vex follows Windows’ own “Animation effects”.</span></span>
                 <label class="toggle"><input type="checkbox" id="setting-reduce-motion" aria-label="Reduce motion"><span class="toggle-slider"></span></label>
+              </div>
+              <!-- Slim scrollbars on websites (js/page-chrome.js, VexPageScrollbars). -->
+              <div class="setting-toggle-row">
+                <span>Slim scrollbars on websites<br><span style="font-size:11.5px;color:var(--text-muted)">A thin scrollbar in your theme’s colours on websites. A page that styles its own scrollbars keeps them. Off by default.</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-page-scrollbars" aria-label="Slim scrollbars on websites"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Not on these sites<br><span style="font-size:11.5px;color:var(--text-muted)">Websites that keep their usual scrollbar.</span></span>
+                <div id="page-scrollbars-sites">
+                  <div class="psb-add">
+                    <input type="text" id="page-scrollbars-site" placeholder="example.com" aria-label="Site to leave out" autocomplete="off" spellcheck="false">
+                    <button type="button" class="btn-secondary" id="page-scrollbars-add">Add</button>
+                    <button type="button" class="btn-secondary" id="page-scrollbars-this">This site</button>
+                  </div>
+                  <div id="page-scrollbars-list"></div>
+                </div>
               </div>
               <!-- Settings layout: columns, category menu, density (js/settings-ui.js). -->
               <div id="settings-layout-setting"></div>

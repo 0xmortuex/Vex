@@ -421,25 +421,19 @@ body:not([data-gui-family="browser"]) #top-bar.tb-compact #url-bar-wrapper { pad
   background: #ffffff;
 }
 
-/* Loading state for webview area */
-#webviews-container.wv-loading::after {
+/* Loading state for the page area: the slim bar along the top (js/page-chrome.js, css/page-chrome.css).
+   Only when that bar could not be placed (html has no data-loadbar) is this plain, still line used; it never moves. */
+html:not([data-loadbar]) #webviews-container.wv-loading::after {
   content: '';
   position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 32px; height: 32px;
-  border: 3px solid var(--border);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin-centered 0.8s linear infinite;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--primary);
   z-index: 5;
 }
 /* Generic spinner — rotate only. (Used by every small inline spinner: AI panel,
-   history, sync, etc.) Keeping translate() in here made all of those jump
-   up-left each cycle. The centered webview loader gets its own keyframe that
-   preserves its translate(-50%,-50%) centering. */
+   history, sync, etc.) */
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes spin-centered { to { transform: translate(-50%, -50%) rotate(360deg); } }
 
 #webviews-container webview.active {
   display: flex;
