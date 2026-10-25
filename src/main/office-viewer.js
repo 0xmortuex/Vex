@@ -36,7 +36,7 @@ const FILE_LIMIT = 80 * 1024 * 1024;    // the same ceiling the page applies (of
 // What the viewer opens, by file name and by what the server says it is.
 const EXTENSIONS = Object.freeze(['docx', 'docm', 'dotx', 'dotm', 'doc', 'dot', 'xlsx', 'xlsm', 'xltx', 'xltm', 'xls', 'xlt', 'pptx', 'pptm', 'ppsx', 'ppsm', 'potx', 'ppt', 'pps', 'pot', 'odt', 'ott', 'ods', 'ots', 'odp', 'otp', 'rtf', 'epub']);
 const EXT_RE = new RegExp('\\.(?:' + EXTENSIONS.join('|') + ')$', 'i');
-const MIME_RE = /^\s*(?:application\/(?:vnd\.openxmlformats-officedocument\.(?:wordprocessingml|spreadsheetml|presentationml)\.[a-z.]+|vnd\.ms-(?:word|excel|powerpoint)[a-z.\-]*|msword|vnd\.oasis\.opendocument\.(?:text|spreadsheet|presentation)(?:-template)?|epub\+zip|rtf|x-rtf)|text\/rtf)\b/i;
+const MIME_RE = /^\s*(?:application\/(?:vnd\.openxmlformats-officedocument\.(?:wordprocessingml|spreadsheetml|presentationml)\.[a-z.]+|vnd\.ms-(?:word|excel|powerpoint)[a-z.-]*|msword|vnd\.oasis\.opendocument\.(?:text|spreadsheet|presentation)(?:-template)?|epub\+zip|rtf|x-rtf)|text\/rtf)\b/i;
 // A server that does not know the type says one of these; the file name then decides.
 const GENERIC_MIME_RE = /^\s*(?:application\/(?:octet-stream|zip|x-zip-compressed|force-download|download|binary|x-download)|binary\/octet-stream)?\s*(?:;|$)/i;
 
@@ -221,7 +221,7 @@ function viewerSource(event) {
 
 const SAFE_NAME = /[<>:"/\\|?*\u0000-\u001f]/g;
 function fileNameOf(original) {
-  let n = '';
+  let n;
   try { n = decodeURIComponent(nodePath.basename(new URL(original).pathname)); } catch { n = nodePath.basename(String(original).split(/[?#]/)[0]); }
   n = n.replace(SAFE_NAME, '_').trim().slice(0, 120);
   return n || 'document';
@@ -289,7 +289,7 @@ function registerOfficeViewerIpc(opts) {
         try { await fsImpl.promises.writeFile(file + ':Zone.Identifier', '[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=' + src.original.replace(/[\r\n]/g, '') + '\r\n'); }
         catch (err) {
           await fsImpl.promises.rm(dir, { recursive: true, force: true });
-          throw new Error('Vex could not mark the copy as downloaded from the internet, so it was not opened (' + err.message + ')');
+          throw new Error('Vex could not mark the copy as downloaded from the internet, so it was not opened (' + err.message + ')', { cause: err });
         }
       }
       const problem = await opts.shell.openPath(file);

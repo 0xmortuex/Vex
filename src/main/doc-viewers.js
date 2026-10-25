@@ -72,7 +72,7 @@ function createDocViewerRegistry(deps = {}) {
     const wc = details.webContents;
     if (!deps.isGuest || !deps.isGuest(wc)) return false;
     if (consumeBypass(wc.id, details.url)) return false;
-    let pending = '';
+    let pending;
     try { pending = wc.getURL() || ''; } catch { pending = ''; }
     const frag = pending.replace(/#.*$/, '') === details.url.replace(/#.*$/, '') && pending.includes('#') ? pending.slice(pending.indexOf('#') + 1) : '';
     callback({ statusLine: 'HTTP/1.1 302 Found', responseHeaders: { location: [entry.page(details.url, frag)], 'content-length': ['0'], 'cache-control': ['no-store'] } });
