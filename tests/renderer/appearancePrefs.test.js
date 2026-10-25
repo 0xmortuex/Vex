@@ -100,11 +100,14 @@ describe('Reduce motion', () => {
     expect(css).toMatch(/html\[data-reduce-motion\] :is\(\.ai-spinner/);
   });
 
-  it('the page loading ring spins with Windows animations off, and pulses under Vex\'s own switch', () => {
+  it('the page load bar is a still line under Windows\' setting and under Vex\'s own switch, and the old centred ring is gone', () => {
+    const chrome = read('src/renderer/css/page-chrome.css');
+    const media = chrome.slice(chrome.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(media).toMatch(/#vex-loadbar\.on i \{ transform: none !important; opacity: 0\.55 !important; \}/);
+    expect(chrome).toMatch(/html\[data-reduce-motion\] #vex-loadbar\.on i \{ transform: none !important;/);
     const css = read('src/renderer/css/a11y.css');
-    const media = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
-    expect(media).toMatch(/#webviews-container\.wv-loading::after\s*\{\s*animation-name: spin-centered !important;\s*animation-duration: 0\.8s !important;\s*animation-iteration-count: infinite !important;/);
-    expect(css).toMatch(/html\[data-reduce-motion\] #webviews-container\.wv-loading::after \{\s*animation-name: vex-a11y-working !important;/);
+    expect(css).not.toMatch(/wv-loading/);
+    expect(read('src/renderer/css/app.css')).not.toMatch(/spin-centered/);
     // A pseudo-element inside :is() is dropped by the browser, silently.
     expect(css).not.toMatch(/:is\([^)]*::(after|before)/);
   });

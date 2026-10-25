@@ -965,7 +965,11 @@ const TabManager = {
     // its file, as Chrome does (EX11).
     if (data.title !== undefined) tab.title = this._pdfFileName(tab.url, data.title) || data.title;
     if (data.favicon !== undefined) tab.favicon = this._persistableFavicon(data.favicon, tab.partition);
-    if (data.loading !== undefined) tab.loading = data.loading;
+    if (data.loading !== undefined) {
+      tab.loading = data.loading;
+      // The slim load bar keeps a state for every tab (js/page-chrome.js); a late module, so it may not be there yet.
+      if (typeof VexLoadBar !== 'undefined') VexLoadBar.note(tab);
+    }
 
     // A page that never loads never fires page-title-updated, so the tab kept
     // the "Loading..." placeholder forever once loading finished — an error
@@ -1054,6 +1058,9 @@ const TabManager = {
     const btn = document.getElementById('btn-reload');
     if (!btn) return;
     const state = tab && tab.loading ? 'stop' : 'reload';
+    // The load bar and the link bar follow the same tab (js/page-chrome.js): this runs on every change and every switch of the tab in front.
+    if (tab && typeof VexLoadBar !== 'undefined') VexLoadBar.show(tab);
+    if (tab && typeof VexLinkBar !== 'undefined') VexLinkBar.tabChanged(tab.id);
     if ((btn.dataset.state || 'reload') === state) return;
     // The ENGLISH title is kept (i18n-ui.js keeps it in data-i18ntitle when it
     // has translated it), and each title is translated as it is put up:

@@ -74,6 +74,7 @@ const VexBoot = {
     { src: 'js/reading-aids-lists.js', usage: [] },
     { src: 'js/turkish-lemma.js', usage: [] },
     { src: 'js/reading-aids.js', usage: ['reading-aids'] },
+    { src: 'js/page-chrome.js', usage: [] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

@@ -37,7 +37,7 @@ const VexI18nUI = {
     // Everything else Vex draws itself (found 2026-10-20: the Clock, Work and Developer panels, every dialog, menu and toast
     // stayed English in a Turkish Vex). The panels as a whole, and the overlays, menus and toasts by what they are, because
     // there are dozens of classes. Only a text that is, whole, one of the dictionary's phrases is ever replaced.
-    '#panels-container', '#toast-container', '.whatsnew-tip', '.vexroute-backdrop',
+    '#panels-container', '#toast-container', '#vex-linkbar', '.whatsnew-tip', '.vexroute-backdrop',
     // The tab strip's two buttons (not its tabs, whose titles are pages) and the two update dialogs, whose classes carry no 'overlay'.
     '#btn-new-tab-top', '#btn-list-all-tabs', '.whatsnew-ov', '#vex-welcome-back', '#vex-onboarding', '.vexsr-ov',
     '[role="dialog"]', '[role="menu"]', '[class*="overlay"]', '[class*="backdrop"]', '[class*="modal"]',
@@ -9214,6 +9214,18 @@ const VexI18nUI = {
       'Follow Windows': 'Windows’u izle', 'Light': 'Açık', 'Dark': 'Koyu',
       'Reduce motion': 'Hareketi azalt',
       'Tor tabs always show sites light, like Tor Browser.': 'Tor sekmeleri, Tor Browser gibi siteleri her zaman açık renkte gösterir.',
+      // Slim scrollbars on websites, and the link bar over a page (js/page-chrome.js).
+      'Slim scrollbars on websites': 'Web sitelerinde ince kaydırma çubukları',
+      'A thin scrollbar in your theme’s colours on websites. A page that styles its own scrollbars keeps them. Off by default.': 'Web sitelerinde temanın renklerinde ince bir kaydırma çubuğu. Kendi kaydırma çubuğunu biçimlendiren bir sayfa onu korur. Varsayılan olarak kapalı.',
+      'Not on these sites': 'Şu sitelerde olmasın',
+      'Websites that keep their usual scrollbar.': 'Her zamanki kaydırma çubuğunu koruyan web siteleri.',
+      'Site to leave out': 'Dışarıda bırakılacak site',
+      'This site': 'Bu site',
+      'Could not change the scrollbars on websites: {1}': 'Web sitelerindeki kaydırma çubukları değiştirilemedi: {1}',
+      'Not a site address: {1}': 'Bir site adresi değil: {1}',
+      'Other site': 'Başka site',
+      'Look-alike address': 'Benzer görünen adres',
+      'Name before the address': 'Adresin önünde bir ad',
       // Settings › Appearance › Settings layout, and the layout button beside
       // the search box (js/settings-ui.js).
       'Settings layout': 'Ayarlar düzeni', 'Settings categories': 'Ayar kategorileri',

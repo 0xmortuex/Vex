@@ -159,6 +159,14 @@
     // Interface sounds (js/ui-sounds.js): on for everyone from the start, with its own switches in Settings > Sounds. Not staged: it is feedback, not an extra.
     { id: 'ui-sounds', title: 'Interface sounds', group: 'Sounds', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.uiSounds.master', 'vex.uiSounds.typing', 'vex.uiSounds.hover', 'vex.uiSounds.tabs', 'vex.uiSounds.volume'], usesKeys: ['vex.sounds.hours', 'vex.fun.quiet'],
       permissions: { reads: ['its own switches and the quiet hours of the sound packs'], writes: ['its own switches and volume'], sends: [] } },
+    // The frame around a page (js/page-chrome.js): the link bar, the load bar and slim scrollbars. The first two are always on, with no switch;
+    // the scrollbars are off until Settings > Appearance turns them on.
+    { id: 'link-bar', title: 'Link address bar', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+      permissions: { reads: ['the address of the link under the pointer, and the address of the page in front'], writes: [], sends: [] } },
+    { id: 'load-bar', title: 'Page load bar', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+      permissions: { reads: ['whether each tab is loading'], writes: [], sends: [] } },
+    { id: 'page-scrollbars', title: 'Slim scrollbars on websites', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.pageScrollbars', 'vex.pageScrollbarsOff'],
+      permissions: { reads: ['its own switch and site list, the address of each page, and whether the page styles its own scrollbars'], writes: ['its own switch and site list; a thin-scrollbar style inside a page while it is open'], sends: [] } },
     // The window's saved look (js/early-look.js): how the window looked, kept so the next start paints it from the first frame. Not staged: it is how the window opens.
     { id: 'early-look', title: 'Window look at start-up', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.bootLook'],
       permissions: { reads: ['the theme and look attributes of the window'], writes: ['a snapshot of them, to paint the next start from the first frame'], sends: [] } },
