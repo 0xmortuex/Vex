@@ -200,3 +200,15 @@ describe('Turkish', () => {
     localStorage.removeItem('vex.lang');
   });
 });
+
+describe('keyboard focus in the composer', () => {
+  it('the text area itself changes on keyboard focus (a shadow and a fill), not only the card round it', () => {
+    const css = require('fs').readFileSync(require('path').resolve(__dirname, '../../src/renderer/css/ai-panel.css'), 'utf8').replace(/\r\n/g, '\n');
+    const at = css.indexOf('html body #ai-panel #ai-input:focus-visible {');
+    expect(at).toBeGreaterThan(-1);
+    const rule = css.slice(at, css.indexOf('}', at));
+    expect(rule).toContain('box-shadow');
+    expect(rule).toContain('background-color');
+    expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+  });
+});

@@ -488,7 +488,13 @@ html body #ai-panel :is(button, input, textarea, select) { font-family: inherit 
 .ai-input-wrapper:has(#ai-input:focus-visible) {
   outline: 2px solid var(--vex-focus-ring, var(--primary)) !important; outline-offset: 2px;
 }
-html body #ai-panel #ai-input:focus-visible { outline: none !important; }
+/* The text area itself also changes on keyboard focus (an underline and a faint fill): the ring round the card is not on the element that has the
+   focus, and the UI check (a11y-focus-invisible) and a screen magnifier look at the element. */
+html body #ai-panel #ai-input:focus-visible {
+  outline: none !important;
+  box-shadow: 0 2px 0 0 var(--vex-focus-ring, var(--primary));
+  background-color: color-mix(in srgb, var(--primary) 7%, transparent);
+}
 #ai-input {
   display: block; width: 100%; box-sizing: border-box; flex: none;
   background: transparent; border: none; color: var(--text);

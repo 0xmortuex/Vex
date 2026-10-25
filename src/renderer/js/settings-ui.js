@@ -627,8 +627,18 @@ const SettingsUI = {
   // A placement that changes the menu or the column count asks for another one a frame later (_layoutBlocks). The observers do that for
   // themselves when they place, but a placement made from here (the end of a draw, a changed layout choice) has no observer behind it,
   // and the menu was left as chips where the list was asked for (check:ui, one run in a few on a slow runner). So it asks again, a few times.
-  _placeUntilDone(root, left = 5) {
-    if (this._layout(root) && left > 0 && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this._placeUntilDone(root, left - 1));
+  // It also checks the result: the menu is what was asked for, or it asks again (a placement skipped, or made while the panel was still
+  // growing to its width, left chips where the list was asked for, one run in a few on a slow runner).
+  _placeUntilDone(root, left = 12) {
+    const again = this._layout(root);
+    if ((again || this._menuIsStale(root)) && left > 0 && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this._placeUntilDone(root, left - 1));
+  },
+  // The menu is not what the choice and the panel's width call for. Never while a draw holds the placement, nor while the panel is hidden.
+  _menuIsStale(root) {
+    if (this._held > 0 || !root || !root.clientWidth) return false;
+    const panel = root.parentElement || root;
+    const have = panel.dataset.setNav === 'side' ? 'side' : 'chips';
+    return this.navFor(panel.clientWidth, this.layoutPrefs().nav) !== have;
   },
   applyLayoutPrefs() {
     const panel = typeof document !== 'undefined' ? document.getElementById('panel-settings') : null;

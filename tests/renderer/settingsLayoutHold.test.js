@@ -120,3 +120,29 @@ describe('SettingsUI.enhanceIfChanged', () => {
     try { expect(SettingsUI.enhanceIfChanged()).toBe(true); } finally { delete globalThis.VexI18nUI; }   // the language changed
   });
 });
+
+describe('the menu is checked after a placement', () => {
+  it('asks again while the menu is not what the layout choice and the width call for', () => {
+    const panel = document.getElementById('panel-settings');
+    Object.defineProperty(panel, 'clientWidth', { configurable: true, get: () => 1876 });
+    Object.defineProperty(root(), 'clientWidth', { configurable: true, get: () => 1500 });
+    localStorage.setItem('vex.settingsLayout', JSON.stringify({ columns: '2', nav: 'side', density: 'comfortable' }));
+    delete panel.dataset.setNav;                                   // chips, though the list was asked for
+    expect(SettingsUI._menuIsStale(root())).toBe(true);
+    panel.dataset.setNav = 'side';
+    expect(SettingsUI._menuIsStale(root())).toBe(false);
+  });
+
+  it('is never stale while a draw holds the placement, or while the panel is hidden', () => {
+    const panel = document.getElementById('panel-settings');
+    Object.defineProperty(panel, 'clientWidth', { configurable: true, get: () => 1876 });
+    Object.defineProperty(root(), 'clientWidth', { configurable: true, get: () => 1500 });
+    localStorage.setItem('vex.settingsLayout', JSON.stringify({ columns: '2', nav: 'side', density: 'comfortable' }));
+    delete panel.dataset.setNav;
+    const release = SettingsUI.holdLayout();
+    expect(SettingsUI._menuIsStale(root())).toBe(false);
+    release();
+    Object.defineProperty(root(), 'clientWidth', { configurable: true, get: () => 0 });
+    expect(SettingsUI._menuIsStale(root())).toBe(false);
+  });
+});
