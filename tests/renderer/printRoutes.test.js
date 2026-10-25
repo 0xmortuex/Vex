@@ -17,3 +17,10 @@ describe('printPage', () => {
     expect(preview).toBeGreaterThan(toViewer);
   });
 });
+
+describe('the print preview covers the whole page area', () => {
+  it('lifts the 95vw x 90vh cap accessibility-ui.css puts on every [role=dialog] (a strip of the page showed beside it in the real app)', () => {
+    const css = fs.readFileSync(path.resolve(__dirname, '../../src/renderer/css/print-preview.css'), 'utf8');
+    expect(css).toMatch(/\.vpp-overlay\[role=dialog\]\s*\{[^}]*max-width:\s*none[^}]*max-height:\s*none/);
+  });
+});

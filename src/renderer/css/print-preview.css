@@ -29,6 +29,8 @@
 }
 html[data-vex-scale] .vpp-overlay { top: calc(var(--ai-top, 0px) / var(--vex-ui-scale, 1)); }
 .vpp-overlay[hidden] { display: none; }
+/* accessibility-ui.css caps every [role=dialog] at 95vw x 90vh; this one covers the whole page area (a strip of the page showed beside it). */
+.vpp-overlay[role=dialog] { max-width: none; max-height: none; overflow: hidden; }
 .vpp-overlay *, .vpp-overlay *::before, .vpp-overlay *::after { box-sizing: border-box; }
 html body .vpp-overlay :is(button, input, select, textarea) { font-family: inherit !important; }
 .vpp-overlay ::selection { background: color-mix(in srgb, var(--primary) 30%, transparent); }
