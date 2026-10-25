@@ -424,6 +424,14 @@ contextBridge.exposeInMainWorld('vex', {
   pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
   pdftoolInspect: (token) => ipcRenderer.invoke('pdftool:inspect', token),
 
+  // Vex's own print preview (main/print-preview.js): open it for a tab, render and print with the chosen options.
+  printPreviewOpen: (wcId) => ipcRenderer.invoke('printpreview:open', wcId),
+  printPreviewRender: (id, options, fresh) => ipcRenderer.invoke('printpreview:render', id, options, !!fresh),
+  printPreviewSimplify: (id, html) => ipcRenderer.invoke('printpreview:simplify', id, html),
+  printPreviewPrint: (id, options) => ipcRenderer.invoke('printpreview:print', id, options),
+  printPreviewSavePdf: (id, options) => ipcRenderer.invoke('printpreview:save-pdf', id, options),
+  printPreviewClose: (id) => ipcRenderer.invoke('printpreview:close', id),
+
   // Developer desk, plugin dev loop, Electron ticker (main/dev-desk.js, dev-extension.js, castlabs-ticker.js)
   devdeskPorts: (ports) => ipcRenderer.invoke('devdesk:ports', ports),
   devdeskConfig: () => ipcRenderer.invoke('devdesk:config'),
