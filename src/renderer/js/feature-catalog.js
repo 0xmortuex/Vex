@@ -559,7 +559,7 @@ const VexFeatures = {
       what: 'Wear a different browser: Chrome, Firefox, Safari, Internet Explorer on XP, or Netscape on 98 — each with its own sidebar behaviour.' },
     { id: 'editlayout', cat: 'look', cmd: 'editlayout',
       what: 'Drag any toolbar button or sidebar icon somewhere else, or hide it. Presets for Default, Essentials and Minimal.' },
-    { id: 'dark-mode-websites', cat: 'look', name: 'Dark mode for websites', setting: { section: 'setting-dark-mode', label: 'Appearance › Dark mode for websites' },
+    { id: 'dark-mode-websites', cat: 'look', name: 'Dark mode for websites', setting: { section: 'dark-mode-websites-setting', label: 'Appearance › Dark mode for websites' },
       phrases: 'dark mode websites force dark night mode dark reader dark pages invert white pages too bright eyes dark theme for sites make websites dark',
       what: 'Turns light websites dark, for the sites you pick or for all of them except the ones you list. It changes the colours the page asks for and leaves photos, video and pictures as they are, shows dark from the first frame, and steps aside for a page that is already dark or for the Dark Reader extension.' },
     { id: 'siteprofiles', cat: 'look', cmd: 'siteprofiles',

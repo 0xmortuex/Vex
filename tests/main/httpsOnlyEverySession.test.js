@@ -25,7 +25,7 @@ describe('the upgrade rule', () => {
 });
 
 describe('every kind of session asks it', () => {
-  const handlers = main.split('webRequest.onBeforeRequest(').slice(1).map(s => s.slice(0, 1800));
+  const handlers = main.split('webRequest.onBeforeRequest(').slice(1).map(s => s.slice(0, 2600));
   it('each onBeforeRequest answers a request it lets through with _httpsAnswer', () => {
     expect(handlers.length).toBe(4);   // normal tabs + containers, New Identity, Tor, private/off-the-record/burner
     for (const h of handlers) expect(h).toMatch(/_httpsAnswer\(details\)/);

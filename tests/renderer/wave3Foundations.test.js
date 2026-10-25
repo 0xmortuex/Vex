@@ -428,7 +428,7 @@ describe('intent search', () => {
     ['stop notifications', ['feature:toast-snooze']],
     ['why is it slow', ['feature:tab-cost', 'feature:check-speed', 'feature:why-slow']],
     ['back up my stuff', ['feature:backup', 'command:backup']],
-    ['dark mode', ['feature:theme-auto', 'feature:themes', 'setting:appearance']],
+    ['dark mode', ['feature:dark-mode-websites', 'feature:theme-auto', 'feature:themes', 'setting:appearance']],
     ['change search engine', ['feature:search-engine']],
     ['block ads', ['feature:adblock']],
     ['close duplicate tabs', ['feature:closeduplicates', 'command:closeduplicates']],

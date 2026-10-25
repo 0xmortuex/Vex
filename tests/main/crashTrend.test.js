@@ -101,6 +101,6 @@ describe('a killed tab is reloaded where it was', () => {
     expect(block).toContain("{ once: true }");
     expect(block).toContain('TabSnapshots.key(real) === was.url');
     expect(block).toMatch(/scrollY\|\|0\) < 20/);
-    expect(block).toContain('loadURL(real)');
+    expect(block).toContain('loadURL(this.viewerAddress(real))');
   });
 });
