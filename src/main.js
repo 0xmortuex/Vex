@@ -684,7 +684,7 @@ app.on('web-contents-created', (_e, contents) => {
 // page holding both: DOM text 1 match, canvas text 0 matches. Those apps ship
 // their own find, so swallowing Ctrl+F there replaced a working search with a
 // find bar guaranteed to report nothing. Let the key reach the page instead.
-const { guestOwnsFind } = require('./main/find-policy');
+const { guestOwnsFind, isImageViewerUrl } = require('./main/find-policy');
 // The sessions ordinary browsing happens in: the default one plus the
 // containers. Routing, and anything else that must cover "all of Vex",
 // works through this list.

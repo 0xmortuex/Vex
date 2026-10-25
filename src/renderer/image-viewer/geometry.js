@@ -27,7 +27,7 @@ export function fillZoom(ew, eh, stageW, stageH) {
 export function clampPan(pan, ew, eh, zoom, stageW, stageH) {
   const mx = Math.max(0, (ew * zoom - stageW) / 2);
   const my = Math.max(0, (eh * zoom - stageH) / 2);
-  return { x: clamp(pan.x, -mx, mx), y: clamp(pan.y, -my, my) };
+  return { x: clamp(pan.x, -mx, mx) + 0, y: clamp(pan.y, -my, my) + 0 };   // + 0: never -0
 }
 
 // The pan that keeps the point under (cx, cy) (measured from the window's centre) where it is while the zoom changes.

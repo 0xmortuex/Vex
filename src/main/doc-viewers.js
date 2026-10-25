@@ -75,8 +75,8 @@ function createDocViewers(deps) {
     const type = headerValue(details.responseHeaders, 'content-type');
     let entry = null;
     for (const e of entries) {
-      let on = true;
-      try { on = e.isEnabled ? e.isEnabled() !== false : true; } catch { on = false; }
+      let on;
+      try { on = e.isEnabled ? e.isEnabled() !== false : true; } catch (err) { on = false; if (deps.log) deps.log('[doc-viewers] ' + e.id + '.isEnabled failed: ' + err.message); }
       if (!on) continue;
       let hit = false;
       try { hit = !!e.match(details.url, type, details); } catch (err) { if (deps.log) deps.log('[doc-viewers] ' + e.id + '.match failed: ' + err.message); }
