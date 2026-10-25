@@ -150,7 +150,10 @@ describe('how a folder is caught (take)', () => {
     expect(await ask(v2, details(wc2, folder))).toEqual({ redirectURL: m.viewerUrl(folder) });
   });
   it('sends a share that does not answer to the viewer, which says so', async () => {
-    const v = makeViewer({ core: m.createFolderCore({ fs: { promises: { stat: () => new Promise(() => {}) } } }) });
+    // The same never-answering file system for the viewer's own probe: with the real one, whether a made-up server name hangs or fails fast is
+    // up to the machine's network, and the test passed or failed with it.
+    const hung = { promises: { stat: () => new Promise(() => {}) } };
+    const v = makeViewer({ fs: hung, core: m.createFolderCore({ fs: hung }) });
     const out = await ask(v, details(fakeContents(), 'file://offline-server/share/'));
     expect(out).toEqual({ redirectURL: m.viewerUrl('file://offline-server/share/') });
   }, 10000);

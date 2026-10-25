@@ -181,14 +181,10 @@ const VexDarkMode = {
     }
     window.showToast?.(on ? `Dark mode on — ${host}` : `Dark mode off — ${host}`);
     this.pushTo(wv).catch(err => window.showToast?.('Could not change dark mode: ' + err.message, 'error'));
-    this._changed();
     this._redraw();
     return on;
   },
 
-  _changed() {
-    document.dispatchEvent(new CustomEvent('vex:dark-mode-changed'));
-  },
   // The Settings rows follow a change made from the page menu.
   _redraw() {
     const h = typeof document !== 'undefined' && document.getElementById('dark-mode-websites-setting');
@@ -269,7 +265,7 @@ const VexDarkMode = {
           next.delete(host);
           this._saveList(key, next);
           draw();
-          this.refreshAll().then(() => this._changed());
+          this.refreshAll();
         });
         list.appendChild(this._el('div', { class: 'site-settings-row', style: 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 0' }, [
           this._el('span', { class: 'site-settings-host', text: host }), rm]));
@@ -286,7 +282,7 @@ const VexDarkMode = {
       this._saveList(key, next);
       input.value = '';
       draw();
-      this.refreshAll().then(() => this._changed());
+      this.refreshAll();
     };
     add.addEventListener('click', addHost);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addHost(); } });
@@ -300,7 +296,7 @@ const VexDarkMode = {
     if (!host) return;
     host.textContent = '';
     const s = this.settings();
-    const apply = () => { this.refreshAll().then(() => this.refreshPreview()); this._changed(); };
+    const apply = () => { this.refreshAll().then(() => this.refreshPreview()); };
     const setLook = (name, value) => {
       const look = this.settings().look;
       look[name] = value;
