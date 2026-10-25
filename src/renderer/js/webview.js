@@ -109,6 +109,12 @@ const WebviewManager = {
       attrs: { 'data-theme': root.getAttribute('data-theme') || '', 'data-scheme': root.getAttribute('data-scheme') || '', 'data-gui-style': document.body.getAttribute('data-gui-style') || '', 'data-gui-family': document.body.getAttribute('data-gui-family') || '' },
     };
   },
+  // Whether this webview shows Vex's own document viewer now.
+  docPage(webview) {
+    let url;
+    try { url = webview.getURL(); } catch (err) { return false; }   // not attached yet
+    return !!this.docOriginal(url);
+  },
   sendDocTheme(webview) {
     try { webview.send('docview:theme', this.docThemePayload()); }
     catch (err) { if (!/dom-ready|attached/i.test(String(err && err.message))) console.warn('[Vex] the document viewer could not be given the theme:', err && err.message); }
@@ -254,6 +260,8 @@ const WebviewManager = {
     onWebview('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
+      // The document viewer needs none of what follows (a page's colour base, zoom per site, dark mode, notification shims).
+      if (this.docPage(webview)) return;
 
       // Leak Canary: warn if a saved email of yours is pre-filled on a site that
       // isn't where you saved it (a tracker leak). Best-effort, throttled inside.
@@ -399,6 +407,8 @@ const WebviewManager = {
     });
 
     onWebview('dom-ready', () => {
+      // Vex's own document viewer is not a site: no site's boosts, autofill, highlights or page tools go into it; it is given the theme.
+      if (this.docPage(webview)) { this.sendDocTheme(webview); return; }
       if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.push(webview);
       // Site notifications held for the hourly bundle (js/push-bundle.js): tell this page which
       // hosts are listed. A page that is not listed, a private tab and a private window get nothing.
@@ -689,7 +699,7 @@ const WebviewManager = {
       TabManager.updateTab(tab.id, { url });
       window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url } }));
       this._updateFavicon(tab.id, url);
-      if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
+      if (typeof VexBoosts !== 'undefined' && !this.docOriginal(e.url)) { try { VexBoosts.applyTo(webview, url); } catch {} }
       // A site rule's "always muted" and "never let it sleep" apply to where
       // the tab has ARRIVED, which a link followed inside an existing tab
       // makes different from where it was made (js/site-routes.js).
@@ -1053,6 +1063,9 @@ const WebviewManager = {
   viewSource(wv = this.getActiveWebview()) {
     let url = '';
     try { url = wv ? wv.getURL() : ''; } catch (err) { console.error('[Vex] view source: no page address', err); }
+    // On a document shown in Vex's own viewer, the source is the document's own (never the viewer's page).
+    const own = this.docOriginal(url);
+    if (own) url = own.replace(/^view-source:/i, '').replace(/#.*$/, '');
     if (!/^(https?|file):/i.test(url)) { window.showToast?.('Open a web page first'); return; }
     TabManager.createTab('view-source:' + url, true);
   },
@@ -1683,6 +1696,7 @@ const WebviewManager = {
 
     const curUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
     const isTab = !!(webview.dataset && webview.dataset.tabId);
+    const viewerOriginal = this.docOriginal(curUrl);   // set only on Vex's own document viewer page
     const imageSrc = this.contextImage(e.params, webview);
 
     const menu = document.createElement('div');
@@ -1969,7 +1983,7 @@ const WebviewManager = {
           });
         }
       }
-      if (typeof Annotations !== 'undefined') {
+      if (typeof Annotations !== 'undefined' && !viewerOriginal) {
         textItems.push({
           label: 'Highlight',
           action: () => Annotations.highlight('yellow')
@@ -2215,8 +2229,18 @@ const WebviewManager = {
       if (extRows.length) items.push({ sep: true }, ...extRows);
     }
     items.push({ sep: true });
-    items.push({ label: 'Page', icon: 'file', sub: pageItems });
-    items.push({ label: 'This site', icon: 'globe', sub: siteItems });
+    if (viewerOriginal) {
+      // The viewer is Vex's own page: its address is the document's, and the page tools (dark mode, zapper, watch, archive) do not apply to it.
+      const shown = viewerOriginal.replace(/#.*$/, '');
+      items.push({ label: 'Document', icon: 'file', sub: [
+        { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(viewerOriginal) },
+        { label: 'Open in New Tab', action: () => TabManager.createTab(viewerOriginal, true, null, { partition: webview.getAttribute?.('partition') }) },
+        ...(/^https?:\/\//i.test(shown) ? [{ label: 'View Page Source', action: () => TabManager.createTab('view-source:' + shown, true, null, { partition: webview.getAttribute?.('partition') }) }] : []),
+      ] });
+    } else {
+      items.push({ label: 'Page', icon: 'file', sub: pageItems });
+      items.push({ label: 'This site', icon: 'globe', sub: siteItems });
+    }
     items.push({ sep: true });
     items.push({
       label: 'Inspect Element',
@@ -2515,6 +2539,8 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   // A look is applied a moment after the event that names it.
   window.addEventListener('vex:gui-style', () => setTimeout(pushDocTheme, 150));
   window.addEventListener('vex:gui-colors', () => setTimeout(pushDocTheme, 150));
+  // The window's language (js/i18n-ui.js sets <html lang>) goes with it.
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(pushDocTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
 }
 
 // Renderer-safe export — the renderer loads this file via <script> tag where

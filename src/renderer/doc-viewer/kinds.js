@@ -72,7 +72,7 @@ export function langFor({ url, contentType, head }) {
 export function classify({ url, contentType, head, source }) {
   const type = typeOf(contentType);
   const ext = extensionOf(url);
-  const text = String(head || '').replace(/^﻿/, '');
+  const text = String(head || '').replace(/^\uFEFF/, '');
   const name = nameOf(url);
   if (source) return { kind: 'text', lang: langFor({ url, contentType, head: text }) === 'plain' ? 'html' : langFor({ url, contentType, head: text }), tentative: false, name };
   const make = (kind, extra) => ({ kind, lang: kind === 'text' ? langFor({ url, contentType, head: text }) : kind, tentative: false, name, ...(extra || {}) });

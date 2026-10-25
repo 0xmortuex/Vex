@@ -2,7 +2,7 @@
 // Lines live in chunks of a few dozen; only the chunks near the screen are filled, and their text comes from the worker. A small
 // document (up to 4 MB) is read into the page once so the colouring can carry its state from line to line exactly.
 
-import { el, toast } from './ui.js';
+import { el } from './ui.js';
 import { t, num } from './strings.js';
 import { highlightLines } from './highlight.js';
 
@@ -228,7 +228,6 @@ export class TextView {
     if (!node) return;
     for (const old of node.querySelectorAll('mark.dv-hit')) { const p = old.parentNode; p.replaceChild(document.createTextNode(old.textContent), old); p.normalize(); }
     if (!this.hits) return;
-    const a = c * this.CH;
     for (const lineEl of node.children) {
       const idxs = this.hitsByLine.get(Number(lineEl.dataset.l));
       if (!idxs) continue;

@@ -54,6 +54,7 @@ const VexI18nUI = {
     tr: {
       // --- Document viewer (js/doc-viewer-host.js) ---
       'Document viewer': 'Belge görüntüleyici',
+      'Document': 'Belge',
       'Settings for the viewer that opens your text documents': 'Metin belgelerinizi açan görüntüleyicinin ayarları',
       'JSON, XML, CSV, Markdown, log and source files open in Vex\'s own viewer: a tree you can search and fold, a table you can sort and filter, a rendered page with its contents, or numbered lines with colours, wrapping and a search. It reads the document through the tab it is in, so a document behind a sign-in works and a private tab\'s document stays in that tab. Nothing is sent anywhere. Pages that are not documents, and what a page loads for itself, are never touched.': 'JSON, XML, CSV, Markdown, günlük ve kaynak dosyaları Vex\'in kendi görüntüleyicisinde açılır: aranabilen ve katlanabilen bir ağaç, sıralayıp süzebileceğiniz bir tablo, içindekileriyle biçimlenmiş bir sayfa ya da renkli, kaydırmalı ve aramalı numaralı satırlar. Belgeyi içinde bulunduğu sekme üzerinden okur; böylece oturum gerektiren bir belge de çalışır ve gizli sekmedeki belge o sekmede kalır. Hiçbir şey bir yere gönderilmez. Belge olmayan sayfalara ve bir sayfanın kendi yüklediği şeylere asla dokunulmaz.',
       'Show text documents in Vex\'s own viewer': 'Metin belgelerini Vex\'in kendi görüntüleyicisinde göster',

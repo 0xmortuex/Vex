@@ -1,8 +1,8 @@
 // The rendered Markdown page: the document as a readable article, a table of contents, code blocks you can copy, pictures that load as the
 // document's own (through the tab's session), and a search that marks hits with the page's highlight registry (no markup is changed).
 
-import { el, button, toast } from './ui.js';
-import { t, num } from './strings.js';
+import { el, button } from './ui.js';
+import { t } from './strings.js';
 import { renderMarkdown } from './markdown.js';
 import { highlightLines, HIGHLIGHT_LANGS } from './highlight.js';
 
@@ -51,6 +51,7 @@ export class MdView {
     scroller.append(page);
     wrap.append(nav, scroller);
     this.wrap = wrap; this.scroller = scroller; this.root = root; this.nav = nav;
+    this.byId = new Map([...root.querySelectorAll('[id]')].map((n) => [n.id, n]));
     this.ctx.host.replaceChildren(wrap);
     this.decorateCode();
     scroller.addEventListener('click', (e) => this.onClick(e));
@@ -80,7 +81,7 @@ export class MdView {
   }
 
   scrollToId(id) {
-    const target = this.root.querySelector('[id="' + CSS.escape(id) + '"]') || this.root.querySelector('[id="' + CSS.escape(id.toLowerCase()) + '"]');
+    const target = this.byId.get(id) || this.byId.get(id.toLowerCase());
     if (!target) return;
     this.scroller.scrollTop = target.offsetTop - 16;
     target.setAttribute('tabindex', '-1');
@@ -92,7 +93,7 @@ export class MdView {
     const y = this.scroller.scrollTop + 24;
     let current = this.headings[0].id;
     for (const h of this.headings) {
-      const node = this.root.querySelector('[id="' + CSS.escape(h.id) + '"]');
+      const node = this.byId.get(h.id);
       if (node && node.offsetTop <= y) current = h.id; else break;
     }
     for (const link of this.nav.querySelectorAll('.dv-toc-link')) {

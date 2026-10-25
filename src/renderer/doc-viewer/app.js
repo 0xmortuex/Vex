@@ -2,7 +2,7 @@
 // view-source: pages. This is the page's brain: it reads the document through the tab's own session (main/text-viewer.js serves
 // /doc), hands the bytes to the worker, decides what the document is, and puts the right view on screen with its own controls.
 
-import { t, num, bytes as fmtBytes, applyStatic, setLang } from './strings.js';
+import { t, num, bytes as fmtBytes, applyStatic } from './strings.js';
 import { applyThemePayload, refreshScheme } from './theme.js';
 import { el, icon, button, select, toggle, toast, prefs, DocWorker, errText, setPressed, debounce } from './ui.js';
 import { classify, charsetOf, nameOf, looksLikeHtml, LANGUAGES } from './kinds.js';
@@ -318,7 +318,7 @@ async function openKind() {
 }
 
 function langOf() {
-  const k = S.effKind;
+  const k = S.cls.kind;       // what the document is, also when it did not parse and its text is shown
   const saved = prefs.get('lang:' + original.replace(/[?#].*$/, ''), 'lang', null);
   if (saved) return saved;
   if (k === 'json' || k === 'jsonl') return 'json';
@@ -361,7 +361,6 @@ async function setMode(mode, remember) {
     }
   } catch (err) { failure(t('The document could not be shown'), errText(err)); return; }
   paintInfo();
-  S.view.focus && void 0;
   $('dv-q').placeholder = mode === 'table' ? t('Filter rows') : t('Search');
   $('dv-q').setAttribute('aria-label', mode === 'table' ? t('Filter rows') : t('Search'));
   const nav = !(S.view && S.view.supportsNav === false);

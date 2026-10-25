@@ -410,7 +410,7 @@ function parseTable(parent, lines, start, ctx) {
 export function renderMarkdown(source, opts) {
   const o = opts || {};
   const ctx = { t: o.t || ((s) => s), docUrl: o.docUrl || '', allowImages: o.allowImages !== false, imageSrc: o.imageSrc || null, highlight: o.highlight || null, refs: new Map(), ids: new Map(), headings: [] };
-  const lines = String(source).replace(/\r\n?/g, '\n').replace(/^﻿/, '').split('\n');
+  const lines = String(source).replace(/\r\n?/g, '\n').replace(/^\uFEFF/, '').split('\n');
   // link reference definitions are collected first, so a [text][ref] above its definition still works
   for (const l of lines) { const m = REFDEF.exec(l); if (m) ctx.refs.set(m[1].toLowerCase().replace(/\s+/g, ' ').trim(), { url: m[2], title: m[3] || '' }); }
   // front matter
