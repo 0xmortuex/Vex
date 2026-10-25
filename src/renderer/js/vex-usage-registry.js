@@ -565,6 +565,7 @@ const VexUsageRegistry = {
       ['study-notes', A.api(G.VexStudyNotes, 'enabled', 'setEnabled')],
       ['pdf-highlights', A.api(G.VexPdfHighlights, 'enabled', 'setEnabled')],
       ['pdf-tools', A.api(G.VexPdfTools, 'enabled', 'setEnabled')],
+      ['doc-viewer', A.api(G.VexDocViewer, 'enabled', 'setEnabled')],
       ['folder-browser', A.api(G.VexFolderViewer, 'enabled', 'setEnabled')],
       ['pdf-viewer', A.api(G.VexPdfViewer, 'enabled', 'setEnabled')],
       // Wave 3, daily life: new features, staged off on a profile that already existed.

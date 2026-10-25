@@ -42,6 +42,91 @@ const WebviewManager = {
     window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: address } }));
   },
 
+  // === Vex's own viewer for text-like documents (main/text-viewer.js, pages in src/renderer/doc-viewer) =============
+  //
+  // A JSON, XML, CSV, Markdown, log or source document, and a view-source: page, is shown by a page of Vex's own at
+  // vex-doc://view/?u=<the document's address>[&m=source]. The tab, its address bar, its history, its bookmarks and its reload keep the
+  // document's own address (view-source:<address> for a source view): this maps the viewer's address back, and the twin in
+  // main/text-viewer.js (parseViewerUrl) does the same on the other side (a test holds them equal).
+  // A file: address with a text-like extension and a view-source: address are sent to the viewer here, before anything loads, because no
+  // response headers exist for them. A web document is caught from its response instead (main/doc-viewers.js).
+  // VexDocViewerOff is set by js/doc-viewer-host.js when the viewer is switched off. DOC_FILE_EXTENSIONS is the twin of FILE_EXTENSIONS in
+  // main/text-viewer.js.
+  DOC_FILE_EXTENSIONS: ['json', 'jsonl', 'ndjson', 'geojson', 'json5', 'jsonc', 'xml', 'csv', 'tsv', 'md', 'markdown', 'mdx', 'txt', 'text', 'log', 'out',
+    'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'css', 'scss', 'less', 'py', 'sh', 'bash', 'zsh', 'bat', 'ps1', 'ini', 'cfg', 'conf', 'toml', 'yaml', 'yml',
+    'env', 'sql', 'java', 'kt', 'c', 'h', 'cc', 'cpp', 'cxx', 'hpp', 'cs', 'go', 'rs', 'rb', 'php', 'lua', 'swift', 'r', 'diff', 'patch', 'properties', 'gitignore'],
+  docAddress(url) {
+    const s = String(url || '');
+    if (this._docViewerOff()) return s;
+    const source = /^view-source:((?:https?|file):\/\/.+)$/i.exec(s);
+    const target = source ? source[1] : s;
+    if (!source) {
+      if (!/^file:\/\//i.test(s)) return s;
+      const path = s.replace(/[?#].*$/, '');
+      const name = path.slice(path.lastIndexOf('/') + 1);
+      const dot = name.lastIndexOf('.');
+      if (dot < 0 || !this.DOC_FILE_EXTENSIONS.includes(name.slice(dot + 1).toLowerCase())) return s;
+    }
+    const at = target.indexOf('#');
+    return 'vex-doc://view/?u=' + encodeURIComponent(at < 0 ? target : target.slice(0, at)) + (source ? '&m=source' : '') + (at < 0 ? '' : target.slice(at));
+  },
+
+  // The switch (js/doc-viewer-host.js) is a late module: until it has run, the saved choice is read from where it is kept, so a tab restored at
+  // start-up honours "off" too.
+  _docViewerOff() {
+    if (typeof window === 'undefined') return false;
+    if (window.VexDocViewerOff !== undefined) return !!window.VexDocViewerOff;
+    try { const raw = JSON.parse(localStorage.getItem('vex.docViewer.prefs') || 'null'); return !!raw && raw.enabled === false; }
+    catch (err) { console.warn('[Vex] the document viewer switch could not be read:', err && err.message); return false; }
+  },
+
+  docOriginal(url) {
+    const s = String(url || '');
+    if (!/^vex-doc:\/\/view\/(?:\?|#|$)/i.test(s)) return null;
+    let u;
+    try { u = new URL(s); } catch { return null; }
+    const original = u.searchParams.get('u');
+    if (!original) return null;
+    return (u.searchParams.get('m') === 'source' ? 'view-source:' : '') + original + (u.hash ? u.hash : '');
+  },
+
+  // The colours and type of the interface as the viewer needs them: the values this window resolves for the theme, the browser look, the
+  // custom theme and the chosen font, so the viewer matches every one of them without carrying a copy.
+  DOC_THEME_VARS: ['--vex-bg-base', '--vex-bg-elevated', '--vex-bg-deep', '--vex-glass-strong', '--vex-glass-medium', '--vex-glass-light', '--vex-glass-input',
+    '--vex-border-subtle', '--vex-border-medium', '--vex-border-strong', '--vex-border-accent', '--vex-accent', '--vex-accent-dim', '--vex-accent-glow',
+    '--vex-text-primary', '--vex-text-secondary', '--vex-text-muted', '--vex-text-accent', '--vex-success', '--vex-danger', '--vex-danger-hover', '--vex-warning',
+    '--vex-hover-fill', '--vex-shadow-color', '--vex-radius-sm', '--vex-radius-md', '--vex-radius-lg', '--vex-font-base', '--vex-font-display', '--vex-font-heading',
+    '--vex-font-mono', '--on-primary', '--b-font', '--b-btn-radius', '--b-ring-w', '--b-accent-ring',
+    // The older names the calm panels (css/ai-panel.css) are written in.
+    '--bg', '--bg-2', '--surface', '--border', '--text', '--text-muted', '--primary', '--primary-hover', '--danger', '--success', '--accent'],
+  docThemePayload() {
+    const cs = getComputedStyle(document.body);
+    const vars = {};
+    for (const name of this.DOC_THEME_VARS) { const v = cs.getPropertyValue(name).trim(); if (v) vars[name] = v; }
+    const root = document.documentElement;
+    return {
+      vars, lang: root.lang || 'en',
+      attrs: { 'data-theme': root.getAttribute('data-theme') || '', 'data-scheme': root.getAttribute('data-scheme') || '', 'data-gui-style': document.body.getAttribute('data-gui-style') || '', 'data-gui-family': document.body.getAttribute('data-gui-family') || '' },
+    };
+  },
+  // Whether this webview shows Vex's own document viewer now.
+  docPage(webview) {
+    let url;
+    try { url = webview.getURL(); } catch (err) { return false; }   // not attached yet
+    return !!this.docOriginal(url);
+  },
+  sendDocTheme(webview) {
+    try { webview.send('docview:theme', this.docThemePayload()); }
+    catch (err) { if (!/dom-ready|attached/i.test(String(err && err.message))) console.warn('[Vex] the document viewer could not be given the theme:', err && err.message); }
+  },
+  sendDocThemeToAll() {
+    for (const wv of this.webviews.values()) {
+      let url = '';
+      try { url = wv.getURL(); } catch { continue; }
+      if (this.docOriginal(url)) this.sendDocTheme(wv);
+    }
+  },
+
   // === Vex's own PDF viewer (main/pdf-viewer.js, pages in src/renderer/pdf-viewer) ===================
   //
   // A PDF is shown by a page of Vex's own at vex-pdf://view/?u=<the PDF's address>[#page=3]. The tab, its address bar, its
@@ -50,17 +135,28 @@ const WebviewManager = {
   // A .pdf file: address is sent to the viewer here, before anything loads. (Main cannot take such a navigation over once it has
   // started: Chromium's own PDF viewer starting and then being cancelled froze Vex's main process, measured 2026-10-25. A PDF from the
   // web is answered with a redirect instead, in main/pdf-viewer.js.) VexPdfViewerOff is set by js/pdf-viewer-host.js when it is switched off.
-  viewerAddress(url) {
+  pdfAddress(url) {
     const s = String(url || '');
     if ((typeof window !== 'undefined' && window.VexPdfViewerOff) || !/^file:\/\/[^?#]*\.pdf(?:[?#]|$)/i.test(s)) return s;
     const at = s.indexOf('#');
     return 'vex-pdf://view/?u=' + encodeURIComponent(at < 0 ? s : s.slice(0, at)) + (at < 0 ? '' : s.slice(at));
   },
 
+  // Where a tab is really sent when it is asked to load `url`: a file: address (or view-source:) one of Vex's own viewers shows goes to that
+  // viewer's page, anything else is returned as it came. Every load site calls this; a new viewer adds one mapper to the list.
+  viewerAddress(url) {
+    const s = String(url || '');
+    for (const map of [this.pdfAddress, this.docAddress]) {
+      const to = map.call(this, s);
+      if (to !== s) return to;
+    }
+    return s;
+  },
+
   // The address a Vex viewer page (the PDF viewer, the folder browser, ...) stands for, else null: one place that asks each viewer's
   // mapper, so the address bar, history and bookmarks keep the original and a new viewer adds a single term here.
   viewerOriginal(url) {
-    return this.pdfOriginal(url) || this.folderOriginal(url) || null;
+    return this.pdfOriginal(url) || this.docOriginal(url) || this.folderOriginal(url) || null;
   },
 
   pdfOriginal(url) {
@@ -259,6 +355,8 @@ const WebviewManager = {
     onWebview('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
+      // The document viewer needs none of what follows (a page's colour base, zoom per site, dark mode, notification shims).
+      if (this.docPage(webview)) return;
       // The viewer needs none of what follows (a page's colour base, zoom per site, dark mode, notification shims).
       if (this.pdfPage(webview)) return;
 
@@ -412,6 +510,8 @@ const WebviewManager = {
     });
 
     onWebview('dom-ready', () => {
+      // Vex's own document viewer is not a site: no site's boosts, autofill, highlights or page tools go into it; it is given the theme.
+      if (this.docPage(webview)) { this.sendDocTheme(webview); return; }
       // Vex's own PDF viewer is not a site: no site's boosts, autofill, highlights or page tools go into it; it is given the theme.
       if (this.pdfPage(webview)) { this.sendPdfTheme(webview); return; }
       if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.push(webview);
@@ -513,6 +613,8 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // The document viewer page is up and asks for the theme (preload-webview.js).
+      if (e.channel === 'docview:need-theme') { this.sendDocTheme(webview); return; }
       // Vex's own folder browser page asking for the theme, or to open a file (js/folder-viewer-host.js).
       if (typeof VexFolderViewer !== 'undefined' && VexFolderViewer.handleMessage(webview, tab, e)) return;
       // The PDF viewer page is up and asks for the theme (preload-webview.js).
@@ -1081,6 +1183,9 @@ const WebviewManager = {
   viewSource(wv = this.getActiveWebview()) {
     let url = '';
     try { url = wv ? wv.getURL() : ''; } catch (err) { console.error('[Vex] view source: no page address', err); }
+    // On a document shown in Vex's own viewer, the source is the document's own (never the viewer's page).
+    const own = this.docOriginal(url);
+    if (own) url = own.replace(/^view-source:/i, '').replace(/#.*$/, '');
     if (!/^(https?|file):/i.test(url)) { window.showToast?.('Open a web page first'); return; }
     TabManager.createTab('view-source:' + url, true);
   },
@@ -1724,7 +1829,8 @@ const WebviewManager = {
 
     const curUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
     const isTab = !!(webview.dataset && webview.dataset.tabId);
-    const viewerOriginal = this.pdfOriginal(curUrl);   // set only on Vex's own PDF viewer page
+    const viewerOriginal = this.viewerOriginal(curUrl);   // set only on one of Vex's own viewer pages
+    const pdfPageNow = !!this.pdfOriginal(curUrl);
     const imageSrc = this.contextImage(e.params, webview);
 
     const menu = document.createElement('div');
@@ -2260,10 +2366,12 @@ const WebviewManager = {
     if (viewerOriginal) {
       // The viewer is Vex's own page: its address is the PDF's, and the page tools (source, dark mode, zapper, watch, archive)
       // do not apply to it.
-      items.push({ label: 'PDF', icon: 'file', sub: [
+      const shownAddress = viewerOriginal.replace(/#.*$/, '');
+      items.push({ label: pdfPageNow ? 'PDF' : 'Document', icon: 'file', sub: [
         { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(viewerOriginal) },
         { label: 'Open in New Tab', action: () => TabManager.createTab(viewerOriginal, true, null, { partition: webview.getAttribute?.('partition') }) },
-        { label: 'Print…', action: () => this.printPage(webview) },
+        ...(pdfPageNow ? [{ label: 'Print…', action: () => this.printPage(webview) }]
+          : /^https?:\/\//i.test(shownAddress) ? [{ label: 'View Page Source', action: () => TabManager.createTab('view-source:' + shownAddress, true, null, { partition: webview.getAttribute?.('partition') }) }] : []),
       ] });
     } else {
       items.push({ label: 'Page', icon: 'file', sub: pageItems });
@@ -2558,6 +2666,18 @@ const WebviewManager = {
 // guards like `window.WebviewManager && ...` (gui-style.js, formerly
 // sidebar.js) were always undefined and silently skipped their branch.
 if (typeof window !== 'undefined') window.WebviewManager = WebviewManager;
+
+// An open document viewer follows the theme, the look and the font as they change here.
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+  const pushDocTheme = () => { try { WebviewManager.sendDocThemeToAll(); } catch (err) { console.warn('[Vex] the document viewers could not be given the theme:', err && err.message); } };
+  document.addEventListener('theme-changed', pushDocTheme);
+  document.addEventListener('vex:font-changed', pushDocTheme);
+  // A look is applied a moment after the event that names it.
+  window.addEventListener('vex:gui-style', () => setTimeout(pushDocTheme, 150));
+  window.addEventListener('vex:gui-colors', () => setTimeout(pushDocTheme, 150));
+  // The window's language (js/i18n-ui.js sets <html lang>) goes with it.
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(pushDocTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+}
 
 // An open PDF viewer follows the theme, the look and the font as they change here.
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {

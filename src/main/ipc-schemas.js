@@ -658,6 +658,11 @@ define('pdftool:run', [shape({
   mode: optional(oneOf(['each', 'every', 'ranges'])),
   n: optional(value => Number.isSafeInteger(value) && value >= 1 && value <= 4000),
 })]);
+// Vex's own viewer for text-like documents (main/text-viewer.js, pages in src/renderer/doc-viewer): the page names no path and sends no bytes;
+// main reads the document again through the page's own session.
+define('docview:set-enabled', [boolean]);
+define('docview:save-as docview:download docview:open-raw docview:forget-settings', []);
+define('docview:navigate', [string(4096)]);
 // Vex's own PDF viewer (main/pdf-viewer.js, pages in src/renderer/pdf-viewer). The page names no path and sends no PDF bytes: it sends
 // its marks (in the page's own units), the form answers and the turn, and main reads the PDF again through the page's own session.
 // main/pdf-toolkit.js checks every mark again.

@@ -651,6 +651,10 @@
       commands: ['cornell-note', 'flag-question', 'questions-to-ask'], permissions: { reads: ['the page in front and the text you selected, when you ask'], writes: ['a Cornell note, and your list of flagged questions'], sends: [] } },
     { id: 'pdf-highlights', title: 'PDF highlights', group: 'PDF highlights', maturity: 'new', storageKeys: ['vex.pdfHighlights', 'vex.pdfHighlights.prefs'], usesKeys: ['vex.notes'],
       commands: ['pdf-highlight-save', 'pdf-highlights'], permissions: { reads: ['the passage you paste and the page number the PDF viewer shows, when you ask'], writes: ['your PDF highlights and, if you left it on, a PDF highlights note'], sends: [] } },
+    // Vex's own viewer for text-like documents (src/renderer/doc-viewer, main/text-viewer.js, js/doc-viewer-host.js). It replaces the plain text a tab
+    // showed, so it is on for everyone, an existing profile included; what it remembers per kind of document lives in the viewer's page, not in a vex.* key.
+    { id: 'doc-viewer', title: 'Document viewer', group: 'Document viewer', tiers: { minimal: true, standard: true }, storageKeys: ['vex.docViewer.prefs'],
+      commands: ['doc-viewer-settings'], permissions: { reads: ['the JSON, XML, CSV, Markdown, log or source document you open, through the tab it is in, with that tab\'s own sign-in', 'the pictures a Markdown document names, through the same tab'], writes: ['a copy of the document where you choose to save it (the original is never changed)', 'your view choices for each kind of document (wrap, line numbers ...), on this computer only, never from a private or Tor tab'], sends: [] } },
     // Vex's own PDF viewer (src/renderer/pdf-viewer, main/pdf-viewer.js, js/pdf-viewer-host.js). It replaces the viewer a tab had, so it
     // is on for everyone, an existing profile included; its own page and zoom memory lives in the viewer's page, not in a vex.* key.
     { id: 'pdf-viewer', title: 'PDF viewer', group: 'PDF viewer', tiers: { minimal: true, standard: true }, storageKeys: ['vex.pdfViewer.prefs'],

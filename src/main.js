@@ -2521,6 +2521,39 @@ require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, window
 // The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
 require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), nativeImage });
 
+// Vex's own viewer for text-like documents (main/text-viewer.js, pages in src/renderer/doc-viewer): a JSON, XML, CSV, Markdown, log or source
+// file a tab meets, and a view-source: page, are shown there instead of as one block of plain text. main/doc-viewers.js is the registry of
+// documents Vex shows in pages of its own; every session's onHeadersReceived asks it first (_docViewers.take). The on/off switch is the
+// feature's (js/doc-viewer-host.js tells main when it changes).
+let _docViewerOn = true;
+function _docViewerLook() {
+  const read = (key) => {
+    const file = getStorageFile(key);
+    if (!fs.existsSync(file)) return null;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return raw?.$vexStore === 1 ? raw.data : raw;
+  };
+  let theme = 'oxford', guiStyle = 'classic';
+  try { const t = read('theme'); if (typeof t === 'string') theme = t; } catch (err) { console.warn('[Document viewer] the saved theme could not be read:', err.message); }
+  try { const g = read('gui-style'); if (typeof g === 'string') guiStyle = g; } catch (err) { console.warn('[Document viewer] the saved look could not be read:', err.message); }
+  return { theme, guiStyle, lang: String(_readPersistString('vex.lang', 'en')) };
+}
+const _docViewers = require('./main/doc-viewers').createDocViewers({ owner: (contents) => secureSessions.owner(contents), log: (msg) => console.warn(msg) });
+const _textViewer = require('./main/text-viewer').createTextViewer({ rendererDir: path.join(__dirname, 'renderer'), registry: _docViewers, isEnabled: () => _docViewerOn, look: _docViewerLook });
+require('./main/text-viewer').registerTextViewerIpc({
+  ipcMain, dialog, registry: _docViewers,
+  windowFor: (e) => (secureSessions.owner(e.sender) || {}).win || null,
+  downloadsDir: () => app.getPath('downloads'),
+});
+ipcMain.handle('docview:set-enabled', (_e, on) => { _docViewerOn = !!on; return { ok: true, on: _docViewerOn }; });
+// What the viewer remembers per kind of document (wrap, line numbers ...) lives in its own page's storage, in each browsing session: this clears it.
+ipcMain.handle('docview:forget-settings', async () => {
+  try {
+    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-doc://view', storages: ['localstorage'] });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
 // Vex's own folder browser (main/folder-viewer.js, pages in src/renderer/folder-viewer): a folder a tab opens (file:///C:/...) is shown
 // there instead of in Chromium's plain "Index of" list. The on/off switch is the feature's (js/folder-viewer-host.js tells main when it changes).
 let _folderViewerOn = true;
@@ -7846,6 +7879,8 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'vex-pdf', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   // Vex's own folder browser page and the pictures it previews (main/folder-viewer.js); served to persistent sessions only.
   { scheme: 'vex-files', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  // Vex's own viewer page for text-like documents and the document it reads (main/text-viewer.js).
+  { scheme: 'vex-doc', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 // Where the window was last time, put on a screen that exists now (src/main/window-placement.js, T2-082).
@@ -7985,6 +8020,7 @@ function createWindow() {
 
   // Header stripping for webviews
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
     if (_pdfViewer.take(details, callback)) return;
     const responseHeaders = { ...details.responseHeaders };
     _dnrResponseHeaders(session.defaultSession, details, responseHeaders);
@@ -8016,6 +8052,7 @@ function createWindow() {
     const stripAllCsp = (partName === 'persist:discord');
 
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       if (_pdfViewer.take(details, callback)) return;
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
@@ -8355,6 +8392,7 @@ function createWindow() {
   try {
     for (const p of BROWSING_SESSIONS) {
       secureSessions.fromPartition(p).webRequest.onHeadersReceived((details, callback) => {
+        if (_docViewers.take(details, callback)) return;
         if (_pdfViewer.take(details, callback)) return;
         const responseHeaders = { ...details.responseHeaders };
         _dnrResponseHeaders(secureSessions.fromPartition(p), details, responseHeaders);
@@ -8674,6 +8712,9 @@ app.whenReady().then(async () => {
   // While all of Vex goes through one route, a session made later goes
   // through it too (a private window, a container, a panel, a burner).
   secureSessions.onSessionCreated(_coverWithAllRoute);
+  // Vex's own text viewer is served to every session a tab can run in (main/text-viewer.js).
+  secureSessions.onSessionCreated((ses, partition) => _textViewer.wireSession(ses, partition));
+  _textViewer.wireSession(session.defaultSession, '');
   // Vex's own folder browser is served to the persistent sessions a tab can run in (main/folder-viewer.js).
   secureSessions.onSessionCreated((ses, partition) => _folderViewer.wireSession(ses, partition));
   // Vex's own PDF viewer is served to every session a tab can run in (main/pdf-viewer.js).
@@ -9575,6 +9616,7 @@ ipcMain.handle('identity:create', () => {
     try { wireMediaSnifferOnSession(ses); } catch {}
     // Header stripping + ad blocker, mirroring the private-window session.
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       if (_pdfViewer.take(details, callback)) return;
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
@@ -9798,6 +9840,7 @@ ipcMain.handle('tor:create', async (event) => {
     try { ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false)); } catch {}
     try { ses.setPermissionCheckHandler(() => false); } catch {}
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       if (_pdfViewer.take(details, callback)) return;
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
@@ -10157,6 +10200,7 @@ function _wireBrowsingSession(ses, partition) {
   // The built-in containers get theirs in createWindow.
   if (!BROWSING_SESSIONS.includes(partition)) {
     ses.webRequest.onHeadersReceived((details, callback) => {
+      if (_docViewers.take(details, callback)) return;
       if (_pdfViewer.take(details, callback)) return;
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
@@ -10199,6 +10243,7 @@ function _wireEphemeralBrowsing(ses, tag) {
   attachGuestPreloads(ses);
   // Header stripping + ad blocker, as in the main session.
   ses.webRequest.onHeadersReceived((details, callback) => {
+    if (_docViewers.take(details, callback)) return;
     if (_pdfViewer.take(details, callback)) return;
     const rh = { ...details.responseHeaders };
     // Per-site switches hold in a private window too: a site whose cookies

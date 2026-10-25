@@ -52,6 +52,13 @@ for (const file of ['src', 'workers', 'scripts', 'build'].flatMap(d => fs.exists
     const ref = match[2];
     if (/^(?:[a-z]+:|\/\/|#)/i.test(ref) || ref.includes('${')) continue;
     refCount++;
+    // The document viewer's page is served by main/text-viewer.js under its own roots (/css, /app and /icons.js).
+    if (ref.startsWith('/') && relative.replace(/\\/g, '/') === 'src/renderer/doc-viewer/viewer.html') {
+      const roots = [['/css/', 'src/renderer/css/'], ['/app/', 'src/renderer/doc-viewer/'], ['/icons.js', 'src/renderer/js/vex-icons.js']];
+      const hit = roots.find(([from]) => ref.startsWith(from));
+      if (!hit || !fs.existsSync(path.join(root, hit[1] + ref.slice(hit[0].length)))) failures.push(relative + ': missing ' + ref);
+      continue;
+    }
     // The PDF viewer's page is served by main/pdf-viewer.js under its own roots (/css, /app, /icons.js and /lib, which is the vendored
     // pdf.js, built by npm run build:vendor and so not in the source tree).
     if (ref.startsWith('/') && relative.replace(/\\/g, '/') === 'src/renderer/pdf-viewer/viewer.html') {

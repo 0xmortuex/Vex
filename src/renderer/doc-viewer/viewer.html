@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="vex-persist" content="0">
+<title>Document</title>
+<link rel="stylesheet" href="/css/fonts.css">
+<link rel="stylesheet" href="/css/theme-tokens.css">
+<link rel="stylesheet" href="/css/theme-extra.css">
+<link rel="stylesheet" href="/app/viewer.css">
+</head>
+<body class="dv" data-dark="false">
+<a class="dv-skip" href="#dv-main" data-i18n="Skip to the document">Skip to the document</a>
+
+<header id="dv-bar" class="dv-bar" role="toolbar" aria-label="Document toolbar" data-i18n-aria="Document toolbar">
+  <div class="dv-id">
+    <span id="dv-kind" class="dv-badge"></span>
+    <span class="dv-title">
+      <span id="dv-name" class="dv-name" dir="auto"></span>
+      <span id="dv-sub" class="dv-sub"></span>
+    </span>
+  </div>
+  <div id="dv-views" class="dv-views" role="group" aria-label="View" data-i18n-aria="View"></div>
+  <form id="dv-find" class="dv-find" role="search" aria-label="Search in the document" data-i18n-aria="Search in the document" autocomplete="off">
+    <input id="dv-q" class="dv-q" type="search" spellcheck="false" aria-label="Search" data-i18n-aria="Search" data-i18n-placeholder="Search" placeholder="Search">
+    <button id="dv-case" class="dv-btn dv-btn-case" type="button" aria-pressed="false" title="Match case" data-i18n-title="Match case" aria-label="Match case" data-i18n-aria="Match case"><span aria-hidden="true">Aa</span></button>
+    <span id="dv-count" class="dv-count" role="status" aria-live="polite"></span>
+    <button id="dv-prev" class="dv-btn" type="button" data-icon="chevron-up" title="Previous match" data-i18n-title="Previous match" aria-label="Previous match" data-i18n-aria="Previous match"></button>
+    <button id="dv-next" class="dv-btn" type="button" data-icon="chevron-down" title="Next match" data-i18n-title="Next match" aria-label="Next match" data-i18n-aria="Next match"></button>
+  </form>
+  <div id="dv-actions" class="dv-actions" role="group" aria-label="Actions" data-i18n-aria="Actions"></div>
+</header>
+<div id="dv-options" class="dv-options" role="group" aria-label="View options" data-i18n-aria="View options"></div>
+<div id="dv-banner" class="dv-banner" role="alert" hidden></div>
+
+<main id="dv-main" class="dv-main" tabindex="-1"></main>
+
+<footer class="dv-statusbar">
+  <span id="dv-status" class="dv-status" role="status" aria-live="polite"></span>
+  <span id="dv-info" class="dv-info"></span>
+</footer>
+<div id="dv-toast" class="dv-toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/icons.js"></script>
+<script type="module" src="/app/app.js"></script>
+</body>
+</html>

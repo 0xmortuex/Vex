@@ -16,7 +16,10 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   // (the top frame of a normal tab) and takes no path: the folder is the page's own address, everything else a leaf name in it.
   'folderview:list', 'folderview:stat', 'folderview:ping', 'folderview:places', 'folderview:thumb', 'folderview:preview', 'folderview:size-start', 'folderview:size-poll',
   'folderview:size-cancel', 'folderview:external', 'folderview:reveal', 'folderview:mkdir', 'folderview:rename', 'folderview:trash', 'folderview:copy',
-  'folderview:drag', 'folderview:plain-list', 'folderview:open-as-file']);
+  'folderview:drag', 'folderview:plain-list', 'folderview:open-as-file',
+  // Vex's own viewer page for text-like documents (vex-doc://view/, main/text-viewer.js): save a copy, download, the browser's own view, a link
+  // to another file. Each handler checks that the asking frame is that page.
+  'docview:save-as', 'docview:download', 'docview:open-raw', 'docview:navigate']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
@@ -89,6 +92,8 @@ const UI_ONLY_CHANNELS = new Set([
   'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind',
   'devext:vencord-pick', 'devext:vencord-status', 'devext:vencord-reload', 'devext:vencord-restore', 'devext:console-start', 'devext:console-stop', 'devext:console-clear', 'devext:console-list',
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
+  // Whether Vex's own text viewer is on (main/text-viewer.js): the interface tells main, never a page.
+  'docview:set-enabled', 'docview:forget-settings',
   'printpreview:open', 'printpreview:render', 'printpreview:simplify', 'printpreview:print', 'printpreview:save-pdf', 'printpreview:close',
   'sources:resolve-doi', 'sources:resolve-id', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
   // Whether Vex's own PDF viewer is on (main/pdf-viewer.js): the interface tells main, never a page.

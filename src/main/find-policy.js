@@ -18,11 +18,16 @@ const OWNS_FIND = [
   /(^|\.)docs\.google\.com$/i,
 ];
 
+// Vex's own viewer for text-like documents (main/text-viewer.js) searches the document itself (the lines on screen are only a few of
+// them), so Ctrl+F is the viewer's while it has the focus.
+function isDocViewerUrl(url) { return /^vex-doc:\/\/view\//i.test(String(url || '')); }
+
 // Vex's own PDF viewer (main/pdf-viewer.js) has a find of its own, over the words of the PDF, and its own zoom for the pages: Ctrl+F and
 // Ctrl+= / Ctrl+- / Ctrl+0 are the viewer's while it has the focus.
 function isPdfViewerUrl(url) { return /^vex-pdf:\/\/view\//i.test(String(url || '')); }
 
 function guestOwnsFind(url) {
+  if (isDocViewerUrl(url)) return true;
   if (isPdfViewerUrl(url)) return true;
   try {
     const { hostname, protocol } = new URL(url);
@@ -61,5 +66,5 @@ function handFindToPage(webview) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { guestOwnsFind, handFindToPage, isPdfViewerUrl, OWNS_FIND };
+  module.exports = { guestOwnsFind, handFindToPage, isDocViewerUrl, isPdfViewerUrl, OWNS_FIND };
 }
