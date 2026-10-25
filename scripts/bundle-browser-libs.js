@@ -16,6 +16,10 @@ async function run() {
     ['onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.mjs','ort-wasm-simd-threaded.asyncify.mjs'],
     // onnxruntime-web is MIT (its package.json); the package ships no LICENSE file.
     ['onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm','ort-wasm-simd-threaded.asyncify.wasm'],
+    // Quick look at a download (js/download-quicklook.js): the first pages of a PDF, drawn with pdf.js. Apache-2.0.
+    ['pdfjs-dist/build/pdf.min.mjs','pdf.mjs'],
+    ['pdfjs-dist/build/pdf.worker.min.mjs','pdf.worker.mjs'],
+    ['pdfjs-dist/LICENSE','pdfjs-LICENSE'],
   ]) await fs.copyFile(path.join(root, 'node_modules', source), path.join(dest, name));
   const core = path.join(root, 'node_modules/tesseract.js-core');
   // In the browser, worker.min.js loads only the base64-inlined

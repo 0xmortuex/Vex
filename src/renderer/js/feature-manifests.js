@@ -529,6 +529,9 @@
     // profile gets them OFF and is offered them. The throwaway session is also off on a new profile until chosen.
     { id: 'download-guard', title: 'Cheat tools and fake updates', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['the name and address of a file being downloaded; once it is saved, its first bytes and, for a zip, its list of file names (never decompressed, run or uploaded)'], writes: ['nothing; the file waits in a holding folder until you decide'], sends: [] } },
+    // Quick look at a finished download (js/download-quicklook.js): Space in the Downloads panel. Always on, no switch: it is how the panel looks at a file.
+    { id: 'download-quicklook', title: 'Quick look at downloads', group: 'Downloads', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+      permissions: { reads: ['the first part of a finished download you press Space on, only if Vex downloaded it (a picture, a PDF, the first 200 KB of text, the names in an archive, the first text of an Office file)'], writes: ['nothing; a file is deleted to the Recycle Bin only after you confirm'], sends: [] } },
     { id: 'cookie-reject', title: 'Reject cookie banners', group: 'Safer browsing helpers', maturity: 'stable', storageKeys: ['vex.consentBlock.sites', 'vex.consentBlock.count'], usesKeys: ['vex.consentBlock'],
       commands: ['safeweb:cookies-site'], permissions: { reads: ['the address of the page, and the page\'s cookie banner'], writes: ['presses the site\'s own Reject button; the sites you left alone and a count of banners'], sends: [] } },
     { id: 'marketplace-signs', title: 'Marketplace red-flag checklist', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.marketSigns', 'vex.marketSigns.hosts'], commands: ['safeweb:marketplace'],

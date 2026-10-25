@@ -150,3 +150,143 @@
   color: var(--vex-accent, var(--primary));
   background: color-mix(in srgb, var(--vex-accent, var(--primary)) 14%, transparent);
 }
+
+/* === Quick look (js/download-quicklook.js) ==================================
+ * A calm flat sheet over the Downloads panel, in the manner of the AI panel:
+ * theme tokens only (--bg, --bg-2, --surface, --border, --text, --primary,
+ * --danger), the theme's own fonts, one hairline border, no gradients, no blur.
+ * Secondary text is the theme's text colour softened, not its muted grey, so it
+ * keeps 4.5:1 on the sheet in every theme. */
+.download-item:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.dl-btn[data-action="quick-look"] { min-width: 28px; min-height: 28px; }
+
+.dlql-ov {
+  --dlql-pad: calc(14px * var(--vex-density, 1));
+  --dlql-ctl: 28px;
+  --dlql-soft: color-mix(in srgb, var(--text) 5%, var(--bg-2));
+  --dlql-text2: color-mix(in srgb, var(--text) 90%, var(--surface));
+  --dlql-line: var(--border);
+  position: absolute; inset: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(18px * var(--vex-density, 1));
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  font-family: var(--vex-font-base); font-size: 13.5px; color: var(--text);
+  animation: dlql-in 0.14s ease-out;
+}
+@keyframes dlql-in { from { opacity: 0; } to { opacity: 1; } }
+.dlql-card {
+  display: flex; flex-direction: column;
+  width: min(1100px, 100%); height: min(780px, 100%);
+  background: var(--bg-2); color: var(--text);
+  border: 1px solid var(--dlql-line); border-radius: var(--vex-radius-lg, 10px);
+  box-shadow: 0 8px 24px var(--vex-shadow-color, color-mix(in srgb, var(--text) 25%, transparent));
+  overflow: hidden; outline: none;
+}
+.dlql-head, .dlql-foot { display: flex; align-items: center; gap: 8px; padding: var(--dlql-pad); flex-shrink: 0; }
+.dlql-head { border-bottom: 1px solid var(--dlql-line); }
+.dlql-foot { border-top: 1px solid var(--dlql-line); flex-wrap: wrap; justify-content: space-between; row-gap: 8px; }
+.dlql-kind { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--vex-radius-md, 6px); background: var(--dlql-soft); color: var(--dlql-text2); flex-shrink: 0; }
+.dlql-titles { flex: 1; min-width: 0; }
+.dlql-eyebrow { display: block; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dlql-text2); }
+.dlql-title { margin: 0; font-family: var(--vex-font-display, var(--vex-font-base)); font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dlql-pos { font-family: var(--vex-font-mono); font-size: 12px; color: var(--dlql-text2); padding: 0 4px; }
+
+.dlql-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: var(--dlql-ctl); min-height: var(--dlql-ctl); padding: 0 10px;
+  background: transparent; color: var(--text); font: inherit; font-size: 12.5px;
+  border: 1px solid var(--dlql-line); border-radius: var(--vex-radius-md, 6px); cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.dlql-btn:hover:not(:disabled) { background: var(--dlql-soft); border-color: var(--primary); }
+.dlql-btn:disabled { opacity: 0.45; cursor: default; }
+.dlql-btn.is-on { background: color-mix(in srgb, var(--primary) 13%, var(--surface)); border-color: var(--primary); }
+.dlql-btn.dlql-danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.dlql-btn:focus-visible, .dlql-mi:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.dlql-head .dlql-btn { padding: 0; }
+.dlql-ic { display: inline-flex; line-height: 0; }
+.dlql-ic svg { display: block; }
+
+.dlql-stage { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.dlql-note { padding: 10px var(--dlql-pad); color: var(--dlql-text2); font-size: 12.5px; flex-shrink: 0; }
+.dlql-bad { color: var(--danger); }
+
+.dlql-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-width: 0; color: var(--dlql-text2); font-size: 12.5px; }
+.dlql-bit-k { color: var(--dlql-text2); }
+.dlql-bit-v { color: var(--text); }
+.dlql-hash { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.dlql-hash:empty { display: none; }
+.dlql-code { font-family: var(--vex-font-mono); font-size: 11.5px; word-break: break-all; background: var(--dlql-soft); border-radius: 4px; padding: 1px 5px; }
+.dlql-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* picture */
+.dlql-imgview { flex: 1; min-height: 0; position: relative; overflow: hidden; cursor: grab; touch-action: none; background: color-mix(in srgb, var(--text) 4%, var(--bg)); }
+.dlql-imgview.is-drag { cursor: grabbing; }
+.dlql-img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; user-select: none; -webkit-user-drag: none; image-rendering: auto; }
+.dlql-toolbar { display: flex; align-items: center; gap: 6px; padding: 8px var(--dlql-pad); border-top: 1px solid var(--dlql-line); background: var(--bg-2); flex-shrink: 0; }
+.dlql-zoomval { min-width: 48px; text-align: center; font-family: var(--vex-font-mono); font-size: 12px; color: var(--dlql-text2); }
+
+/* PDF */
+.dlql-pdf { flex: 1; min-height: 0; overflow: auto; padding: 16px 0; display: flex; flex-direction: column; align-items: center; gap: 14px; background: color-mix(in srgb, var(--text) 4%, var(--bg)); }
+.dlql-pdfpage { background: #fff; box-shadow: 0 1px 6px var(--vex-shadow-color, rgba(0, 0, 0, 0.25)); max-width: none; flex-shrink: 0; }
+
+/* text */
+.dlql-textwrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dlql-text { flex: 1; min-height: 0; overflow: auto; padding: var(--dlql-pad); }
+.dlql-pre { margin: 0; font-family: var(--vex-font-mono); font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; tab-size: 4; }
+.dlql-j-k { color: color-mix(in srgb, var(--primary) 55%, var(--text)); }
+.dlql-j-s { color: color-mix(in srgb, var(--success, #2e9d5b) 60%, var(--text)); }
+.dlql-j-n, .dlql-j-l { color: color-mix(in srgb, var(--danger) 45%, var(--text)); }
+.dlql-l-err { color: var(--danger); }
+.dlql-l-warn { color: color-mix(in srgb, #b7791f 55%, var(--text)); }
+.dlql-md { max-width: 760px; margin: 0 auto; line-height: 1.6; }
+.dlql-md p { margin: 0 0 0.8em; }
+.dlql-md-h { font-family: var(--vex-font-display, var(--vex-font-base)); font-weight: 600; margin: 1.1em 0 0.4em; }
+.dlql-md-h1 { font-size: 1.6em; } .dlql-md-h2 { font-size: 1.35em; } .dlql-md-h3 { font-size: 1.15em; }
+.dlql-md ul, .dlql-md ol { margin: 0 0 0.8em; padding-left: 1.6em; }
+.dlql-md blockquote { margin: 0 0 0.8em; padding: 2px 12px; border-left: 3px solid var(--dlql-line); color: var(--dlql-text2); }
+.dlql-md hr { border: 0; border-top: 1px solid var(--dlql-line); margin: 1em 0; }
+.dlql-md .dlql-pre { background: var(--dlql-soft); border-radius: var(--vex-radius-md, 6px); padding: 10px 12px; margin: 0 0 0.8em; }
+.dlql-link { color: color-mix(in srgb, var(--primary) 50%, var(--text)); text-decoration: underline; }
+.dlql-textwrap > .dlql-toolbar { border-top: 0; border-bottom: 1px solid var(--dlql-line); }
+
+/* tables: CSV and archives */
+.dlql-tablewrap { flex: 1; min-height: 0; overflow: auto; }
+.dlql-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.dlql-table th, .dlql-table td { text-align: left; padding: 6px 12px; border-bottom: 1px solid var(--dlql-line); white-space: nowrap; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+.dlql-table th { position: sticky; top: 0; background: var(--bg-2); font-weight: 600; }
+.dlql-table .dlql-num { text-align: right; font-family: var(--vex-font-mono); color: var(--dlql-text2); }
+.dlql-ent { font-family: var(--vex-font-mono); }
+.dlql-ent .dlql-ic { vertical-align: -2px; color: var(--dlql-text2); }
+
+/* audio and video */
+.dlql-screen { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: color-mix(in srgb, var(--text) 4%, var(--bg)); }
+.dlql-media { max-width: 100%; max-height: 100%; }
+audio.dlql-media { display: none; }
+.dlql-player { display: flex; align-items: center; gap: 10px; padding: 8px var(--dlql-pad); border-top: 1px solid var(--dlql-line); background: var(--bg-2); flex-shrink: 0; }
+.dlql-range { flex: 1; min-width: 60px; accent-color: var(--primary); height: var(--dlql-ctl); }
+.dlql-vol { flex: 0 0 90px; min-width: 60px; }
+.dlql-time { font-family: var(--vex-font-mono); font-size: 12px; color: var(--dlql-text2); white-space: nowrap; }
+
+/* the card: programs, files with no preview, anything that went wrong */
+.dlql-cardbox { margin: auto; max-width: 520px; padding: 28px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.dlql-bigicon { display: flex; align-items: center; justify-content: center; width: 84px; height: 84px; border-radius: var(--vex-radius-lg, 10px); background: var(--dlql-soft); color: var(--dlql-text2); }
+.dlql-cardbox.is-program .dlql-bigicon { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--bg-2)); }
+.dlql-cardname { font-family: var(--vex-font-display, var(--vex-font-base)); font-size: 17px; font-weight: 600; word-break: break-all; }
+.dlql-cardsub { color: var(--dlql-text2); font-size: 12.5px; }
+.dlql-say { margin: 4px 0 0; line-height: 1.5; color: var(--text); }
+.dlql-sig { margin: 0; font-size: 12.5px; color: var(--dlql-text2); line-height: 1.5; }
+.dlql-sig.is-bad { color: var(--text); }
+.dlql-warn { width: 100%; text-align: left; padding: 8px 12px; border: 1px solid var(--dlql-line); border-left: 3px solid color-mix(in srgb, #b7791f 70%, var(--text)); border-radius: var(--vex-radius-md, 6px); background: var(--dlql-soft); font-size: 12.5px; line-height: 1.45; }
+.dlql-warn.is-high { border-left-color: var(--danger); }
+
+/* right-click menu */
+.dlql-menu { position: fixed; z-index: 2147483000; min-width: 180px; padding: 4px; background: var(--bg-2); color: var(--text); border: 1px solid var(--dlql-line); border-radius: var(--vex-radius-md, 6px); box-shadow: 0 8px 24px var(--vex-shadow-color, rgba(0, 0, 0, 0.3)); font-family: var(--vex-font-base); font-size: 13px; display: flex; flex-direction: column; }
+.dlql-mi { text-align: left; min-height: 30px; padding: 0 10px; background: transparent; border: 0; border-radius: 4px; color: inherit; font: inherit; cursor: pointer; }
+.dlql-mi:hover { background: var(--dlql-soft, color-mix(in srgb, var(--text) 8%, var(--bg-2))); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dlql-ov { animation: none; }
+  .dlql-btn { transition: none; }
+}
+html[data-reduce-motion] .dlql-ov { animation: none; }

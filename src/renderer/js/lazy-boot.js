@@ -75,6 +75,8 @@ const VexBoot = {
     { src: 'js/turkish-lemma.js', usage: [] },
     { src: 'js/reading-aids.js', usage: ['reading-aids'] },
     { src: 'js/page-chrome.js', usage: [] },
+    // Quick look at a finished download (Space in the Downloads panel): drawn only when asked for; the panel guards its global.
+    { src: 'js/download-quicklook.js', usage: [] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

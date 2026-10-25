@@ -122,6 +122,8 @@ const UI_ONLY_CHANNELS = new Set([
   'websafety:get', 'websafety:set-sensitivity', 'websafety:allow-host', 'websafety:forget-host', 'websafety:set-paranoid', 'websafety:check',
   // The site panel's third-party count and a download's explanation (main/safe-web-extras.js): read-only, but only the interface asks.
   'websafety:third-party-count', 'downloads:explain',
+  // Quick look at a finished download (main/download-peek.js): reads a file's contents, so only the interface asks, and main serves only files Vex downloaded.
+  'downloads:peek', 'downloads:peek-hash',
   // An AI news toast and the clicks waiting for the interface (js/ai-news.js):
   // raising a notification is never a page's or an extension's call.
   'news:notify', 'news:pending',
