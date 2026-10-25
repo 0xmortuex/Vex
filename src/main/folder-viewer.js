@@ -54,6 +54,8 @@ const MEDIA_TOKENS_PER_TAB = 80;
 const MEDIA_TOKEN_MS = 30 * 60 * 1000;
 const BYPASS_MS = 20000;
 const PAGE_NAV_MS = 6000;
+// How long after take() answered a navigation with a redirect to the viewer the tab's will-redirect for it is let through (it is take()'s own).
+const OWN_REDIRECT_MS = 8000;
 
 // ---- the addresses (the window keeps a twin of the two, js/folder-viewer-host.js; a test holds them equal) -------
 function viewerUrl(fileUrl) {
@@ -478,6 +480,7 @@ function createFolderViewer(deps) {
   };
   const bypass = new Map();      // `${webContentsId} ${path}` -> expiry
   const pageNav = new Map();     // webContentsId -> { key, at }: a navigation the PAGE started
+  const ownRedirect = new Map(); // webContentsId -> when take() sent that tab to the viewer: the guard lets that one redirect through
   const guarded = new WeakSet();
   const wired = new WeakSet();
   const tokens = new Map();      // token -> { file, mime, owner, until }
@@ -514,7 +517,7 @@ function createFolderViewer(deps) {
       const until = bypass.get(key(id, target.path));
       if (until != null) { bypass.delete(key(id, target.path)); if (until > now()) return false; }
     } else if (mark && now() - mark.at < PAGE_NAV_MS && mark.key === key(id, '/')) return false;
-    if (target.kind === 'thisPc') { callback({ redirectURL: viewerUrl('file:///') }); return true; }
+    if (target.kind === 'thisPc') { ownRedirect.set(id, now()); callback({ redirectURL: viewerUrl('file:///') }); return true; }
     // A path that is a folder goes to the viewer. A file (the common case) is let through untouched. A share that does not answer
     // is sent to the viewer too, which says so and offers to try again, rather than leaving the tab waiting.
     const shown = details.url;
@@ -522,7 +525,7 @@ function createFolderViewer(deps) {
     withTimeout(fs.promises.stat(core.fsPath(target.path)), PROBE_TIMEOUT_MS, 'The location').then(
       (st) => (st.isDirectory() ? toViewer : { cancel: false }),
       (err) => (err && err.code === 'VEX_TIMEOUT' && /\/$/.test(shown) ? toViewer : { cancel: false }),
-    ).then(callback).catch((err) => { console.error('[Folder browser] could not look at', details.url, '-', err.message); callback({ cancel: false }); });
+    ).then((answer) => { if (answer && answer.redirectURL) ownRedirect.set(id, now()); return answer; }).then(callback).catch((err) => { console.error('[Folder browser] could not look at', details.url, '-', err.message); callback({ cancel: false }); });
     return true;
   }
 
@@ -540,8 +543,13 @@ function createFolderViewer(deps) {
       const t = /^file:/i.test(String(to || '')) ? targetOfFileUrl(to) : null;
       if (t && !onVexPage()) pageNav.set(id, { key: key(id, t.kind === 'path' ? t.path : '/'), at: now() });
     });
+    // A redirect to the viewer is refused unless it is the one take() just sent this tab on (the person's own navigation to a folder):
+    // a web page or a server cannot redirect a tab there.
     contents.on('will-redirect', (event, url) => {
-      if (isViewerAddress((event && event.url) || url)) event.preventDefault();
+      if (!isViewerAddress((event && event.url) || url)) return;
+      const at = ownRedirect.get(id);
+      if (at != null && now() - at < OWN_REDIRECT_MS) { ownRedirect.delete(id); return; }
+      event.preventDefault();
     });
     contents.on('will-frame-navigate', (details) => {
       if (!details || !isViewerAddress(details.url)) return;
@@ -551,7 +559,7 @@ function createFolderViewer(deps) {
       const d = details && typeof details === 'object' && 'isMainFrame' in details ? details : null;
       if (d && d.isMainFrame && !d.isSameDocument) dropTokensOf(id);
     });
-    contents.once('destroyed', () => { dropTokensOf(id); pageNav.delete(id); core.sizeCancelAll(id); });
+    contents.once('destroyed', () => { dropTokensOf(id); pageNav.delete(id); ownRedirect.delete(id); core.sizeCancelAll(id); });
   }
 
   // ---- media tokens ----

@@ -157,6 +157,19 @@ describe('how a folder is caught (take)', () => {
     const out = await ask(v, details(fakeContents(), 'file://offline-server/share/'));
     expect(out).toEqual({ redirectURL: m.viewerUrl('file://offline-server/share/') });
   }, 10000);
+  it('lets its own redirect to the viewer through the tab\'s guard, once, and no other (found in the real app: the guard refused it, the tab kept the plain list)', async () => {
+    const v = makeViewer();
+    const wc = fakeContents();
+    v.guard(wc);
+    fs.mkdirSync(path.join(tmp, 'own-redirect'));
+    const folder = m.folderAddress(path.join(tmp, 'own-redirect'));
+    const event = () => ({ prevented: false, preventDefault() { this.prevented = true; } });
+    const target = m.viewerUrl(folder);
+    let e = event(); e.url = target; wc.emit('will-redirect', e); expect(e.prevented).toBe(true);     // nobody asked for it
+    expect(await ask(v, details(wc, folder))).toEqual({ redirectURL: target });
+    e = event(); e.url = target; wc.emit('will-redirect', e); expect(e.prevented).toBe(false);        // take()'s own
+    e = event(); e.url = target; wc.emit('will-redirect', e); expect(e.prevented).toBe(true);         // only the once
+  });
 });
 
 describe('a web page cannot reach the viewer (guard)', () => {
