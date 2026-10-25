@@ -26,6 +26,9 @@ function guestOwnsFind(url) {
   if (isPdfViewerUrl(url)) return true;
   try {
     const { hostname, protocol } = new URL(url);
+    // Vex's own folder browser has a filter box of its own: Ctrl+F goes there, as the list is virtual and the find bar would
+    // only ever search the rows on screen.
+    if (protocol === 'vex-files:') return hostname === 'browse';
     if (protocol !== 'https:') return false;
     return OWNS_FIND.some((pattern) => pattern.test(hostname));
   } catch {

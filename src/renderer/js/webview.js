@@ -57,6 +57,12 @@ const WebviewManager = {
     return 'vex-pdf://view/?u=' + encodeURIComponent(at < 0 ? s : s.slice(0, at)) + (at < 0 ? '' : s.slice(at));
   },
 
+  // The address a Vex viewer page (the PDF viewer, the folder browser, ...) stands for, else null: one place that asks each viewer's
+  // mapper, so the address bar, history and bookmarks keep the original and a new viewer adds a single term here.
+  viewerOriginal(url) {
+    return this.pdfOriginal(url) || this.folderOriginal(url) || null;
+  },
+
   pdfOriginal(url) {
     const s = String(url || '');
     if (!/^vex-pdf:\/\/view\/(?:\?|#|$)/i.test(s)) return null;
@@ -507,6 +513,8 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // Vex's own folder browser page asking for the theme, or to open a file (js/folder-viewer-host.js).
+      if (typeof VexFolderViewer !== 'undefined' && VexFolderViewer.handleMessage(webview, tab, e)) return;
       // The PDF viewer page is up and asks for the theme (preload-webview.js).
       if (e.channel === 'pdfview:need-theme') { this.sendPdfTheme(webview); return; }
       // A paste holding a secret, held back by the page-side hook (js/secret-guard.js).
@@ -651,7 +659,8 @@ const WebviewManager = {
     onWebview('did-navigate', (e) => {
       this._noteHistory(tab, webview);
       // A PDF shown in Vex's own viewer keeps the PDF's address (pdfOriginal above).
-      const url = this.pdfOriginal(e.url) || e.url;
+      // A document shown in one of Vex's own viewers keeps its own address (viewerOriginal below).
+      const url = this.viewerOriginal(e.url) || e.url;
       // A 404, 410 or 5xx page you archived: offer your copy (js/archive-library.js).
       if (typeof ArchiveLibrary !== 'undefined' && e.httpResponseCode >= 400 && TabManager.activeTabId === tab.id) {
         ArchiveLibrary.offerForDeadPage(url, { isMainFrame: true, httpStatus: e.httpResponseCode });
@@ -698,7 +707,7 @@ const WebviewManager = {
       TabManager.updateTab(tab.id, { url });
       window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url } }));
       this._updateFavicon(tab.id, url);
-      if (typeof VexBoosts !== 'undefined' && !this.pdfOriginal(e.url)) { try { VexBoosts.applyTo(webview, url); } catch {} }
+      if (typeof VexBoosts !== 'undefined' && !this.viewerOriginal(e.url)) { try { VexBoosts.applyTo(webview, url); } catch {} }
       // A site rule's "always muted" and "never let it sleep" apply to where
       // the tab has ARRIVED, which a link followed inside an existing tab
       // makes different from where it was made (js/site-routes.js).
@@ -736,7 +745,7 @@ const WebviewManager = {
     onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
         this._noteHistory(tab, webview);
-        const shown = this.pdfOriginal(e.url) || e.url;
+        const shown = this.viewerOriginal(e.url) || e.url;
         TabManager.updateTab(tab.id, { url: shown });
         window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: shown } }));
         document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: shown } }));
@@ -1324,6 +1333,19 @@ const WebviewManager = {
         wv.src = url;
       }
     }
+  },
+
+  // The folder a Vex folder browser address stands for (vex-files://browse/?u=file:///C:/...), else null. The tab, its address bar,
+  // history and bookmarks keep the folder's own file: address. The twin of VexFolderViewer.original (js/folder-viewer-host.js, which
+  // loads later) and of parseViewerUrl in main/folder-viewer.js; a test holds the three equal.
+  folderOriginal(url) {
+    const s = String(url || '');
+    if (!/^vex-files:\/\/browse\/(?:\?|$)/i.test(s)) return null;
+    let u;
+    try { u = new URL(s); } catch { return null; }
+    if (u.pathname !== '/') return null;
+    const original = u.searchParams.get('u');
+    return original && /^file:/i.test(original) ? original : null;
   },
 
   goBack() {

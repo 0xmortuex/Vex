@@ -2521,6 +2521,40 @@ require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, window
 // The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
 require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), nativeImage });
 
+// Vex's own folder browser (main/folder-viewer.js, pages in src/renderer/folder-viewer): a folder a tab opens (file:///C:/...) is shown
+// there instead of in Chromium's plain "Index of" list. The on/off switch is the feature's (js/folder-viewer-host.js tells main when it changes).
+let _folderViewerOn = true;
+function _folderViewerLook() {
+  const read = (key) => {
+    const file = getStorageFile(key);
+    if (!fs.existsSync(file)) return null;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return raw?.$vexStore === 1 ? raw.data : raw;
+  };
+  let theme = 'oxford', guiStyle = 'classic';
+  try { const t = read('theme'); if (typeof t === 'string') theme = t; } catch (err) { console.warn('[Folder browser] the saved theme could not be read:', err.message); }
+  try { const g = read('gui-style'); if (typeof g === 'string') guiStyle = g; } catch (err) { console.warn('[Folder browser] the saved look could not be read:', err.message); }
+  return { theme, guiStyle, lang: String(_readPersistString('vex.lang', 'en')) };
+}
+const _folderViewerMod = require('./main/folder-viewer');
+const _folderViewer = _folderViewerMod.createFolderViewer({
+  rendererDir: path.join(__dirname, 'renderer'), isEnabled: () => _folderViewerOn,
+  owner: (contents) => secureSessions.owner(contents), partitionOf: (contents) => secureSessions.partitionOf(contents),
+  isOwnFile: (url) => secureSessions.isStartPageFile(url), look: _folderViewerLook,
+});
+_folderViewerMod.registerFolderViewerIpc({
+  ipcMain, shell, clipboard, nativeImage, viewer: _folderViewer,
+  getFileIcon: (p, o) => app.getFileIcon(p, o), getPath: (name) => app.getPath(name), homedir: () => app.getPath('home'),
+});
+ipcMain.handle('folderview:set-enabled', (_e, on) => { _folderViewerOn = !!on; return { ok: true, on: _folderViewerOn }; });
+// The recent folders the browser remembers live in its own page's storage, in each browsing session: this clears them.
+ipcMain.handle('folderview:forget-recent', async () => {
+  try {
+    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-files://browse', storages: ['localstorage'] });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
 // Vex's own PDF viewer (main/pdf-viewer.js, pages in src/renderer/pdf-viewer): a PDF a tab or panel meets is shown there instead of
 // in Chromium's sealed viewer. The on/off switch is the feature's (js/pdf-viewer-host.js tells main when it changes).
 let _pdfViewerOn = true;
@@ -2997,6 +3031,8 @@ function wireAdblockerOnSession(ses, tag) {
   if (!ses || ses.__vexAdblockWired) return;
   ses.__vexAdblockWired = true;
   ses.webRequest.onBeforeRequest((details, callback) => {
+    // A folder opened in a tab goes to Vex's own folder browser (main/folder-viewer.js); every other request is untouched.
+    if (_folderViewer.take(details, callback)) return;
     // Lighter Discord: the animated decoration is fetched as the still one
     // rather than not at all, so nothing can end up missing (discord-lite.js).
     if (_discordLite && tag === 'persist:discord' && isHeavyDiscordMedia(details.url)) {
@@ -6511,6 +6547,8 @@ app.on('web-contents-created', (_event, contents) => {
   // navigating to, and goes back to the session's own on the next site. The
   // request header is set in wireClientHintsOnSession; this is the page's JS.
   // A page in a Tor session is never changed.
+  // A page cannot send a tab to Vex's folder browser (main/folder-viewer.js guard).
+  if (contents.getType() === 'webview') _folderViewer.guard(contents);
   if (contents.getType() === 'webview') {
     const baseUa = contents.getUserAgent();
     const wcId = contents.id;
@@ -6985,6 +7023,12 @@ app.on('web-contents-created', (_event, contents) => {
     }
     let openerUrl = '';
     try { openerUrl = contents.getURL() || ''; } catch { /* opener gone */ }
+    // A web page cannot open a file: address (a folder or a file on this computer): Chromium refuses it in the page itself, and this
+    // keeps the window from doing it for the page. A local file or a page of Vex's own may (main/folder-viewer.js).
+    if (/^file:/i.test(String(url || '')) && !_folderViewerMod.mayOpenFileFrom(openerUrl)) {
+      console.warn('[new-window] a web page tried to open a file: address; refused');
+      return { action: 'deny' };
+    }
     // Pop-up blocker: before anything below lets a window through. A print
     // or about:blank window, an OAuth sign-in, a link opened in a new tab:
     // each follows a click on the page, and that click is what lets it open.
@@ -7800,6 +7844,8 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   // Vex's own PDF viewer page and the PDF it reads (main/pdf-viewer.js).
   { scheme: 'vex-pdf', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  // Vex's own folder browser page and the pictures it previews (main/folder-viewer.js); served to persistent sessions only.
+  { scheme: 'vex-files', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 // Where the window was last time, put on a screen that exists now (src/main/window-placement.js, T2-082).
@@ -8628,6 +8674,8 @@ app.whenReady().then(async () => {
   // While all of Vex goes through one route, a session made later goes
   // through it too (a private window, a container, a panel, a burner).
   secureSessions.onSessionCreated(_coverWithAllRoute);
+  // Vex's own folder browser is served to the persistent sessions a tab can run in (main/folder-viewer.js).
+  secureSessions.onSessionCreated((ses, partition) => _folderViewer.wireSession(ses, partition));
   // Vex's own PDF viewer is served to every session a tab can run in (main/pdf-viewer.js).
   secureSessions.onSessionCreated((ses, partition) => _pdfViewer.wireSession(ses, partition));
   _pdfViewer.wireSession(session.defaultSession, '');

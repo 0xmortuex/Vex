@@ -423,6 +423,9 @@ contextBridge.exposeInMainWorld('vex', {
   pdftoolRun: (req) => ipcRenderer.invoke('pdftool:run', req),
   pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
   pdftoolInspect: (token) => ipcRenderer.invoke('pdftool:inspect', token),
+  // Whether Vex's own folder browser takes the folders a tab opens, and forgetting its recent folders (main/folder-viewer.js; js/folder-viewer-host.js).
+  folderviewSetEnabled: (on) => ipcRenderer.invoke('folderview:set-enabled', !!on),
+  folderviewForgetRecent: () => ipcRenderer.invoke('folderview:forget-recent'),
   // Whether Vex's own PDF viewer takes the PDFs a tab meets (main/pdf-viewer.js; js/pdf-viewer-host.js).
   pdfviewSetEnabled: (on) => ipcRenderer.invoke('pdfview:set-enabled', !!on),
   pdfviewForgetPlaces: () => ipcRenderer.invoke('pdfview:forget-places'),
