@@ -153,8 +153,6 @@ module.exports = [
   "vex.fontCss",
   "vex.fontMono",
   "vex.forceCloudAI",
-  "vex.forceDarkHosts",
-  "vex.forceDarkSites",
   "vex.freeGamesCheckedAt",
   "vex.freeGamesSeen",
   "vex.freeGamesTell",

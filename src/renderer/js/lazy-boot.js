@@ -78,6 +78,9 @@ const VexBoot = {
     { src: 'js/page-chrome.js', usage: [] },
     // Quick look at a finished download (Space in the Downloads panel): drawn only when asked for; the panel guards its global.
     { src: 'js/download-quicklook.js', usage: [] },
+    // Dark mode for websites: the Settings rows and the page-menu toggle. The pages themselves are handled by
+    // src/dark-mode-preload.js and main, which read the saved settings, so a tab never waits for this file.
+    { src: 'js/dark-mode.js', usage: [] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)
