@@ -102,6 +102,8 @@ body.pv {
 .pv-btn[aria-pressed="true"] { background: var(--pv-accent-bg); color: var(--pv-on-accent); }
 .pv-btn[aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in srgb, var(--pv-accent-bg) 90%, var(--pv-on-accent)); }
 .pv-btn svg { display: block; }
+/* Before a document is open (or when it did not open) there is nothing for the tools to do: only the name of the file shows. */
+.pv-bar[inert] :is(.pv-tools, .pv-group-end, #pv-rail-toggle) { visibility: hidden; }
 /* A button that opens a menu: a small tick at its corner. */
 .pv-btn-menu { padding-right: 4px; min-width: 40px; }
 .pv-btn-menu::after { content: ""; width: 0; height: 0; margin-left: 2px; border-left: 3.5px solid transparent; border-right: 3.5px solid transparent; border-top: 4px solid currentColor; opacity: 0.7; }
@@ -334,7 +336,7 @@ body[data-tone="night"] .pv-signmark img, body[data-tone="theme-dark"] .pv-signm
 .pv-toast button:hover { background: color-mix(in srgb, currentColor 18%, transparent); }
 
 .pv-state { position: absolute; inset: 0; z-index: 35; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--pv-bg); }
-.pv-state-card { width: min(440px, 100%); padding: 22px 24px; text-align: center; background: var(--pv-surface); border: 1px solid var(--pv-line); border-radius: var(--pv-r-lg); }
+.pv-state-card { width: min(540px, 100%); padding: 22px 24px; text-align: center; background: var(--pv-surface); border: 1px solid var(--pv-line); border-radius: var(--pv-r-lg); }
 .pv-state-card .pv-state-ico { display: inline-flex; margin-bottom: 8px; color: var(--pv-muted); }
 .pv-state-card h1 { margin: 0 0 6px; font-family: var(--pv-display); font-size: 16px; font-weight: 600; }
 .pv-state-card p { margin: 0 0 14px; color: var(--pv-muted); overflow-wrap: anywhere; }
@@ -375,6 +377,7 @@ body.pv[data-present="true"] .pdfViewer { padding: 0; }
 body.pv[data-present="true"] .pdfViewer .page { box-shadow: none; }
 body.pv[data-present="true"] .pv-pager { opacity: 0; transition: opacity 0.2s; }
 body.pv[data-present="true"].pv-awake .pv-pager { opacity: 1; }
+body.pv[data-present="true"] .pv-scroller:focus-visible { outline: none; }
 body.pv[data-present="true"] { cursor: none; }
 body.pv[data-present="true"].pv-awake { cursor: default; }
 

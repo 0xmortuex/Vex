@@ -1014,6 +1014,8 @@ const WebviewManager = {
   // and Ctrl+P / Ctrl+U did nothing (found 2026-09-29).
   printPage(wv = this.getActiveWebview()) {
     if (!wv || typeof wv.print !== 'function') { window.showToast?.('Open a page to print first'); return; }
+    // The PDF viewer prints the document's pages (with the marks), not its own toolbar.
+    if (this.pdfPage(wv)) { wv.send('pdfview:command', 'print'); return; }
     // A page named "site - title - date" when that extra is on (js/tabs-nav.js): the name Windows offers for the PDF.
     const named = typeof VexTabsNav !== 'undefined' ? VexTabsNav.namePrintJob(wv).catch(err => { window.VexProblems?.note('Print', 'Could not name the printout', err); return null; }) : Promise.resolve(null);
     named.then(restore => Promise.resolve(wv.print())
@@ -1650,6 +1652,7 @@ const WebviewManager = {
 
     const curUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
     const isTab = !!(webview.dataset && webview.dataset.tabId);
+    const viewerOriginal = this.pdfOriginal(curUrl);   // set only on Vex's own PDF viewer page
     const imageSrc = this.contextImage(e.params, webview);
 
     const menu = document.createElement('div');
@@ -1936,7 +1939,7 @@ const WebviewManager = {
           });
         }
       }
-      if (typeof Annotations !== 'undefined') {
+      if (typeof Annotations !== 'undefined' && !viewerOriginal) {
         textItems.push({
           label: 'Highlight',
           action: () => Annotations.highlight('yellow')
@@ -1946,7 +1949,7 @@ const WebviewManager = {
       // question — without leaving the page or opening a panel first.
       {
         const sel = e.params.selectionText;
-        const pageUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
+        const pageUrl = viewerOriginal || (() => { try { return webview.getURL(); } catch { return ''; } })();
         const pageTitle = (() => { try { return webview.getTitle(); } catch { return ''; } })();
         textItems.push({ sep: true });
         if (typeof VexQuickReminder !== 'undefined') {
@@ -2182,8 +2185,18 @@ const WebviewManager = {
       if (extRows.length) items.push({ sep: true }, ...extRows);
     }
     items.push({ sep: true });
-    items.push({ label: 'Page', icon: 'file', sub: pageItems });
-    items.push({ label: 'This site', icon: 'globe', sub: siteItems });
+    if (viewerOriginal) {
+      // The viewer is Vex's own page: its address is the PDF's, and the page tools (source, dark mode, zapper, watch, archive)
+      // do not apply to it.
+      items.push({ label: 'PDF', icon: 'file', sub: [
+        { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(viewerOriginal) },
+        { label: 'Open in New Tab', action: () => TabManager.createTab(viewerOriginal, true, null, { partition: webview.getAttribute?.('partition') }) },
+        { label: 'Print…', action: () => this.printPage(webview) },
+      ] });
+    } else {
+      items.push({ label: 'Page', icon: 'file', sub: pageItems });
+      items.push({ label: 'This site', icon: 'globe', sub: siteItems });
+    }
     items.push({ sep: true });
     items.push({
       label: 'Inspect Element',

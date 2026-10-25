@@ -263,7 +263,7 @@ export function askSignature(ctx, then) {
   const s = ctx.state;
   const INK = '#10204a';
   const typed = el('input', { type: 'text', maxlength: '60', 'aria-label': t('Your name as a signature'), placeholder: t('Type your name'), 'data-autofocus': '' });
-  const pad = el('canvas', { width: '560', height: '170', role: 'img', 'aria-label': t('Draw your signature here'), style: { width: '100%', border: '1px dashed var(--pv-line)', borderRadius: 'var(--pv-r)', background: '#fff', touchAction: 'none', cursor: 'crosshair', display: 'block' } });
+  const pad = el('canvas', { width: '560', height: '170', role: 'img', 'aria-label': t('Draw your signature here'), style: { width: '100%', border: '1.5px dashed var(--pv-muted)', borderRadius: 'var(--pv-r)', background: '#fff', touchAction: 'none', cursor: 'crosshair', display: 'block' } });
   const g = pad.getContext('2d');
   g.lineWidth = 3.2; g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = INK;
   let down = false, any = false;

@@ -92,6 +92,7 @@ function fileNameOf(address) {
   } catch { return address; }
 }
 const source = { original, name: fileNameOf(original), isFile };
+$('#pv-doc-title').textContent = source.name;      // the bar names the file from the first moment, even if it never opens
 
 function parseHash(raw) {
   const out = {};
@@ -248,6 +249,7 @@ async function run({ pdfjsLib, pv, eventBus, linkService, findController, viewer
     openColorMenu: (anchor, markId) => openColorMenu(anchor, markId),
     openExternal(url) { window.open(url, '_blank', 'noopener,noreferrer'); },
   };
+  if (host.onCommand) host.onCommand((what) => { if (what === 'print') actions.printDocument(ctx); });
   const toolGroup = (tool) => (tool === 'rect' || tool === 'ellipse' || tool === 'line' || tool === 'arrow' ? 'shape' : tool);
 
   const pageVisible = (n) => { const v = viewer.getPageView(n - 1); if (!v || !v.div) return false; const r = v.div.getBoundingClientRect(), c = dom.scroller.getBoundingClientRect(); return r.bottom > c.top + 30 && r.top < c.bottom - 30; };

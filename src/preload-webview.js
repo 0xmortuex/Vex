@@ -18,7 +18,11 @@ if (typeof location !== 'undefined' && location.protocol === 'vex-pdf:') {
     const listeners = [];
     let lastTheme = null;
     ipcRenderer.on('pdfview:theme', (_event, payload) => { lastTheme = payload; for (const fn of listeners) { try { fn(payload); } catch (err) { console.error('[PDF viewer] theme listener failed:', err); } } });
+    // What the interface asks of the viewer (Print from the menu or the right-click menu): 'print' only.
+    const commandListeners = [];
+    ipcRenderer.on('pdfview:command', (_event, what) => { for (const fn of commandListeners) { try { fn(String(what)); } catch (err) { console.error('[PDF viewer] command failed:', err); } } });
     contextBridge.exposeInMainWorld('vexPdfHost', {
+      onCommand: (fn) => { commandListeners.push(fn); },
       saveCopy: (request) => ipcRenderer.invoke('pdfview:save-copy', request),
       download: () => ipcRenderer.invoke('pdfview:download'),
       openNative: () => ipcRenderer.invoke('pdfview:open-native'),
