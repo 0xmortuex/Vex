@@ -29,7 +29,7 @@
 const nodeFs = require('fs');
 const nodePath = require('path');
 const { Readable } = require('stream');
-const { pathToFileURL, fileURLToPath } = require('url');
+const { fileURLToPath } = require('url');
 
 const SCHEME = 'vex-pdf';
 const HOST = 'view';
@@ -74,6 +74,7 @@ function parseViewerUrl(url) {
   if (!s.toLowerCase().startsWith(SCHEME + '://' + HOST + '/')) return null;
   let u;
   try { u = new URL(s); } catch { return null; }
+  if (u.pathname !== '/') return null;           // the viewer page itself; /doc and the files it loads are not it
   const original = u.searchParams.get('u');
   if (!original) return null;
   return { original, hash: u.hash ? u.hash.slice(1) : '' };
@@ -105,7 +106,6 @@ function createPdfViewer(deps) {
   const rendererDir = deps.rendererDir;
   if (!rendererDir) throw new Error('createPdfViewer needs rendererDir');
   const isEnabled = deps.isEnabled || (() => true);
-  const log = deps.log || (() => {});
   const roots = {
     app: nodePath.join(rendererDir, 'pdf-viewer'),
     lib: nodePath.join(rendererDir, 'vendor', 'runtime', 'pdfjs'),
@@ -142,7 +142,7 @@ function createPdfViewer(deps) {
     if (!isGuest(wc)) return false;
     if (consumeBypass(wc.id, details.url)) return false;
     // The #page= and #zoom= the person typed or followed are not part of the request; the tab's own pending address has them.
-    let pending = '';
+    let pending;
     try { pending = wc.getURL() || ''; } catch { pending = ''; }
     const frag = pending.replace(/#.*$/, '') === details.url.replace(/#.*$/, '') && pending.includes('#') ? pending.slice(pending.indexOf('#') + 1) : '';
     // The server's answer is turned into a redirect to the viewer. (Cancelling the request and loading the viewer from here instead
@@ -258,6 +258,12 @@ function createPdfViewer(deps) {
 // ---- what the viewer asks main to do (every channel checks that the asker is the viewer page) -----------------
 const SAVE_LIMITS = Object.freeze({ marks: 400, values: 300 });
 
+// How far the pages were turned in the viewer, clockwise: 0, 90, 180 or 270.
+function turnOf(value) {
+  const n = ((Math.round(Number(value) / 90) * 90 % 360) + 360) % 360;
+  return Number.isFinite(n) && [90, 180, 270].includes(n) ? n : 0;
+}
+
 function viewerSource(event) {
   const frame = event && event.senderFrame;
   const parsed = parseViewerUrl(frame && frame.url);
@@ -325,9 +331,8 @@ function registerPdfViewerIpc(opts) {
       const r = await toolkit.placeMarks(out, { marks: req.marks, signature, ascii: !!req.ascii }, name);
       out = r.bytes; marks = r.marks;
     }
-    if (Number(req.rotate) % 360 !== 0 && [90, 180, 270].includes(((Number(req.rotate) % 360) + 360) % 360)) {
-      out = (await toolkit.rotate(out, { spec: 'all', degrees: ((Number(req.rotate) % 360) + 360) % 360 }, name)).bytes;
-    }
+    const turn = turnOf(req.rotate);
+    if (turn) out = (await toolkit.rotate(out, { spec: 'all', degrees: turn }, name)).bytes;
     return { bytes: out, marks };
   }
 
@@ -337,7 +342,7 @@ function registerPdfViewerIpc(opts) {
       const r = req || {};
       if (Array.isArray(r.marks) && r.marks.length > SAVE_LIMITS.marks) throw new Error('That is more than ' + SAVE_LIMITS.marks + ' marks');
       if (r.values && Object.keys(r.values).length > SAVE_LIMITS.values) throw new Error('That is more than ' + SAVE_LIMITS.values + ' form fields');
-      const have = (Array.isArray(r.marks) && r.marks.length) || (r.values && Object.keys(r.values).length) || (Number(r.rotate) % 360 !== 0);
+      const have = (Array.isArray(r.marks) && r.marks.length) || (r.values && Object.keys(r.values).length) || turnOf(r.rotate);
       if (!have) throw new Error('There is nothing to save yet: add a mark, fill a field or turn the pages first');
       const { bytes, file } = await sourceBytes(event, src.original);
       const name = baseName(r.name, src.original);

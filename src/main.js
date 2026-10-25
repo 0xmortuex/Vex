@@ -684,7 +684,7 @@ app.on('web-contents-created', (_e, contents) => {
 // page holding both: DOM text 1 match, canvas text 0 matches. Those apps ship
 // their own find, so swallowing Ctrl+F there replaced a working search with a
 // find bar guaranteed to report nothing. Let the key reach the page instead.
-const { guestOwnsFind } = require('./main/find-policy');
+const { guestOwnsFind, isPdfViewerUrl } = require('./main/find-policy');
 // The sessions ordinary browsing happens in: the default one plus the
 // containers. Routing, and anything else that must cover "all of Vex",
 // works through this list.
@@ -755,7 +755,7 @@ function handleBrowserShortcut(event, input, contents) {
   if (!win) return false;
   let url;
   try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
-  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), wanted: _guestWantedKeys }), contents.id);
+  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), ownsZoom: isPdfViewerUrl(url), wanted: _guestWantedKeys }), contents.id);
   if (!hit) return false;
   win.webContents.send(hit.channel, ...(hit.args || []));
   event.preventDefault();
@@ -2533,7 +2533,7 @@ function _pdfViewerLook() {
 }
 const _pdfViewer = require('./main/pdf-viewer').createPdfViewer({
   rendererDir: path.join(__dirname, 'renderer'), isEnabled: () => _pdfViewerOn, owner: (contents) => secureSessions.owner(contents),
-  look: _pdfViewerLook, log: (m) => console.warn(m),
+  look: _pdfViewerLook,
 });
 require('./main/pdf-viewer').registerPdfViewerIpc({
   ipcMain, dialog, viewer: _pdfViewer, toolkit: require('./main/pdf-toolkit'), shell,
@@ -2541,6 +2541,13 @@ require('./main/pdf-viewer').registerPdfViewerIpc({
   downloadsDir: () => app.getPath('downloads'),
 });
 ipcMain.handle('pdfview:set-enabled', (_e, on) => { _pdfViewerOn = !!on; return { ok: true, on: _pdfViewerOn }; });
+// The page and zoom the viewer remembers per PDF live in its own page's storage, in each browsing session: this clears them.
+ipcMain.handle('pdfview:forget-places', async () => {
+  try {
+    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-pdf://view', storages: ['localstorage'] });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
 
 // === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
 // Keys are made and kept here, encrypted like the vault, and only finished

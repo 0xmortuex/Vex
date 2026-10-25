@@ -633,6 +633,10 @@
       commands: ['cornell-note', 'flag-question', 'questions-to-ask'], permissions: { reads: ['the page in front and the text you selected, when you ask'], writes: ['a Cornell note, and your list of flagged questions'], sends: [] } },
     { id: 'pdf-highlights', title: 'PDF highlights', group: 'PDF highlights', maturity: 'new', storageKeys: ['vex.pdfHighlights', 'vex.pdfHighlights.prefs'], usesKeys: ['vex.notes'],
       commands: ['pdf-highlight-save', 'pdf-highlights'], permissions: { reads: ['the passage you paste and the page number the PDF viewer shows, when you ask'], writes: ['your PDF highlights and, if you left it on, a PDF highlights note'], sends: [] } },
+    // Vex's own PDF viewer (src/renderer/pdf-viewer, main/pdf-viewer.js, js/pdf-viewer-host.js). It replaces the viewer a tab had, so it
+    // is on for everyone, an existing profile included; its own page and zoom memory lives in the viewer's page, not in a vex.* key.
+    { id: 'pdf-viewer', title: 'PDF viewer', group: 'PDF viewer', tiers: { minimal: true, standard: true }, storageKeys: ['vex.pdfViewer.prefs'],
+      commands: ['pdf-viewer-settings'], permissions: { reads: ['the PDF you open, through the tab it is in, with that tab\'s own sign-in', 'the words of the PDF, to search them and to answer your questions about the page you are reading'], writes: ['a copy of a PDF with your marks and answers, where you choose to save it (the original is never changed)', 'the page and zoom it remembers for each PDF, on this computer only, never from a private or Tor tab'], sends: [] } },
     { id: 'pdf-tools', title: 'PDF toolkit', group: 'PDF toolkit', maturity: 'new', storageKeys: ['vex.pdfTools.prefs'],
       commands: ['pdf-toolkit'], permissions: { reads: ['the PDF files you choose in the file picker', 'a signature picture you draw or type, kept in the window only while it is open'], writes: ['new PDF files where you choose to save them; the originals are never changed'], sends: [] } },
 

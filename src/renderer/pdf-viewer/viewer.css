@@ -108,7 +108,7 @@ body.pv {
 .pv-btn-text:disabled { background: transparent; color: var(--pv-text); border-color: var(--pv-line); }
 .pv-btn-text[data-dirty="true"]:not(:disabled) { box-shadow: 0 0 0 2px color-mix(in srgb, var(--pv-accent) 30%, transparent); }
 
-.pv-dot { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--pv-mark-color, #ffd54a); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pv-text) 45%, transparent); }
+.pv-dot { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--pv-mark-color, var(--pv-accent)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pv-text) 45%, transparent); }
 
 .pv-doc { display: flex; flex-direction: column; min-width: 0; margin-left: 4px; }
 .pv-doc-title { font-family: var(--pv-display); font-weight: 600; font-size: 13.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

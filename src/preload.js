@@ -423,6 +423,9 @@ contextBridge.exposeInMainWorld('vex', {
   pdftoolRun: (req) => ipcRenderer.invoke('pdftool:run', req),
   pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
   pdftoolInspect: (token) => ipcRenderer.invoke('pdftool:inspect', token),
+  // Whether Vex's own PDF viewer takes the PDFs a tab meets (main/pdf-viewer.js; js/pdf-viewer-host.js).
+  pdfviewSetEnabled: (on) => ipcRenderer.invoke('pdfview:set-enabled', !!on),
+  pdfviewForgetPlaces: () => ipcRenderer.invoke('pdfview:forget-places'),
 
   // Developer desk, plugin dev loop, Electron ticker (main/dev-desk.js, dev-extension.js, castlabs-ticker.js)
   devdeskPorts: (ports) => ipcRenderer.invoke('devdesk:ports', ports),

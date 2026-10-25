@@ -79,7 +79,7 @@ const UI_ONLY_CHANNELS = new Set([
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
   'sources:resolve-doi', 'sources:resolve-id', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
   // Whether Vex's own PDF viewer is on (main/pdf-viewer.js): the interface tells main, never a page.
-  'pdfview:set-enabled',
+  'pdfview:set-enabled', 'pdfview:forget-places',
   // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
   'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send', 'comms:bridge-status', 'comms:bridge-pick', 'comms:bridge-read', 'comms:bridge-forget', 'comms:status-write',
   // The local-service launcher and the webhook inspector: starting programs and opening a port are Vex's own window only.

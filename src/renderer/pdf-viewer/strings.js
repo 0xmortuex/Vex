@@ -1,11 +1,12 @@
 // The viewer's words, in English and Turkish. The English sentence is the key: t('Page') is the English text, and in Turkish it
 // is TR['Page'] when the language is Turkish. A sentence with no Turkish entry would show in English, so
-// tests/renderer/pdfViewer.test.js checks that every t('...'), data-i18n and data-i18n-* text of this folder has one.
+// tests/renderer/pdfViewer.test.js checks that every sentence given to t(), every data-i18n and data-i18n-* text of this folder has one.
 // A {name} in a sentence is filled from the second argument: t('Page {n} of {total}', { n: 3, total: 8 }).
 
 import { TR } from './strings-tr.js';
 
-let lang = 'en';
+// The page is served with the window's language already in <html lang> (main/pdf-viewer.js servePage); the window may send it again.
+let lang = typeof document !== 'undefined' && String(document.documentElement.lang || '').slice(0, 2).toLowerCase() === 'tr' ? 'tr' : 'en';
 
 export function setLang(value) {
   const next = String(value || 'en').slice(0, 2).toLowerCase() === 'tr' ? 'tr' : 'en';

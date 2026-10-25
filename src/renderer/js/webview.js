@@ -52,14 +52,14 @@ const WebviewManager = {
   // web is answered with a redirect instead, in main/pdf-viewer.js.) VexPdfViewerOff is set by js/pdf-viewer-host.js when it is switched off.
   viewerAddress(url) {
     const s = String(url || '');
-    if (window.VexPdfViewerOff || !/^file:\/\/[^?#]*\.pdf(?:[?#]|$)/i.test(s)) return s;
+    if ((typeof window !== 'undefined' && window.VexPdfViewerOff) || !/^file:\/\/[^?#]*\.pdf(?:[?#]|$)/i.test(s)) return s;
     const at = s.indexOf('#');
     return 'vex-pdf://view/?u=' + encodeURIComponent(at < 0 ? s : s.slice(0, at)) + (at < 0 ? '' : s.slice(at));
   },
 
   pdfOriginal(url) {
     const s = String(url || '');
-    if (!/^vex-pdf:\/\/view\//i.test(s)) return null;
+    if (!/^vex-pdf:\/\/view\/(?:\?|#|$)/i.test(s)) return null;
     let u;
     try { u = new URL(s); } catch { return null; }
     const original = u.searchParams.get('u');

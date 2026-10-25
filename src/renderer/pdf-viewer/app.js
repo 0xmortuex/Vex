@@ -141,7 +141,7 @@ async function main() {
   const l10n = {
     getLanguage: () => getLang(), getDirection: () => 'ltr',
     async get(id, args) { return id === 'pdfjs-page-landmark' ? t('Page {page}', { page: args && args.page }) : ''; },
-    async translate(root) { for (const n of root.querySelectorAll ? root.querySelectorAll('[data-l10n-id="pdfjs-page-landmark"]') : []) { try { const a = JSON.parse(n.dataset.l10nArgs || '{}'); n.setAttribute('aria-label', t('Page {page}', { page: a.page })); } catch { /* not a page */ } } },
+    async translate(root) { for (const n of root.querySelectorAll ? root.querySelectorAll('[data-l10n-id="pdfjs-page-landmark"]') : []) { try { const a = JSON.parse(n.dataset.l10nArgs || '{}'); n.setAttribute('aria-label', t('Page {page}', { page: a.page })); } catch (err) { console.warn('[PDF viewer] a page label could not be set:', err && err.message); } } },
     async translateOnce() {}, async destroy() {}, pause() {}, resume() {},
   };
 
@@ -356,7 +356,8 @@ async function run({ pdfjsLib, pv, eventBus, linkService, findController, viewer
     const rotated = viewer.pagesRotation % 360 !== 0;
     saveBtn.disabled = !(store.count() || formDirty || rotated);
     saveBtn.dataset.dirty = dirty || rotated ? 'true' : 'false';
-    saveBtn.title = t(store.count() || formDirty || rotated ? 'Save a copy with your changes (Ctrl+S)' : 'Nothing to save yet');
+    const canSave = !!(store.count() || formDirty || rotated);
+    saveBtn.title = canSave ? t('Save a copy with your changes (Ctrl+S)') : t('Nothing to save yet');
     window.__vexPdfDirty = dirty || rotated;
   }
   store.on(emitState);

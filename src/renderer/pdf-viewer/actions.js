@@ -223,7 +223,7 @@ export async function showProperties(ctx) {
 export const SHORTCUTS = [
   ['Find in the document', 'Ctrl+F'], ['Next / previous match', 'Enter / Shift+Enter'], ['Go to a page', 'Ctrl+G'], ['Next / previous page', 'N / P'],
   ['First / last page', 'Home / End'], ['Zoom in / out', 'Ctrl+= / Ctrl+-'], ['Actual size', 'Ctrl+0'], ['Fit width', 'Ctrl+1'], ['Fit page', 'Ctrl+2'],
-  ['Rotate right / left', 'R / Shift+R'], ['Presentation', 'F'], ['Select text', 'V'], ['Hand', 'H'], ['Highlight', '1'], ['Underline', '2'], ['Strikethrough', '3'],
+  ['Turn right / left', 'R / Shift+R'], ['Presentation', 'F'], ['Select text', 'V'], ['Hand', 'H'], ['Highlight', '1'], ['Underline', '2'], ['Strikethrough', '3'],
   ['Draw', 'D'], ['Text note', 'T'], ['Shapes', 'S'], ['Place a signature', 'G'], ['Undo / redo', 'Ctrl+Z / Ctrl+Y'], ['Delete the selected mark', 'Delete'],
   ['Save a copy', 'Ctrl+S'], ['Print', 'Ctrl+P'], ['Side panel', 'B'], ['This list', '?'],
 ];

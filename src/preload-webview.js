@@ -27,6 +27,16 @@ if (typeof location !== 'undefined' && location.protocol === 'vex-pdf:') {
       onTheme: (fn) => { listeners.push(fn); if (lastTheme) fn(lastTheme); ipcRenderer.sendToHost('pdfview:need-theme'); },
       tell: (what, detail) => ipcRenderer.sendToHost('pdfview:' + String(what).slice(0, 40), detail),
     });
+    // Ctrl+B, Ctrl+H, Ctrl+D and the other keys of Vex's own that the page leaves alone still work here, as in any page
+    // (the same report as the page preload below makes; main/guest-shortcuts.js PAGE_FIRST says which keys count).
+    window.addEventListener('keydown', function (e) {
+      if (!e.isTrusted || !(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
+      const k = String(e.key || '').toLowerCase();
+      if (!/^[a-z0-9]$/.test(k) || (!e.shiftKey && 'acvxyz'.indexOf(k) !== -1)) return;
+      const target = e.target;
+      if (target && target.nodeType === 1 && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      setTimeout(function () { if (!e.defaultPrevented) ipcRenderer.send('guest:page-shortcut', { key: k, shift: !!e.shiftKey }); }, 0);
+    }, false);
   } catch (err) { console.error('[PDF viewer] its bridge could not be made:', err); }
   return;
 }

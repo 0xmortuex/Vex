@@ -645,7 +645,7 @@ define('pdftool:run', [shape({
 // its marks (in the page's own units), the form answers and the turn, and main reads the PDF again through the page's own session.
 // main/pdf-toolkit.js checks every mark again.
 define('pdfview:set-enabled', [boolean]);
-define('pdfview:download pdfview:open-native pdfview:print pdfview:reveal', []);
+define('pdfview:download pdfview:open-native pdfview:print pdfview:reveal pdfview:forget-places', []);
 define('pdfview:save-copy', [shape({
   name: optional(string(200)),
   marks: optional(value => Array.isArray(value) && value.length <= 400 && value.every(object)),

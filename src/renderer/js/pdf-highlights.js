@@ -27,7 +27,10 @@ const VexPdfHighlights = {
   MAX: 1000,
   MAX_TEXT: 2000,
   // Reads the viewer's page box if its frame can be reached. Fixed; it returns a number or null and changes nothing.
-  DETECT_SCRIPT: '(() => { const seen = new Set(); const queue = [document]; let steps = 0;'
+  // Vex's own PDF viewer keeps its page in data-vex-pdf-page on <html> (renderer/pdf-viewer/app.js); Chromium's viewer is searched for its page box.
+  DETECT_SCRIPT: '(() => { const own = document.documentElement && document.documentElement.dataset ? Number(document.documentElement.dataset.vexPdfPage) : 0;'
+    + ' if (Number.isInteger(own) && own > 0) return own;'
+    + ' const seen = new Set(); const queue = [document]; let steps = 0;'
     + ' while (queue.length && steps++ < 400) { const root = queue.shift(); if (seen.has(root)) continue; seen.add(root);'
     + '  const el = root.querySelector ? root.querySelector("#pageSelector") : null; if (el && el.value) { const n = Number(el.value); return Number.isInteger(n) && n > 0 ? n : null; }'
     + '  for (const node of (root.querySelectorAll ? root.querySelectorAll("*") : [])) if (node.shadowRoot) queue.push(node.shadowRoot); }'
@@ -116,7 +119,12 @@ const VexPdfHighlights = {
     if (!wv || !tab) throw new Error('There is no page in front');
     if (window.VexTabPolicy && !window.VexTabPolicy.canRestore(tab)) throw new Error('PDF highlights are off in private and Tor tabs');
     let url = tab.url, title = tab.title;
-    try { url = wv.getURL() || url; title = wv.getTitle() || title; } catch (err) { window.VexProblems?.note('PDF highlights', 'Could not ask the page for its address; using the tab record', err); }
+    try {
+      const shown = wv.getURL() || url;
+      // Vex's own viewer's address stands for the PDF's own (js/webview.js pdfOriginal).
+      url = (typeof WebviewManager !== 'undefined' && WebviewManager.pdfOriginal(shown)) || shown;
+      title = wv.getTitle() || title;
+    } catch (err) { window.VexProblems?.note('PDF highlights', 'Could not ask the page for its address; using the tab record', err); }
     if (!/^(https?|file):\/\//i.test(String(url || ''))) throw new Error('Open a PDF first');
     const why = /^https?:/i.test(url) && typeof VexPageSensitivity !== 'undefined' ? VexPageSensitivity.reason(url) : null;
     if (why) throw new Error(why);
