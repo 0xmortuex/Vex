@@ -52,6 +52,19 @@ const VexI18nUI = {
   // English.
   TABLE: {
     tr: {
+      // --- Video and sound player (js/media-viewer-host.js) ---
+      'Video and sound player': 'Video ve ses oynatıcısı',
+      'Settings for the player that opens your videos and sounds': 'Videolarınızı ve seslerinizi açan oynatıcının ayarları',
+      'Videos and sounds you open as a document, a link to one, a file or a dropped file, play in Vex\'s own player: a seek bar with a preview, speed from 0.25 to 4, a loop for a section, subtitles with size, colour and delay, a picture of the frame, picture in picture, the media keys and a night mode. It reads the file through the tab it is in, so a file behind a sign-in works and a private tab\'s file stays in that tab. Nothing is sent anywhere. Videos inside web pages and protected streaming players are never touched.': 'Belge olarak açtığınız videolar ve sesler (bir bağlantı, bir dosya ya da sürüklediğiniz bir dosya) Vex\'in kendi oynatıcısında çalar: önizlemeli bir arama çubuğu, 0,25 ile 4 arası hız, bir bölümü döngüye alma, boyutu, rengi ve gecikmesi ayarlanabilen altyazı, karenin resmi, resim içinde resim, medya tuşları ve gece kipi. Dosyayı içinde bulunduğu sekme üzerinden okur; böylece oturum gerektiren bir dosya da çalışır ve gizli sekmedeki dosya o sekmede kalır. Hiçbir şey bir yere gönderilmez. Web sayfalarının içindeki videolara ve korumalı yayın oynatıcılarına asla dokunulmaz.',
+      'Play videos and sounds in Vex\'s own player': 'Videoları ve sesleri Vex\'in kendi oynatıcısında çal',
+      'Videos and sounds open in Vex\'s own player': 'Videolar ve sesler Vex\'in kendi oynatıcısında açılıyor',
+      'Videos and sounds open in the browser\'s own player again': 'Videolar ve sesler yine tarayıcının kendi oynatıcısında açılıyor',
+      'Switched off, they open in Chromium\'s bare player as before. The speed you keep for a site and the volume rules (Master Volume, the volume kept for a site) apply in this player as they do on the site itself.': 'Kapatılırsa eskisi gibi Chromium\'un yalın oynatıcısında açılırlar. Bir site için tuttuğunuz hız ve ses kuralları (Ana ses, site için tutulan ses) bu oynatıcıda da sitenin kendisindeki gibi geçerlidir.',
+      'Forget where I stopped': 'Kaldığım yerleri unut',
+      'Vex forgot where you stopped in each file': 'Vex her dosyada nerede kaldığınızı unuttu',
+      'Vex remembers the place in each file and your subtitle look on this computer only. Private and Tor tabs never keep them. They are not synced.': 'Vex her dosyadaki yerinizi ve altyazı görünümünüzü yalnızca bu bilgisayarda hatırlar. Gizli ve Tor sekmeleri bunları asla tutmaz. Eşitlenmezler.',
+      'The window could not do that': 'Pencere bunu yapamadı',
+      'That did not work': 'Bu çalışmadı',
       // --- Document viewer (js/doc-viewer-host.js) ---
       'Document viewer': 'Belge görüntüleyici',
       'Document': 'Belge',

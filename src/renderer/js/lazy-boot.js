@@ -69,6 +69,7 @@ const VexBoot = {
     { src: 'js/pointer-fx.js', usage: ['custom-cursor', 'click-effect'] },
     { src: 'js/update-tour.js', usage: ['whats-new-me'] },
     { src: 'js/media-control.js', usage: ['media-control'] },
+    { src: 'js/media-viewer-host.js', usage: ['media-viewer'] },
     { src: 'js/pdf-highlights.js', usage: ['pdf-highlights'] },
     { src: 'js/pdf-tools-ui.js', usage: ['pdf-tools'] },
     { src: 'js/image-viewer-host.js', usage: ['image-viewer'] },

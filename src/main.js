@@ -181,6 +181,19 @@ ipcMain.handle('tabs:history', (_event, pageId) => {
 // Only a window around the current entry, so a very long history stays small.
 // The page is one of the asking window's own (ipc-policy.js, TARGET_CHANNELS).
 const NAV_LIST_SPAN = 40;
+// Vex's own viewer pages (the PDF viewer, the text, picture, media and office viewers, the folder browser) all stand for the address of what
+// they show in a tab's list: vex-xxx://view/?u=<address>[&m=source]#fragment.
+function _shownAddress(url) {
+  const s = String(url || '');
+  if (/^vex-(?:pdf|doc|image|media|office|files):\/\//i.test(s)) {
+    try {
+      const u = new URL(s);
+      const original = u.searchParams.get('u');
+      if (original) return ((u.searchParams.get('m') === 'source' ? 'view-source:' : '') + original + u.hash).slice(0, 2048);
+    } catch { /* not an address: shown as it is */ }
+  }
+  return s.slice(0, 2048);
+}
 ipcMain.handle('tabs:nav-list', (_event, pageId) => {
   const guest = webContents.fromId(pageId);
   if (!guest || guest.isDestroyed()) return null;
@@ -191,7 +204,7 @@ ipcMain.handle('tabs:nav-list', (_event, pageId) => {
   return {
     index,
     total: all.length,
-    entries: all.slice(from, to).map((entry, k) => ({ at: from + k, url: String(entry.url || '').slice(0, 2048), title: String(entry.title || '').slice(0, 200) })),
+    entries: all.slice(from, to).map((entry, k) => ({ at: from + k, url: _shownAddress(entry.url), title: String(entry.title || '').slice(0, 200) })),
   };
 });
 ipcMain.on('tabs:carry-history', (event, token, partition, list) => {
@@ -2523,10 +2536,47 @@ require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, window
 // The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
 require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), nativeImage });
 
+// Vex's own video and sound player (main/media-viewer.js, pages in src/renderer/media-viewer): a video or sound opened as a document
+// (a link to one, a file, a drop) is shown there instead of in Chromium's bare player. The registry (main/doc-viewers.js) is the one
+// place that turns a main-frame answer into a viewer's page; every session's onHeadersReceived asks it first.
+let _mediaViewerOn = true;
+const _docViewers = require('./main/doc-viewers').createDocViewers({
+  isGuest: (wc) => { try { return !!wc && !wc.isDestroyed() && wc.getType() === 'webview' && !!secureSessions.owner(wc); } catch { return false; } },
+});
+function _mediaViewerLook() {
+  const read = (key) => {
+    const file = getStorageFile(key);
+    if (!fs.existsSync(file)) return null;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return raw?.$vexStore === 1 ? raw.data : raw;
+  };
+  let theme = 'oxford', guiStyle = 'classic';
+  try { const t = read('theme'); if (typeof t === 'string') theme = t; } catch (err) { console.warn('[Media viewer] the saved theme could not be read:', err.message); }
+  try { const g = read('gui-style'); if (typeof g === 'string') guiStyle = g; } catch (err) { console.warn('[Media viewer] the saved look could not be read:', err.message); }
+  return { theme, guiStyle, lang: String(_readPersistString('vex.lang', 'en')) };
+}
+const _mediaViewer = require('./main/media-viewer').createMediaViewer({
+  rendererDir: path.join(__dirname, 'renderer'), docViewers: _docViewers, isEnabled: () => _mediaViewerOn, owner: (contents) => secureSessions.owner(contents),
+  look: _mediaViewerLook,
+});
+require('./main/media-viewer').registerMediaViewerIpc({ ipcMain, viewer: _mediaViewer, shell });
+ipcMain.handle('mediaview:set-enabled', (_e, on) => { _mediaViewerOn = !!on; return { ok: true, on: _mediaViewerOn }; });
+// Where the player remembers each file lives in its own page's storage, in each browsing session: this clears them.
+ipcMain.handle('mediaview:forget-places', async () => {
+  try {
+    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-media://view', storages: ['localstorage'] });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+// A media file dragged onto a page, or a link to one, goes to the player before the request starts.
+app.on('web-contents-created', (_e, contents) => {
+  contents.on('will-navigate', (evt, url) => { if (_mediaViewer.takeFile(contents, url)) evt.preventDefault(); });
+});
+
+
 // Documents Vex shows with a page of its own (main/doc-viewers.js is the shared catch: one registry, one line in each
 // onHeadersReceived handler). The image viewer (main/image-viewer.js, pages in src/renderer/image-viewer) is the first entry;
 // a viewer for another kind of document is one more register() call in its own module.
-const _docViewers = require('./main/doc-viewers').createDocViewers({ owner: (contents) => secureSessions.owner(contents), log: (msg) => console.warn(msg) });
 let _imageViewerOn = true;
 function _imageViewerLook() {
   const read = (key) => {
@@ -7919,6 +7969,8 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'vex-doc', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   // Vex's own image viewer page and the picture it reads (main/image-viewer.js).
   { scheme: 'vex-image', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  // Vex's own video and sound player page and the media it plays (main/media-viewer.js). stream: media elements may play from it.
+  { scheme: 'vex-media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
 
 // Where the window was last time, put on a screen that exists now (src/main/window-placement.js, T2-082).
@@ -8750,6 +8802,9 @@ app.whenReady().then(async () => {
   // While all of Vex goes through one route, a session made later goes
   // through it too (a private window, a container, a panel, a burner).
   secureSessions.onSessionCreated(_coverWithAllRoute);
+  // Vex's own player is served to every session a tab can run in (main/media-viewer.js).
+  secureSessions.onSessionCreated((ses, partition) => _mediaViewer.wireSession(ses, partition));
+  _mediaViewer.wireSession(session.defaultSession, '');
   // Every document viewer serves its own page to every session a tab can run in (main/doc-viewers.js).
   secureSessions.onSessionCreated((ses, partition) => _docViewers.wireSession(ses, partition));
   _docViewers.wireSession(session.defaultSession, '');

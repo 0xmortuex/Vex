@@ -664,6 +664,10 @@ define('pdftool:run', [shape({
   mode: optional(oneOf(['each', 'every', 'ranges'])),
   n: optional(value => Number.isSafeInteger(value) && value >= 1 && value <= 4000),
 })]);
+// Vex's own video and sound player (main/media-viewer.js, pages in src/renderer/media-viewer). The page names no path and sends no media:
+// main works from the address of the page that asks, through the page's own session.
+define('mediaview:set-enabled', [boolean]);
+define('mediaview:siblings mediaview:download mediaview:open-external mediaview:reveal mediaview:forget-places', []);
 // Vex's own viewer for text-like documents (main/text-viewer.js, pages in src/renderer/doc-viewer): the page names no path and sends no bytes;
 // main reads the document again through the page's own session.
 define('docview:set-enabled', [boolean]);

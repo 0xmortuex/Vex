@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="vex-persist" content="0">
+<title>Player</title>
+<link rel="stylesheet" href="/css/theme-tokens.css">
+<link rel="stylesheet" href="/css/theme-extra.css">
+<link rel="stylesheet" href="/app/viewer.css">
+</head>
+<body class="mv" data-kind="video" data-idle="false" data-state="loading">
+<a class="mv-skip" href="#mv-seek" data-i18n="Skip to the controls">Skip to the controls</a>
+
+<main id="mv-stage" class="mv-stage" aria-label="Player" data-i18n-aria="Player">
+  <video id="mv-media" class="mv-media" playsinline preload="auto"></video>
+
+  <section id="mv-audio" class="mv-audio" aria-label="Now playing" data-i18n-aria="Now playing" hidden>
+    <div class="mv-cover" id="mv-cover">
+      <img id="mv-cover-img" class="mv-cover-img" alt="" hidden>
+      <span id="mv-cover-ph" class="mv-cover-ph" data-icon="music" data-icon-size="64" aria-hidden="true"></span>
+    </div>
+    <div class="mv-meta">
+      <h1 id="mv-title" class="mv-title" dir="auto"></h1>
+      <p id="mv-artist" class="mv-artist" dir="auto"></p>
+      <p id="mv-album" class="mv-album" dir="auto"></p>
+    </div>
+    <canvas id="mv-viz" class="mv-viz" aria-hidden="true"></canvas>
+  </section>
+
+  <div id="mv-subs" class="mv-subs" aria-hidden="true"></div>
+  <button id="mv-big" class="mv-big" type="button" data-icon="play" data-icon-size="34" data-i18n-aria="Play" hidden></button>
+
+  <div id="mv-state" class="mv-state" role="alert" hidden>
+    <div class="mv-state-card">
+      <h2 id="mv-state-title" class="mv-state-title"></h2>
+      <p id="mv-state-text" class="mv-state-text"></p>
+      <p id="mv-state-detail" class="mv-state-detail"></p>
+      <div class="mv-state-actions" id="mv-state-actions"></div>
+    </div>
+  </div>
+
+  <div id="mv-notice" class="mv-notice" role="status" hidden>
+    <span id="mv-notice-text"></span>
+    <span id="mv-notice-actions" class="mv-notice-actions"></span>
+    <button id="mv-notice-close" class="mv-btn mv-btn-sm" type="button" data-icon="x" data-icon-size="16" data-i18n-aria="Dismiss" data-i18n-title="Dismiss"></button>
+  </div>
+  <div id="mv-toast" class="mv-toast" role="status" aria-live="polite"></div>
+
+  <div id="mv-controls" class="mv-controls" role="group" aria-label="Player controls" data-i18n-aria="Player controls">
+    <div class="mv-seekrow">
+      <span id="mv-cur" class="mv-time" aria-hidden="true">0:00</span>
+      <div id="mv-seek" class="mv-seek" role="slider" tabindex="0" aria-label="Seek" data-i18n-aria="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00">
+        <div class="mv-seek-track">
+          <div id="mv-buffered" class="mv-seek-buffered"></div>
+          <div id="mv-ab" class="mv-seek-ab" hidden></div>
+          <div id="mv-chapters" class="mv-seek-chapters"></div>
+          <div id="mv-played" class="mv-seek-played"></div>
+          <div id="mv-thumb" class="mv-seek-thumb"></div>
+        </div>
+        <div id="mv-hover" class="mv-hover" hidden><span id="mv-hover-chapter" class="mv-hover-chapter"></span><span id="mv-hover-time"></span></div>
+      </div>
+      <span id="mv-dur" class="mv-time" aria-hidden="true">0:00</span>
+    </div>
+
+    <div class="mv-btnrow">
+      <div class="mv-cluster">
+        <button id="mv-prev" class="mv-btn mv-queue-only" type="button" data-icon="skip-back" data-i18n-title="Previous (P)" data-i18n-aria="Previous" hidden></button>
+        <button id="mv-back" class="mv-btn" type="button" data-icon="rewind" data-i18n-title="Back 10 seconds (J)" data-i18n-aria="Back 10 seconds"></button>
+        <button id="mv-play" class="mv-btn mv-btn-main" type="button" data-icon="play" data-icon-size="22" data-i18n-title="Play (Space)" data-i18n-aria="Play"></button>
+        <button id="mv-fwd" class="mv-btn" type="button" data-icon="fast-forward" data-i18n-title="Forward 10 seconds (L)" data-i18n-aria="Forward 10 seconds"></button>
+        <button id="mv-next" class="mv-btn mv-queue-only" type="button" data-icon="skip" data-i18n-title="Next (N)" data-i18n-aria="Next" hidden></button>
+        <div class="mv-volume">
+          <button id="mv-mute" class="mv-btn" type="button" data-icon="volume" data-i18n-title="Mute (M)" data-i18n-aria="Mute" aria-pressed="false"></button>
+          <input id="mv-vol" class="mv-vol" type="range" min="0" max="100" step="1" value="100" data-i18n-aria="Volume">
+        </div>
+      </div>
+
+      <div class="mv-cluster mv-cluster-end">
+        <button id="mv-shuffle" class="mv-btn mv-queue-only" type="button" data-icon="shuffle" data-i18n-title="Shuffle" data-i18n-aria="Shuffle" aria-pressed="false" hidden></button>
+        <button id="mv-repeat" class="mv-btn mv-queue-only" type="button" data-icon="repeat" data-i18n-title="Repeat: off" data-i18n-aria="Repeat: off" aria-pressed="false" hidden></button>
+        <button id="mv-speed" class="mv-btn mv-btn-text" type="button" aria-haspopup="menu" aria-expanded="false" data-i18n-title="Playback speed (&lt; and &gt;)" data-i18n-aria="Playback speed"><span id="mv-speed-text">1×</span></button>
+        <button id="mv-ab-btn" class="mv-btn mv-opt" type="button" data-icon="ab-loop" aria-pressed="false" data-i18n-title="Loop a section (A)" data-i18n-aria="Loop a section"></button>
+        <button id="mv-step-back" class="mv-btn mv-opt mv-video-only" type="button" data-icon="frame-back" data-i18n-title="Previous frame (,)" data-i18n-aria="Previous frame"></button>
+        <button id="mv-step-fwd" class="mv-btn mv-opt mv-video-only" type="button" data-icon="frame-forward" data-i18n-title="Next frame (.)" data-i18n-aria="Next frame"></button>
+        <button id="mv-subs-btn" class="mv-btn" type="button" data-icon="captions" aria-haspopup="dialog" aria-expanded="false" aria-pressed="false" data-i18n-title="Subtitles (C)" data-i18n-aria="Subtitles"></button>
+        <button id="mv-tracks" class="mv-btn" type="button" data-icon="headphones" aria-haspopup="menu" aria-expanded="false" data-i18n-title="Audio track" data-i18n-aria="Audio track" hidden></button>
+        <button id="mv-night" class="mv-btn mv-opt" type="button" data-icon="moon" aria-pressed="false" data-i18n-title="Night mode: even out loud and quiet sound" data-i18n-aria="Night mode"></button>
+        <button id="mv-shot" class="mv-btn mv-opt mv-video-only" type="button" data-icon="camera" aria-haspopup="menu" aria-expanded="false" data-i18n-title="Picture of this frame (S)" data-i18n-aria="Picture of this frame"></button>
+        <button id="mv-pip" class="mv-btn mv-opt mv-video-only" type="button" data-icon="pip" aria-pressed="false" data-i18n-title="Picture in picture (I)" data-i18n-aria="Picture in picture"></button>
+        <button id="mv-queue-btn" class="mv-btn mv-queue-only" type="button" data-icon="list" aria-pressed="false" aria-controls="mv-queue" data-i18n-title="Queue" data-i18n-aria="Queue" hidden></button>
+        <button id="mv-more" class="mv-btn" type="button" data-icon="more" aria-haspopup="menu" aria-expanded="false" data-i18n-title="More" data-i18n-aria="More"></button>
+        <button id="mv-full" class="mv-btn" type="button" data-icon="maximize" aria-pressed="false" data-i18n-title="Full screen (F)" data-i18n-aria="Full screen"></button>
+      </div>
+    </div>
+  </div>
+
+  <aside id="mv-queue" class="mv-queue" aria-label="Queue" data-i18n-aria="Queue" hidden>
+    <header class="mv-queue-head">
+      <h2 class="mv-queue-title" data-i18n="Queue">Queue</h2>
+      <span id="mv-queue-count" class="mv-queue-count"></span>
+      <button id="mv-queue-close" class="mv-btn mv-btn-sm" type="button" data-icon="x" data-icon-size="16" data-i18n-aria="Close the queue" data-i18n-title="Close the queue"></button>
+    </header>
+    <ol id="mv-queue-list" class="mv-queue-list"></ol>
+  </aside>
+
+  <div id="mv-pop" class="mv-pop-root"></div>
+</main>
+
+<input id="mv-file" type="file" accept=".srt,.vtt,.ass,.ssa,text/vtt" hidden tabindex="-1" aria-hidden="true">
+
+<script src="/icons.js"></script>
+<script type="module" src="/app/app.js"></script>
+</body>
+</html>

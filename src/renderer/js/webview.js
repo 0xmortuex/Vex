@@ -42,6 +42,36 @@ const WebviewManager = {
     window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: address } }));
   },
 
+  // === Vex's own video and sound player (main/media-viewer.js, pages in src/renderer/media-viewer) ===================
+  //
+  // A media file opened as a document is shown by a page of Vex's own at vex-media://view/?u=<the file's address>[#t=30]. The tab, its
+  // address bar, its history, its bookmarks and its reload keep the media's own address: this maps the player's address back, and the
+  // twin in main/media-viewer.js (parseViewerUrl) does the same on the other side (a test holds them equal). A file: media address is
+  // sent to the player here, before anything loads; a web one is caught by main (a redirect, main/doc-viewers.js).
+  // VexMediaViewerOff is set by js/media-viewer-host.js when it is switched off.
+  mediaAddress(url) {
+    const s = String(url || '');
+    if ((typeof window !== 'undefined' && window.VexMediaViewerOff) || !/^file:\/\/[^?#]*\.(?:mp4|m4v|webm|mkv|mov|ogv|mp3|m4a|aac|flac|ogg|oga|opus|wav|weba)(?:[?#]|$)/i.test(s)) return s;
+    const at = s.indexOf('#');
+    return 'vex-media://view/?u=' + encodeURIComponent(at < 0 ? s : s.slice(0, at)) + (at < 0 ? '' : s.slice(at));
+  },
+
+  mediaOriginal(url) {
+    const s = String(url || '');
+    if (!/^vex-media:\/\/view\/(?:\?|#|$)/i.test(s)) return null;
+    let u;
+    try { u = new URL(s); } catch { return null; }
+    const original = u.searchParams.get('u');
+    return original ? original + (u.hash ? u.hash : '') : null;
+  },
+
+  // Whether this webview shows Vex's own video and sound player now.
+  mediaPage(webview) {
+    let url;
+    try { url = webview.getURL(); } catch { return false; }   // not attached yet
+    return !!this.mediaOriginal(url);
+  },
+
   // === Vex's own image viewer (main/image-viewer.js, pages in src/renderer/image-viewer) ==============
   //
   // A picture is shown by a page of Vex's own at vex-image://view/?u=<the picture's address>. The tab, its address bar, its
@@ -200,7 +230,7 @@ const WebviewManager = {
   // viewer's page, anything else is returned as it came. Every load site calls this; a new viewer adds one mapper to the list.
   viewerAddress(url) {
     const s = String(url || '');
-    for (const map of [this.pdfAddress, this.docAddress, this.imageViewerAddress]) {
+    for (const map of [this.pdfAddress, this.docAddress, this.imageViewerAddress, this.mediaAddress]) {
       const to = map.call(this, s);
       if (to !== s) return to;
     }
@@ -210,7 +240,7 @@ const WebviewManager = {
   // The address a Vex viewer page (the PDF viewer, the folder browser, ...) stands for, else null: one place that asks each viewer's
   // mapper, so the address bar, history and bookmarks keep the original and a new viewer adds a single term here.
   viewerOriginal(url) {
-    return this.pdfOriginal(url) || this.docOriginal(url) || this.imageOriginal(url) || this.folderOriginal(url) || null;
+    return this.pdfOriginal(url) || this.docOriginal(url) || this.imageOriginal(url) || this.mediaOriginal(url) || this.folderOriginal(url) || null;
   },
 
   pdfOriginal(url) {
@@ -409,6 +439,8 @@ const WebviewManager = {
     onWebview('did-finish-load', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');
+      // The player needs none of what follows (a page's colour base, zoom per site, dark mode, notification shims).
+      if (this.mediaPage(webview)) return;
       // The document viewer needs none of what follows (a page's colour base, zoom per site, dark mode, notification shims).
       if (this.docPage(webview)) return;
       // The viewer needs none of what follows (a page's colour base, zoom per site, dark mode, notification shims).
@@ -564,6 +596,17 @@ const WebviewManager = {
     });
 
     onWebview('dom-ready', () => {
+      // Vex's own player is not a site: no site's boosts, autofill, highlights or page tools go into it; it is given the theme (by
+      // js/media-viewer-host.js). The site's speakers and speed, and the accessibility pack, still apply, as does the volume (below).
+      if (this.mediaPage(webview)) {
+        const t = TabManager.tabs.find(x => x.id === tab.id);
+        try {
+          if (typeof AudioOutput !== 'undefined' && t && t.url) AudioOutput.apply(webview, t.url);
+          if (typeof PageTools !== 'undefined' && t && t.url) PageTools.applySpeed(webview, t.url);
+          if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.applyTo(webview);
+        } catch (err) { window.VexProblems?.note('Player', 'Could not set up the player page', err); }
+        return;
+      }
       // Vex's own document viewer is not a site: no site's boosts, autofill, highlights or page tools go into it; it is given the theme.
       if (this.docPage(webview)) { this.sendDocTheme(webview); return; }
       // Vex's own PDF viewer is not a site: no site's boosts, autofill, highlights or page tools go into it; it is given the theme.

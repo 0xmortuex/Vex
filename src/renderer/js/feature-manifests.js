@@ -645,6 +645,10 @@
       commands: ['cited-pages'], permissions: { reads: ['the text of a page you cited, to fingerprint it, and again when you open it later'], writes: ['a list of hashes of its longer lines (no text), and a copy in the archive library only when you press Keep a copy'], sends: [] } },
     { id: 'media-control', title: 'Media control', group: 'Media control', maturity: 'new', storageKeys: ['vex.mediaControl.prefs'],
       commands: ['media-control', 'media-only-this-tab'], permissions: { reads: ['which tabs and panels are making sound and the title a player publishes, when you open the list'], writes: ['mutes and pauses players when you press the buttons'], sends: [] } },
+    // Vex's own video and sound player (src/renderer/media-viewer, main/media-viewer.js, js/media-viewer-host.js). It replaces the player a tab
+    // had, so it is on for everyone, an existing profile included; the place it remembers per file lives in the player's own page, not in a vex.* key.
+    { id: 'media-viewer', title: 'Video and sound player', group: 'Video and sound player', tiers: { minimal: true, standard: true }, storageKeys: ['vex.mediaViewer.prefs'],
+      commands: ['media-viewer-settings'], permissions: { reads: ['the video or sound you open as a document, through the tab it is in, with that tab\'s own sign-in'], writes: ['the place in each file and your subtitle look, on this computer only, never from a private or Tor tab', 'a picture of a frame, only when you press Save'], sends: [] } },
     { id: 'phone-share', title: 'Shared from my phone', group: 'Shared from my phone', maturity: 'new', storageKeys: ['vex.phoneShare.prefs', 'vex.phoneShare.items'], usesKeys: ['vex.handoffInbox'],
       commands: ['phone-shares'], permissions: { reads: ['links, text and small pictures your phone sent through Vex Sync'], writes: ['a clip in the Clips inbox, when you press Save or turned on filing; the text and small pictures waiting in the list (20 items, 14 days)'], sends: [] } },
     { id: 'study-notes', title: 'Study notes', group: 'Study notes', maturity: 'new', storageKeys: ['vex.studyNotes.prefs', 'vex.studyQuestions'], usesKeys: ['vex.notes'],

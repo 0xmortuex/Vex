@@ -422,6 +422,9 @@ contextBridge.exposeInMainWorld('vex', {
   pdftoolPickFiles: () => ipcRenderer.invoke('pdftool:pick-files'),
   pdftoolRun: (req) => ipcRenderer.invoke('pdftool:run', req),
   pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
+  // Whether Vex's own video and sound player takes the media a tab opens as a document (main/media-viewer.js; js/media-viewer-host.js).
+  mediaviewSetEnabled: (on) => ipcRenderer.invoke('mediaview:set-enabled', !!on),
+  mediaviewForgetPlaces: () => ipcRenderer.invoke('mediaview:forget-places'),
   pdftoolInspect: (token) => ipcRenderer.invoke('pdftool:inspect', token),
   // Whether Vex's own text viewer takes the JSON, XML, CSV, Markdown, log and source documents a tab meets (main/text-viewer.js; js/doc-viewer-host.js).
   docviewSetEnabled: (on) => ipcRenderer.invoke('docview:set-enabled', !!on),
