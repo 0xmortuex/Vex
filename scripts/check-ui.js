@@ -968,6 +968,9 @@ window.__vexCheckUi = (function () {
         if (fe.matches('input[type=hidden], input[type=file]') || (fe.tagName === 'INPUT' && fe.type === 'checkbox' && fe.closest('.toggle'))) continue;
         if (fe.closest('[aria-hidden="true"]')) continue;
         ringBudget--;
+        // A field that already has the focus (the AI panel focuses its box a moment after it opens) would be read focused both before and after,
+        // and look as if focus changed nothing: take the picture unfocused.
+        if (document.activeElement === fe) { try { fe.blur(); } catch (e) { /* not blurrable: judged as it is */ } }
         var before = getComputedStyle(fe);
         var snap = before.outlineStyle + '|' + before.outlineWidth + '|' + before.outlineColor + '|' + before.boxShadow + '|' + before.borderTopColor + '|' + before.backgroundColor;
         // A field can show its ring on the box that wraps it (the address bar's
