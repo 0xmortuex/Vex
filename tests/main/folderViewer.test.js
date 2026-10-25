@@ -176,6 +176,29 @@ describe('a web page cannot reach the viewer (guard)', () => {
     // a redirect to the viewer is never allowed, from anywhere
     e = evt(); e.url = target; wc.emit('will-redirect', e); expect(e.prevented).toBe(true);
   });
+  it('treats a link in a page of Vex\'s own as the person\'s, and a link in any other page as the page\'s', async () => {
+    const v = makeViewer({ isOwnFile: (u) => /\/renderer\/start\.html$/.test(u) });
+    fs.mkdirSync(path.join(tmp, 'd'));
+    const folder = m.folderAddress(path.join(tmp, 'd'));
+    const ask2 = (wc) => new Promise((resolve) => { if (!v.take({ resourceType: 'mainFrame', url: folder, webContents: wc }, resolve)) resolve('not taken'); });
+    for (const url of ['vex://start', 'file:///C:/app/renderer/start.html']) {
+      const wc = fakeContents({ url });
+      v.guard(wc);
+      const e = evt();
+      wc.emit('will-navigate', e, folder);
+      expect(await ask2(wc), url).toEqual({ redirectURL: m.viewerUrl(folder) });
+    }
+    for (const url of ['file:///C:/local/other.html', 'https://example.com/', 'about:blank']) {
+      const wc = fakeContents({ url });
+      v.guard(wc);
+      wc.emit('will-navigate', evt(), folder);
+      expect(await ask2(wc), url).toBe('not taken');
+    }
+    // and a start page may send the tab to the viewer, which a web page may not
+    const wc = fakeContents({ url: 'vex://start' });
+    v.guard(wc);
+    const e = evt(); wc.emit('will-navigate', e, viewerUrl(tmp)); expect(e.prevented).toBe(false);
+  });
   it('does not let a web page open a file: address in a tab', () => {
     expect(m.mayOpenFileFrom('https://evil.test/')).toBe(false);
     expect(m.mayOpenFileFrom('http://localhost:3000/')).toBe(false);

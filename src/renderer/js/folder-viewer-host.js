@@ -148,6 +148,7 @@ if (typeof window !== 'undefined') {
   // A look is applied a moment after the event that names it.
   window.addEventListener('vex:gui-style', () => setTimeout(pushTheme, 150));
   window.addEventListener('vex:gui-colors', () => setTimeout(pushTheme, 150));
+  window.addEventListener('vex-lang-changed', () => setTimeout(pushTheme, 150));
   if (typeof VexSettingsGroups !== 'undefined') {
     VexSettingsGroups.register({ id: 'folder-browser', title: 'Folder browser', keywords: 'folder browser files explorer directory index list thumbnails recycle bin rename drives this pc', before: 'about', build: (el) => VexFolderViewer.group(el) });
   }

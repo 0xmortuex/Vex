@@ -72,7 +72,7 @@ function parseViewerUrl(url) {
 }
 const isViewerAddress = (url) => /^vex-files:\/\/browse\//i.test(String(url || ''));
 // Which pages may open a file: address in a new tab: a local file and Vex's own pages, never a page from the web.
-const mayOpenFileFrom = (openerUrl) => /^(?:file|vex|vex-files|vex-pdf):/i.test(String(openerUrl || ''));
+const mayOpenFileFrom = (openerUrl) => /^(?:file|vex|vex-files):/i.test(String(openerUrl || ''));
 
 // file: address -> { kind: 'thisPc' } | { kind: 'path', path } | null (not one the browser can show)
 function targetOfFileUrl(fileUrl) {
@@ -119,25 +119,26 @@ const folderAddress = (winPath) => { const u = fileUrlOfPath(winPath); return u.
 // ---- names ---------------------------------------------------------------------------------
 const RESERVED = /^(?:con|prn|aux|nul|com[0-9\u00b9\u00b2\u00b3]|lpt[0-9\u00b9\u00b2\u00b3])(?:\..*)?$/i;
 // An entry that is already in the folder: a leaf, nothing that could name another place.
+const nameError = (message, code) => Object.assign(new Error(message), { code });
 function existingName(name) {
-  if (typeof name !== 'string' || !name || name.length > 255) throw new Error('That is not a file name');
-  if (/[\\/:\u0000-\u001f]/.test(name) || name === '.' || name === '..') throw new Error('That is not a file name');
+  if (typeof name !== 'string' || !name || name.length > 255) throw nameError('That is not a file name', 'VEX_NOTNAME');
+  if (/[\\/:\u0000-\u001f]/.test(name) || name === '.' || name === '..') throw nameError('That is not a file name', 'VEX_NOTNAME');
   return name;
 }
-// A name the person typed for something new or renamed: what Windows itself accepts.
+// A name the person typed for something new or renamed: what Windows itself accepts. The codes are worded by the page (in Turkish too).
 function newName(name) {
-  if (typeof name !== 'string') throw new Error('Type a name');
+  if (typeof name !== 'string') throw nameError('Type a name', 'VEX_NAME_EMPTY');
   const n = name.trim();
-  if (!n) throw new Error('Type a name');
-  if (n.length > 255) throw new Error('That name is too long');
-  if (/[<>:"/\\|?*\u0000-\u001f]/.test(n)) throw new Error('A name cannot contain any of these: \\ / : * ? " < > |');
-  if (n === '.' || n === '..' || /[. ]$/.test(n)) throw new Error('A name cannot end with a dot or a space');
-  if (RESERVED.test(n)) throw new Error('Windows keeps that name for itself');
+  if (!n) throw nameError('Type a name', 'VEX_NAME_EMPTY');
+  if (n.length > 255) throw nameError('That name is too long', 'VEX_NAME_LONG');
+  if (/[<>:"/\\|?*\u0000-\u001f]/.test(n)) throw nameError('A name cannot contain any of these: \\ / : * ? " < > |', 'VEX_NAME_CHARS');
+  if (n === '.' || n === '..' || /[. ]$/.test(n)) throw nameError('A name cannot end with a dot or a space', 'VEX_NAME_DOT');
+  if (RESERVED.test(n)) throw nameError('Windows keeps that name for itself', 'VEX_NAME_RESERVED');
   return n;
 }
 function inside(dir, name) {
   const full = win.join(dir, existingName(name));
-  if (win.dirname(full).replace(/\\$/, '').toLowerCase() !== win.normalize(dir).replace(/\\$/, '').toLowerCase()) throw new Error('That is not a file name');
+  if (win.dirname(full).replace(/\\$/, '').toLowerCase() !== win.normalize(dir).replace(/\\$/, '').toLowerCase()) throw nameError('That is not a file name', 'VEX_NOTNAME');
   return full;
 }
 
@@ -155,6 +156,8 @@ function codeOf(err) {
   if (c === 'EROFS') return 'readonly';
   if (c === 'ENODEV' || c === 'ENXIO' || c === 'EIO' || c === 'UNKNOWN' || c === 'ENETUNREACH' || c === 'ENOTCONN' || c === 'ECONNRESET' || c === 'EHOSTUNREACH' || c === 'ENETDOWN') return 'gone';
   if (c === 'EMFILE' || c === 'ENFILE') return 'toomany';
+  if (c === 'VEX_NOTNAME') return 'notname';
+  if (typeof c === 'string' && c.startsWith('VEX_NAME_')) return 'name-' + c.slice(9).toLowerCase();
   return 'other';
 }
 function withTimeout(promise, ms, what) {
@@ -529,11 +532,13 @@ function createFolderViewer(deps) {
     guarded.add(contents);
     const id = contents.id;
     const showingViewer = () => { try { return !!parseViewerUrl(contents.getURL()); } catch { return false; } };
+    // A page of Vex's own (the New Tab page, the folder page itself) is the person's: a link in it to a folder opens the folder browser.
+    const onVexPage = () => { try { const u = contents.getURL(); return /^(?:vex|vex-files):/i.test(u) || !!(deps.isOwnFile && deps.isOwnFile(u)); } catch { return false; } };
     contents.on('will-navigate', (event, url) => {
       const to = (event && event.url) || url;
-      if (isViewerAddress(to)) { if (!showingViewer()) event.preventDefault(); return; }
+      if (isViewerAddress(to)) { if (!showingViewer() && !onVexPage()) event.preventDefault(); return; }
       const t = /^file:/i.test(String(to || '')) ? targetOfFileUrl(to) : null;
-      if (t) pageNav.set(id, { key: key(id, t.kind === 'path' ? t.path : '/'), at: now() });
+      if (t && !onVexPage()) pageNav.set(id, { key: key(id, t.kind === 'path' ? t.path : '/'), at: now() });
     });
     contents.on('will-redirect', (event, url) => {
       if (isViewerAddress((event && event.url) || url)) event.preventDefault();

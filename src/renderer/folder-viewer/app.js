@@ -3,7 +3,7 @@
 // NAME inside the folder the address names, and going to another folder is a navigation to another address.
 
 import { t, setLang, getLang, applyStatic } from './strings.js';
-import { $, el, icon, iconSpan, decorateIcons, openMenu, closeMenu, menuIsOpen, openDialog, dialogIsOpen, confirmDialog, announce, toast } from './ui.js';
+import { el, icon, iconSpan, decorateIcons, openMenu, menuIsOpen, openDialog, dialogIsOpen, confirmDialog, announce, toast } from './ui.js';
 import { kindOf, canThumb, extOf } from './kinds.js';
 import { formatSize, formatDate, formatNumber, fold, splitName, typedToFileUrl, crumbsOf } from './format.js';
 import { VirtualList } from './vlist.js';
@@ -56,7 +56,14 @@ function explain(r) {
     case 'readonly': return t('This location is read-only.');
     case 'gone': return t('The drive or network location is not available. It may have been disconnected.');
     case 'toomany': return t('Windows has too many files open right now. Try again in a moment.');
-    default: return (r && r.error) || t('That did not work.');
+    case 'notname': return t('That is not a file name.');
+    case 'name-empty': return t('Type a name.');
+    case 'name-long': return t('That name is too long.');
+    case 'name-chars': return t('A name cannot contain any of these: \\ / : * ? " < > |');
+    case 'name-dot': return t('A name cannot end with a dot.');
+    case 'name-reserved': return t('Windows keeps that name for itself.');
+    // What Windows itself says (it speaks the system's language) goes after our own words.
+    default: return r && r.error ? t('That did not work.') + ' (' + r.error + ')' : t('That did not work.');
   }
 }
 
@@ -90,7 +97,7 @@ async function load({ keep } = {}) {
   const mine = ++generation;
   cancelSizes();
   statProgress = 0;
-  setMode('loading');
+  if (!(keep && mode === 'folder')) setMode('loading');   // a refresh leaves the list where it is until the new one is there
   let r;
   try { r = await host.list(); } catch (err) { if (mine === generation) showError({ code: 'other', error: err.message }); return; }
   if (mine !== generation) return;
@@ -165,7 +172,7 @@ function afterStats(final) {
     clearTimeout(resortTimer);
     resortTimer = setTimeout(() => { rebuild({ keepScroll: true }); list.refresh(); }, final ? 0 : 700);
   }
-  if (pane && data.selected.size === 1) pane.soon();
+  if (final && pane && data.selected.size === 1) pane.soon();
 }
 let visibleStatBusy = false;
 async function statVisible(first, last) {
@@ -297,7 +304,11 @@ let thumbTimer = 0;
 function scheduleThumbs(first, last) {
   clearTimeout(thumbTimer);
   thumbTimer = setTimeout(() => {
-    for (let vi = first; vi <= last; vi++) {
+    // Only what is in view now: pictures for rows scrolled past are not worth making. The top of the view is made first.
+    thumbQueue.length = 0;
+    thumbPending.clear();
+    for (const n of thumbRunningNames) thumbPending.add(n);
+    for (let vi = last; vi >= first; vi--) {
       const i = data.view[vi];
       if (i === undefined) continue;
       const e = data.entries[i];
@@ -308,19 +319,20 @@ function scheduleThumbs(first, last) {
     pumpThumbs();
   }, 90);
 }
+const thumbRunningNames = new Set();
 function pumpThumbs() {
   while (thumbRunning < THUMB_PARALLEL && thumbQueue.length) {
-    const name = thumbQueue.pop();   // the newest first: what is on screen now
+    const name = thumbQueue.pop();
     const gen = generation;
     thumbRunning++;
+    thumbRunningNames.add(name);
     host.thumb({ name, size: 256 }).then((r) => {
       if (gen !== generation) return;
-      thumbPending.delete(name);
       if (r.ok) { thumbCache.set(name, r.url); if (thumbCache.size > 700) thumbCache.delete(thumbCache.keys().next().value); }
       else thumbFailed.add(name);
       if (prefs.mode === 'large') for (const [vi, node] of list.nodes) if (node.dataset.name === name) bindItem(node, vi);
-    }).catch((err) => { thumbPending.delete(name); thumbFailed.add(name); console.error('[Folder browser] a picture could not be made:', err); })
-      .finally(() => { thumbRunning--; if (gen === generation) pumpThumbs(); });
+    }).catch((err) => { thumbFailed.add(name); console.error('[Folder browser] a picture could not be made:', err); })
+      .finally(() => { thumbRunning--; thumbRunningNames.delete(name); thumbPending.delete(name); if (gen === generation) pumpThumbs(); });
   }
 }
 
@@ -887,7 +899,6 @@ function showError(r) {
   setMode('error');
   const code = r.code;
   const title = code === 'denied' ? t('Vex cannot open this folder') : code === 'missing' ? t('This folder is not there') : code === 'gone' || code === 'timeout' ? t('This location is not answering') : t('This folder could not be opened');
-  const up = folder && folder.parentUrl;
   const box = el('div', { class: 'fv-card bad' }, iconSpan('warning', 40), el('h1', { text: title }), el('p', { text: explain(r) }), el('p', { class: 'fv-path-note', dir: 'ltr', text: decodeUrlPath(PAGE_URL_PARAM) }));
   const actions = el('div', { class: 'fv-actions' });
   actions.append(el('button', { class: 'fv-btn-text primary', type: 'button', text: t('Try again'), onclick: () => load() }));
