@@ -1271,13 +1271,15 @@ function settingsLayouts(full) {
 // no block has moved for 300ms, at most 3s, and judge what the person is left
 // looking at. A layout that never settles, or settles wrong, is still flagged.
 // While the sections draw, the placement is held (SettingsUI.holdLayout) and nothing moves, however long a slow machine takes: that is not settled.
+// Nor is a menu that is not yet what the layout choice calls for (SettingsUI._menuIsStale): the app places again a frame later, and a slow runner can
+// be more than the 300 ms of stillness late. If it never catches up, the 30 s limit ends the wait and the wrong menu is flagged.
 async function settleSettingsLayout(cdp) {
-  const sig = "Array.from(document.querySelectorAll('#panel-settings .settings-content > *')).map(e => { const r = e.getBoundingClientRect(); return Math.round(r.left) + ':' + Math.round(r.top) + ':' + Math.round(r.height); }).join() + '|' + (SettingsUI._held || 0) + (SettingsUI._owed ? 'o' : '')";
+  const sig = "Array.from(document.querySelectorAll('#panel-settings .settings-content > *')).map(e => { const r = e.getBoundingClientRect(); return Math.round(r.left) + ':' + Math.round(r.top) + ':' + Math.round(r.height); }).join() + '|' + (SettingsUI._held || 0) + (SettingsUI._owed ? 'o' : '') + (SettingsUI._menuIsStale && SettingsUI._menuIsStale(document.querySelector('#panel-settings .settings-content')) ? 's' : '')";
   const until = Date.now() + 30000;
   let last = null, same = 0;
   while (Date.now() < until && same < 3) {
     const now = await evaluate(cdp, sig);
-    same = now === last && /|0$/.test(now) ? same + 1 : 0;
+    same = now === last && /\|0$/.test(now) ? same + 1 : 0;
     last = now;
     await sleep(100);
   }
