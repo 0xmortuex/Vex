@@ -20,10 +20,10 @@ const OWNS_FIND = [
 
 // Vex's own viewer for office documents and e-books (main/office-viewer.js) has a find of its own, over the words it drew, and its own
 // zoom / text size: Ctrl+F and Ctrl+= / Ctrl+- / Ctrl+0 are the viewer's while it has the focus.
-function isDocViewerUrl(url) { return /^vex-doc:\/\/view\//i.test(String(url || '')); }
+function isOfficeViewerUrl(url) { return /^vex-office:\/\/view\//i.test(String(url || '')); }
 
 function guestOwnsFind(url) {
-  if (isDocViewerUrl(url)) return true;
+  if (isOfficeViewerUrl(url)) return true;
   try {
     const { hostname, protocol } = new URL(url);
     if (protocol !== 'https:') return false;
@@ -58,5 +58,5 @@ function handFindToPage(webview) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { guestOwnsFind, handFindToPage, isDocViewerUrl, OWNS_FIND };
+  module.exports = { guestOwnsFind, handFindToPage, isOfficeViewerUrl, OWNS_FIND };
 }

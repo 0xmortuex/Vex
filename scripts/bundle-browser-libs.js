@@ -17,7 +17,7 @@ async function run() {
     // onnxruntime-web is MIT (its package.json); the package ships no LICENSE file.
     ['onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm','ort-wasm-simd-threaded.asyncify.wasm'],
   ]) await fs.copyFile(path.join(root, 'node_modules', source), path.join(dest, name));
-  // The office-document viewer's unzip (src/renderer/office-viewer, served by main/office-viewer.js as vex-doc://view/lib/...): fflate, MIT.
+  // The office-document viewer's unzip (src/renderer/office-viewer, served by main/office-viewer.js as vex-office://view/lib/...): fflate, MIT.
   // The browser build is one plain script the viewer's worker loads with importScripts. Its own folder, so the viewer's page can reach only this.
   const officeTo = path.join(dest, 'office');
   await fs.rm(officeTo, { recursive: true, force: true });

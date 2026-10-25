@@ -424,8 +424,8 @@ contextBridge.exposeInMainWorld('vex', {
   pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
   pdftoolInspect: (token) => ipcRenderer.invoke('pdftool:inspect', token),
   // Vex's own viewer for office documents and e-books (main/office-viewer.js; js/office-viewer-host.js): its switches, and forgetting where books were left.
-  docviewSetOptions: (opts) => ipcRenderer.invoke('docview:set-options', opts),
-  docviewForgetBooks: () => ipcRenderer.invoke('docview:forget-books'),
+  officeviewSetOptions: (opts) => ipcRenderer.invoke('officeview:set-options', opts),
+  officeviewForgetBooks: () => ipcRenderer.invoke('officeview:forget-books'),
 
   // Developer desk, plugin dev loop, Electron ticker (main/dev-desk.js, dev-extension.js, castlabs-ticker.js)
   devdeskPorts: (ports) => ipcRenderer.invoke('devdesk:ports', ports),

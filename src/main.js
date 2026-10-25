@@ -684,7 +684,7 @@ app.on('web-contents-created', (_e, contents) => {
 // page holding both: DOM text 1 match, canvas text 0 matches. Those apps ship
 // their own find, so swallowing Ctrl+F there replaced a working search with a
 // find bar guaranteed to report nothing. Let the key reach the page instead.
-const { guestOwnsFind, isDocViewerUrl } = require('./main/find-policy');
+const { guestOwnsFind, isOfficeViewerUrl } = require('./main/find-policy');
 // The sessions ordinary browsing happens in: the default one plus the
 // containers. Routing, and anything else that must cover "all of Vex",
 // works through this list.
@@ -755,7 +755,7 @@ function handleBrowserShortcut(event, input, contents) {
   if (!win) return false;
   let url;
   try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
-  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), ownsZoom: isDocViewerUrl(url), wanted: _guestWantedKeys }), contents.id);
+  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), ownsZoom: isOfficeViewerUrl(url), wanted: _guestWantedKeys }), contents.id);
   if (!hit) return false;
   win.webContents.send(hit.channel, ...(hit.args || []));
   event.preventDefault();
@@ -2545,11 +2545,11 @@ require('./main/office-viewer').registerOfficeViewerIpc({
   windowFor: (e) => (secureSessions.owner(e.sender) || {}).win || null,
   downloadsDir: () => app.getPath('downloads'), tempDir: () => app.getPath('temp'),
 });
-ipcMain.handle('docview:set-options', (_e, opts) => { _officeViewerOn = !!(opts && opts.enabled); _officeViewerAttachments = !!(opts && opts.attachments); return { ok: true, enabled: _officeViewerOn, attachments: _officeViewerAttachments }; });
+ipcMain.handle('officeview:set-options', (_e, opts) => { _officeViewerOn = !!(opts && opts.enabled); _officeViewerAttachments = !!(opts && opts.attachments); return { ok: true, enabled: _officeViewerOn, attachments: _officeViewerAttachments }; });
 // The place a book was left at, and a book's highlights, live in the viewer's own page storage, in each browsing session: this clears them.
-ipcMain.handle('docview:forget-books', async () => {
+ipcMain.handle('officeview:forget-books', async () => {
   try {
-    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-doc://view', storages: ['localstorage'] });
+    for (const partition of BROWSING_SESSIONS) await secureSessions.fromPartition(partition).clearStorageData({ origin: 'vex-office://view', storages: ['localstorage'] });
     return { ok: true };
   } catch (err) { return { ok: false, error: err.message }; }
 });
@@ -7794,7 +7794,7 @@ app.on('before-quit', () => {
 protocol.registerSchemesAsPrivileged([
   { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   // Vex's own viewer for office documents and e-books, and the file it reads (main/office-viewer.js).
-  { scheme: 'vex-doc', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: 'vex-office', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 // Where the window was last time, put on a screen that exists now (src/main/window-placement.js, T2-082).

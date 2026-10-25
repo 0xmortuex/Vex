@@ -28,8 +28,8 @@ const VexOfficeViewer = {
 
   // Main is what catches a document, so it is told.
   apply() {
-    if (window.vex && typeof window.vex.docviewSetOptions === 'function') {
-      window.vex.docviewSetOptions({ enabled: this.enabled(), attachments: this.attachments() }).catch((err) => console.error('[OfficeViewer] main could not be told:', err && err.message));
+    if (window.vex && typeof window.vex.officeviewSetOptions === 'function') {
+      window.vex.officeviewSetOptions({ enabled: this.enabled(), attachments: this.attachments() }).catch((err) => console.error('[OfficeViewer] main could not be told:', err && err.message));
     }
   },
 
@@ -61,8 +61,8 @@ const VexOfficeViewer = {
     el.appendChild(G.note('Off by default: a "Download" button on a site saves the file, as the site intends. Turn it on if you would rather read those files first.'));
     el.appendChild(G.button('Forget where I stopped in books', async () => {
       try {
-        if (!window.vex || typeof window.vex.docviewForgetBooks !== 'function') throw new Error('This window cannot do that');
-        const r = await window.vex.docviewForgetBooks();
+        if (!window.vex || typeof window.vex.officeviewForgetBooks !== 'function') throw new Error('This window cannot do that');
+        const r = await window.vex.officeviewForgetBooks();
         if (!r || !r.ok) throw new Error((r && r.error) || 'It did not work');
         window.showToast?.('Vex forgot where you stopped in each book, and your highlights', 'success');
       } catch (err) { window.showToast?.(err.message, 'error'); }

@@ -643,8 +643,8 @@ define('pdftool:run', [shape({
 })]);
 // Vex's own viewer for office documents and e-books (main/office-viewer.js). The page names no path and no address: main knows which file the
 // asking page shows. The switches come from the interface.
-define('docview:download docview:open-external docview:print docview:forget-books', []);
-define('docview:set-options', [shape({ enabled: boolean, attachments: boolean })]);
+define('officeview:download officeview:open-external officeview:print officeview:forget-books', []);
+define('officeview:set-options', [shape({ enabled: boolean, attachments: boolean })]);
 define('fx:tcmb', []);
 // Community and chat tools (main/comms-tools.js). The webhook address goes in once and never comes back;
 // a post is one text of at most 2000 characters. The bridge channels take no arguments: main reads one fixed file.

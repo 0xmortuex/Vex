@@ -8,19 +8,19 @@
 // How a file gets there:
 //   * A web address whose answer is one of these types (and is not marked "attachment") is caught in the session's
 //     onHeadersReceived by the viewer registry (main/doc-viewers.js take) and turned into a redirect to
-//     vex-doc://view/?u=<the file's address> , so the tab makes one ordinary navigation.
+//     vex-office://view/?u=<the file's address> , so the tab makes one ordinary navigation.
 //   * A file: address that Chromium turned into a download (it cannot show these) is caught in will-download and sent to the viewer;
 //     a link click to one is caught in will-navigate. (registry.takeDownload / takeNavigation)
 //   * The viewer page is served by this module (protocol.handle on every session). The file is fetched through
-//     vex-doc://view/doc?u=... , which main answers with session.fetch of THE SAME SESSION the tab runs in: a file behind a login uses
+//     vex-office://view/doc?u=... , which main answers with session.fetch of THE SAME SESSION the tab runs in: a file behind a login uses
 //     the tab's own cookies; a private or Tor tab's file goes through that tab's own session and proxy; nothing is ever fetched
 //     through another session.
 //   * The tab keeps showing the file's own address: renderer/js/webview.js maps the viewer address back before the address bar,
 //     history, bookmarks and reload see it.
 //   * "Download instead" lets exactly one answer for that address through (registry.allowOnce).
 //
-// The page may use only what is served here (CSP: its own origin; no network of its own). Only a page on vex-doc://view/ may call
-// the docview:* channels, and each call re-checks that. Nothing in a document is run or fetched; macros are never touched.
+// The page may use only what is served here (CSP: its own origin; no network of its own). Only a page on vex-office://view/ may call
+// the officeview:* channels, and each call re-checks that. Nothing in a document is run or fetched; macros are never touched.
 
 const nodeFs = require('fs');
 const nodeOs = require('os');
@@ -29,7 +29,7 @@ const crypto = require('crypto');
 const { Readable } = require('stream');
 const { fileURLToPath } = require('url');
 
-const SCHEME = 'vex-doc';
+const SCHEME = 'vex-office';
 const HOST = 'view';
 const FILE_LIMIT = 80 * 1024 * 1024;    // the same ceiling the page applies (office-viewer/zipinfo.js LIMITS.fileBytes)
 
@@ -241,7 +241,7 @@ function registerOfficeViewerIpc(opts) {
     return p;
   }
 
-  ipcMain.handle('docview:download', async (event) => {
+  ipcMain.handle('officeview:download', async (event) => {
     try {
       const src = viewerSource(event);
       if (isOfficeFileUrl(src.original)) {
@@ -263,7 +263,7 @@ function registerOfficeViewerIpc(opts) {
     } catch (err) { return { ok: false, error: err.message }; }
   });
 
-  ipcMain.handle('docview:open-external', async (event) => {
+  ipcMain.handle('officeview:open-external', async (event) => {
     try {
       const src = viewerSource(event);
       if (!opts.shell) throw new Error('Opening a file is not available here');
@@ -298,7 +298,7 @@ function registerOfficeViewerIpc(opts) {
     } catch (err) { return { ok: false, error: err.message }; }
   });
 
-  ipcMain.handle('docview:print', async (event) => {
+  ipcMain.handle('officeview:print', async (event) => {
     try {
       viewerSource(event);
       return await new Promise((resolve) => {

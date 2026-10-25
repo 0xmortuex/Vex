@@ -6,9 +6,9 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   // A page's userscripts (userscripts-preload.js): main judges the tab and the
   // frame's own address; a refused tab is simply given none.
   'userscripts:page', 'userscripts:gm',
-  // Vex's own viewer for office documents and e-books (vex-doc://view/, main/office-viewer.js): downloading the original, opening it with Windows,
+  // Vex's own viewer for office documents and e-books (vex-office://view/, main/office-viewer.js): downloading the original, opening it with Windows,
   // printing. Each handler checks that the asking frame is that page.
-  'docview:download', 'docview:open-external', 'docview:print']);
+  'officeview:download', 'officeview:open-external', 'officeview:print']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
@@ -79,7 +79,7 @@ const UI_ONLY_CHANNELS = new Set([
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
   'sources:resolve-doi', 'sources:resolve-id', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
   // The document viewer's switches (main/office-viewer.js): the interface tells main, never a page.
-  'docview:set-options', 'docview:forget-books',
+  'officeview:set-options', 'officeview:forget-books',
   // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
   'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send', 'comms:bridge-status', 'comms:bridge-pick', 'comms:bridge-read', 'comms:bridge-forget', 'comms:status-write',
   // The local-service launcher and the webhook inspector: starting programs and opening a port are Vex's own window only.

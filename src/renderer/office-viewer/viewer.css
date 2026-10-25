@@ -220,7 +220,7 @@ body.od {
 .od-paper { box-sizing: border-box; color: var(--od-text); }
 .od-paper[data-mode="flow"] { max-width: 82ch; margin: 0 auto; padding: 32px 28px 96px; }
 .od-paper[data-mode="page"] { width: min(var(--od-page-w, 794px), calc(100% - 32px)); margin: 24px auto 48px; padding: var(--od-page-pad, 72px); background: #fff; color: #14161a; box-shadow: 0 2px 14px var(--od-shadow); }
-.od-docview:has(.od-paper[data-mode="page"]) .od-scroller { background: var(--od-bg); }
+.od-officeview:has(.od-paper[data-mode="page"]) .od-scroller { background: var(--od-bg); }
 .od-paper[data-mode="page"] :is(a) { color: #0b4fa8; }
 
 .od-doc { font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }

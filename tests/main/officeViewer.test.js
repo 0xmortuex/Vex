@@ -47,25 +47,25 @@ describe('the viewer address', () => {
   it('round-trips the file address and a fragment', () => {
     const u = 'https://example.org/a b/ö.docx?x=1&y=2';
     const v = ov.viewerUrl(u, '');
-    expect(v.startsWith('vex-doc://view/?u=')).toBe(true);
+    expect(v.startsWith('vex-office://view/?u=')).toBe(true);
     expect(ov.parseViewerUrl(v)).toEqual({ original: u, hash: '' });
     expect(ov.parseViewerUrl(ov.viewerUrl(u + '#page=2'))).toEqual({ original: u, hash: 'page=2' });
-    expect(ov.parseViewerUrl('vex-doc://view/doc?u=' + encodeURIComponent(u))).toBeNull();     // the file route is not the viewer page
+    expect(ov.parseViewerUrl('vex-office://view/doc?u=' + encodeURIComponent(u))).toBeNull();     // the file route is not the viewer page
     expect(ov.parseViewerUrl('https://example.org/')).toBeNull();
-    expect(ov.parseViewerUrl('vex-doc://view/')).toBeNull();
+    expect(ov.parseViewerUrl('vex-office://view/')).toBeNull();
   });
   it('is mapped back by the window the same way (the twin in js/webview.js)', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'renderer', 'js', 'webview.js'), 'utf8');
-    const m = /docOriginal\(url\) \{([\s\S]*?)\n  \},/.exec(src);
+    const m = /officeOriginal\(url\) \{([\s\S]*?)\n  \},/.exec(src);
     expect(m).toBeTruthy();
-    const docOriginal = new Function('url', m[1]);
+    const officeOriginal = new Function('url', m[1]);
     for (const u of ['https://example.org/a.docx', 'https://example.org/a b/ö.docx?x=1&y=2', 'file:///C:/Users/a/Homework%20one.docx', 'https://example.org/a.docx#frag']) {
       const v = ov.viewerUrl(u);
-      expect(docOriginal(v), u).toBe(u);
+      expect(officeOriginal(v), u).toBe(u);
       expect(ov.parseViewerUrl(v).original + (ov.parseViewerUrl(v).hash ? '#' + ov.parseViewerUrl(v).hash : '')).toBe(u);
     }
-    expect(docOriginal('https://example.org/')).toBeNull();
-    expect(docOriginal('vex-doc://view/doc?u=x')).toBeNull();
+    expect(officeOriginal('https://example.org/')).toBeNull();
+    expect(officeOriginal('vex-office://view/doc?u=x')).toBeNull();
   });
 });
 
@@ -160,7 +160,7 @@ describe('what the viewer page may do', () => {
     viewer = ov.createOfficeViewer({ rendererDir: path.join(__dirname, '..', '..', 'src', 'renderer'), registry, look: () => ({ theme: 'midnight', guiStyle: 'firefox', lang: 'tr' }) });
   });
   afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
-  const get = async (p, partition) => viewer.makeHandler({ fetch: async () => { throw new Error('no network in this test'); } }, partition)({ url: 'vex-doc://view' + p, headers: new Headers() });
+  const get = async (p, partition) => viewer.makeHandler({ fetch: async () => { throw new Error('no network in this test'); } }, partition)({ url: 'vex-office://view' + p, headers: new Headers() });
 
   it('serves the page with the look and the language already in it, and stores nothing for a private tab', async () => {
     const r = await get('/?u=' + encodeURIComponent('https://example.org/a.docx'), 'persist:main');
@@ -199,7 +199,7 @@ describe('what the viewer page may do', () => {
   it('fetches a web file through the session it was given, and says plainly when that fails', async () => {
     let asked = null;
     const ses = { fetch: async (u, o) => { asked = { u, o }; return new Response(fx.docx(), { status: 200, headers: { 'content-type': DOCX } }); } };
-    const r = await viewer.makeHandler(ses, 'persist:main')({ url: 'vex-doc://view/doc?u=' + encodeURIComponent('https://example.org/a.docx'), headers: new Headers() });
+    const r = await viewer.makeHandler(ses, 'persist:main')({ url: 'vex-office://view/doc?u=' + encodeURIComponent('https://example.org/a.docx'), headers: new Headers() });
     expect(r.status).toBe(200);
     expect(r.headers.get('content-type')).toBe(DOCX);
     expect(asked.u).toBe('https://example.org/a.docx');
@@ -229,19 +229,19 @@ describe('what the page may ask main to do', () => {
 
   it('answers only the viewer page itself, never a frame inside it or another page', async () => {
     const { handlers, eventFrom } = setup();
-    for (const name of ['docview:download', 'docview:open-external', 'docview:print']) {
+    for (const name of ['officeview:download', 'officeview:open-external', 'officeview:print']) {
       expect((await handlers.get(name)(eventFrom('https://evil.example/'))).ok, name).toBe(false);
       expect((await handlers.get(name)({ senderFrame: { url: viewerFor('https://example.org/a.docx'), parent: {} }, sender: {} })).ok, name).toBe(false);
-      expect((await handlers.get(name)(eventFrom('vex-doc://view/doc?u=x'))).ok, name).toBe(false);
+      expect((await handlers.get(name)(eventFrom('vex-office://view/doc?u=x'))).ok, name).toBe(false);
     }
   });
   it('downloads a web file through the tab, letting exactly that answer through the viewer', async () => {
     const { handlers, calls, eventFrom } = setup();
-    const r = await handlers.get('docview:download')(eventFrom(viewerFor('https://example.org/a.docx')));
+    const r = await handlers.get('officeview:download')(eventFrom(viewerFor('https://example.org/a.docx')));
     expect(r).toMatchObject({ ok: true, viaDownloads: true });
     expect(calls.allowed).toEqual([[7, 'https://example.org/a.docx']]);
     expect(calls.downloaded).toEqual(['https://example.org/a.docx']);
-    expect((await handlers.get('docview:download')(eventFrom(viewerFor('ftp://example.org/a.docx')))).ok).toBe(false);
+    expect((await handlers.get('officeview:download')(eventFrom(viewerFor('ftp://example.org/a.docx')))).ok).toBe(false);
   });
   it('copies a local file to where the person picks, never over itself', async () => {
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-office-copy-'));
@@ -250,16 +250,16 @@ describe('what the page may ask main to do', () => {
     const url = viewerFor(require('node:url').pathToFileURL(src).href);
     // the person closes the dialog
     let t = setup({ dir: base });
-    expect((await t.handlers.get('docview:download')(t.eventFrom(url))).cancelled).toBe(true);
+    expect((await t.handlers.get('officeview:download')(t.eventFrom(url))).cancelled).toBe(true);
     // the person picks another name: a copy, and the original is as it was
     const target = path.join(base, 'copy.docx');
     t = setup({ dir: base, pick: target });
-    expect((await t.handlers.get('docview:download')(t.eventFrom(url))).ok).toBe(true);
+    expect((await t.handlers.get('officeview:download')(t.eventFrom(url))).ok).toBe(true);
     expect(fs.statSync(target).size).toBe(fs.statSync(src).size);
     expect(fs.readdirSync(base).some((f) => f.endsWith('.vex-tmp'))).toBe(false);
     // the person picks the file being read
     t = setup({ dir: base, pick: src });
-    const bad = await t.handlers.get('docview:download')(t.eventFrom(url));
+    const bad = await t.handlers.get('officeview:download')(t.eventFrom(url));
     expect(bad.ok).toBe(false);
     expect(bad.error).toMatch(/file you are reading/);
     fs.rmSync(base, { recursive: true, force: true });
@@ -268,9 +268,9 @@ describe('what the page may ask main to do', () => {
     const t = setup();
     const src = path.join(t.dir, 'Odev.docx');
     fs.writeFileSync(src, fx.docx());
-    expect((await t.handlers.get('docview:open-external')(t.eventFrom(viewerFor(require('node:url').pathToFileURL(src).href)))).ok).toBe(true);
+    expect((await t.handlers.get('officeview:open-external')(t.eventFrom(viewerFor(require('node:url').pathToFileURL(src).href)))).ok).toBe(true);
     expect(t.calls.opened).toEqual([src]);
-    const r = await t.handlers.get('docview:open-external')(t.eventFrom(viewerFor('https://example.org/files/Rapor.docx')));
+    const r = await t.handlers.get('officeview:open-external')(t.eventFrom(viewerFor('https://example.org/files/Rapor.docx')));
     expect(r.ok).toBe(true);
     const copy = t.calls.opened[1];
     expect(path.dirname(copy)).toMatch(/vex-open-[0-9a-f]{12}$/);
@@ -278,11 +278,11 @@ describe('what the page may ask main to do', () => {
     expect(fs.existsSync(copy)).toBe(true);
     if (process.platform === 'win32') expect(fs.readFileSync(copy + ':Zone.Identifier', 'utf8')).toMatch(/ZoneId=3/);
     // not a document: refused before anything is written
-    const bad = await t.handlers.get('docview:open-external')(t.eventFrom(viewerFor('https://example.org/files/run.exe')));
+    const bad = await t.handlers.get('officeview:open-external')(t.eventFrom(viewerFor('https://example.org/files/run.exe')));
     expect(bad.ok).toBe(false);
     const failing = setup({ openError: 'No application is associated' });
     fs.writeFileSync(path.join(failing.dir, 'x.docx'), fx.docx());
-    const f = await failing.handlers.get('docview:open-external')(failing.eventFrom(viewerFor(require('node:url').pathToFileURL(path.join(failing.dir, 'x.docx')).href)));
+    const f = await failing.handlers.get('officeview:open-external')(failing.eventFrom(viewerFor(require('node:url').pathToFileURL(path.join(failing.dir, 'x.docx')).href)));
     expect(f).toEqual({ ok: false, error: 'No application is associated' });
   });
   it('sweeps old copies it made and nothing else', () => {
@@ -301,7 +301,7 @@ describe('what the page may ask main to do', () => {
 describe('the channels it uses are in the policy', () => {
   it('lists the page channels as guest channels and the switches as the window\'s only', () => {
     const policy = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'main', 'ipc-policy.js'), 'utf8');
-    for (const name of ['docview:download', 'docview:open-external', 'docview:print']) expect(policy).toMatch(new RegExp("GUEST_CHANNELS[\\s\\S]{0,1800}'" + name + "'"));
-    for (const name of ['docview:set-options', 'docview:forget-books']) expect(policy).toContain("'" + name + "'");
+    for (const name of ['officeview:download', 'officeview:open-external', 'officeview:print']) expect(policy).toMatch(new RegExp("GUEST_CHANNELS[\\s\\S]{0,1800}'" + name + "'"));
+    for (const name of ['officeview:set-options', 'officeview:forget-books']) expect(policy).toContain("'" + name + "'");
   });
 });
