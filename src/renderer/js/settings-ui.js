@@ -262,13 +262,18 @@ const SettingsUI = {
     const q = (query || '').trim().toLowerCase();
     const groups = Array.from(root.querySelectorAll('.setting-group'));
     let any = false;
+    // Ranked: the section whose name, keywords or labels fit the query best comes first, not the first one that happens to hold the word
+    // ("update" opened Privacy Hardening, 2026-10-26). English words find sections drawn in Turkish and the other way round (js/smart-search.js).
+    const ranked = q ? this._rankGroups(groups, query) : null;
     groups.forEach(g => {
-      const match = !q || ((g.textContent || '') + ' ' + (g.dataset.keywords || '')).toLowerCase().includes(q);
+      const match = !q || ranked.get(g) > 0;
       g.style.display = match ? '' : 'none';
       if (match) any = true;
     });
+    const byOrder = (a, b) => Number(a.dataset.ord) - Number(b.dataset.ord);
+    this._putInOrder(root, groups, ranked ? (a, b) => (ranked.get(b) - ranked.get(a)) || byOrder(a, b) : byOrder);
     const nav = (root.parentElement || root).querySelector('.set-nav');
-    if (nav) nav.style.display = q ? 'none' : '';
+    if (nav) this._resultsInNav(nav, root, groups, ranked);
     root.querySelectorAll(':scope > .set-subnav').forEach(row => { row.style.display = q ? 'none' : ''; });
     // While searching, Simple mode hides nothing: the advanced sections that
     // match are in the results (css/simple-mode.css marks them Advanced).
@@ -292,6 +297,104 @@ const SettingsUI = {
     } else if (empty) { empty.style.display = 'none'; }
     // The results, and the empty note, get their place in the columns.
     this._layout(root);
+  },
+
+  // ---- searching: ranking, order and the result list ------------------------------------------
+  // The short texts of a section: its labels, buttons and the choices of its menus.
+  LABEL_SELECTOR: '.setting-label, .setting-toggle-row > span, label, summary, legend, h3, h4, button, option',
+  _searchIndex: new WeakMap(),
+  // What a search reads of one section, in the order of importance (names, keywords, labels, the rest), kept while the section stays as it is.
+  _indexOf(g, S) {
+    const sig = (g.textContent || '').length;
+    let idx = this._searchIndex.get(g);
+    if (idx && idx.sig === sig && idx.kw === g.dataset.keywords) return idx;
+    const labelEl = g.querySelector('.setting-label');
+    const english = labelEl && typeof VexI18nUI !== 'undefined' ? VexI18nUI.english(labelEl) : '';
+    const shown = labelEl ? labelEl.textContent : '';
+    const head = [...S.cachedWords(english), ...S.cachedWords(shown)];
+    const labels = new Set();
+    g.querySelectorAll(this.LABEL_SELECTOR).forEach((el) => {
+      const t = (el.textContent || '').trim();
+      if (!t || t.length > 110) return;
+      for (const w of S.cachedWords(t)) labels.add(w);
+    });
+    idx = { sig, kw: g.dataset.keywords, fields: [
+      { words: head, weight: 1 },
+      { words: S.words(g.dataset.keywords || ''), weight: 0.85 },
+      { words: Array.from(labels), weight: 0.6 },
+      { words: S.words((g.textContent || '').slice(0, 20000)), weight: 0.25 },
+    ] };
+    this._searchIndex.set(g, idx);
+    return idx;
+  },
+  // section -> how well it fits the query (0: not at all). Without js/smart-search.js, or for what it does not understand (an address, a number),
+  // the old test stands: the query appears somewhere in the section's text.
+  _rankGroups(groups, query) {
+    const out = new Map();
+    const S = typeof VexSmartSearch !== 'undefined' ? VexSmartSearch : null;
+    const parsed = S ? S.parse(query) : null;
+    const q = String(query || '').trim().toLowerCase();
+    for (const g of groups) {
+      let score = 0;
+      if (parsed) {
+        try { score = S.scoreFields(parsed, this._indexOf(g, S).fields); }
+        catch (err) { console.warn('[Settings] a section could not be ranked:', err && err.message); }
+      }
+      if (!score && ((g.textContent || '') + ' ' + (g.dataset.keywords || '')).toLowerCase().includes(q)) score = 5;
+      out.set(g, score);
+    }
+    return out;
+  },
+  // The sections in the order `cmp` says, each in a place a section already was: whatever sits between them (the rows of small chips, the
+  // Show advanced button) stays where it is.
+  _putInOrder(root, groups, cmp) {
+    const top = groups.filter(g => g.parentElement === root);
+    if (top.length < 2) return false;
+    const kids = Array.from(root.children);
+    const slots = [];
+    kids.forEach((el, i) => { if (top.includes(el)) slots.push(i); });
+    const ordered = top.slice().sort(cmp);
+    const next = kids.slice();
+    slots.forEach((slot, k) => { next[slot] = ordered[k]; });
+    if (next.every((el, i) => el === kids[i])) return false;
+    const frag = document.createDocumentFragment();
+    next.forEach(el => frag.appendChild(el));
+    root.appendChild(frag);
+    return true;
+  },
+  // While something is searched for, the list on the left is the results, best first (it was hidden, which left it empty); the categories
+  // come back when the box is cleared.
+  _resultsInNav(nav, root, groups, ranked) {
+    if (!ranked) {
+      if (nav._saved) { nav.replaceChildren(...nav._saved); nav._saved = null; }
+      nav.removeAttribute('data-results');
+      nav.setAttribute('aria-label', 'Settings categories');
+      nav.style.display = '';
+      return;
+    }
+    if (!nav._saved) nav._saved = Array.from(nav.childNodes);
+    nav.dataset.results = '1';
+    nav.setAttribute('aria-label', 'Search results');
+    const byOrder = (a, b) => Number(a.dataset.ord) - Number(b.dataset.ord);
+    const hits = groups.filter(g => ranked.get(g) > 0).sort((a, b) => (ranked.get(b) - ranked.get(a)) || byOrder(a, b)).slice(0, 14);
+    const chips = hits.map((g) => {
+      const labelEl = g.querySelector('.setting-label');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'set-nav-chip set-result-chip';
+      b.style.setProperty('--chip-color', g.style.getPropertyValue('--cat-color') || 'var(--primary)');
+      const span = document.createElement('span');
+      span.textContent = ((labelEl && labelEl.textContent) || '').trim() || 'Settings';
+      b.appendChild(span);
+      b.addEventListener('click', () => {
+        g.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        g.classList.add('set-hit');
+        setTimeout(() => g.classList.remove('set-hit'), 1600);
+      });
+      return b;
+    });
+    nav.replaceChildren(...chips);
+    nav.style.display = chips.length ? '' : 'none';
   },
 
   // The pickers that live in Settings but open as their own screens, because
@@ -424,8 +527,11 @@ const SettingsUI = {
       search = toolbar.querySelector('.set-search');
     }
     nav.innerHTML = '';
+    nav._saved = null; nav.removeAttribute('data-results');
     root.querySelectorAll(':scope > .set-subnav').forEach(row => row.remove());
     this._orderGroups(root, groups);
+    // Where each section sits when nothing is searched for: a search moves the best match to the top and the order comes back from this.
+    groups.forEach((g, i) => { g.dataset.ord = String(i); });
     const seen = new Set();
     const rows = {};   // group name -> { row, chip, names } for its row of sub-chips
 

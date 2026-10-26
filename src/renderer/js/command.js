@@ -1043,6 +1043,12 @@ const CommandBar = {
       }
       if (ok) score = 30;
     }
+    // Every word of the query, in either language, with synonyms, plurals and a slip of the keys (js/smart-search.js): what the tiers above
+    // do not catch. They stay first, so an exact name still wins.
+    if (score < 60 && q.length >= 2 && typeof VexSmartSearch !== 'undefined') {
+      const s = VexSmartSearch.score(query, { name: c.label, keywords: c.keywords || '', hint: typeof c.hint === 'string' ? c.hint : '' });
+      if (s) score = Math.max(score, 36 + Math.round(s * 0.32));
+    }
     return score;
   },
 
@@ -1061,6 +1067,10 @@ const CommandBar = {
       if (name.startsWith(q)) score = 92;
       else if (name.split(/\s+/).some(w => w.startsWith(q))) score = 80;
       else if (Toolbox._matches(t, q)) score = 55;   // description, keywords, family
+      else if (typeof VexSmartSearch !== 'undefined') {
+        const s = VexSmartSearch.score(query, { name: t.name, keywords: (t.keywords || []).join(' '), hint: t.desc || '' });
+        if (s) score = 40 + Math.round(s * 0.14);
+      }
       if (!score) continue;
       scored.push({ score, r: {
         id: 'tool:' + t.id,
@@ -1175,8 +1185,19 @@ const CommandBar = {
   _featureResults(q, alreadyFound) {
     if (!q || q.length < 2 || typeof VexFeatures === 'undefined') return [];
     let hits = [];
-    try { hits = VexFeatures.search(q) || []; }
+    try { hits = (VexFeatures.search(q) || []).slice(); }
     catch (err) { console.warn('[Command] the feature search failed:', err.message); return []; }
+    // One word typed: its synonyms and its other-language forms are searched too ("güncelleme" finds what "update" finds).
+    if (typeof VexSmartSearch !== 'undefined') {
+      try {
+        const parsed = VexSmartSearch.parse(q);
+        if (parsed && parsed.tokens.length === 1) {
+          for (const v of parsed.tokens[0].variants.slice(1, 6)) {
+            for (const f of VexFeatures.search(v) || []) if (!hits.includes(f)) hits.push(f);
+          }
+        }
+      } catch (err) { console.warn('[Command] the synonym feature search failed:', err.message); }
+    }
     const have = new Set((alreadyFound || []).map(c => c.id));
     return hits
       .filter(f => !f.cmd || !have.has(f.cmd))
@@ -1185,7 +1206,8 @@ const CommandBar = {
         const keywords = _tr().fold(f.phrases || '').split(/\s+/);
         const keywordMatch = words.every(word => keywords.some(key => key.startsWith(word)));
         const nameScore = this._scoreCommand(q, { id: f.id, label: VexFeatures.nameOf(f), hint: f.phrases || f.what || '' });
-        return { f, score: Math.max(nameScore, keywordMatch ? 80 : 40) };
+        const smart = typeof VexSmartSearch !== 'undefined' ? VexSmartSearch.score(q, { name: VexFeatures.nameOf(f), keywords: f.phrases || '', hint: f.what || '' }) : 0;
+        return { f, score: Math.max(nameScore, keywordMatch ? 80 : 40, smart ? 40 + Math.round(smart * 0.4) : 0) };
       })
       .sort((a, b) => b.score - a.score)
       .slice(0, this.FEATURE_HITS)

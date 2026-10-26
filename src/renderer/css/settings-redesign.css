@@ -560,3 +560,12 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search-row {
   inset: -2px;
   cursor: pointer;
 }
+
+/* The section a search result took you to, for a moment. */
+.settings-content .setting-group.set-hit {
+  box-shadow: 0 0 0 2px var(--primary), 0 0 0 7px color-mix(in srgb, var(--primary) 22%, transparent);
+  transition: box-shadow .25s ease;
+}
+/* While something is searched for, the left list holds the results: long names are cut, not wrapped. */
+.set-nav[data-results] .set-result-chip { max-width: 100%; min-width: 0; }
+.set-nav[data-results] .set-result-chip span { overflow: hidden; text-overflow: ellipsis; }

@@ -80,6 +80,8 @@ const VexBoot = {
     { src: 'js/pdf-viewer-host.js', usage: ['pdf-viewer'] },
     { src: 'js/reading-aids-lists.js', usage: [] },
     { src: 'js/turkish-lemma.js', usage: [] },
+    // The search shared by Ctrl+K and Settings (both guard its global, so a search before it is here is the plain one).
+    { src: 'js/smart-search.js', usage: [] },
     { src: 'js/reading-aids.js', usage: ['reading-aids'] },
     { src: 'js/page-chrome.js', usage: [] },
     // Quick look at a finished download (Space in the Downloads panel): drawn only when asked for; the panel guards its global.

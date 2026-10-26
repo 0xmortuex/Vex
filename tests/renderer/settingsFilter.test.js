@@ -23,13 +23,15 @@ describe('SettingsUI._filter', () => {
   let root;
   beforeEach(() => { root = buildRoot(); });
 
-  it('shows only groups matching the query and hides the chip nav', () => {
+  it('shows only groups matching the query, and the list on the left holds the results (it was hidden, which left it empty)', () => {
     SettingsUI._filter(root, 'fingerprint');
     const groups = root.querySelectorAll('.setting-group');
     expect(groups[0].style.display).toBe('');       // Privacy matches
     expect(groups[1].style.display).toBe('none');    // AI Memory hidden
     expect(groups[2].style.display).toBe('none');    // Sessions hidden
-    expect(root.querySelector('.set-nav').style.display).toBe('none');
+    const nav = root.querySelector('.set-nav');
+    expect(nav.style.display).toBe('');
+    expect(Array.from(nav.querySelectorAll('.set-result-chip')).map(b => b.textContent)).toEqual(['Privacy Hardening']);
   });
 
   it('restores everything and the nav when the query is cleared', () => {
@@ -60,7 +62,8 @@ describe('SettingsUI._filter', () => {
 
   it('matches case-insensitively against the group label', () => {
     SettingsUI._filter(root, 'MEMORY');
-    const groups = root.querySelectorAll('.setting-group');
-    expect(groups[1].style.display).toBe(''); // AI Memory matches
+    // The matching section moves to the top, so it is found by its label, not by where it was.
+    const memory = Array.from(root.querySelectorAll('.setting-group')).find(g => g.textContent.includes('AI Memory'));
+    expect(memory.style.display).toBe(''); // AI Memory matches
   });
 });
