@@ -13,7 +13,7 @@
 
 /* The offer after a payment */
 .vex-card-offer {
-  position: fixed; right: 16px; bottom: 16px; z-index: 95000; width: 330px; box-sizing: border-box;
+  position: fixed; right: 16px; top: 84px; z-index: 95000; width: 330px; box-sizing: border-box;
   background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
   box-shadow: 0 18px 50px var(--vex-shadow-color, rgba(0, 0, 0, 0.4));
 }
