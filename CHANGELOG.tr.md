@@ -2,6 +2,27 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
+## v41.59.4 (2026-10-26) — Ödeme kartları, iki dilde daha akıllı Ctrl+K ve Ayarlar araması, ve artık kaybolmayan arayüz sesleri
+
+### Yeni
+- **Ödeme kartları.** Bir sitede ödeme yaptıktan sonra Vex “Bu kart kaydedilsin mi?” diye sorar ve numarayı, adı ve son kullanma tarihini saklar. Başka bir ödeme sayfasında kart numarası kutusuna tıklayıp altındaki küçük listeden bir kart seçin: numara, ad ve son kullanma tarihi dolar, imleç güvenlik kodu kutusuna geçer. Güvenlik kodu (CVV) asla okunmaz, kaydedilmez ya da gönderilmez: kart ağlarının gerektirdiği gibi her ödemede siz yazarsınız. Kartlar Windows tarafından şifrelenen tek bir dosyada, yalnızca bu bilgisayarda tutulur; asla eşitlenmez, özel, Tor ya da yönlendirilen sekmelerde ve düz http sayfalarında kullanılmaz, Vex Kilidi de bunları kapsar. Deneyin: Herhangi bir mağazada ödeme yapın, Vex sorunca Kaydet’e basın, sonra başka bir ödeme sayfası açıp kart numarası kutusuna tıklayın. (feature: payment-cards)
+- **Kartları elle ekleyin ve Vex’in tanımadığı formlarda kullanın.** Ayarlar > Ödeme kartları ve Ctrl+K > Ödeme kartları kart ekler, düzenler ve siler. Vex’in tanımadığı bir ödeme sayfasında (çoğu kutularını başka bir sitenin çerçevesinde tutar) kutuya tıklayıp Numarayı yaz, Adı yaz veya Son kullanmayı yaz’a basın; Numarayı kopyala numarayı panoda yalnızca 30 saniye tutar. Bir kutuya sağ tıklayıp “Kayıtlı bir kartı doldur…” seçeneğini de kullanabilirsiniz. Deneyin: Ctrl+K’ya basın, “Ödeme kartları”nı çalıştırın, Kart ekle’ye tıklayın. (feature: payment-cards)
+- **Ctrl+K ve Ayarlar araması iki dili ve ne demek istediğinizi anlar.** İngilizce ya da Türkçe yazın, aynı sonuçları alın; eş anlamlılar (“upgrade” güncellemeleri, “gizlilik” Privacy’yi bulur), çoğullar, ekler ve kayan bir tuş (“bookmrks”) çalışır; yazdığınız her kelime bulunmalıdır. Ayarlar artık bölümleri sıralar (önce ad, sonra anahtar kelimeler, etiketler ve metin), eşleşmeleri solda boş bırakmak yerine liste olarak gösterir ve “update” yazınca Gizlilik Sıkılaştırma yerine Vex’i güncellemeyle ilgili bölümleri öne çıkarır. Deneyin: Ayarlar’ı açıp “update”, sonra “güncelleme” yazın.
+- **Arayüz seslerinde stil, ton ve düğme basma tıkı var.** Ayarlar > Sesler artık beş stil (Yumuşak, Mekanik, Baloncuk, Atari, Cam), ses düzeyinin yanında bir ton kaydırıcısı, düğmelere basarken tık için bir anahtar, her ses için Dinle düğmesi ve bir sıfırlama sunar. Deneyin: Ayarlar’ı açın, Sesler’i bulun, Mekanik’i seçin ve adres çubuğuna yazın. (feature: ui-sounds)
+
+### Değişti
+- Evrensel Form Doldurma metni artık kartların asla saklanmadığını söylemiyor: profili hâlâ kart bilgisi içermez, kayıtlı kartlar ayrı bir özelliktir.
+
+### Düzeltildi
+- **Tık sesi artık kaybolmuyor.** Bir web sayfasının üzerinde bırakılan fare düğmesi Vex’in onu hâlâ basılı sanmasına yol açıyordu, bir sayfa klavye odağındayken yazma tıkı reddediliyordu ve Vex açıldıktan sonraki ilk ses henüz çalışmayan bir saate göre planlanıyordu. Üçü de düzeltildi.
+- **Yeni Sekme sayfasının arama kutusuna yazmak artık adres çubuğu gibi tıklar.** Sayfa kendi çerçevesinde yaşadığı için Vex’in kendi tuş dinleyicisi onu hiç duymuyordu.
+- **Bir araç anahtar kelimelerini tek bir metin olarak verdiğinde Ctrl+K artık tüm araç sonuçlarını düşürmüyor** (gerçek uygulamada bulundu: “join is not a function”).
+
+### Denetlendi
+- Kart akışı gerçek uygulamada gerçek fare ve klavye girdisiyle sınandı: kaydetme, şifreli dosya, seçici, doldurma, tanınmayan bir sayfaya yazma ve Ayarlar. 25 denetimin 25’i geçti.
+- Sesler gerçek uygulamada sınandı: adres çubuğuna ve Yeni Sekme arama kutusuna yazma, sayfa üzerinde bırakılan bir düğme, beş stilin hepsi ve Ayarlar grubu. 14’ün 14’ü geçti.
+- 18.081 testin tamamı Node 22’de geçti; kaynak denetimi, lint, tipler, duman testi ve arayüz denetimi (1.633 saniye, temiz) de geçti.
+
 ## v41.19.3 (2026-10-25) — Vex’in kendi görüntüleyicileri (PDF, resim, video ve ses, belge, klasör), akıllı karanlık mod, yazdırma önizlemesi ve Vex Eklenti Mağazası
 
 ### Yeni

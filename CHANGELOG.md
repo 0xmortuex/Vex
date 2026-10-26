@@ -1,5 +1,26 @@
 # Changelog
 
+## v41.59.4 (2026-10-26) — Payment cards, a smarter Ctrl+K and Settings search in both languages, and interface sounds that no longer go missing
+
+### New
+- **Payment cards.** After you pay on a site, Vex asks "Save this card?" and keeps the number, the name and the expiry. On another payment page, click the card number box and pick a card from the small list under it: the number, name and expiry are filled and the cursor moves to the security code box. The security code (CVV) is never read, saved or sent: you type it at each payment, as card networks require. Cards are kept in one file encrypted by Windows, on this PC only, never synced, never used in private, Tor or routed tabs or on plain http pages, and covered by Lock Vex. Try: Pay on any shop, press Save when Vex asks, then open another payment page and click the card number box. (feature: payment-cards)
+- **Add cards by hand, and use them where Vex does not recognise the form.** Settings > Payment cards and Ctrl+K > Payment cards add, edit and delete cards. On a checkout Vex did not recognise (many keep their boxes inside another site's frame), click the box and press Type number, Type name or Type expiry; Copy number keeps the number on the clipboard for 30 seconds only. Right-click a box and choose "Fill a saved card…". Try: Press Ctrl+K, run "Payment cards", click Add a card. (feature: payment-cards)
+- **Ctrl+K and the Settings search understand both languages, and what you mean.** Type in English or Turkish and get the same results; synonyms ("upgrade" finds updates, "gizlilik" finds Privacy), plurals, endings and a slipped key ("bookmrks") all work, and every word you type must be found. Settings now ranks its sections (the name first, then keywords, labels and the text), shows the matches as a list on the left instead of leaving it empty, and "update" now puts the sections about updating Vex first, not Privacy Hardening. Try: Open Settings and type "update", then type "güncelleme".
+- **Interface sounds have a style, a pitch and a button-press click.** Settings > Sounds now offers five styles (Soft, Mechanical, Bubble, Arcade, Glass), a pitch slider next to the volume, a switch for clicks on button presses, a Hear button for each sound, and a reset. Try: Open Settings, find Sounds, pick Mechanical and type in the address bar. (feature: ui-sounds)
+
+### Changed
+- The Universal Form Fill text no longer says cards are never stored: its profile still holds no card details, and saved cards are a separate feature.
+
+### Fixed
+- **The click sound no longer goes missing.** A mouse button released over a web page left Vex believing it was still held, the typing click was refused whenever a page held the keyboard focus, and the first sound after Vex started was scheduled on a clock that was not running yet. All three are fixed.
+- **Typing in the New Tab page's search box now clicks like the address bar does.** The page lives in its own frame, so Vex's own key listener never heard it.
+- **Ctrl+K no longer drops every tool result when a tool lists its keywords as one string** (found in the real app: "join is not a function").
+
+### Checked
+- The card flow was driven in the real app with real mouse and keyboard input: save, the encrypted file, the chooser, the fill, typing into an unrecognised page and Settings. 25 of 25 checks passed.
+- The sounds were driven in the real app: typing in the address bar and in the New Tab search box, a button released over a page, all five styles and the Settings group. 14 of 14 passed.
+- All 18,081 tests pass under Node 22, with the source check, lint, types, the smoke test and the UI check (1,633 seconds, clean).
+
 ## v41.19.3 (2026-10-25) — Vex's own viewers for PDFs, pictures, video and sound, documents and folders, a smart dark mode, a print preview, and the Vex Extension Store
 
 ### New
