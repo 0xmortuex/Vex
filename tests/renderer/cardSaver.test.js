@@ -255,6 +255,22 @@ describe('the manager', () => {
   });
 });
 
+describe('the overlay layers', () => {
+  it('every card overlay uses a layer VexLayer knows (found in the real app 2026-10-26: "modal" is not one, the manager drew empty)', async () => {
+    const TIERS = ['chrome', 'panel', 'dialog', 'menu', 'toast', 'system'];
+    window.VexLayer = { track: (el, o) => { if (!TIERS.includes(o.tier)) throw new Error('Unknown overlay tier "' + o.tier + '"'); } };
+    try {
+      const wv = makeWebview(); VexCards.attach(wv);
+      message(wv, 'vex-card-submit', submitted); await settle();
+      expect(document.getElementById('vex-card-offer')).toBeTruthy();
+      message(wv, 'vex-card-want', { id: 'a', host: 'shop.example', kind: 'num' }); await settle();
+      expect(document.getElementById('vex-card-chooser')).toBeTruthy();
+      await VexCards.openManager(wv, {});
+      expect(document.querySelector('.vex-cards-dialog').children.length).toBeGreaterThan(0);
+    } finally { delete window.VexLayer; }
+  });
+});
+
 describe('Settings > Payment cards', () => {
   it('says how many cards, never syncs them, and holds the offer switch', async () => {
     const box = document.createElement('div');

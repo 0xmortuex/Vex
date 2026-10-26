@@ -288,7 +288,7 @@ const VexCards = {
     dlg.setAttribute('aria-label', this._t('cardTitle', 'Payment cards'));
     overlay.appendChild(dlg);
     document.body.appendChild(overlay);
-    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'modal', id: 'cards-dialog', keep: true });
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'cards-dialog', keep: true });
     const close = () => { document.removeEventListener('keydown', onKey, true); overlay.remove(); const box = document.getElementById('cards-panel-content'); if (box) this.renderPanel(box).catch((err) => console.error('[Cards] panel:', err)); };
     const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } };
     document.addEventListener('keydown', onKey, true);
