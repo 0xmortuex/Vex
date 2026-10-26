@@ -203,14 +203,14 @@ describe('the AI sections share one chip', () => {
     for (const l of AI_LABELS) expect(byLabel[l].querySelector('.set-emoji svg')).toBeTruthy();
   });
 
-  it('the search still finds each AI section, and hides both rows of chips while it does', () => {
+  it('the search still finds each AI section; the sub-chip row is hidden and the list on the left holds the results (2026-10-26)', () => {
     for (const [q, want] of [['mcp', 'MCP Servers'], ['skills', 'AI Skills'], ['persona', 'AI Personas'], ['webgpu', 'On-Device AI (WebGPU)']]) {
       SettingsUI._filter(root, q);
       const shown = sections().filter(g => g.style.display !== 'none').map(labelOf);
       expect(shown).toContain(want);
       // The names on the row of chips never make another section match.
       expect(shown).not.toContain('AI Backend');
-      expect(panel.querySelector('.set-nav').style.display).toBe('none');
+      expect(panel.querySelector('.set-nav').querySelector('.set-result-chip')).toBeTruthy();
       expect(root.querySelector('.set-subnav').style.display).toBe('none');
     }
     SettingsUI._filter(root, '');
