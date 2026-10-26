@@ -620,6 +620,7 @@ const SidebarManager = {
       ['boosts-panel-content', () => { if (typeof VexBoosts !== 'undefined') return VexBoosts.renderPanel(el('boosts-panel-content')); }],
       ['userscripts-panel-content', () => { if (typeof VexUserscripts !== 'undefined') return VexUserscripts.renderPanel(el('userscripts-panel-content')); }],
       ['passwords-panel-content', () => { if (typeof PasswordVault !== 'undefined') return PasswordVault.renderPanel(el('passwords-panel-content')); }],
+      ['cards-panel-content', () => { if (typeof VexCards !== 'undefined') return VexCards.renderPanel(el('cards-panel-content')); }],
       ['pagewatch-panel-content', () => { if (typeof PageWatchUI !== 'undefined') return PageWatchUI.renderSettings(el('pagewatch-panel-content')); }],
       ['ainews-panel-content', () => { if (typeof AINewsUI !== 'undefined') return AINewsUI.renderSettings(el('ainews-panel-content')); }],
       ['brief-panel-content', () => { if (typeof VexBrief !== 'undefined') return VexBrief.renderSettings(el('brief-panel-content')); }],
@@ -780,6 +781,7 @@ const SidebarManager = {
     // the Spotify panel never offered to save and never autofilled (the
     // vault was only wired in WebviewManager.createWebview for tabs).
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(wv);
+    if (typeof VexCards !== 'undefined') VexCards.attach(wv);
     // Passkeys: the list under a field marked autocomplete="webauthn".
     if (window.PasskeyUI) window.PasskeyUI.attach(wv);
     // Apply the saved Master Volume level to this panel's media (Spotify,

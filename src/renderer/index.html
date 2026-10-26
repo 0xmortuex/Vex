@@ -68,6 +68,7 @@
   <link rel="stylesheet" href="css/settings-redesign.css">
 <link rel="stylesheet" href="css/userscripts.css">
   <link rel="stylesheet" href="css/peek.css">
+  <link rel="stylesheet" href="css/cards.css">
   <link rel="stylesheet" href="css/extras.css">
   <link rel="stylesheet" href="css/read-aloud.css">
   <link rel="stylesheet" href="css/tabs-nav.css">
@@ -1224,6 +1225,14 @@
               <label class="setting-label">Passwords</label>
               <div id="passwords-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading passwords...</div>
+              </div>
+            </div>
+
+            <!-- Payment cards — encrypted like the vault, this device only, no CVV kept (js/card-saver.js) -->
+            <div class="setting-group" id="settings-cards">
+              <label class="setting-label">Payment cards</label>
+              <div id="cards-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading cards...</div>
               </div>
             </div>
 

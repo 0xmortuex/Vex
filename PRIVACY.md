@@ -24,7 +24,7 @@ When you set up Sync or cloud AI, your data goes to the server whose address you
 
 Vex keeps your profile in `%APPDATA%\Vex`. Extra profiles you create live in `%APPDATA%\Vex Profiles\<profile id>`. Nothing in these folders is sent anywhere unless a feature below sends it.
 
-**Encrypted with Windows (DPAPI, through Electron safeStorage):** saved passwords (`vault.dat`), authenticator (2FA) secrets (`totp.dat`), mail account logins (`mail-accounts.enc`), the cloud AI access token (`ai-token.enc`), the tokens of MCP servers you add (`mcp-auth.enc`), and **passkeys** (`passkeys.dat`, the private keys Vex makes when a site asks you to create a passkey, see "Passkeys" below), and the Sync key and Sync sign-in details. Vex refuses to save these if Windows encryption is not available. Anyone who can sign in to your Windows account can still open them, the same as in Chrome or Edge.
+**Encrypted with Windows (DPAPI, through Electron safeStorage):** saved passwords (`vault.dat`), saved payment cards (`cards.dat`: the number, name and expiry you chose to keep; the security code (CVV) is never saved, and cards are never synced or sent anywhere), authenticator (2FA) secrets (`totp.dat`), mail account logins (`mail-accounts.enc`), the cloud AI access token (`ai-token.enc`), the tokens of MCP servers you add (`mcp-auth.enc`), and **passkeys** (`passkeys.dat`, the private keys Vex makes when a site asks you to create a passkey, see "Passkeys" below), and the Sync key and Sync sign-in details. Vex refuses to save these if Windows encryption is not available. Anyone who can sign in to your Windows account can still open them, the same as in Chrome or Edge.
 
 **Stored as ordinary files (not encrypted):**
 

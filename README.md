@@ -209,7 +209,8 @@ Features that don't exist in other browsers — built by combining Vex's own sta
 - **🎯 Focus Flows** (`Ctrl+K`) — named, composable work modes: one click opens a tab set, switches to a persona, dims the UI, and blocks distracting sites.
 - **🎧 Read‑Later as Podcast** (`Ctrl+K`) — hands‑free: Vex reads your saved articles aloud as an auto‑advancing playlist with spoken intros.
 - **🎨 AI Restyle** (`Ctrl+K`) — describe a look ("match my dark theme", "declutter", "make it Notion‑like") and the AI writes CSS to restyle the current site, saved as a per‑site Boost.
-- **🧾 Universal Form Fill** (`Ctrl+K → Fill This Form`) — one saved profile (name/email/phone/address) fills any signup or checkout form (never card numbers).
+- **🧾 Universal Form Fill** (`Ctrl+K → Fill This Form`) — one saved profile (name/email/phone/address) fills any signup or checkout form. The profile holds no card details.
+- **💳 Payment cards** (`Ctrl+K → Payment cards`) — Vex offers to save a card after you pay, then offers it on other payment pages; add cards by hand, and type or copy one into a page Vex did not recognise. Encrypted by Windows, this PC only, never synced, and the security code (CVV) is never saved.
 - **📝 Sticky Notes per page** (`Ctrl+K`) — a freeform note pinned to a specific URL, reappearing when you return.
 - **🔗 Linked split‑scroll** (`Ctrl+K`) — in split screen, scroll one pane and the others follow proportionally.
 

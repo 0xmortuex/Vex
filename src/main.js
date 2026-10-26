@@ -2525,6 +2525,8 @@ ipcMain.handle('vex-lock:verify', async (e, pin) => {
 });
 const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing, load: _vaultLoad, save: _vaultSave } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked,
   dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), breachCheckOn: () => _readPersistString('vex.breachCheck', false) === true, onChange: () => _syncSecretsChanged() });
+// Saved payment cards (main/cards.js): encrypted like the vault, this device only, no CVV kept.
+const { flushCards } = require('./main/cards').createCardService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
 // A copied password or one-time code, cleared after 30 s by the main process
 // even when Vex no longer has the focus (main/secret-clipboard.js).
 require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard, app });
@@ -9261,7 +9263,7 @@ ipcMain.handle('storage-save', async (_event, key, data) => {
   return written;
 });
 ipcMain.handle('storage-load', (_event, key) => dataStore.read(key));
-ipcMain.handle('storage:flush', async () => { await _userscripts.flush(); await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallFlush(); await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushPermissions(); return true; });
+ipcMain.handle('storage:flush', async () => { await _userscripts.flush(); await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallFlush(); await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushCards(); await flushPermissions(); return true; });
 ipcMain.handle('browsing:clear-data', async () => {
   await dataStore.flush(); await preferences.flush();
   _protect.signout.noteAction('clear-all');

@@ -506,6 +506,13 @@ contextBridge.exposeInMainWorld('vex', {
   feedbackSend: (url, payload) => ipcRenderer.invoke('feedback:send', url, payload),
 
   // Password vault (safeStorage-encrypted in main)
+  // Saved payment cards (main/cards.js): no CVV is kept; the full number comes only from cardsReveal.
+  cardsList: () => ipcRenderer.invoke('cards:list'),
+  cardsReveal: (id) => ipcRenderer.invoke('cards:reveal', id),
+  cardsHas: (number) => ipcRenderer.invoke('cards:has', number),
+  cardsSave: (entry) => ipcRenderer.invoke('cards:save', entry),
+  cardsUpdate: (entry) => ipcRenderer.invoke('cards:update', entry),
+  cardsDelete: (id) => ipcRenderer.invoke('cards:delete', id),
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),
   vaultHealth: () => ipcRenderer.invoke('vault:health'),

@@ -554,6 +554,13 @@ define('kb:keep-out-clear kb:forget', []);
 define('vault:save', [shape({ host: string(253), username: string(4096), password: string(16384), note: optional(string(4096)) })]);
 define('vault:update', [shape({ host: string(253), username: string(4096), newUsername: string(4096), password: optional(string(16384)), note: optional(string(4096)) })]);
 define('vault:export-csv vault:breach-check', []);
+// Saved payment cards (main/cards.js). A month or year may be typed or picked, so a short string or a number; main checks the values.
+const cardPart = value => (typeof value === 'number' && Number.isFinite(value)) || (typeof value === 'string' && value.length <= 16);
+define('cards:list', []);
+define('cards:reveal cards:delete', [string(64)]);
+define('cards:has', [string(64)]);
+define('cards:save', [shape({ number: string(64), name: optional(string(200)), nickname: optional(string(100)), expMonth: cardPart, expYear: optional(cardPart) })]);
+define('cards:update', [shape({ id: string(64), name: optional(string(200)), nickname: optional(string(100)), expMonth: optional(cardPart), expYear: optional(cardPart) })]);
 define('totp:import-migration', [string(65536)]);
 define('totp:export-backup totp:import-backup', [string(1024)]);
 define('totp:rename', [string(256), string(4096), string(4096)]);

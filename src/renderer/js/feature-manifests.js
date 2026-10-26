@@ -159,6 +159,10 @@
     // Interface sounds (js/ui-sounds.js): on for everyone from the start, with its own switches in Settings > Sounds. Not staged: it is feedback, not an extra.
     { id: 'ui-sounds', title: 'Interface sounds', group: 'Sounds', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.uiSounds.master', 'vex.uiSounds.typing', 'vex.uiSounds.hover', 'vex.uiSounds.tabs', 'vex.uiSounds.press', 'vex.uiSounds.volume', 'vex.uiSounds.style', 'vex.uiSounds.pitch'], usesKeys: ['vex.sounds.hours', 'vex.fun.quiet'],
       permissions: { reads: ['its own switches and the quiet hours of the sound packs'], writes: ['its own switches, volume, style and pitch'], sends: [] } },
+    // Saved payment cards (js/card-saver.js, main/cards.js). The cards themselves are in the encrypted file cards.dat, not in a storage key.
+    { id: 'payment-cards', title: 'Payment cards', group: 'Payment cards', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.cardNever', 'vex.cardOffer'], usesKeys: [],
+      commands: ['paymentcards', 'addcard', 'fillcard'],
+      permissions: { reads: ['your saved cards, only to fill the one you pressed (never the security code, which is not kept)'], writes: ['the encrypted card file on this PC, its own switch and the sites it is not offered on'], sends: [] } },
     // The frame around a page (js/page-chrome.js): the link bar, the load bar and slim scrollbars. The first two are always on, with no switch;
     // the scrollbars are off until Settings > Appearance turns them on.
     { id: 'link-bar', title: 'Link address bar', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: [],

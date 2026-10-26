@@ -241,9 +241,10 @@ const FeatureDetails = {
   totp: 'Vex generates your six-digit code and types it into the 2FA screen. The secret lives in the same encrypted vault as the password.',
   passkeys: 'Vex is a passkey provider: when a site offers to create a passkey, Vex asks you first and keeps the key encrypted on this computer, and when a site asks you to sign in with one, Vex shows your passkeys for that site and signs. The private key never leaves Vex and cannot be exported.',
   emailcode: 'Reads the verification code out of your Gmail and fills it, with no Gmail tab open. It reads only the message that has just arrived and only the code in it.',
-  formfill: 'One saved profile fills any signup or checkout form. Card numbers are never stored, by design.',
+  formfill: 'One saved profile fills any signup or checkout form. The profile holds no card details, by design: saved cards are a separate feature, Payment cards, with their own encrypted file.',
   filltotp: 'For the page where the automatic fill did not happen: a code box that opened late, or one Vex did not recognise. Click into the box first and the code goes there; with several accounts it asks which one, and remembers the choice for that site. Never in a private or Tor tab, and only on https pages.',
   savepassword: 'For a site that signs you in with a script, so the automatic Save password card never appears. You type (or generate) the login yourself and it goes into the same encrypted vault as any other. Not from private or Tor tabs, and only on https pages.',
+  paymentcards: 'Cards are kept in one encrypted file on this PC (sealed by Windows, like the password vault), never synced, never in a private or Tor tab and never on a plain http page. Vex keeps the number, the name, the expiry and an optional nickname. The security code (CVV) is never read from the page, never saved and never sent anywhere: you type it at each payment, as card networks require. A card is typed into a page only after you press it in the chooser or in Payment cards, and the page script that does it runs apart from the page, so the site cannot read the list of your cards. Pressing Fill on a card that has expired asks first.',
   genpassword: 'Click into the password field first, or right-click it, and Vex fills it and its confirm box with a new random password made on your computer. It copies nothing, so it offers to save the password at once; if you dismiss that, the only copy is the one in the page.',
   'panel-page-tab': 'A panel shows a page with no address bar, so a Roblox game ID or a Discord invite link was hard to get at. This opens exactly the page the panel is showing as a normal tab, in the same session, so you stay signed in. In a private window the tab stays inside that window.',
   leakcanary: 'Warns you when one of your own saved email addresses turns up pre-filled on a site you never gave it to — a sign it was passed on or leaked.',
@@ -305,7 +306,7 @@ const FeatureDetails = {
   linkedscroll: 'In split screen, scroll one pane and the others keep pace. For two versions of the same document, or a translation beside its original.',
   stickynotes2: 'The difference from an ordinary note is where it lives: it is attached to the address, so it finds you rather than the other way round. For the page you always get wrong and the form with the field nobody can explain.',
   automations2: 'If-this-then-that for browsing, running entirely on your machine — no service, no account, nothing uploaded.',
-  formfill2: 'One profile that fills any form on any site, and never touches card numbers.',
+  formfill2: 'One profile that fills any form on any site. It holds no card details: saved cards are a separate feature, Payment cards.',
 
   // ---- Wave 0-3 features: what each reads, keeps and sends (from js/feature-manifests.js) ----
   'brief-mail-triage': 'It reads mail headers from your read-only inbox. It writes only its own on/off switch. What can leave this computer: The text of a message to your AI backend, only when you ask for a drafted reply.',
@@ -762,6 +763,7 @@ const FeatureHow = {
   'play-sounds': 'Use Open settings to reach Play: sound packs. The controls there configure the behavior described above; viewing this card does not switch it on.',
   'early-look': 'There is nothing to open: it is always on. Pick a theme and a look, restart Vex, and the window opens in them from the first frame.',
   'extension-store': 'Use Open the extension store, or Ctrl+K and type extension store. Search the shelf, press Add on a card and confirm what it asks for; Remove takes it out again.',
+  paymentcards: 'After a payment Vex asks “Save this card?”. On another payment page, click the card number box and pick a card from the small list under it. Or press Ctrl+K and run Payment cards: add a card by hand, edit its name or expiry, delete it, fill the page you are on, or, on a page whose boxes Vex did not recognise (many checkouts keep them inside another site’s frame), click the box first and press Type number, Type name or Type expiry. Copy number puts it on the clipboard for thirty seconds only.',
   'ui-sounds': 'Use Open settings to reach Sounds. The controls there configure the behavior described above; it is on from the start, and the switches there turn each kind off.',
   'link-bar': 'Nothing to switch on: hold the pointer over any link. If the bar sits where you want to click, move the pointer onto it and it steps to the other corner.',
   'load-bar': 'Nothing to switch on: it shows under the toolbar while a page loads. Press Stop (or Esc) to end a load; the bar ends with it.',

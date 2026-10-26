@@ -67,7 +67,7 @@ const SettingsUI = {
     { name: 'Layout',          icon: 'grid',     color: '#c084fc', match: ['layout'] },
     { name: 'Sidebar',         icon: 'panel',    color: '#818cf8', match: ['sidebar', 'links and panels', 'panels and messages'] },
     { name: 'Privacy',         icon: 'shield',   color: '#22c55e', match: ['sign-in: ', 'privacy', 'security', 'route all of vex', 'private routing', 'web safety', 'safer web', 'if something went wrong', 'signed in to', 'paste-and-run', 'containers per site', 'secure lock options', 'safer browsing', 'startup check', 'terms of service', 'encrypted profile lock', 'meeting transcript'] },
-    { name: 'Autofill',        icon: 'pencil',   color: '#4ade80', match: ['autofill', 'text snippets', 'unfinished forms'] },
+    { name: 'Autofill',        icon: 'pencil',   color: '#4ade80', match: ['autofill', 'text snippets', 'unfinished forms', 'payment card'] },
     { name: 'Performance',     icon: 'bolt',     color: '#f97316', match: ['performance', 'sleep', 'gaming and streaming', 'game mode', 'discord hotkeys', 'when a game is running', 'on battery', 'loadout cards', 'game audio scenes', 'game control center', 'second screen', 'bypass check', 'held while you played'] },
     { name: 'Sessions',        icon: 'save',     color: '#f59e0b', match: ['session'] },
     { name: 'Downloads',       icon: 'download', color: '#0284c7', match: ['downloads', 'download desk'] },
@@ -171,7 +171,7 @@ const SettingsUI = {
   // advanced settings, and still found by the search.
   BASIC_SECTIONS: [
     'general', 'default browser', 'sidebar buttons', 'privacy & security',
-    'autofill', 'sessions', 'downloads', 'passwords', 'passkeys', 'appearance', 'gui style', 'tab layout',
+    'autofill', 'sessions', 'downloads', 'passwords', 'passkeys', 'payment cards', 'appearance', 'gui style', 'tab layout',
     'reading & accessibility', 'personalization', 'data', 'about',
   ],
   tierOf(labelText) {
@@ -230,6 +230,7 @@ const SettingsUI = {
     'keyboard shortcuts': 'hotkeys keybindings keys kısayol tuşları',
     'passwords': 'logins password manager saved passwords vault parola şifre',
     'passkeys': 'passkey passkeys webauthn fido sign in without password windows hello biometric security key',
+    'payment cards': 'credit card debit card cards checkout buy pay visa mastercard amex cvv expiry autofill save card kart kredi kartı ödeme banka kartı',
     'reading & accessibility': 'a11y font size text size dyslexia reading font colour blind color blind contrast ruler erişilebilirlik yazı boyutu',
     'browsing extras': 'mouse gestures clipboard cookie banners consent copy right-click',
     'page watcher': 'watch page changes monitor price drop restock version update diff notify tell me when it changes watched pages sayfa izleyici değişiklik izle',

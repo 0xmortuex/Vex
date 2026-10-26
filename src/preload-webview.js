@@ -4094,3 +4094,236 @@ const VEX_SECRET_PATTERNS = [
     try { ipcRenderer.sendToHost("vex-cred-focus", { host: location.hostname.replace(/^www\./, "") }); } catch { /* vex-allow-empty-catch: the host is gone, so there is nothing to warn */ }
   }, true);
 })();
+
+// === Payment cards — notice a card form, offer to save it, fill a saved card ==
+//
+// The host (js/card-saver.js) owns the cards: they are encrypted in main (main/cards.js) and never sit
+// in the page. This script only does three things, on pages where a card number field exists:
+//   - when the person submits a card form, it reports the number, the name and the expiry
+//     ("vex-card-submit") so the host can ask "Save this card?". The CVV is never read: it is
+//     not kept anywhere, so there is nothing to report;
+//   - when the person clicks into a card field, it asks the host ("vex-card-want"); the host shows its
+//     own chooser in Vex's window, never on the page;
+//   - the host answers ("vex-card-fill") only after the person pressed Fill, and the fields are filled
+//     HERE, in this preload's isolated world, where page scripts cannot read the card or make up the
+//     click. The cursor then moves to the CVV field, which the person types.
+// Nothing is reported or filled on plain http. Only the person's own click, Enter or submit counts.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  let asked = null;   // { id, field } waiting for the host's answer
+  let seq = 0;
+  let lastSent = 0;
+
+  function visible(el) {
+    try {
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
+    } catch { return false; }
+  }
+  function realTarget(e) {
+    try { const p = e.composedPath && e.composedPath(); if (p && p.length && p[0] && p[0].nodeType === 1) return p[0]; } catch { /* vex-allow-empty-catch: a card script must never throw into the page it runs on */ }
+    return e.target;
+  }
+  // Every match of `selector`, and those inside open shadow roots (capped).
+  function deepAll(selector) {
+    const out = [];
+    const seen = { n: 0 };
+    (function walk(r, depth) {
+      for (const el of r.querySelectorAll(selector)) out.push(el);
+      if (depth > 6) return;
+      for (const el of r.querySelectorAll("*")) {
+        if (++seen.n > 20000) return;
+        if (el.shadowRoot) walk(el.shadowRoot, depth + 1);
+      }
+    })(document, 0);
+    return out;
+  }
+
+  // What a field asks for, from its autocomplete token or, failing that, the words around it.
+  // English and Turkish. "num", "name", "exp" (one box), "mm", "yy", "cvc" or "".
+  function hintOf(el) {
+    let label = "";
+    try { label = el.labels && el.labels[0] ? el.labels[0].textContent : ""; } catch { /* vex-allow-empty-catch: a card script must never throw into the page it runs on */ }
+    return ((el.name || "") + " " + (el.id || "") + " " + (el.getAttribute("aria-label") || "") + " " + (el.placeholder || "") + " " + label).toLowerCase();
+  }
+  function kindOf(el) {
+    if (!el || (el.tagName !== "INPUT" && el.tagName !== "SELECT") || el.disabled) return "";
+    const type = (el.type || "").toLowerCase();
+    if (el.tagName === "INPUT" && !(type === "" || type === "text" || type === "tel" || type === "number" || type === "password")) return "";
+    const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+    if (/\bcc-number\b/.test(ac)) return "num";
+    if (/\bcc-csc\b/.test(ac)) return "cvc";
+    if (/\bcc-exp-month\b/.test(ac)) return "mm";
+    if (/\bcc-exp-year\b/.test(ac)) return "yy";
+    if (/\bcc-exp\b/.test(ac)) return "exp";
+    if (/\bcc-(name|given-name|family-name)\b/.test(ac)) return "name";
+    const h = hintOf(el);
+    if (/cvc|cvv|cvn|csc|security.?code|g[üu]venlik.?kod|do[ğg]rulama.?kod/.test(h)) return "cvc";
+    if (/(exp|expir\w*|valid|son.?kullanma|skt).{0,14}(month|mm|ay)\b|card.?month|exp.?m\b/.test(h)) return "mm";
+    if (/(exp|expir\w*|valid|son.?kullanma|skt).{0,14}(year|yy|yil|y[ıi]l)\b|card.?year|exp.?y\b/.test(h)) return "yy";
+    if (/expir|exp.?date|valid.?(thru|through|until)|son.?kullanma|skt|mm ?\/ ?yy/.test(h)) return "exp";
+    if (/card.?holder|name.?on.?(the.?)?card|cc.?name|kart.{0,12}(sahib|isim|ad[ıi])/.test(h)) return "name";
+    if (/card.?(number|num|no)\b|cc.?(num|number)|ccnum|credit.?card|debit.?card|kart.{0,10}(numara|no\b)/.test(h)) return "num";
+    return "";
+  }
+
+  // The card fields of the page, grouped around a number field (the one that is visible, the first).
+  function fieldSet(near) {
+    const all = deepAll("input,select").filter((el) => visible(el));
+    const num = (near && kindOf(near) === "num" ? near : null) || all.find((el) => kindOf(el) === "num");
+    if (!num) return null;
+    const scope = num.form || document;
+    const inScope = all.filter((el) => (num.form ? el.form === num.form : true));
+    const pick = (k) => inScope.find((el) => kindOf(el) === k && el !== num) || null;
+    return { num, name: pick("name"), exp: pick("exp"), mm: pick("mm"), yy: pick("yy"), cvc: pick("cvc"), scope };
+  }
+
+  function luhnOk(d) {
+    if (!/^\d{12,19}$/.test(d)) return false;
+    let sum = 0;
+    for (let i = 0; i < d.length; i++) {
+      let n = d.charCodeAt(d.length - 1 - i) - 48;
+      if (i % 2 === 1) { n *= 2; if (n > 9) n -= 9; }
+      sum += n;
+    }
+    return sum % 10 === 0;
+  }
+  // "12/27", "12 / 2027", "1227", "12-27": a month and a four-digit year, or null.
+  function parseExp(text) {
+    const m = /^\s*(\d{1,2})\s*[/\-. ]?\s*(\d{2}|\d{4})\s*$/.exec(String(text || ""));
+    if (!m) return null;
+    const month = Number(m[1]);
+    let year = Number(m[2]);
+    if (month < 1 || month > 12) return null;
+    if (year < 100) year += 2000;
+    return { month: month, year: year };
+  }
+
+  function capture() {
+    try {
+      if (location.protocol !== "https:") return;
+      const set = fieldSet(null);
+      if (!set) return;
+      const number = String(set.num.value || "").replace(/[\s.-]+/g, "");
+      if (!luhnOk(number)) return;
+      let exp = null;
+      if (set.exp) exp = parseExp(set.exp.value);
+      else if (set.mm && set.yy) exp = parseExp(String(set.mm.value || "") + "/" + String(set.yy.value || ""));
+      if (!exp) return;
+      const now = Date.now();
+      if (now - lastSent < 1500) return;
+      lastSent = now;
+      ipcRenderer.sendToHost("vex-card-submit", {
+        host: location.hostname.replace(/^www\./, ""),
+        number: number,
+        name: set.name ? String(set.name.value || "").slice(0, 80) : "",
+        expMonth: exp.month,
+        expYear: exp.year
+      });
+    } catch { /* vex-allow-empty-catch: a card script must never throw into the page it runs on */ }
+  }
+
+  // Only the person's own submit, Enter or click (the same rule as the saved-login capture).
+  const justActed = () => { try { return !!(navigator.userActivation && navigator.userActivation.isActive); } catch { return false; } };
+  document.addEventListener("submit", (e) => { if (!e.isTrusted || !justActed()) return; capture(); }, true);
+  document.addEventListener("keydown", (e) => {
+    if (!e.isTrusted || e.key !== "Enter") return;
+    const el = realTarget(e);
+    if (el && el.tagName === "INPUT") { capture(); setTimeout(capture, 60); }
+  }, true);
+  document.addEventListener("click", (e) => {
+    try {
+      if (!e.isTrusted) return;
+      const el = realTarget(e);
+      if (!el || !el.closest) return;
+      const ctl = el.closest("button,[type=submit],input[type=submit],[role=button]");
+      if (!ctl) return;
+      const label = ((ctl.textContent || "") + (ctl.value || "") + (ctl.getAttribute && (ctl.getAttribute("aria-label") || "") || "")).toLowerCase();
+      const attrs = ((ctl.id || "") + " " + (ctl.name || "") + " " + ((ctl.getAttribute && ctl.getAttribute("data-testid")) || "")).toLowerCase();
+      if (ctl.type === "submit" || /pay|purchase|place.?order|buy|checkout|complete|confirm|submit|continue|next|save.?card|add.?card|öde|satın|tamamla|onayla|devam|kaydet/.test(label + " " + attrs)) {
+        capture(); setTimeout(capture, 80);
+      }
+    } catch { /* vex-allow-empty-catch: a card script must never throw into the page it runs on */ }
+  }, true);
+
+  // A real click (or Down arrow) in an empty card field asks the host for a saved card.
+  function onGesture(e) {
+    try {
+      if (!e.isTrusted || location.protocol !== "https:") return;
+      if (e.type === "keydown" && e.key !== "ArrowDown") return;
+      const el = realTarget(e);
+      const k = kindOf(el);
+      if (!k || k === "cvc" || el.tagName !== "INPUT" || el.value || el.readOnly) return;
+      const set = fieldSet(k === "num" ? el : null);
+      if (!set) return;
+      const id = "cf" + (++seq) + "-" + Date.now();
+      asked = { id: id, field: el };
+      const r = el.getBoundingClientRect();
+      ipcRenderer.sendToHost("vex-card-want", { id: id, host: location.hostname.replace(/^www\./, ""), kind: k, x: Math.round(r.left), y: Math.round(r.bottom), w: Math.round(r.width) });
+    } catch { /* vex-allow-empty-catch: a card script must never throw into the page it runs on */ }
+  }
+  document.addEventListener("pointerdown", onGesture, true);
+  document.addEventListener("keydown", onGesture, true);
+
+  // The native setter, so React/Vue controlled inputs register the change.
+  const setter = (function () { try { return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set; } catch { return null; } })();
+  function put(el, value) {
+    if (!el || el.disabled || el.readOnly || !visible(el)) return false;
+    if (el.tagName === "SELECT") {
+      const want = String(value);
+      const opts = Array.prototype.slice.call(el.options);
+      const hit = opts.find((o) => String(o.value) === want || String(Number(o.value)) === String(Number(want)) || o.textContent.trim() === want || (Number(o.textContent.trim()) === Number(want) && /^\d+$/.test(o.textContent.trim())));
+      if (!hit) return false;
+      el.value = hit.value;
+    } else if (setter) setter.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+  const two = (n) => (n < 10 ? "0" : "") + n;
+  function fillExp(set, month, year) {
+    let n = 0;
+    if (set.exp) {
+      const hint = hintOf(set.exp);
+      const max = set.exp.maxLength > 0 ? set.exp.maxLength : 0;
+      const long = /yyyy/.test(hint) || max >= 7;
+      let text = two(month) + "/" + (long ? String(year) : String(year).slice(-2));
+      if (max === 4) text = two(month) + String(year).slice(-2);
+      if (max === 6) text = two(month) + String(year);
+      if (put(set.exp, text)) n++;
+    }
+    if (set.mm && put(set.mm, set.mm.tagName === "SELECT" ? month : two(month))) n++;
+    if (set.yy) {
+      const short = set.yy.tagName === "INPUT" && set.yy.maxLength === 2;
+      const ok = put(set.yy, short ? String(year).slice(-2) : year) || (set.yy.tagName === "SELECT" && put(set.yy, String(year).slice(-2)));
+      if (ok) n++;
+    }
+    return n;
+  }
+
+  ipcRenderer.on("vex-card-fill", (_e, d) => {
+    try {
+      if (!d || location.protocol !== "https:") return;
+      if (typeof d.number !== "string" || !/^\d{12,19}$/.test(d.number)) return;
+      // A fill that follows a click is tied to that click; the "Fill a saved card" command (now) is the person's own.
+      if (!d.now && (!asked || asked.id !== d.id || !asked.field.isConnected)) return;
+      const near = asked && asked.field && asked.field.isConnected ? asked.field : null;
+      asked = null;
+      const set = fieldSet(near && kindOf(near) === "num" ? near : null) || fieldSet(null);
+      if (!set) { ipcRenderer.sendToHost("vex-card-filled", { id: String(d.id || ""), filled: 0, found: false }); return; }
+      let filled = 0;
+      if (!set.num.value && put(set.num, d.number)) filled++;
+      if (set.name && !set.name.value && typeof d.name === "string" && d.name && put(set.name, d.name)) filled++;
+      const month = Number(d.expMonth), year = Number(d.expYear);
+      if (month >= 1 && month <= 12 && year >= 2000) filled += fillExp(set, month, year);
+      let cvc = false;
+      if (set.cvc && visible(set.cvc)) { try { set.cvc.focus(); cvc = true; } catch { /* vex-allow-empty-catch: a card script must never throw into the page it runs on */ } }
+      ipcRenderer.sendToHost("vex-card-filled", { id: String(d.id || ""), filled: filled, found: true, cvc: cvc });
+    } catch { /* vex-allow-empty-catch: a card script must never throw into the page it runs on */ }
+  });
+})();

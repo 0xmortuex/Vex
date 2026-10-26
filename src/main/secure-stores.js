@@ -22,6 +22,7 @@ const CONFIRM_PHRASE = 'ERASE SECURE DATA';
 // Every file here holds a secret. Order is the order shown.
 const SECURE_FILES = Object.freeze([
   { id: 'vault', file: 'vault.dat', label: 'Saved passwords' },
+  { id: 'cards', file: 'cards.dat', label: 'Saved payment cards' },
   { id: 'totp', file: 'totp.dat', label: 'Authenticator accounts' },
   { id: 'passkeys', file: 'passkeys.dat', label: 'Passkeys' },
   { id: 'github', file: 'github-token.enc', label: 'GitHub read-only token' },

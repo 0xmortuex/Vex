@@ -889,6 +889,7 @@ const WebviewManager = {
 
     // Password capture (login-form submits announced by preload-webview.js)
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(webview);
+    if (typeof VexCards !== 'undefined') VexCards.attach(webview);
     // Mouse gestures (right-drag strokes announced by preload-webview.js)
     if (typeof MouseGestures !== 'undefined') MouseGestures.attach(webview);
     // Alt+click on a link opens it in the other pane (js/split-keys.js), and link hints (js/link-hints.js)
@@ -2237,6 +2238,12 @@ const WebviewManager = {
       if (e.params.formControlType === 'input-password' || e.params.inputFieldType === 'password') { sepOnce(); items.push(genRow, saveRow); }
       else if (e.params.isEditable) { sepOnce(); items.push(saveRow); }
       siteItems.unshift(saveRow);
+    }
+    // Saved payment cards (js/card-saver.js): on any editable box of an https page, fill a saved card or open the manager
+    // (it says why when a private, Tor or routed tab cannot).
+    if (typeof VexCards !== 'undefined' && /^https:/i.test(curUrl) && e.params.isEditable) {
+      const tc = (key, fallback) => (window.VexI18n && window.VexI18n.t(key, fallback)) || fallback;
+      sepOnce(); items.push({ label: tc('menuFillCard', 'Fill a saved card…'), action: () => VexCards.openManager(webview, {}).catch((err) => { console.error('[Cards] could not open:', err); window.showToast?.('Could not do that: ' + ((err && err.message) || err), 'error'); }) });
     }
     if (e.params.isEditable && typeof EmailCodeAutofill !== 'undefined') {
       sepOnce();
