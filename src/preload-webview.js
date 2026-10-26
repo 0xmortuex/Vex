@@ -2257,6 +2257,17 @@ let _vexStartPageOwn = null;
   } catch (err) {
     console.error('[Vex Suggest] bridge expose failed:', err && err.message);
   }
+
+  // The New Tab page's search box (and its other inputs) click like the address bar does: the page is a webview, so Vex's own key listener never
+  // hears it. Only that a plain key was pressed is reported, never which one (js/ui-sounds.js onPageKey, js/webview.js).
+  window.addEventListener('keydown', (e) => {
+    if (!e.isTrusted || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (!t || !(t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    const k = String(e.key || '');
+    if (!(k.length === 1 || k === 'Backspace' || k === 'Delete' || k === 'Enter')) return;
+    try { ipcRenderer.sendToHost('vex-ui-key'); } catch { /* vex-allow-empty-catch: the window that hosts this page is gone, so there is nobody to click for */ }
+  }, true);
 })();
 
 // === Start-page theme bridge — authoritative Custom Image source from main ===

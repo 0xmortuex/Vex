@@ -773,6 +773,8 @@ const WebviewManager = {
     // one toast per session — it's the actionable one (codec/GPU decode bug,
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
+      // A key typed in the New Tab page's inputs: the click, for the tab in front only (the page cannot say what it typed).
+      if (e.channel === 'vex-ui-key') { if (tab.id === TabManager.activeTabId && typeof VexUiSounds !== 'undefined') VexUiSounds.onPageKey(); return; }
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
       // The document viewer page is up and asks for the theme (preload-webview.js).
       if (e.channel === 'officeview:need-theme') { this.sendOfficeTheme(webview); return; }
