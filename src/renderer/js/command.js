@@ -1071,7 +1071,7 @@ const CommandBar = {
       else if (name.split(/\s+/).some(w => w.startsWith(q))) score = 80;
       else if (Toolbox._matches(t, q)) score = 55;   // description, keywords, family
       else if (typeof VexSmartSearch !== 'undefined') {
-        const s = VexSmartSearch.score(query, { name: t.name, keywords: (t.keywords || []).join(' '), hint: t.desc || '' });
+        const s = VexSmartSearch.score(query, { name: t.name, keywords: Array.isArray(t.keywords) ? t.keywords.join(' ') : String(t.keywords || ''), hint: t.desc || '' });
         if (s) score = 40 + Math.round(s * 0.14);
       }
       if (!score) continue;

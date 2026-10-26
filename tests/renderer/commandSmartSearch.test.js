@@ -68,6 +68,12 @@ describe('tools and features', () => {
     expect(r.length).toBe(1);
     expect(r[0].score).toBeGreaterThan(40);
   });
+  it('a tool whose keywords are one string, not a list, is searched without failing (the real app threw "join is not a function" and dropped every tool result)', () => {
+    const tool = { id: 'x', name: 'Image Compressor', desc: 'Make a picture smaller', keywords: 'resim küçült', family: 'media' };
+    globalThis.Toolbox = { all: () => [tool], _matches: () => false, iconMarkup: () => '', _familyLabel: () => 'Media', openTool() {} };
+    expect(() => CommandBar._toolResults('küçültme', true)).not.toThrow();
+    expect(CommandBar._toolResults('küçültme', true).length).toBe(1);
+  });
   it('one word typed searches the features under its synonyms too', () => {
     const seen = [];
     const features = { update: { id: 'update', name: 'Updates', phrases: 'update', what: 'Vex updates itself.' }, other: { id: 'other', name: 'Other', phrases: 'other', what: '' } };

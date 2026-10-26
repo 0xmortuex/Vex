@@ -236,6 +236,8 @@ const VexSmartSearch = {
   fit(v, w) {
     if (v === w) return 1;
     const lv = v.length, lw = w.length;
+    // "sound" for "sounds", "tab" for "tabs": a plural is as good as the word.
+    if (lv >= 3 && (w === v + 's' || w === v + 'es')) return 0.97;
     if (lv >= 2 && w.startsWith(v)) return lv >= 3 || lw <= 3 ? 0.85 : 0.6;
     // "updates" for "update": the query is the word with an ending.
     if (lw >= 4 && v.startsWith(w) && lv - lw <= 3) return 0.75;
@@ -268,7 +270,14 @@ const VexSmartSearch = {
       total += best;
     }
     let score = (total / parsed.tokens.length) * 100;
-    if (inFirst === parsed.tokens.length) score += 8;   // everything was found in the name
+    if (inFirst === parsed.tokens.length) {
+      // Everything was found in the name: a name that is just the query is the best answer, and a long name that merely
+      // contains it ("Video and sound player" for "sound") a little less.
+      const extra = Math.max(0, (fields[0].words.length || 0) - parsed.tokens.length);
+      // The bonus is a share of what is left below 100, so an exact word still beats its synonym at the top.
+      score -= Math.min(9, extra * 3);
+      score += (100 - score) * (extra === 0 ? 0.12 : 0.08);
+    }
     return Math.max(1, Math.min(100, Math.round(score)));
   },
 

@@ -84,6 +84,10 @@ describe('synonyms and endings', () => {
     expect(S.score('bookmarks', { name: 'Bookmark' })).toBeGreaterThan(70);
     expect(S.score('settings', { name: 'Setting' })).toBeGreaterThan(70);
   });
+  it('a short name that is the query beats a long name that merely contains it, and a plural counts as the word (found in the real app 2026-10-26)', () => {
+    expect(S.score('sound', { name: 'Sounds' })).toBeGreaterThan(S.score('sound', { name: 'Video and sound player' }));
+    expect(S.score('update', { name: 'Update' })).toBeGreaterThanOrEqual(S.score('update', { name: 'Updates' }));
+  });
   it('a synonym ranks a little below the word itself', () => {
     expect(S.score('update', { name: 'Update' })).toBeGreaterThan(S.score('upgrade', { name: 'Update' }));
   });
