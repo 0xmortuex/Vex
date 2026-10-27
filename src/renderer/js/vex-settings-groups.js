@@ -66,6 +66,28 @@ const VexSettingsGroups = {
     slot.fn = fn;
   },
 
+  // Settings closed again: its module sections are only memory now (about 130 MB measured with every section drawn), and each open draws
+  // them fresh anyway. A minute after the person leaves Settings they are taken out of the page; opening it brings them back (inject, below).
+  RELEASE_MS: 60 * 1000,
+  _releaseTimer: null,
+  release() {
+    if (typeof document === 'undefined' || this._showing()) return 0;
+    let n = 0;
+    for (const [id, def] of this._defs) {
+      const el = document.getElementById(def.build ? 'vex-sg-' + id : 'setting-' + id);
+      if (el) { el.remove(); n++; }
+    }
+    return n;
+  },
+  _watchPanels() {
+    document.addEventListener('vex:panel-changed', (e) => {
+      const d = (e && e.detail) || {};
+      clearTimeout(this._releaseTimer);
+      if (d.panel === 'settings' || d.beside === 'settings') return;
+      this._releaseTimer = setTimeout(() => { this.release(); }, this.RELEASE_MS);
+    });
+  },
+
   // Create or refresh every registered group under root (.settings-content).
   mount(root) { return this.inject(root); },
 
@@ -201,6 +223,8 @@ const VexSettingsGroups = {
 VexSettingsGroups._wrap();
 // A module registered before settings-ui.js was parsed gets wrapped here.
 if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => VexSettingsGroups._wrap());
+
+if (typeof document !== 'undefined') VexSettingsGroups._watchPanels();
 
 if (typeof window !== 'undefined') window.VexSettingsGroups = VexSettingsGroups;
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexSettingsGroups };
