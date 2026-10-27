@@ -28,12 +28,27 @@ const VexSettingsGroups = {
     if (!hasBuild && (typeof def.title !== 'string' || !def.title.trim())) throw new Error('A settings group needs a title');
     this._defs.set(def.id, { title: String(def.title || def.id), keywords: String(def.keywords || ''), before: def.before ? String(def.before).toLowerCase() : '', build: hasBuild ? def.build : null, render: hasRender ? def.render : null });
     this._wrap();
-    // Settings already drawn: it appears now, not at the next open.
-    this.inject();
+    // Settings on screen: the section appears now, not at the next open. Settings closed: it is only recorded, and drawn when Settings
+    // opens (SettingsUI.enhance, wrapped below). Every one of the 150 modules that register a section used to draw ALL of them at once
+    // while Vex was starting: some 18,000 hidden elements (the interface window's biggest single cost, about 50 MB) and 150 rounds of
+    // building every section so far, whose leftovers the page then kept as garbage.
+    if (this._showing()) this.inject();
     return def.id;
   },
 
   ids() { return Array.from(this._defs.keys()); },
+
+  // Is Settings on screen (as the page or beside it)? The sidebar knows once it exists; before that (modules register while the
+  // page's scripts are still loading) the panel's own display says. With no panel at all (a unit test) a section is drawn at once, as it always was.
+  _showing() {
+    if (typeof SidebarManager !== 'undefined' && SidebarManager && ('activePanel' in SidebarManager)) {
+      return SidebarManager.activePanel === 'settings' || SidebarManager.sidePanel === 'settings';
+    }
+    const panel = typeof document !== 'undefined' ? document.getElementById('panel-settings') : null;
+    if (!panel) return true;
+    const style = getComputedStyle(panel);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  },
 
   // A section is built again every time Settings opens. A document listener added by each build closes over the section it drew, so every
   // build kept its section alive for good (about 65 nodes and 11 listeners an open, found 2026-10-22 by the smoke matrix). This keeps ONE
