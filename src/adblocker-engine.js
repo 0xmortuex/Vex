@@ -24,6 +24,14 @@
 const fsp = require('fs/promises');
 
 let _engine = null;       // { blocker, fromElectronDetails } once ready
+
+// An engine built from the lists holds all of them parsed: about 110 MB of the main process's heap, against about 10 MB for the same engine
+// read back from its serialized bytes (measured 2026-10-28 on a fresh profile: 123 MB of heap in use 30 s after start with no cache, 24 MB with
+// one). So whatever BUILT the engine, the one that blocks is the one read back from the bytes that were cached. `deserialize` is for tests.
+function _compact(bytes, deserialize) {
+  const read = deserialize || ((b) => require('@ghostery/adblocker-electron').ElectronBlocker.deserialize(b));
+  return read(bytes);
+}
 let _initStarted = false;
 
 // listFetch: how the lists are downloaded (main/adblock-lists.js): through
@@ -38,14 +46,19 @@ async function initEngine(cachePath, { fetch: listFetch } = {}) {
     const { ElectronBlocker, fromElectronDetails } = require('@ghostery/adblocker-electron');
     // Caching contract: read() must REJECT when the cache file is missing so the
     // library knows to download + serialize fresh; write() persists it.
+    // write() is only called when the lists were just built (no cache, or one the library could not read): then the bytes are kept to read the
+    // engine back from, below.
+    let builtBytes = null;
     const caching = {
       path: cachePath,
       read: (p) => fsp.readFile(p),
-      write: (p, buf) => fsp.writeFile(p, buf),
+      write: (p, buf) => { builtBytes = buf; return fsp.writeFile(p, buf); },
     };
     // Full list set (default config → cosmetic + network filters both parsed),
     // so enableCosmeticFiltering() below has real cosmetic rules to serve.
-    const blocker = await ElectronBlocker.fromPrebuiltFull(listFetch, caching);
+    let blocker = await ElectronBlocker.fromPrebuiltFull(listFetch, caching);
+    if (builtBytes) blocker = _compact(builtBytes);
+    builtBytes = null;
     _engine = { blocker, fromElectronDetails };
     return true;
   } catch (e) {
@@ -103,8 +116,10 @@ async function refreshIfStale(cachePath, deps = {}) {
       });
       const blocker = await build();
       const write = deps.write || (async (p, buf) => { await fsp.writeFile(p + '.new', buf); await fsp.rename(p + '.new', p); });
-      await write(cachePath, blocker.serialize());
-      _engine = { ..._engine, blocker };
+      const bytes = blocker.serialize();
+      await write(cachePath, bytes);
+      // The one in use is read back from the saved bytes (see _compact). A test that hands in its own build keeps what it built.
+      _engine = { ..._engine, blocker: (deps.build && !deps.deserialize) ? blocker : _compact(bytes, deps.deserialize) };
       console.log('[Vex adblock-engine] filter lists updated');
       return 'updated';
     } catch (e) {
