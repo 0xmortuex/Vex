@@ -1088,7 +1088,16 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   if (!c.identity && hasPerm('identity')) {
     c.identity = {
       getRedirectURL: function (path) { return 'https://' + c.runtime.id + '.chromiumapp.org/' + String(path || ''); },
-      launchWebAuthFlow: refuse('sign in through a browser window'), getAuthToken: refuse('sign in to an account'),
+      // The sign-in window, through main (main/extension-auth-flow.js): hidden for interactive: false, which is how the Claude extension signs in.
+      launchWebAuthFlow: function (details, cb) {
+        var d = details || {};
+        var callback = typeof cb === 'function' ? cb : undefined;
+        var p = api
+          ? api('identity.launchWebAuthFlow', { url: String(d.url || ''), interactive: d.interactive === true, timeoutMs: d.timeoutMsForNonInteractive })
+          : Promise.reject(new Error('Vex does not let an extension sign in through a browser window here'));
+        return settle(p, callback, 'identity.launchWebAuthFlow');
+      },
+      getAuthToken: refuse('sign in to an account'),
       removeCachedAuthToken: done(undefined), clearAllCachedAuthTokens: done(undefined),
       getProfileUserInfo: done({ email: '', id: '' }),
       onSignInChanged: noEvent(),

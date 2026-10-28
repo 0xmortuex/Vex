@@ -5581,6 +5581,15 @@ const _extCmds = require('./main/extension-commands');
 const _extMenuModel = require('./renderer/js/ext-menu-model');
 const EXT_MENUS_FILE = path.join(userDataPath, 'extension-menus.json');
 const _extUi = require('./main/extension-ui').createExtensionUi({ onChange: () => _extUiChanged() });
+// chrome.identity.launchWebAuthFlow (main/extension-auth-flow.js): a window in the extension's own session, hidden unless the extension asks for
+// interaction, that ends when the page is sent to one of the extension's own addresses. The Claude extension signs in this way.
+const _extAuth = require('./main/extension-auth-flow').createAuthFlow({
+  createWindow: ({ ses, interactive, title }) => new BrowserWindow({
+    show: false, width: 520, height: 720, autoHideMenuBar: true, title: String(title || 'Sign in').slice(0, 80),
+    parent: interactive && mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false },
+  }),
+});
 // What the person let an extension do beyond its manifest (main/extension-grants.js): today the debugger, off until switched on.
 const _extGrants = require('./main/extension-grants');
 let _extGrantError = null;
@@ -6257,6 +6266,11 @@ async function _extApi(senderUrl, ses, request) {
       return _extUi.actionGet(partition, extId, args.prop, tabId, { title: typeof own === 'string' ? own : (ext.name || '') });
     }
     case 'extension.fileAccess': return !!_fileAccessState().allow[path.basename(ext.path)];
+    // chrome.identity.launchWebAuthFlow: the sign-in window (main/extension-auth-flow.js), in the extension's own session.
+    case 'identity.launchWebAuthFlow': {
+      needPerm('identity');
+      return _extAuth.launch({ ses, extId, url: args.url, interactive: args.interactive === true, timeoutMs: args.timeoutMs });
+    }
     // chrome.debugger: the real DevTools protocol on a tab, only for an extension the person allowed (main/extension-debugger.js).
     case 'debugger.attach': case 'debugger.detach': case 'debugger.sendCommand': case 'debugger.getTargets': {
       needPerm('debugger');

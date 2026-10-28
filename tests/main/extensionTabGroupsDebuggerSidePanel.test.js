@@ -31,6 +31,7 @@ function worker(chrome) {
     if (op === 'tabs.group') { calls.push([ch, ...args]); return Promise.resolve(1); }
     if (op === 'tabs.ungroup') { calls.push([ch, ...args]); return Promise.resolve(null); }
     if (op && op.startsWith('tabGroups.')) { calls.push([ch, ...args]); return op === 'tabGroups.query' ? Promise.resolve([{ id: 1, title: 'Claude' }]) : Promise.resolve({ id: 1, windowId: 1, title: 'Claude', color: 'orange', collapsed: false }); }
+    if (op === 'identity.launchWebAuthFlow') { calls.push([ch, ...args]); return Promise.resolve('chrome-extension://' + ID + '/oauth_callback.html?code=C&state=S'); }
     if (op === 'sidePanel.open' || op === 'sidePanel.close') { calls.push([ch, ...args]); return Promise.resolve(undefined); }
     if (op === 'tabs.navigate') { calls.push([ch, ...args]); return Promise.resolve(6); }
     if (op === 'tabs.goBack' || op === 'tabs.goForward') { calls.push([ch, ...args]); return Promise.resolve(undefined); }
@@ -174,11 +175,19 @@ describe('chrome.debugger, offscreen and identity', () => {
     await expect(c.offscreen.createDocument({ url: 'offscreen.html', reasons: ['USER_MEDIA'], justification: 'x' })).rejects.toThrow('Vex does not let an extension open an offscreen page');
   });
 
-  it('identity: a redirect address and an empty profile, and signing in through a window is refused in words', async () => {
-    const { c } = withPerms(CLAUDE_PERMS);
+  it('identity: a redirect address and an empty profile; the sign-in window goes through main with what the extension asked (silent unless it says interactive)', async () => {
+    const { c, calls } = withPerms(CLAUDE_PERMS);
     expect(c.identity.getRedirectURL('cb')).toBe('https://' + ID + '.chromiumapp.org/cb');
     expect(await c.identity.getProfileUserInfo()).toEqual({ email: '', id: '' });
-    await expect(c.identity.launchWebAuthFlow({ url: 'https://example.com/', interactive: true })).rejects.toThrow('sign in through a browser window');
+    expect(await c.identity.launchWebAuthFlow({ url: 'https://claude.ai/oauth/authorize?x=1', interactive: false, abortOnLoadForNonInteractive: false, timeoutMsForNonInteractive: 15000 })).toBe('chrome-extension://' + ID + '/oauth_callback.html?code=C&state=S');
+    await c.identity.launchWebAuthFlow({ url: 'https://claude.ai/login', interactive: true });
+    await c.identity.launchWebAuthFlow({ url: 'https://claude.ai/silent' });
+    expect(calls.filter(x => x[0] === 'extensions:api' && x[1].op === 'identity.launchWebAuthFlow').map(x => x[1].args)).toEqual([
+      { url: 'https://claude.ai/oauth/authorize?x=1', interactive: false, timeoutMs: 15000 },
+      { url: 'https://claude.ai/login', interactive: true, timeoutMs: undefined },
+      { url: 'https://claude.ai/silent', interactive: false, timeoutMs: undefined },
+    ]);
+    await expect(c.identity.getAuthToken({ interactive: true })).rejects.toThrow('sign in to an account');
   });
 });
 
