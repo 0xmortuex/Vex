@@ -63,6 +63,8 @@ const VexExtSidePanel = {
   _make({ key, tabId, extId, name, url }) {
     const el = document.createElement('aside');
     el.className = 'ext-sidepanel';
+    // The toast stack keeps clear of it (app.js placeToasts): a toast sat on the panel's message box and hid what was being typed.
+    el.setAttribute('data-avoid-toasts', '');
     el.setAttribute('aria-label', name);
     el.hidden = true;
     const grip = document.createElement('div');

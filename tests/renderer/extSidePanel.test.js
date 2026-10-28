@@ -137,3 +137,10 @@ describe('the width', () => {
     expect(localStorage.getItem(VexExtSidePanel.WIDTH_KEY)).toBe('280');
   });
 });
+
+describe('toasts keep clear of the panel', () => {
+  it('the docked panel is one the toast stack avoids (app.js placeToasts), so a toast never covers its message box', () => {
+    const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../src/renderer/js/ext-sidepanel.js'), 'utf8');
+    expect(src).toMatch(/el\.setAttribute\('data-avoid-toasts', ''\);/);
+  });
+});
