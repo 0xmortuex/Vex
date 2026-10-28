@@ -5457,7 +5457,9 @@ function _openTabForExtension(senderUrl, ses, request) {
   try { url = new URL(String((request && request.url) || '')); }
   catch { throw new Error('That is not a web address'); }
   const ownPage = url.protocol === 'chrome-extension:' && url.host === sender[1];
-  if (!ownPage && url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(`Vex opens only web pages and the extension's own pages from an extension, not ${url.protocol}`);
+  // chrome://newtab is how an extension asks for a new tab (Claude opens its working tab so): Vex's own New Tab page.
+  const newTabPage = url.protocol === 'chrome:' && /^(?:newtab|new-tab-page)$/.test(url.hostname);
+  if (!ownPage && !newTabPage && url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(`Vex opens only web pages and the extension's own pages from an extension, not ${url.protocol}`);
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('There is no Vex window to open the tab in');
   const partition = _partitionNameOf(ses);
   const requestId = 'ext-tab-' + (++_extTabRequestSeq);
@@ -5469,7 +5471,8 @@ function _openTabForExtension(senderUrl, ses, request) {
     _extTabRequests.set(requestId, { resolve, reject, timer });
   });
   mainWindow.webContents.send('tab:create-from-external', {
-    url: url.href,
+    url: newTabPage ? '' : url.href,
+    newTab: newTabPage || undefined,
     background: !!(request && request.active === false),
     partition: partition && partition !== 'default' && partition !== 'persist:main' ? partition : undefined,
     requestId,
@@ -6155,8 +6158,13 @@ async function _extWindowsApi(op, args, senderUrl, ses) {
     case 'windows.create': {
       const data = args.data || {};
       const urls = [].concat(data.url || []).slice(0, 20);
-      for (const url of urls) await _openTabForExtension(senderUrl, ses, { url, active: data.focused !== false });
-      return _extWindowInfo(_extCurrentWindow());
+      const made = [];
+      for (const url of urls) made.push(await _openTabForExtension(senderUrl, ses, { url, active: data.focused !== false }));
+      // Chrome answers with the window and its tabs (Claude reads tabs[0].id of the window it opens its working tab in).
+      const who = /^chrome-extension:\/\/([a-p]{32})\//.exec(String(senderUrl || ''));
+      const owner = who ? _exts(ses).getExtension(who[1]) : null;
+      const tabs = made.map((t) => { const page = webContents.fromId(t.id); return page && !page.isDestroyed() ? _extTabFor(owner, page) : { id: t.id, url: t.url }; }).filter(Boolean);
+      return { ..._extWindowInfo(_extCurrentWindow()), tabs };
     }
     case 'windows.remove': throw new Error('Vex does not let an extension close a window');
     default: throw new Error('Vex does not know ' + op);

@@ -1646,8 +1646,8 @@ function vexOwnTextFocused(doc) {
 
   // External link → new tab (target="_blank", window.open, middle-click)
   window.vex?.onTabCreateFromExternal?.((data) => {
-    if (!data || !data.url) return;
-    console.log('[Tabs] external link -> new tab:', data.url, 'background:', !!data.background);
+    if (!data || (!data.url && !data.newTab)) return;
+    console.log('[Tabs] external link -> new tab:', data.url || '(New Tab page)', 'background:', !!data.background);
     // Tab-Islands-style ambient grouping: a tab opened FROM a grouped tab
     // joins that tab's group automatically.
     // A link or window.open in a tab names that tab's page (main.js), and the
@@ -1666,7 +1666,7 @@ function vexOwnTextFocused(doc) {
       catch (err) { window.VexProblems?.note('Chat links', 'Could not judge a link that came from a chat', err); }
     }
     let created;
-    try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: chat && chat.partition ? chat.partition : data.partition, openerTabId: linked ? linked.id : null }); }
+    try { created = TabManager.createTab(data.url || null, !data.background, inheritGroup, { partition: chat && chat.partition ? chat.partition : data.partition, openerTabId: linked ? linked.id : null }); }
     catch (err) {
       console.error('[Tabs] createTab failed:', err.message);
       if (data.requestId) window.vex.tabCreatedForExtension({ id: data.requestId, ok: false, error: err.message });

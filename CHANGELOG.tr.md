@@ -19,6 +19,7 @@ Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler
 
 ### Düzeltildi
 - **Claude eklentisinin araç çubuğu düğmesi yeniden çalışıyor.** Düğmeye tıklamak “Claude tıklamayı almadı: Failed to start service worker” diyordu. Arka plan betiği, Vex’te olmayan tarayıcı özelliklerini (sekme grupları, hata ayıklayıcı, yan paneller, ekran dışı sayfalar, oturum açma) okuyordu ve yüklenirken duruyordu. Vex artık bunları sağlıyor (bkz. Yeni): eklenti başlıyor ve düğme panelini açıyor. Bu, bu izinleri isteyen her eklentiye yardımcı olur. Deneyin: Araç çubuğundaki Claude düğmesine tıklayın.
+- **Claude çalıştığı sekmeyi açabiliyor.** Claude’dan “youtube’u aç” demek “Opening youtube.com” satırında takılıyordu: çalışma sekmesini chrome://newtab adresiyle yeni bir pencerede açıyor, Vex bunu reddediyordu ve Vex’in yanıtı açtığı sekmeyi bildirmiyordu. Artık Vex’in Yeni Sekme sayfasını açıyor ve hangi sekme olduğunu söylüyor. Deneyin: Claude’dan bir web sitesi açmasını isteyin.
 
 ### Denetlendi
 - Vex’in paketlenmiş sürümlerinde ikişer kez ve gerçek uygulamada ölçüldü: Ayarlar’ı İngilizce ve Türkçe, aramayla birlikte beş kez kapatıp yeniden açma.

@@ -120,3 +120,19 @@ describe('main', () => {
     expect(read('main/ipc-schemas.js')).toMatch(/define\('extensions:external-message'/);
   });
 });
+
+// Claude opens its working tab with chrome.windows.create({ url: 'chrome://newtab' }) and reads tabs[0].id of the answer. Vex refused chrome: and
+// answered with no tabs, so "open youtube" hung after "Opening youtube.com" (found 2026-10-28, first real run).
+describe('chrome://newtab from an extension', () => {
+  it('is Vex\'s own New Tab page, still no other chrome: address', () => {
+    expect(MAIN).toMatch(/const newTabPage = url\.protocol === 'chrome:' && \/\^\(\?:newtab\|new-tab-page\)\$\/\.test\(url\.hostname\);/);
+    expect(MAIN).toMatch(/if \(!ownPage && !newTabPage && url\.protocol !== 'https:' && url\.protocol !== 'http:'\) throw/);
+    expect(MAIN).toMatch(/url: newTabPage \? '' : url\.href,\s+newTab: newTabPage \|\| undefined,/);
+    const app = read('renderer/js/app.js');
+    expect(app).toContain('if (!data || (!data.url && !data.newTab)) return;');
+    expect(app).toContain('TabManager.createTab(data.url || null, !data.background,');
+  });
+  it('windows.create answers with the window and the tabs it opened', () => {
+    expect(MAIN).toMatch(/return \{ \.\.\._extWindowInfo\(_extCurrentWindow\(\)\), tabs \};/);
+  });
+});
