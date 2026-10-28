@@ -43,7 +43,7 @@ describe('chrome.windows', () => {
   });
   it('main lists Vex\'s windows but never a private one, and a new window is a tab', () => {
     expect(MAIN).toMatch(/filter\(h => !h\.privatePartition && h\.win && !h\.win\.isDestroyed\(\)\)/);
-    expect(MAIN).toMatch(/for \(const url of urls\) await _openTabForExtension\(senderUrl, ses, \{ url, active: data\.focused !== false \}\);/);
+    expect(MAIN).toMatch(/for \(const url of urls\) made\.push\(await _openTabForExtension\(senderUrl, ses, \{ url, active: data\.focused !== false \}\)\);/);
   });
 });
 

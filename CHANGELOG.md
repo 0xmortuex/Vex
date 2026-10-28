@@ -18,6 +18,7 @@
 ### Fixed
 - **The Claude extension's toolbar button works again.** Clicking it said "Claude did not get the click: Failed to start service worker". Its background script reads browser features Vex did not have (tab groups, the debugger, side panels, offscreen pages, sign-in) and stopped as it loaded. Vex now provides them (see New): the extension starts, and the button opens its panel. This helps any extension that asks for these permissions. Try: Click the Claude button on the toolbar.
 - **Claude can open the tab it works in.** Asking Claude to "open youtube" stopped at "Opening youtube.com" because it opens its working tab with a new window at chrome://newtab, which Vex refused, and Vex's answer did not list the tab it opened. It now opens Vex's New Tab page and says which tab it is. Try: Ask Claude to open a website.
+- **Claude's tasks can start.** Every task ended "anchor tab group not established": Electron counts the side panel's webview as a tab, so the panel's messages to the extension arrived with a tab, which Claude's worker refuses (Chrome's side panel has none). Vex now leaves the tab out for the pages the extension names as its side panel. Try: Ask Claude to open a website.
 
 ### Checked
 - Measured on packaged builds of Vex, twice each, and in the real app: close and reopen Settings five times, in English and Turkish, with the search.

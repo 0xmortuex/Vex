@@ -1114,6 +1114,48 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       return undefined;
     };
   }
+  // The extension's side panel is a webview here, which Electron counts as a tab, so a message from it arrives with sender.tab (window 0). In
+  // Chrome a side panel has none, and Claude's worker refuses a panel message that has one ("sender is not an extension page": the panel's
+  // CIC_IFRAME_BRIDGE_INIT, so every task ended "anchor tab group not established", found 2026-10-28). The pages named as side panels (the
+  // manifest's side_panel.default_path and every path given to sidePanel.setOptions) are told to the listener without it.
+  var sidePanelPaths = manifest.side_panel && manifest.side_panel.default_path ? [manifest.side_panel.default_path] : [];
+  var selfOrigin = typeof c.runtime.getURL === 'function' ? c.runtime.getURL('') : '';
+  var isPanelSender = function (s) {
+    if (!selfOrigin || !s || !s.tab || typeof s.url !== 'string' || s.url.indexOf(selfOrigin) !== 0) return false;
+    var here;
+    try { here = new URL(s.url).pathname; } catch (e) { return false; }
+    return sidePanelPaths.some(function (p) {
+      try { return new URL(String(p), selfOrigin).pathname === here; } catch (e) { return false; }
+    });
+  };
+  var withoutTab = function (s) {
+    if (!isPanelSender(s)) return s;
+    var o = {};
+    Object.keys(s).forEach(function (k) { if (k !== 'tab') o[k] = s[k]; });
+    return o;
+  };
+  if (c.runtime.onMessage && typeof c.runtime.onMessage.addListener === 'function') {
+    var nativeOnMessage = c.runtime.onMessage;
+    var wrappedMessage = [];
+    var panelOnMessage = {
+      addListener: function (fn) {
+        if (typeof fn !== 'function' || wrappedMessage.some(function (w) { return w.fn === fn; })) return;
+        var w = { fn: fn, wrapper: function (message, sender, sendResponse) { return fn(message, withoutTab(sender), sendResponse); } };
+        wrappedMessage.push(w);
+        nativeOnMessage.addListener(w.wrapper);
+      },
+      removeListener: function (fn) {
+        var i = wrappedMessage.findIndex(function (w) { return w.fn === fn; });
+        if (i === -1) return;
+        nativeOnMessage.removeListener(wrappedMessage[i].wrapper);
+        wrappedMessage.splice(i, 1);
+      },
+      hasListener: function (fn) { return wrappedMessage.some(function (w) { return w.fn === fn; }); },
+      hasListeners: function () { return wrappedMessage.length > 0; },
+    };
+    try { Object.defineProperty(c.runtime, 'onMessage', { value: panelOnMessage, configurable: true, enumerable: true, writable: true }); }
+    catch (err) { console.error('Vex could not make runtime.onMessage hide the side panel tab:', err.message); }
+  }
   if (manifest.externally_connectable && c.runtime) {
     // onMessageExternal: Electron never delivers it. A web page the manifest names (Claude's panel and claude.ai) messages the extension
     // through main (main.js, extensions:external-message); main hands the message to the worker here and takes the answer back ('external.reply').
@@ -1154,7 +1196,7 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       return Object.assign(base, panelOptions[''] || {}, panelKey(q) ? panelOptions[panelKey(q)] || {} : {});
     };
     c.sidePanel = {
-      setOptions: function (o, cb) { panelOptions[panelKey(o)] = Object.assign({}, panelOptions[panelKey(o)], o || {}); return settle(Promise.resolve(undefined), typeof cb === 'function' ? cb : null, 'sidePanel.setOptions'); },
+      setOptions: function (o, cb) { if (o && typeof o.path === 'string') sidePanelPaths.push(o.path); panelOptions[panelKey(o)] = Object.assign({}, panelOptions[panelKey(o)], o || {}); return settle(Promise.resolve(undefined), typeof cb === 'function' ? cb : null, 'sidePanel.setOptions'); },
       getOptions: function (q, cb) { return settle(Promise.resolve(panelFor(q)), typeof cb === 'function' ? cb : null, 'sidePanel.getOptions'); },
       setPanelBehavior: function (b, cb) { panelBehavior = Object.assign({}, panelBehavior, b || {}); return settle(Promise.resolve(undefined), typeof cb === 'function' ? cb : null, 'sidePanel.setPanelBehavior'); },
       getPanelBehavior: function (cb) { return settle(Promise.resolve(Object.assign({}, panelBehavior)), typeof cb === 'function' ? cb : null, 'sidePanel.getPanelBehavior'); },

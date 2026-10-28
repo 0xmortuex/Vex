@@ -144,3 +144,48 @@ describe('the switch off while an extension tries to drive a tab', () => {
     expect(MAIN).toContain("mainWindow.webContents.send('extensions:grant-ask'");
   });
 });
+
+// Electron counts the side panel's webview as a tab, so its messages arrive with sender.tab; Claude's worker refuses those ("sender is not an
+// extension page"), so every task ended "anchor tab group not established" (found 2026-10-28, the first real run that got past the switch).
+describe('messages from the extension\'s side panel', () => {
+  function withNativeOnMessage(manifest) {
+    const native = [];
+    const w = (() => {
+      const chrome = { runtime: { id: ID, getManifest: () => manifest, getURL: (p) => 'chrome-extension://' + ID + '/' + p,
+        onMessage: { addListener: (fn) => native.push(fn), removeListener: (fn) => { const i = native.indexOf(fn); if (i !== -1) native.splice(i, 1); } } }, tabs: { query: () => Promise.resolve([]) } };
+      const ipcRenderer = { invoke: () => Promise.resolve(null), on: () => {} };
+      const ctx = vm.createContext({ chrome, setTimeout, Promise, JSON, Object, Array, String, Number, URL,
+        require: (m) => ({ ipcRenderer, contextBridge: { executeInMainWorld: ({ func, args = [] }) => { ctx.__args = args; return vm.runInContext('(' + func.toString() + ').apply(null, __args)', ctx); } } }) });
+      vm.runInContext(SW_SRC, ctx);
+      return chrome;
+    })();
+    const ask = (sender) => { let got; w.runtime.onMessage.addListener((m, s) => { got = s; }); native.forEach(fn => fn({}, sender, () => {})); return got; };
+    return { w, native, ask };
+  }
+  const tab = { id: 9, windowId: 0 };
+  const CLAUDE = { permissions: ['sidePanel'], side_panel: { default_path: 'sidepanel.html' } };
+  it('reach the listener without a tab, as in Chrome; another page of the extension keeps its tab', () => {
+    const t = withNativeOnMessage(CLAUDE);
+    const panel = t.ask({ id: ID, url: 'chrome-extension://' + ID + '/sidepanel.html?tabId=7', tab });
+    expect(panel.tab).toBeUndefined();
+    expect(panel.id).toBe(ID);
+    const t2 = withNativeOnMessage(CLAUDE);
+    expect(t2.ask({ id: ID, url: 'chrome-extension://' + ID + '/options.html', tab }).tab).toEqual(tab);
+  });
+  it('a path given to sidePanel.setOptions counts too, and a page of another origin never does', async () => {
+    const t = withNativeOnMessage({ permissions: ['sidePanel'] });
+    await t.w.sidePanel.setOptions({ tabId: 7, path: 'panel/main.html?x=1' });
+    expect(t.ask({ id: ID, url: 'chrome-extension://' + ID + '/panel/main.html', tab }).tab).toBeUndefined();
+    const t2 = withNativeOnMessage(CLAUDE);
+    expect(t2.ask({ id: 'zzz', url: 'chrome-extension://zzz/sidepanel.html', tab }).tab).toEqual(tab);
+  });
+  it('removeListener takes the wrapped listener off', () => {
+    const t = withNativeOnMessage(CLAUDE);
+    const fn = () => {};
+    t.w.runtime.onMessage.addListener(fn);
+    expect(t.w.runtime.onMessage.hasListener(fn)).toBe(true);
+    t.w.runtime.onMessage.removeListener(fn);
+    expect(t.w.runtime.onMessage.hasListener(fn)).toBe(false);
+    expect(t.native.length).toBe(0);
+  });
+});
