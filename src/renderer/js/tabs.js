@@ -3417,10 +3417,100 @@ const TabManager = {
       let page = null;
       try { page = wv ? wv.getWebContentsId() : null; } catch { page = null; }
       if (!Number.isInteger(page)) return;
-      const g = t.groupId ? this.groups.findIndex(x => x.id === t.groupId) : -1;
-      out.push({ page, index, groupId: g >= 0 ? g + 1 : -1, pinned: !!t.pinned });
+      const grp = t.groupId ? this.groups.find(x => x.id === t.groupId) : null;
+      out.push({ page, index, groupId: grp ? this.extGroupNumber(grp) : -1, pinned: !!t.pinned });
     });
     return out;
+  },
+
+  // === Tab groups, for an extension (chrome.tabGroups, tabs.group, tabs.ungroup; main.js _extApi) ===
+  // An extension names a group by a number that must not change while the group lives, so each group is given one (extNum) the first time
+  // an extension sees it. The extension's colours are Chrome's nine names; a group made by hand keeps its own colour and is told as the
+  // nearest name.
+  EXT_GROUP_COLORS: { grey: '#9aa0a6', blue: '#5b8def', red: '#e8685a', yellow: '#e8c45a', green: '#6fbf73', pink: '#f06292', purple: '#9b59b6', cyan: '#5ac8c8', orange: '#f59e0b' },
+
+  extGroupNumber(group) {
+    if (!Number.isInteger(group.extNum)) group.extNum = 1 + this.groups.reduce((m, g) => Math.max(m, Number.isInteger(g.extNum) ? g.extNum : 0), 0);
+    return group.extNum;
+  },
+
+  // The nearest of Chrome's names to a colour: by distance in RGB. A colour that is a theme variable cannot be read here: blue.
+  _extColorName(color) {
+    const m = /^#([0-9a-f]{6})$/i.exec(String(color || ''));
+    if (!m) return 'blue';
+    const n = parseInt(m[1], 16);
+    const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    let best = 'blue', bestD = Infinity;
+    for (const [name, hex] of Object.entries(this.EXT_GROUP_COLORS)) {
+      const h = parseInt(hex.slice(1), 16);
+      const d = (((h >> 16) & 255) - rgb[0]) ** 2 + (((h >> 8) & 255) - rgb[1]) ** 2 + ((h & 255) - rgb[2]) ** 2;
+      if (d < bestD) { bestD = d; best = name; }
+    }
+    return best;
+  },
+
+  _extGroupInfo(group) {
+    const color = group.extColor && this.EXT_GROUP_COLORS[group.extColor] ? group.extColor : this._extColorName(group.color);
+    return { id: this.extGroupNumber(group), windowId: 0, title: group.name || '', color, collapsed: !!group.collapsed };
+  },
+
+  // One operation from an extension. A group it names must be one it was told about (extNum), as in Chrome a group id it never saw is "No group
+  // with id". Every failure is in Chrome's words.
+  extGroupOp(op, args = {}) {
+    const byNumber = (n) => {
+      const g = Number.isInteger(n) ? this.groups.find(x => x.extNum === n) : null;
+      if (!g) throw new Error('No group with id: ' + n + '.');
+      return g;
+    };
+    const save = () => { VexStorage.saveGroups(this.groups); this.rebuildAllTabs(); this.persistTabs(); };
+    switch (op) {
+      case 'tabGroups.query': {
+        const q = args.query || {};
+        return this.groups.filter(g => (q.title === undefined || (g.name || '') === q.title) && (q.collapsed === undefined || !!g.collapsed === q.collapsed)
+          && (q.color === undefined || this._extGroupInfo(g).color === q.color)).map(g => this._extGroupInfo(g));
+      }
+      case 'tabGroups.get': return this._extGroupInfo(byNumber(args.groupId));
+      case 'tabGroups.update': {
+        const g = byNumber(args.groupId);
+        const p = args.props || {};
+        if (p.title !== undefined) g.name = String(p.title).slice(0, 60);
+        if (p.color !== undefined) {
+          if (!this.EXT_GROUP_COLORS[p.color]) throw new Error('Invalid value for argument 2. Property \'color\': Value must be one of: grey, blue, red, yellow, green, pink, purple, cyan, orange.');
+          g.extColor = p.color; g.color = this.EXT_GROUP_COLORS[p.color];
+        }
+        if (p.collapsed !== undefined) g.collapsed = !!p.collapsed;
+        save();
+        return this._extGroupInfo(g);
+      }
+      // Vex keeps its groups in the order of their tabs; there is no separate place for a group to move to, so this answers with the group.
+      case 'tabGroups.move': return this._extGroupInfo(byNumber(args.groupId));
+      case 'tabs.group': {
+        const ids = Array.isArray(args.tabIds) ? args.tabIds : [];
+        if (!ids.length || ids.length > 500 || !ids.every(Number.isSafeInteger)) throw new Error('tabs.group takes a tab id or a list of them');
+        const { tabs, missing } = this.tabsByPageId(ids);
+        if (missing != null) throw new Error('No tab with id: ' + missing + '.');
+        let g;
+        if (args.groupId != null) g = byNumber(args.groupId);
+        else {
+          g = { id: 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: '', color: GROUP_COLORS[0], collapsed: false };
+          this.groups.push(g);
+        }
+        for (const t of tabs) this.moveTabToGroup(t.id, g.id);
+        save();
+        return this.extGroupNumber(g);
+      }
+      case 'tabs.ungroup': {
+        const ids = Array.isArray(args.tabIds) ? args.tabIds : [];
+        if (!ids.length || ids.length > 500 || !ids.every(Number.isSafeInteger)) throw new Error('tabs.ungroup takes a tab id or a list of them');
+        const { tabs, missing } = this.tabsByPageId(ids);
+        if (missing != null) throw new Error('No tab with id: ' + missing + '.');
+        for (const t of tabs) this._setTabGroup(t.id, null);
+        this.groups = this.groups.filter(g => this.tabs.some(t => t.groupId === g.id));   // a group with no tab left is gone, as in Chrome
+        save();
+        return null;
+      }
+      default: throw new Error('Vex does not know ' + String(op));
+    }
   },
 
   closeTabsByPageId(ids) {

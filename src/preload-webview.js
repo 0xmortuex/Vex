@@ -940,25 +940,73 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   // reach, so this is an honest stand-in: the names and colours exist, there are no groups to find, and making or changing one fails in
   // words the extension can show (Claude wraps each of those calls in a try/catch and goes on without a group).
   if (!c.tabGroups) {
-    var noGroup = function (id) { return Promise.reject(new Error('No group with id: ' + id + '.')); };
-    var groupCall = function (what) {
-      return function (id) {
-        var cb = arguments[arguments.length - 1];
-        return settle(noGroup(id), typeof cb === 'function' ? cb : null, what);
+    // Vex's own tab groups, through main (TabManager.extGroupOp). A group is told to an extension by a number that stays; colours are
+    // Chrome's nine names. Without main to ask (a context that was given no way to) there are no groups, and making one is refused.
+    var groupCall = function (op, build) {
+      return function () {
+        var a = Array.prototype.slice.call(arguments);
+        var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+        var p;
+        try { p = api ? api(op, build.apply(null, a)) : Promise.reject(new Error('Vex does not let an extension work with tab groups here')); }
+        catch (err) { p = Promise.reject(err); }
+        return settle(p, cb, op);
       };
     };
     c.tabGroups = {
       TAB_GROUP_ID_NONE: -1,
       Color: { GREY: 'grey', BLUE: 'blue', RED: 'red', YELLOW: 'yellow', GREEN: 'green', PINK: 'pink', PURPLE: 'purple', CYAN: 'cyan', ORANGE: 'orange' },
-      get: groupCall('tabGroups.get'),
-      update: groupCall('tabGroups.update'),
-      move: groupCall('tabGroups.move'),
-      query: function () { return done([]).apply(null, arguments); },
+      get: groupCall('tabGroups.get', function (id) { return { groupId: id }; }),
+      update: groupCall('tabGroups.update', function (id, props) { return { groupId: id, props: props || {} }; }),
+      move: groupCall('tabGroups.move', function (id, props) { return { groupId: id, props: props || {} }; }),
+      query: groupCall('tabGroups.query', function (q) { return { query: q || {} }; }),
       onCreated: noEvent(), onUpdated: noEvent(), onMoved: noEvent(), onRemoved: noEvent(),
     };
+    if (c.tabs && typeof c.tabs.group !== 'function') {
+      c.tabs.group = groupCall('tabs.group', function (o) {
+        o = o || {};
+        return { tabIds: [].concat(o.tabIds == null ? [] : o.tabIds), groupId: o.groupId };
+      });
+    }
+    if (c.tabs && typeof c.tabs.ungroup !== 'function') c.tabs.ungroup = groupCall('tabs.ungroup', function (ids) { return { tabIds: [].concat(ids == null ? [] : ids) }; });
   }
-  if (c.tabs && typeof c.tabs.group !== 'function') c.tabs.group = refuse('group tabs');
-  if (c.tabs && typeof c.tabs.ungroup !== 'function') c.tabs.ungroup = refuse('ungroup tabs');
+  // tabs.update with an address: Electron's own replaced the page in the tab's history, so tabs.goBack found nowhere to go. Through main it is a
+  // new entry, as in Chrome. Everything else about tabs.update (active, muted, pinned...) stays Electron's.
+  if (api && c.tabs && typeof c.tabs.update === 'function' && !c.tabs.update.vexNavigates) {
+    var electronTabsUpdate = c.tabs.update.bind(c.tabs);
+    var vexNavigatingUpdate = function (tabId, props, cb) {
+      if (tabId !== null && typeof tabId === 'object') { cb = props; props = tabId; tabId = undefined; }
+      if (typeof props === 'function') { cb = props; props = undefined; }
+      var web = props && typeof props.url === 'string' && /^(https?:|about:blank$|chrome-extension:)/i.test(props.url);
+      if (!web) return electronTabsUpdate.apply(null, arguments);
+      var rest = Object.assign({}, props); delete rest.url;
+      var p = api('tabs.navigate', { tabId: typeof tabId === 'number' ? tabId : undefined, url: props.url }).then(function (id) {
+        var done = Object.keys(rest).length ? new Promise(function (r) { electronTabsUpdate(id, rest, function () { r(); }); }) : Promise.resolve();
+        return done.then(function () { return typeof c.tabs.get === 'function' ? new Promise(function (r) { c.tabs.get(id, function (t) { r(t); }); }) : undefined; });
+      });
+      return settle(p, typeof cb === 'function' ? cb : null, 'tabs.update');
+    };
+    vexNavigatingUpdate.vexNavigates = true;
+    c.tabs.update = vexNavigatingUpdate;
+  }
+  // tabs.goBack, goForward and captureVisibleTab: Electron has none. Main answers from the tab's own history and a picture of the tab in front.
+  var navCall = function (op, build) {
+    return function () {
+      var a = Array.prototype.slice.call(arguments);
+      var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+      var p;
+      try { p = api ? api(op, build.apply(null, a)) : Promise.reject(new Error('Vex does not let an extension do this here')); }
+      catch (err) { p = Promise.reject(err); }
+      return settle(p, cb, op);
+    };
+  };
+  if (c.tabs && typeof c.tabs.goBack !== 'function') c.tabs.goBack = navCall('tabs.goBack', function (id) { return { tabId: typeof id === 'number' ? id : undefined }; });
+  if (c.tabs && typeof c.tabs.goForward !== 'function') c.tabs.goForward = navCall('tabs.goForward', function (id) { return { tabId: typeof id === 'number' ? id : undefined }; });
+  if (c.tabs && typeof c.tabs.captureVisibleTab !== 'function') {
+    c.tabs.captureVisibleTab = navCall('tabs.captureVisibleTab', function (windowId, options) {
+      if (windowId && typeof windowId === 'object') { options = windowId; windowId = undefined; }
+      return { windowId: windowId, options: options || {} };
+    });
+  }
 
   // chrome.debugger, chrome.sidePanel, chrome.offscreen and chrome.identity: Electron has none of them, and an extension that asks for the
   // permission reads the namespace while it starts (the Claude extension's worker calls chrome.debugger.onEvent.addListener at the top of

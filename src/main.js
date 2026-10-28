@@ -6181,6 +6181,13 @@ function _extPopupUrlOf(ext, page) {
   if (u.protocol !== 'chrome-extension:' || u.host !== ext.id) throw new Error('A popup must be one of the extension\'s own pages');
   return u.href;
 }
+// The tab in front of the Vex window used last, as a page of the extension's session; null when it is not one.
+async function _extFrontPage(ses) {
+  const win = _extCurrentWindow();
+  if (!win || win.isDestroyed()) return null;
+  const id = await win.webContents.executeJavaScript('(() => { const wv = WebviewManager.webviews.get(TabManager.activeTabId); try { return wv ? wv.getWebContentsId() : null; } catch { return null; } })()');
+  return Number.isInteger(id) ? _extPage(ses, id) : null;
+}
 // The popup for a tab: what action.setPopup set for it or for every tab,
 // else the manifest's. '' is none.
 function _extPopupUrl(ses, ext, tabId, manifestPopup) {
@@ -6314,6 +6321,56 @@ async function _extApi(senderUrl, ses, request) {
       });
       if (r.op === 'webNavigation.getAllFrames') return rows;
       return rows.find(f => f.frameId === args.frameId) || null;
+    }
+    // Tab groups: Vex's own groups, asked of the window that holds the tabs (TabManager.extGroupOp). Chrome's permission for them is "tabGroups".
+    case 'tabGroups.get': case 'tabGroups.query': case 'tabGroups.update': case 'tabGroups.move': case 'tabs.group': case 'tabs.ungroup': {
+      needPerm('tabGroups');
+      let win = null;
+      const ids = Array.isArray(args.tabIds) ? args.tabIds : [];
+      for (const id of ids) {
+        const p = _extPage(ses, id);
+        if (!p) throw new Error(`No tab with id: ${id}.`);
+        const h = secureSessions.owner(p);
+        win = win || (h && h.win) || null;
+      }
+      win = win && !win.isDestroyed() ? win : _extCurrentWindow();
+      if (!win || win.isDestroyed()) throw new Error('Vex has no window to do that in');
+      const out = await win.webContents.executeJavaScript(`TabManager.extGroupOp(${JSON.stringify(r.op)}, ${JSON.stringify({ tabIds: ids, groupId: args.groupId, query: args.query, props: args.props })})`);
+      const placed = (g) => (g && typeof g === 'object' && g.windowId === 0 ? { ...g, windowId: win.id } : g);
+      return Array.isArray(out) ? out.map(placed) : placed(out);
+    }
+    // tabs.update with an address: a navigation that is a new entry in the tab's history, as in Chrome. Electron's own tabs.update replaced the
+    // entry, so tabs.goBack found nowhere to go. Only web pages, about:blank and the extension's own pages; anything else stays Electron's.
+    case 'tabs.navigate': {
+      const page = tabId !== null ? _extPage(ses, tabId) : await _extFrontPage(ses);
+      if (!page) throw new Error('No tab to navigate');
+      let u;
+      try { u = new URL(String(args.url || '')); } catch { throw new Error('Invalid url: ' + String(args.url).slice(0, 100)); }
+      const own = u.protocol === 'chrome-extension:' && u.host === extId;
+      if (!(u.protocol === 'https:' || u.protocol === 'http:' || u.href === 'about:blank' || own)) throw new Error('Vex navigates a tab for an extension only to a web page or one of the extension\'s own pages');
+      page.loadURL(u.href).catch(err => { if (!/ERR_ABORTED|\(-3\)/.test(String(err && err.message))) console.error('[Extensions] tabs.update did not load ' + u.host + ':', err.message); });
+      return page.id;
+    }
+    // tabs.goBack / goForward: the tab's own history (Electron has neither). Chrome's words when there is nowhere to go.
+    case 'tabs.goBack': case 'tabs.goForward': {
+      const page = tabId !== null ? _extPage(ses, tabId) : await _extFrontPage(ses);
+      if (!page) throw new Error('No tab to navigate');
+      const back = r.op === 'tabs.goBack';
+      const h = page.navigationHistory;
+      if (back ? !h.canGoBack() : !h.canGoForward()) throw new Error(back ? 'Cannot find a previous page in history.' : 'Cannot find a next page in history.');
+      if (back) h.goBack(); else h.goForward();
+      return undefined;
+    }
+    // tabs.captureVisibleTab: a picture of the tab in front, as a data address. Chrome asks for <all_urls> or activeTab.
+    case 'tabs.captureVisibleTab': {
+      const wide = perms.includes('activeTab') || perms.includes('<all_urls>') || (Array.isArray(manifest.host_permissions) && manifest.host_permissions.includes('<all_urls>'));
+      if (!wide) throw new Error("Either the '<all_urls>' or 'activeTab' permission is required.");
+      const page = await _extFrontPage(ses);
+      if (!page || _extPageIsPrivate(page)) throw new Error('No visible tab to capture');
+      const img = await page.capturePage();
+      const o = args.options && typeof args.options === 'object' ? args.options : {};
+      if (o.format === 'jpeg') return 'data:image/jpeg;base64,' + img.toJPEG(Number.isInteger(o.quality) ? Math.min(100, Math.max(0, o.quality)) : 90).toString('base64');
+      return img.toDataURL();
     }
     case 'alarms.create': needPerm('alarms'); _extAlarms.create(`${partition}|${extId}`, args.name, args.info); return undefined;
     case 'alarms.get': needPerm('alarms'); return _extAlarms.get(`${partition}|${extId}`, args.name);
