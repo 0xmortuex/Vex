@@ -80,8 +80,29 @@ const VexExtDebugBar = {
     }
   },
 
+  // An extension tried to drive a tab with the switch off: ask, in Vex's own box. Yes turns the switch on, as its card in Settings does.
+  async ask(request) {
+    if (!request || typeof request.folder !== 'string' || request.grant !== 'debugger') return;
+    const name = String(request.name || request.folder);
+    const yes = await window.vexConfirm({
+      title: this._t('extGrantAskTitle', 'Let {name} control your tabs?').split('{name}').join(name),
+      message: this._t('extGrantAskBody', '{name} wants to read and control the pages of your tabs, to do what you asked it. While it does, a bar on the tab says so, and Stop lets go. It never reaches private or Tor tabs. You can turn this off any time in Settings > Extensions.').split('{name}').join(name),
+      okLabel: this._t('extGrantAskYes', 'Allow'),
+    });
+    if (!yes) return;
+    try {
+      const r = await window.vex.extensionsSetGrant({ folder: request.folder, grant: 'debugger', on: true });
+      if (!r || !r.ok) throw new Error((r && r.error) || 'unknown');
+      window.showToast?.(this._t('extGrantAskDone', '{name} can now control your tabs. Ask it again.').split('{name}').join(name), 'success');
+    } catch (err) {
+      console.error('[Extensions] could not allow ' + name + ':', err);
+      window.showToast?.(this._t('extGrantAskFail', 'Could not allow it: ') + ((err && err.message) || err), 'error');
+    }
+  },
+
   async init() {
     if (!window.vex || typeof window.vex.onExtensionsDebugState !== 'function') return;
+    if (typeof window.vex.onExtensionsGrantAsk === 'function') window.vex.onExtensionsGrantAsk((request) => this.ask(request));
     window.vex.onExtensionsDebugState((rows) => this.set(rows));
     window.addEventListener('vex:tab-activated', () => this.refresh());
     window.addEventListener('resize', () => this._place());

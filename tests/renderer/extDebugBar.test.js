@@ -77,3 +77,35 @@ describe('the bar', () => {
     expect(document.querySelector('.ext-debug-bar-text').textContent).toContain('<img src=x');
   });
 });
+
+// An extension that drives a tab with the switch off is asked about in Vex's own box (main sends extensions:grant-ask); only Allow turns it on.
+describe('asking to let an extension control tabs', () => {
+  it('Allow turns the debugger switch on for that extension and says so', async () => {
+    window.vexConfirm = vi.fn(async () => true);
+    window.vex.extensionsSetGrant = vi.fn(async () => ({ ok: true }));
+    await VexExtDebugBar.ask({ folder: 'claude-1', grant: 'debugger', name: 'Claude' });
+    expect(window.vexConfirm.mock.calls[0][0].title).toContain('Claude');
+    expect(window.vex.extensionsSetGrant).toHaveBeenCalledWith({ folder: 'claude-1', grant: 'debugger', on: true });
+    expect(window.showToast.mock.calls[0][1]).toBe('success');
+    delete window.vexConfirm;
+  });
+  it('declining changes nothing, and a request for anything else is ignored', async () => {
+    window.vexConfirm = vi.fn(async () => false);
+    window.vex.extensionsSetGrant = vi.fn(async () => ({ ok: true }));
+    await VexExtDebugBar.ask({ folder: 'claude-1', grant: 'debugger', name: 'Claude' });
+    await VexExtDebugBar.ask({ folder: 'claude-1', grant: 'nativeMessaging', name: 'Claude' });
+    await VexExtDebugBar.ask(null);
+    expect(window.vex.extensionsSetGrant).not.toHaveBeenCalled();
+    expect(window.vexConfirm).toHaveBeenCalledTimes(1);
+    delete window.vexConfirm;
+  });
+  it('a failure to save is shown, never silent', async () => {
+    window.vexConfirm = vi.fn(async () => true);
+    window.vex.extensionsSetGrant = vi.fn(async () => ({ ok: false, error: 'disk' }));
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await VexExtDebugBar.ask({ folder: 'claude-1', grant: 'debugger', name: 'Claude' });
+    expect(window.showToast.mock.calls[0][1]).toBe('error');
+    err.mockRestore();
+    delete window.vexConfirm;
+  });
+});

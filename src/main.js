@@ -5643,6 +5643,17 @@ const _extNative = _extNativeMod.createExtensionNative({
   emit: (ses, extId, type, args) => { _extDispatch(ses, extId, type, args).catch(err => console.error(`[Extensions] ${type} did not reach ${extId}:`, err.message)); },
 });
 app.on('will-quit', () => { try { _extNative.stop({}); } catch (err) { console.error('[Extensions] could not stop native hosts at quit:', err.message); } });
+// An extension that tries to drive a tab while the switch is off used to just fail (Claude sat on "Working" for ever, 2026-10-28). Vex now asks the person,
+// in its own window (js/ext-debug-bar.js), once per ten minutes per extension; only their answer in that box turns the switch on.
+const _extGrantAsked = new Map();   // "folder|grant" -> when it was last asked
+function _extAskGrant(folder, grant) {
+  const key = folder + '|' + grant;
+  if (Date.now() - (_extGrantAsked.get(key) || 0) < 10 * 60 * 1000) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  _extGrantAsked.set(key, Date.now());
+  const meta = [..._extMeta().values()].find(m => m.folder === folder);
+  mainWindow.webContents.send('extensions:grant-ask', { folder, grant, name: (meta && meta.name) || folder });
+}
 // The window draws a bar on every tab an extension holds (js/ext-debug-bar.js), with the extension's name and a Stop button.
 function _extDebugState(rows) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -6314,6 +6325,7 @@ async function _extApi(senderUrl, ses, request) {
       needPerm('debugger');
       const key = `${partition}|${extId}`;
       const folder = path.basename(ext.path);
+      if ((r.op === 'debugger.attach' || r.op === 'debugger.sendCommand') && !_extGrants.has(_extGrantState(), 'debugger', folder)) _extAskGrant(folder, 'debugger');
       if (r.op === 'debugger.attach') return _extDebugger.attach({ ses, key, extId, folder, tabId, version: args.version });
       if (r.op === 'debugger.detach') return _extDebugger.detach({ key, tabId });
       if (r.op === 'debugger.sendCommand') return _extDebugger.sendCommand({ key, tabId, method: args.method, params: args.params, sessionId: args.sessionId });

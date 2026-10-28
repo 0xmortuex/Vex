@@ -102,8 +102,8 @@
   // The bar over a tab an extension controls (js/ext-debug-bar.js).
   Object.assign(strings.en, { extSpResize: 'Drag to resize', extSpClose: 'Close the side panel' });
   Object.assign(strings.tr, { extSpResize: 'Boyutlandırmak için sürükleyin', extSpClose: 'Yan paneli kapat' });
-  Object.assign(strings.en, { extDbgOne: '{name} is controlling this tab', extDbgMany: '{names} are controlling this tab', extDbgStop: 'Stop', extDbgStopFail: 'Could not stop it: ' });
-  Object.assign(strings.tr, { extDbgOne: '{name} bu sekmeyi yönetiyor', extDbgMany: '{names} bu sekmeyi yönetiyor', extDbgStop: 'Durdur', extDbgStopFail: 'Durdurulamadı: ' });
+  Object.assign(strings.en, { extDbgOne: '{name} is controlling this tab', extDbgMany: '{names} are controlling this tab', extDbgStop: 'Stop', extDbgStopFail: 'Could not stop it: ', extGrantAskTitle: 'Let {name} control your tabs?', extGrantAskBody: '{name} wants to read and control the pages of your tabs, to do what you asked it. While it does, a bar on the tab says so, and Stop lets go. It never reaches private or Tor tabs. You can turn this off any time in Settings > Extensions.', extGrantAskYes: 'Allow', extGrantAskDone: '{name} can now control your tabs. Ask it again.', extGrantAskFail: 'Could not allow it: ' });
+  Object.assign(strings.tr, { extDbgOne: '{name} bu sekmeyi yönetiyor', extDbgMany: '{names} bu sekmeyi yönetiyor', extDbgStop: 'Durdur', extDbgStopFail: 'Durdurulamadı: ', extGrantAskTitle: '{name} sekmelerinizi yönetebilsin mi?', extGrantAskBody: '{name}, istediğinizi yapmak için sekmelerinizin sayfalarını okumak ve yönetmek istiyor. Bunu yaparken sekmedeki bir çubuk bunu söyler ve Durdur bırakmasını sağlar. Gizli ve Tor sekmelerine asla ulaşmaz. Bunu istediğiniz zaman Ayarlar > Eklentiler’den kapatabilirsiniz.', extGrantAskYes: 'İzin ver', extGrantAskDone: '{name} artık sekmelerinizi yönetebilir. Ona yeniden söyleyin.', extGrantAskFail: 'İzin verilemedi: ' });
   // Saved payment cards (js/card-saver.js).
   Object.assign(strings.en, {
     cardOpenPage: 'Open a web page first',

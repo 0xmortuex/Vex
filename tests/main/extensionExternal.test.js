@@ -136,3 +136,11 @@ describe('chrome://newtab from an extension', () => {
     expect(MAIN).toMatch(/return \{ \.\.\._extWindowInfo\(_extCurrentWindow\(\)\), tabs \};/);
   });
 });
+
+describe('the switch off while an extension tries to drive a tab', () => {
+  it('main asks the person once per ten minutes, on attach and sendCommand only (not on the getTargets it makes at start)', () => {
+    expect(MAIN).toMatch(/Date\.now\(\) - \(_extGrantAsked\.get\(key\) \|\| 0\) < 10 \* 60 \* 1000/);
+    expect(MAIN).toMatch(/\(r\.op === 'debugger\.attach' \|\| r\.op === 'debugger\.sendCommand'\) && !_extGrants\.has\(_extGrantState\(\), 'debugger', folder\)\) _extAskGrant\(folder, 'debugger'\)/);
+    expect(MAIN).toContain("mainWindow.webContents.send('extensions:grant-ask'");
+  });
+});
