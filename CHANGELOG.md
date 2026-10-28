@@ -1,6 +1,6 @@
 # Changelog
 
-## v41.87.6 (2026-10-28) — Vex uses far less memory: the interface window, the ad-blocker and Settings
+## v41.90.1 (2026-10-28) — Vex uses far less memory: the interface window, the ad-blocker and Settings
 
 ### Changed
 - **The interface window starts with less than half the memory.** Every module that adds a Settings section used to draw all the sections registered so far while Vex was still starting: about 18,000 hidden page elements and a pile of leftovers. Sections are now drawn when you open Settings. In a fresh packaged Vex the interface window went from 266 MB to 130 MB, and Vex as a whole from 581 MB to 447 MB. Vex also finishes starting much sooner (the start-up test went from 18.0 s to 4.6 s). Opening Settings for the first time takes about 80 ms longer; everything in it, including the search and the Turkish headings, is the same.

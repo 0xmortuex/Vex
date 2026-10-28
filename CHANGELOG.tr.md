@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v41.87.6 (2026-10-28) — Vex çok daha az bellek kullanıyor: arayüz penceresi, reklam engelleyici ve Ayarlar
+## v41.90.1 (2026-10-28) — Vex çok daha az bellek kullanıyor: arayüz penceresi, reklam engelleyici ve Ayarlar
 
 ### Değişti
 - **Arayüz penceresi yarıdan az bellekle açılıyor.** Ayarlar’a bölüm ekleyen her modül, Vex henüz açılırken o ana kadar kayıtlı tüm bölümleri çiziyordu: yaklaşık 18.000 gizli sayfa öğesi ve bir yığın artık. Bölümler artık Ayarlar’ı açtığınızda çiziliyor. Yeni paketlenmiş bir Vex’te arayüz penceresi 266 MB’tan 130 MB’a, Vex’in tamamı 581 MB’tan 447 MB’a indi. Vex ayrıca çok daha çabuk açılıyor (başlangıç testi 18,0 sn’den 4,6 sn’ye düştü). Ayarlar’ın ilk açılışı yaklaşık 80 ms uzadı; içindeki her şey, arama ve Türkçe başlıklar dahil, aynı.
