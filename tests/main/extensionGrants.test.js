@@ -12,7 +12,7 @@ afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 describe('the grants file', () => {
   it('nothing is allowed when there is no file yet', () => {
-    expect(G.read(dir)).toEqual({ debugger: {} });
+    expect(G.read(dir)).toEqual({ debugger: {}, nativeMessaging: {} });
     expect(G.has(G.read(dir), 'debugger', 'claude-1')).toBe(false);
   });
   it('turning it on and off for one extension, and the file keeps it', () => {
@@ -22,7 +22,7 @@ describe('the grants file', () => {
     expect(G.has(G.read(dir), 'debugger', 'other-2')).toBe(false);
     s = G.set(G.read(dir), 'debugger', 'claude-1', false);
     G.write(dir, s);
-    expect(G.read(dir)).toEqual({ debugger: {} });
+    expect(G.read(dir)).toEqual({ debugger: {}, nativeMessaging: {} });
   });
   it('turning one on leaves another extension\'s switch as it was', () => {
     let s = G.set(G.read(dir), 'debugger', 'a-1', true);
@@ -32,7 +32,7 @@ describe('the grants file', () => {
   });
   it('only a literal true counts: a file edited to "yes", 1 or "true" allows nothing', () => {
     fs.writeFileSync(path.join(dir, G.FILE), JSON.stringify({ debugger: { a: 'yes', b: 1, c: 'true', d: true, e: false } }));
-    expect(G.read(dir)).toEqual({ debugger: { d: true } });
+    expect(G.read(dir)).toEqual({ debugger: { d: true }, nativeMessaging: {} });
   });
   it('a corrupt file is an error to report, never a silent allow', () => {
     fs.writeFileSync(path.join(dir, G.FILE), '[1,2]');

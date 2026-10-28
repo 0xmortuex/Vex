@@ -210,6 +210,16 @@ const ExtensionsSettings = (() => {
     return `<div class="ext-fileaccess"><label class="ext-toggle"><input type="checkbox" data-debugger-grant="${_esc(e.folder)}"${e.debuggerAllowed ? ' checked' : ''}> Allow it to control other tabs</label><span>${_esc(note)}</span></div>`;
   }
 
+  // chrome.runtime.connectNative: an extension that asks for it can start the programs on this computer their installers registered for it
+  // (Claude Code's browser bridge, for the Claude extension). Off until switched on here, for that extension.
+  function _nativeHtml(e) {
+    if (!e.wantsNative) return '';
+    const note = e.nativeAllowed
+      ? 'It can start programs on this computer that were set up for it, and talk to them. Turning this off stops them.'
+      : 'It asks to talk to programs on this computer (native messaging). It cannot until you allow this.';
+    return `<div class="ext-fileaccess"><label class="ext-toggle"><input type="checkbox" data-native-grant="${_esc(e.folder)}"${e.nativeAllowed ? ' checked' : ''}> Allow it to talk to programs on this computer</label><span>${_esc(note)}</span></div>`;
+  }
+
   // An extension's keyboard shortcuts (chrome.commands): its own suggested
   // keys, or the ones you chose; a key Vex or another extension already
   // answers is shown as taken, not active (main.js, extensions:commands).
@@ -432,6 +442,7 @@ const ExtensionsSettings = (() => {
                   ${_auditHtml(e)}
                   ${_fileAccessHtml(e)}
                   ${_debuggerHtml(e)}
+                  ${_nativeHtml(e)}
                   ${_commandsHtml(e, commands)}
                   ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements${e.persistentBackground ? ' — and its background page stays loaded for that, about 85 MB' : ''}.</div>` : ''}
                   ${_dnrHtml(e)}
@@ -572,6 +583,15 @@ const ExtensionsSettings = (() => {
         const r = await window.vex.extensionsSetGrant({ folder: box.dataset.debuggerGrant, grant: 'debugger', on: wanted });
         if (!r || !r.ok) { box.checked = !wanted; _toast('Could not change it: ' + ((r && r.error) || 'unknown'), 'error'); return; }
         _toast(wanted ? 'It can now control your tabs' : 'It can no longer control your tabs', 'success');
+        render(container);
+      });
+    });
+    container.querySelectorAll('[data-native-grant]').forEach(box => {
+      box.addEventListener('change', async () => {
+        const wanted = box.checked;
+        const r = await window.vex.extensionsSetGrant({ folder: box.dataset.nativeGrant, grant: 'nativeMessaging', on: wanted });
+        if (!r || !r.ok) { box.checked = !wanted; _toast('Could not change it: ' + ((r && r.error) || 'unknown'), 'error'); return; }
+        _toast(wanted ? 'It can now talk to programs on this computer' : 'It can no longer talk to programs on this computer', 'success');
         render(container);
       });
     });

@@ -1,15 +1,16 @@
 // === What the person has let an extension do beyond its manifest (2026-10-28) ===
 //
 // Chrome gives an extension the permissions it names when it is installed. Vex keeps the ones that hand over the most behind a switch of
-// their own on the extension's card, off until the person turns it on: today "debugger" ("Allow it to control other tabs": the
-// extension drives any tab of its session through the DevTools protocol, which is how the Claude extension browses for you).
+// their own on the extension's card, off until the person turns it on: "debugger" ("Allow it to control other tabs": the
+// extension drives any tab of its session through the DevTools protocol, which is how the Claude extension browses for you) and
+// "nativeMessaging" ("Allow it to talk to programs on this computer": it starts the host programs their installers registered for it).
 // One small file in the extensions folder: { "debugger": { "<folder>": true } }. A missing file means nothing is allowed; an unreadable
 // one is an error that says so (the caller keeps everything off), never a silent allow.
 const fs = require('fs');
 const path = require('path');
 
 const FILE = 'extension-grants.json';
-const GRANTS = Object.freeze(['debugger']);
+const GRANTS = Object.freeze(['debugger', 'nativeMessaging']);
 
 const filePath = (dir) => path.join(dir, FILE);
 

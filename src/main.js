@@ -4295,6 +4295,7 @@ function _checkBackgroundStarts(folder, extPath) {
 // Unload one installed folder from every session that could be holding it.
 function _unloadFromAllSessions(extPath) {
   _extDebugger.stop({ folder: path.basename(extPath) });
+  _extNative.stop({ folder: path.basename(extPath) });
   for (const s of [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p)), ..._extraExtSessions]) {
     try { for (const e of s.getAllExtensions()) if (path.resolve(e.path) === path.resolve(extPath) && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('extensions:sidepanel-close', { extId: e.id }); }
     catch (err) { console.error('[Extensions] could not close the side panels of an unloaded extension:', err.message); }
@@ -4615,6 +4616,8 @@ ipcMain.handle('extensions:list', () => {
       // chrome.debugger: asked for in the manifest, and whether the person switched it on (main/extension-grants.js).
       wantsDebugger: (Array.isArray(manifest.permissions) ? manifest.permissions : []).includes('debugger'),
       debuggerAllowed: _extGrants.has(_extGrantState(), 'debugger', e.folder),
+      wantsNative: (Array.isArray(manifest.permissions) ? manifest.permissions : []).includes('nativeMessaging'),
+      nativeAllowed: _extGrants.has(_extGrantState(), 'nativeMessaging', e.folder),
       fileUrls: e.manifest ? extHelpers.fileUrlPatterns(manifest).length > 0 : false,
       // What this extension can read, and what it is allowed to do, in words
       // (src/main/extension-audit.js).
@@ -5023,6 +5026,7 @@ ipcMain.handle('extensions:set-grant', (_e, request) => {
     const next = _extGrants.set(_extGrantState(), request.grant, folder, request.on === true);
     _extGrants.write(extensionsDir, next);
     if (request.grant === 'debugger' && request.on !== true) _extDebugger.stop({ folder });
+    if (request.grant === 'nativeMessaging' && request.on !== true) _extNative.stop({ folder });
     return { ok: true };
   } catch (err) { return { ok: false, error: 'Could not save it: ' + err.message }; }
 });
@@ -5610,6 +5614,32 @@ const _extDebugger = require('./main/extension-debugger').createExtensionDebugge
   changed: (rows) => _extDebugState(rows),
   pagesOf: (ses) => webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.getType() === 'webview' && wc.session === ses),
 });
+// chrome.runtime.connectNative / sendNativeMessage (main/extension-native.js): the host programs installers registered for an extension
+// (HKCU/HKLM Software\\Google\\Chrome\\NativeMessagingHosts), behind the "talk to programs on this computer" switch.
+const _extNativeMod = require('./main/extension-native');
+function _regDefault(key) {
+  return new Promise((resolve) => {
+    require('child_process').execFile('reg', ['query', key, '/ve'], { windowsHide: true, timeout: 5000 }, (err, stdout) => resolve(err ? null : _extNativeMod.parseRegQuery(stdout)));
+  });
+}
+async function _findNativeHost(name) {
+  for (const base of _extNativeMod.REGISTRY_KEYS) {
+    const file = await _regDefault(base + name);
+    if (!file) continue;
+    const resolved = path.win32.isAbsolute(file) ? file : null;
+    if (!resolved) continue;
+    try { return { file: resolved, manifest: JSON.parse(fs.readFileSync(resolved, 'utf-8').replace(/^\uFEFF/, '')) }; }
+    catch (err) { console.error('[Extensions] the native host manifest ' + resolved + ' is unreadable:', err.message); return null; }
+  }
+  return null;
+}
+const _extNative = _extNativeMod.createExtensionNative({
+  spawn: (cmd, args, opts) => require('child_process').spawn(cmd, args, opts),
+  findManifest: _findNativeHost,
+  allowed: (folder) => _extGrants.has(_extGrantState(), 'nativeMessaging', folder),
+  emit: (ses, extId, type, args) => { _extDispatch(ses, extId, type, args).catch(err => console.error(`[Extensions] ${type} did not reach ${extId}:`, err.message)); },
+});
+app.on('will-quit', () => { try { _extNative.stop({}); } catch (err) { console.error('[Extensions] could not stop native hosts at quit:', err.message); } });
 // The window draws a bar on every tab an extension holds (js/ext-debug-bar.js), with the extension's name and a Stop button.
 function _extDebugState(rows) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -6281,6 +6311,16 @@ async function _extApi(senderUrl, ses, request) {
       if (r.op === 'debugger.sendCommand') return _extDebugger.sendCommand({ key, tabId, method: args.method, params: args.params, sessionId: args.sessionId });
       if (!_extGrants.has(_extGrantState(), 'debugger', folder)) throw new Error(require('./main/extension-debugger').DENIED);
       return _extDebugger.targets({ ses, key });
+    }
+    // chrome.runtime.connectNative / sendNativeMessage: a host program the extension's installer registered (main/extension-native.js).
+    case 'native.connect': case 'native.send': case 'native.disconnect': case 'native.sendOnce': {
+      needPerm('nativeMessaging');
+      const key = `${partition}|${extId}`;
+      const folder = path.basename(ext.path);
+      if (r.op === 'native.connect') return _extNative.connect({ ses, key, extId, folder, portId: String(args.portId), name: args.name });
+      if (r.op === 'native.send') return _extNative.send({ key, portId: String(args.portId), message: args.message });
+      if (r.op === 'native.disconnect') return _extNative.disconnect({ key, portId: String(args.portId) });
+      return _extNative.sendOnce({ extId, folder, name: args.name, message: args.message });
     }
     case 'cookies.get': case 'cookies.getAll': case 'cookies.set': case 'cookies.remove': case 'cookies.getAllCookieStores':
       return _extCookies.cookiesApi(r.op, args, { manifest, cookies: ses.cookies, matchPattern: _extMenuModel.matchPattern });

@@ -804,6 +804,80 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       onEvent: hubEvent('debugger.onEvent'), onDetach: hubEvent('debugger.onDetach'),
     };
   }
+  if (hasPerm('nativeMessaging') && c.runtime) {
+    // Native messaging through main (main/extension-native.js), once the person switched "Allow it to talk to programs on this computer" on.
+    // The port ids are made here so a message can be sent at once; main tells this side what the program says and when it is gone.
+    var nativePorts = {};
+    var nativeSeq = 0;
+    var nativeHeard = false;
+    var nativeError = null;
+    try {
+      var lastErrorOrig = Object.getOwnPropertyDescriptor(c.runtime, 'lastError');
+      if (!lastErrorOrig || lastErrorOrig.configurable) {
+        Object.defineProperty(c.runtime, 'lastError', {
+          configurable: true, enumerable: true,
+          get: function () { return nativeError || (lastErrorOrig ? (lastErrorOrig.get ? lastErrorOrig.get.call(c.runtime) : lastErrorOrig.value) : undefined); },
+        });
+      }
+    } catch (err) { console.error('Vex could not make runtime.lastError readable during a native disconnect:', err.message); }
+    var withNativeError = function (text, fn) {
+      nativeError = text ? { message: text } : null;
+      try { fn(); } finally { nativeError = null; }
+    };
+    var nativeEvent = function () {
+      var fns = [];
+      return {
+        addListener: function (fn) { if (typeof fn === 'function' && fns.indexOf(fn) === -1) fns.push(fn); },
+        removeListener: function (fn) { var i = fns.indexOf(fn); if (i !== -1) fns.splice(i, 1); },
+        hasListener: function (fn) { return fns.indexOf(fn) !== -1; },
+        hasListeners: function () { return fns.length > 0; },
+        fire: function (args) { fns.slice().forEach(function (fn) { try { fn.apply(null, args); } catch (err) { setTimeout(function () { throw err; }, 0); } }); },
+      };
+    };
+    var nativeListen = function () {
+      if (nativeHeard) return;
+      nativeHeard = true;
+      hubEvent('native.onMessage').addListener(function (id, message) { var p = nativePorts[id]; if (p) p.deliver(message); });
+      hubEvent('native.onDisconnect').addListener(function (id, text) { var p = nativePorts[id]; if (p) p.gone(text); });
+    };
+    c.runtime.connectNative = function (name) {
+      if (!api) throw new Error('Vex does not let an extension talk to programs here');
+      nativeListen();
+      var id = 'n' + (++nativeSeq) + '-' + Math.random().toString(36).slice(2, 10);
+      var onMessage = nativeEvent(), onDisconnect = nativeEvent();
+      var closed = false;
+      var port = { name: String(name), onMessage: onMessage, onDisconnect: onDisconnect };
+      var ready = api('native.connect', { portId: id, name: String(name) }).catch(function (err) { gone(err.message); });
+      function gone(text) {
+        if (closed) return;
+        closed = true;
+        delete nativePorts[id];
+        withNativeError(text || '', function () { onDisconnect.fire([port]); });
+      }
+      port.postMessage = function (message) {
+        if (closed) throw new Error('Attempting to use a disconnected port object');
+        var plain = JSON.parse(JSON.stringify(message === undefined ? null : message));
+        ready.then(function () { if (!closed) return api('native.send', { portId: id, message: plain }); }).catch(function (err) { gone(err.message); });
+      };
+      port.disconnect = function () {
+        if (closed) return;
+        closed = true;
+        delete nativePorts[id];
+        api('native.disconnect', { portId: id }).catch(function (err) { console.error('Could not close a native port:', err.message); });
+      };
+      nativePorts[id] = { deliver: function (m) { if (!closed) onMessage.fire([m, port]); }, gone: gone };
+      return port;
+    };
+    c.runtime.sendNativeMessage = function (name, message, cb) {
+      var callback = typeof cb === 'function' ? cb : null;
+      var p;
+      try { p = api ? api('native.sendOnce', { name: String(name), message: JSON.parse(JSON.stringify(message === undefined ? null : message)) }) : Promise.reject(new Error('Vex does not let an extension talk to programs here')); }
+      catch (err) { p = Promise.reject(err); }
+      if (!callback) return p;
+      p.then(function (v) { callback(v); }, function (err) { withNativeError(err.message, function () { callback(); }); });
+      return undefined;
+    };
+  }
   if (!c.sidePanel && hasPerm('sidePanel')) {
     // Vex has no side panel for an extension, so the page the extension chose for it opens as a tab of its own (the extension's own page, as
     // tabs.create opens one). Options are remembered as Chrome keeps them: for every tab, or for one (tabId, which wins).

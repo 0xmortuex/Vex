@@ -33,6 +33,8 @@ function worker(chrome) {
     if (op && op.startsWith('tabGroups.')) { calls.push([ch, ...args]); return op === 'tabGroups.query' ? Promise.resolve([{ id: 1, title: 'Claude' }]) : Promise.resolve({ id: 1, windowId: 1, title: 'Claude', color: 'orange', collapsed: false }); }
     if (op === 'identity.launchWebAuthFlow') { calls.push([ch, ...args]); return Promise.resolve('chrome-extension://' + ID + '/oauth_callback.html?code=C&state=S'); }
     if (op === 'sidePanel.open' || op === 'sidePanel.close') { calls.push([ch, ...args]); return Promise.resolve(undefined); }
+    if (op === 'native.sendOnce') { calls.push([ch, ...args]); return Promise.resolve({ type: 'pong' }); }
+    if (op && op.startsWith('native.')) { calls.push([ch, ...args]); return Promise.resolve(true); }
     if (op === 'tabs.navigate') { calls.push([ch, ...args]); return Promise.resolve(6); }
     if (op === 'tabs.goBack' || op === 'tabs.goForward') { calls.push([ch, ...args]); return Promise.resolve(undefined); }
     if (op === 'tabs.captureVisibleTab') { calls.push([ch, ...args]); return Promise.resolve('data:image/png;base64,AAAA'); }
@@ -258,5 +260,48 @@ describe('both copies of the stand-ins carry it', () => {
       expect(PAGE_SRC).toContain(marker);
       expect(SW_SRC).toContain(marker);
     }
+  });
+});
+
+describe('chrome.runtime.connectNative and sendNativeMessage', () => {
+  it('are there only for an extension that asked for nativeMessaging', () => {
+    expect(withPerms(['storage']).c.runtime.connectNative).toBeUndefined();
+    expect(typeof withPerms(['nativeMessaging']).c.runtime.connectNative).toBe('function');
+  });
+  it('a port goes to main, sends after it connected, hears what main relays and is told when the program is gone (with lastError set while it is told)', async () => {
+    const { c, calls, emit } = withPerms(['nativeMessaging']);
+    const port = c.runtime.connectNative('com.anthropic.claude_code_browser_extension');
+    const heard = []; let lastError; let gone = 0;
+    port.onMessage.addListener((m) => heard.push(m));
+    port.onDisconnect.addListener(() => { gone++; lastError = c.runtime.lastError && c.runtime.lastError.message; });
+    port.postMessage({ type: 'ping' });
+    await new Promise(r => setTimeout(r, 5));
+    const ops = calls.filter(x => x[0] === 'extensions:api').map(x => x[1]);
+    expect(ops.map(o => o.op)).toEqual(['native.connect', 'native.send']);
+    expect(ops[0].args.name).toBe('com.anthropic.claude_code_browser_extension');
+    expect(ops[1].args).toEqual({ portId: ops[0].args.portId, message: { type: 'ping' } });
+    emit({ type: 'native.onMessage', args: [ops[0].args.portId, { type: 'pong' }] });
+    emit({ type: 'native.onMessage', args: ['someone-elses', { type: 'no' }] });
+    expect(heard).toEqual([{ type: 'pong' }]);
+    emit({ type: 'native.onDisconnect', args: [ops[0].args.portId, 'Native host has exited.'] });
+    emit({ type: 'native.onDisconnect', args: [ops[0].args.portId, 'again'] });
+    expect(gone).toBe(1);
+    expect(lastError).toBe('Native host has exited.');
+    expect(c.runtime.lastError).toBeUndefined();
+    expect(() => port.postMessage(1)).toThrow('disconnected port');
+  });
+  it('disconnect() tells main and does not call the extension back', async () => {
+    const { c, calls } = withPerms(['nativeMessaging']);
+    const port = c.runtime.connectNative('com.x');
+    let gone = 0; port.onDisconnect.addListener(() => gone++);
+    port.disconnect(); port.disconnect();
+    await new Promise(r => setTimeout(r, 5));
+    expect(calls.filter(x => x[0] === 'extensions:api').map(x => x[1].op)).toEqual(['native.connect', 'native.disconnect']);
+    expect(gone).toBe(0);
+  });
+  it('sendNativeMessage answers with the first message, by promise or callback', async () => {
+    const { c } = withPerms(['nativeMessaging']);
+    expect(await c.runtime.sendNativeMessage('com.x', { a: 1 })).toEqual({ type: 'pong' });
+    expect(await new Promise(r => c.runtime.sendNativeMessage('com.x', { a: 1 }, r))).toEqual({ type: 'pong' });
   });
 });
