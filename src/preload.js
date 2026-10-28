@@ -949,6 +949,11 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsMenuClick:      (request) => ipcRenderer.invoke('extensions:menu-click', request),
   extensionsActionClick:    (request) => ipcRenderer.invoke('extensions:action-click', request),
   onExtensionsRunAction:    (callback) => subscribe('extensions:run-action', callback),
+  // The debugger switch on an extension's card, and the bar over a tab an extension controls (js/ext-debug-bar.js).
+  extensionsSetGrant:       (request) => ipcRenderer.invoke('extensions:set-grant', request),
+  extensionsDebugStop:      (request) => ipcRenderer.invoke('extensions:debug-stop', request),
+  extensionsDebugState:     () => ipcRenderer.invoke('extensions:debug-state'),
+  onExtensionsDebugState:   (callback) => subscribe('extensions:debug-state', callback),
   extensionsCommands:       () => ipcRenderer.invoke('extensions:commands'),
   extensionsSetCommandKey:  (request) => ipcRenderer.invoke('extensions:set-command-key', request),
   extensionsSetPinned:      (folderName, pinned) => ipcRenderer.invoke('extensions:set-pinned', folderName, pinned),

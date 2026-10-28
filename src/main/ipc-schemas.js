@@ -50,6 +50,10 @@ define('extensions:update-status extensions:update-check', []);
 define('extensions:set-auto-update', [boolean]);
 define('extensions:update-approve', [string(160)]);
 define('extensions:set-file-access', [string(160), boolean]);
+// Settings > Extensions: the debugger switch, and the Stop button on a controlled tab (main/extension-grants.js, extension-debugger.js).
+define('extensions:set-grant', [shape({ folder: string(200), grant: oneOf(['debugger']), on: boolean })]);
+define('extensions:debug-stop', [shape({ tabId: integer, extId: string(64) })]);
+define('extensions:debug-state', []);
 // The update cover (js/update-notifier.js): a version such as 2.35.0.
 const version = value => typeof value === 'string' && /^\d{1,5}\.\d{1,5}\.\d{1,5}[0-9A-Za-z.+-]{0,40}$/.test(value);
 define('updates:upcoming-notes updates:download updates:install', [version]);

@@ -967,10 +967,29 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   // offscreen page, an account sign-in) fails in words an extension can show, and what only asks a question is answered "none".
   var hasPerm = function (name) { return perms.indexOf(name) !== -1; };
   if (!c.debugger && hasPerm('debugger')) {
+    // The real DevTools protocol on a tab, through main (main/extension-debugger.js), once the person switched "Allow it to control other
+    // tabs" on for this extension (its card in Settings > Extensions); until then main answers in words that say where to switch it on.
+    // Without main to ask (a context that was given no way to) it is refused, as before. Events come back through the same hub as menus.
+    var debugTab = function (target) {
+      if (!target || typeof target.tabId !== 'number') throw new Error('Vex lets an extension debug a tab, with its tabId');
+      return target.tabId;
+    };
+    var debugCall = function (op, build) {
+      return function () {
+        var a = Array.prototype.slice.call(arguments);
+        var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+        var p;
+        try { p = api ? api(op, build.apply(null, a)) : Promise.reject(new Error('Vex does not let an extension debug a tab')); }
+        catch (err) { p = Promise.reject(err); }
+        return settle(p, cb, op);
+      };
+    };
     c.debugger = {
-      attach: refuse('debug a tab'), detach: refuse('debug a tab'), sendCommand: refuse('debug a tab'),
-      getTargets: done([]),
-      onEvent: noEvent(), onDetach: noEvent(),
+      attach: debugCall('debugger.attach', function (target, version) { return { tabId: debugTab(target), version: version }; }),
+      detach: debugCall('debugger.detach', function (target) { return { tabId: debugTab(target) }; }),
+      sendCommand: debugCall('debugger.sendCommand', function (target, method, params) { return { tabId: debugTab(target), method: method, params: params, sessionId: target.sessionId }; }),
+      getTargets: debugCall('debugger.getTargets', function () { return {}; }),
+      onEvent: hubEvent('debugger.onEvent'), onDetach: hubEvent('debugger.onDetach'),
     };
   }
   if (!c.sidePanel && hasPerm('sidePanel')) {

@@ -4294,6 +4294,7 @@ function _checkBackgroundStarts(folder, extPath) {
 
 // Unload one installed folder from every session that could be holding it.
 function _unloadFromAllSessions(extPath) {
+  _extDebugger.stop({ folder: path.basename(extPath) });
   const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p)), ..._extraExtSessions];
   for (const ses of sessions) {
     try {
@@ -4607,12 +4608,15 @@ ipcMain.handle('extensions:list', () => {
       // "Allow access to file URLs", off unless switched on (security scan M6).
       fileAccess: !!fileAccess.allow[e.folder],
       fileAccessKept: !!fileAccess.kept[e.folder],
+      // chrome.debugger: asked for in the manifest, and whether the person switched it on (main/extension-grants.js).
+      wantsDebugger: (Array.isArray(manifest.permissions) ? manifest.permissions : []).includes('debugger'),
+      debuggerAllowed: _extGrants.has(_extGrantState(), 'debugger', e.folder),
       fileUrls: e.manifest ? extHelpers.fileUrlPatterns(manifest).length > 0 : false,
       // What this extension can read, and what it is allowed to do, in words
       // (src/main/extension-audit.js).
       audit: require('./main/extension-audit').auditOne(e),
       error: e.error || _extLoadErrors.get(e.folder) || (_boot.safeMode ? 'Not loaded: Vex started in safe mode' : null),
-      stateError: _extStateError || _fileAccessError || updatesError || _extPinsError
+      stateError: _extStateError || _fileAccessError || _extGrantError || updatesError || _extPinsError
     };
   });
 });
@@ -5007,6 +5011,20 @@ ipcMain.handle('extensions:update-approve', async (_e, folder) => {
   try { return await _extUpdater().approve(String(folder)); }
   catch (err) { return { ok: false, error: err.message }; }
 });
+
+// "Allow it to control other tabs" on an extension's card: the debugger grant. Off takes effect at once (every tab it holds is let go).
+ipcMain.handle('extensions:set-grant', (_e, request) => {
+  try {
+    const folder = path.basename(safeJoin(extensionsDir, safeName(String(request.folder))));
+    const next = _extGrants.set(_extGrantState(), request.grant, folder, request.on === true);
+    _extGrants.write(extensionsDir, next);
+    if (request.grant === 'debugger' && request.on !== true) _extDebugger.stop({ folder });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: 'Could not save it: ' + err.message }; }
+});
+// The Stop button on the bar over a controlled tab: the extension hears "canceled_by_user".
+ipcMain.handle('extensions:debug-stop', (_e, request) => _extDebugger.stop({ tabId: request.tabId, extId: request.extId }));
+ipcMain.handle('extensions:debug-state', () => _extDebugger.rows().map(r => ({ tabId: r.tabId, extId: r.extId, folder: r.folder, name: (_extMeta().get(r.extId) || {}).name || r.folder })));
 
 // "Allow access to file URLs" on an extension's card. Applied now: the
 // extension is loaded again, with the new setting, wherever it is loaded.
@@ -5559,6 +5577,32 @@ const _extCmds = require('./main/extension-commands');
 const _extMenuModel = require('./renderer/js/ext-menu-model');
 const EXT_MENUS_FILE = path.join(userDataPath, 'extension-menus.json');
 const _extUi = require('./main/extension-ui').createExtensionUi({ onChange: () => _extUiChanged() });
+// What the person let an extension do beyond its manifest (main/extension-grants.js): today the debugger, off until switched on.
+const _extGrants = require('./main/extension-grants');
+let _extGrantError = null;
+function _extGrantState() {
+  try { const s = _extGrants.read(extensionsDir); _extGrantError = null; return s; }
+  catch (err) {
+    _extGrantError = `The extension grants are unreadable (${err.message}) — every extension is kept off the debugger until this is fixed.`;
+    console.error('[Extensions]', _extGrantError);
+    return Object.fromEntries(_extGrants.GRANTS.map(g => [g, {}]));
+  }
+}
+// chrome.debugger (main/extension-debugger.js): the real DevTools protocol on a tab of the extension's session, behind the switch above.
+const _extDebugger = require('./main/extension-debugger').createExtensionDebugger({
+  pageOf: (ses, tabId) => _extPage(ses, tabId),
+  usable: (page) => !!page && !page.isDestroyed() && !_extPageIsPrivate(page) && _extEventsMod.navigableUrl(page.getURL()),
+  allowed: (folder) => _extGrants.has(_extGrantState(), 'debugger', folder),
+  emit: (ses, extId, type, args) => { _extDispatch(ses, extId, type, args).catch(err => console.error(`[Extensions] ${type} did not reach ${extId}:`, err.message)); },
+  changed: (rows) => _extDebugState(rows),
+  pagesOf: (ses) => webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.getType() === 'webview' && wc.session === ses),
+});
+// The window draws a bar on every tab an extension holds (js/ext-debug-bar.js), with the extension's name and a Stop button.
+function _extDebugState(rows) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const names = _extMeta();
+  mainWindow.webContents.send('extensions:debug-state', rows.map(r => ({ tabId: r.tabId, extId: r.extId, folder: r.folder, name: (names.get(r.extId) || {}).name || r.folder })));
+}
 let _extUiPushTimer = null, _extMenusSaveTimer = null;
 let _extMetaCache = null;     // extension id → { folder, name, iconPath, hasPopup }
 let _extCommandsCache = null; // extension-commands resolve() result
@@ -6202,6 +6246,17 @@ async function _extApi(senderUrl, ses, request) {
       return _extUi.actionGet(partition, extId, args.prop, tabId, { title: typeof own === 'string' ? own : (ext.name || '') });
     }
     case 'extension.fileAccess': return !!_fileAccessState().allow[path.basename(ext.path)];
+    // chrome.debugger: the real DevTools protocol on a tab, only for an extension the person allowed (main/extension-debugger.js).
+    case 'debugger.attach': case 'debugger.detach': case 'debugger.sendCommand': case 'debugger.getTargets': {
+      needPerm('debugger');
+      const key = `${partition}|${extId}`;
+      const folder = path.basename(ext.path);
+      if (r.op === 'debugger.attach') return _extDebugger.attach({ ses, key, extId, folder, tabId, version: args.version });
+      if (r.op === 'debugger.detach') return _extDebugger.detach({ key, tabId });
+      if (r.op === 'debugger.sendCommand') return _extDebugger.sendCommand({ key, tabId, method: args.method, params: args.params, sessionId: args.sessionId });
+      if (!_extGrants.has(_extGrantState(), 'debugger', folder)) throw new Error(require('./main/extension-debugger').DENIED);
+      return _extDebugger.targets({ ses, key });
+    }
     case 'cookies.get': case 'cookies.getAll': case 'cookies.set': case 'cookies.remove': case 'cookies.getAllCookieStores':
       return _extCookies.cookiesApi(r.op, args, { manifest, cookies: ses.cookies, matchPattern: _extMenuModel.matchPattern });
     case 'windows.get': case 'windows.getCurrent': case 'windows.getLastFocused': case 'windows.getAll':

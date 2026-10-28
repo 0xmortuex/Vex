@@ -99,6 +99,9 @@
     pwNotFilled: 'The page changed before the password could be filled: try again',
     pwFilled: 'Strong password filled',
     pwOfferMsg: 'Save it in the vault now, so it is not lost if the page does not ask.', pwSaveIt: 'Save it' });
+  // The bar over a tab an extension controls (js/ext-debug-bar.js).
+  Object.assign(strings.en, { extDbgOne: '{name} is controlling this tab', extDbgMany: '{names} are controlling this tab', extDbgStop: 'Stop', extDbgStopFail: 'Could not stop it: ' });
+  Object.assign(strings.tr, { extDbgOne: '{name} bu sekmeyi yönetiyor', extDbgMany: '{names} bu sekmeyi yönetiyor', extDbgStop: 'Durdur', extDbgStopFail: 'Durdurulamadı: ' });
   // Saved payment cards (js/card-saver.js).
   Object.assign(strings.en, {
     cardOpenPage: 'Open a web page first',

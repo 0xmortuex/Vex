@@ -200,6 +200,16 @@ const ExtensionsSettings = (() => {
     return `<div class="ext-fileaccess"><label class="ext-toggle"><input type="checkbox" data-file-access="${_esc(e.folder)}"${e.fileAccess ? ' checked' : ''}> Allow access to file URLs</label>${note ? `<span>${_esc(note)}</span>` : ''}</div>`;
   }
 
+  // chrome.debugger: an extension that asks for it can read and drive every tab of its session (the Claude extension browses for you this
+  // way). Off until switched on here, for that extension; while it holds a tab, that tab shows a bar with a Stop button (js/ext-debug-bar.js).
+  function _debuggerHtml(e) {
+    if (!e.wantsDebugger) return '';
+    const note = e.debuggerAllowed
+      ? 'It can read and control the pages of your tabs. A bar on a tab says when it is in control, and Stop lets go. Never in private or Tor tabs.'
+      : 'It asks to read and control the pages of your tabs (the debugger). It cannot until you allow this.';
+    return `<div class="ext-fileaccess"><label class="ext-toggle"><input type="checkbox" data-debugger-grant="${_esc(e.folder)}"${e.debuggerAllowed ? ' checked' : ''}> Allow it to control other tabs</label><span>${_esc(note)}</span></div>`;
+  }
+
   // An extension's keyboard shortcuts (chrome.commands): its own suggested
   // keys, or the ones you chose; a key Vex or another extension already
   // answers is shown as taken, not active (main.js, extensions:commands).
@@ -421,6 +431,7 @@ const ExtensionsSettings = (() => {
                   ${_updateHtml(e)}
                   ${_auditHtml(e)}
                   ${_fileAccessHtml(e)}
+                  ${_debuggerHtml(e)}
                   ${_commandsHtml(e, commands)}
                   ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements${e.persistentBackground ? ' — and its background page stays loaded for that, about 85 MB' : ''}.</div>` : ''}
                   ${_dnrHtml(e)}
@@ -552,6 +563,15 @@ const ExtensionsSettings = (() => {
         const r = await window.vex.extensionsSetFileAccess(box.dataset.fileAccess, wanted);
         if (!r || !r.ok) { _toast('Could not change file access: ' + ((r && r.error) || 'unknown'), 'error'); }
         else _toast(wanted ? 'It can now open files on this computer (file:// pages)' : 'It can no longer open files on this computer', 'success');
+        render(container);
+      });
+    });
+    container.querySelectorAll('[data-debugger-grant]').forEach(box => {
+      box.addEventListener('change', async () => {
+        const wanted = box.checked;
+        const r = await window.vex.extensionsSetGrant({ folder: box.dataset.debuggerGrant, grant: 'debugger', on: wanted });
+        if (!r || !r.ok) { box.checked = !wanted; _toast('Could not change it: ' + ((r && r.error) || 'unknown'), 'error'); return; }
+        _toast(wanted ? 'It can now control your tabs' : 'It can no longer control your tabs', 'success');
         render(container);
       });
     });
