@@ -57,6 +57,7 @@ describe('where a tab is', () => {
   });
   it('the window lays its tabs out for main', () => {
     expect(TABS).toMatch(/extensionTabLayout\(\) \{/);
-    expect(TABS).toMatch(/groupId: g >= 0 \? g \+ 1 : -1/);
+    // A group is told by a number of its own that stays (TabManager.extGroupNumber), not by its place in a list, which shifted when a group went.
+    expect(TABS).toMatch(/groupId: grp \? this\.extGroupNumber\(grp\) : -1/);
   });
 });
