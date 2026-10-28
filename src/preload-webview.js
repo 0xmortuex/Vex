@@ -933,6 +933,86 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       return answerWith(p, cb);
     };
   }
+
+  // Electron has no chrome.tabGroups, and the Claude extension's worker reads chrome.tabGroups.Color while it loads (a table of colours at
+  // the top of its script): a TypeError, "Service worker registration failed. Status code: 15", and every click on its toolbar button said
+  // "did not get the click: Failed to start service worker" (found 2026-10-28). Vex keeps its own tab groups, which an extension cannot
+  // reach, so this is an honest stand-in: the names and colours exist, there are no groups to find, and making or changing one fails in
+  // words the extension can show (Claude wraps each of those calls in a try/catch and goes on without a group).
+  if (!c.tabGroups) {
+    var noGroup = function (id) { return Promise.reject(new Error('No group with id: ' + id + '.')); };
+    var groupCall = function (what) {
+      return function (id) {
+        var cb = arguments[arguments.length - 1];
+        return settle(noGroup(id), typeof cb === 'function' ? cb : null, what);
+      };
+    };
+    c.tabGroups = {
+      TAB_GROUP_ID_NONE: -1,
+      Color: { GREY: 'grey', BLUE: 'blue', RED: 'red', YELLOW: 'yellow', GREEN: 'green', PINK: 'pink', PURPLE: 'purple', CYAN: 'cyan', ORANGE: 'orange' },
+      get: groupCall('tabGroups.get'),
+      update: groupCall('tabGroups.update'),
+      move: groupCall('tabGroups.move'),
+      query: function () { return done([]).apply(null, arguments); },
+      onCreated: noEvent(), onUpdated: noEvent(), onMoved: noEvent(), onRemoved: noEvent(),
+    };
+  }
+  if (c.tabs && typeof c.tabs.group !== 'function') c.tabs.group = refuse('group tabs');
+  if (c.tabs && typeof c.tabs.ungroup !== 'function') c.tabs.ungroup = refuse('ungroup tabs');
+
+  // chrome.debugger, chrome.sidePanel, chrome.offscreen and chrome.identity: Electron has none of them, and an extension that asks for the
+  // permission reads the namespace while it starts (the Claude extension's worker calls chrome.debugger.onEvent.addListener at the top of
+  // its script: a TypeError, "Service worker registration failed. Status code: 15", found 2026-10-28). As in Chrome the namespace is there
+  // only for an extension that asked for it. Each is an honest stand-in: what only Chrome can do (driving another tab, a side panel, an
+  // offscreen page, an account sign-in) fails in words an extension can show, and what only asks a question is answered "none".
+  var hasPerm = function (name) { return perms.indexOf(name) !== -1; };
+  if (!c.debugger && hasPerm('debugger')) {
+    c.debugger = {
+      attach: refuse('debug a tab'), detach: refuse('debug a tab'), sendCommand: refuse('debug a tab'),
+      getTargets: done([]),
+      onEvent: noEvent(), onDetach: noEvent(),
+    };
+  }
+  if (!c.sidePanel && hasPerm('sidePanel')) {
+    // Vex has no side panel for an extension, so the page the extension chose for it opens as a tab of its own (the extension's own page, as
+    // tabs.create opens one). Options are remembered as Chrome keeps them: for every tab, or for one (tabId, which wins).
+    var panelOptions = {};
+    var panelBehavior = { openPanelOnActionClick: false };
+    var panelKey = function (q) { return q && typeof q.tabId === 'number' ? 'tab' + q.tabId : ''; };
+    var panelFor = function (q) {
+      var base = { enabled: true, path: (manifest.side_panel && manifest.side_panel.default_path) || undefined };
+      return Object.assign(base, panelOptions[''] || {}, panelKey(q) ? panelOptions[panelKey(q)] || {} : {});
+    };
+    c.sidePanel = {
+      setOptions: function (o, cb) { panelOptions[panelKey(o)] = Object.assign({}, panelOptions[panelKey(o)], o || {}); return settle(Promise.resolve(undefined), typeof cb === 'function' ? cb : null, 'sidePanel.setOptions'); },
+      getOptions: function (q, cb) { return settle(Promise.resolve(panelFor(q)), typeof cb === 'function' ? cb : null, 'sidePanel.getOptions'); },
+      setPanelBehavior: function (b, cb) { panelBehavior = Object.assign({}, panelBehavior, b || {}); return settle(Promise.resolve(undefined), typeof cb === 'function' ? cb : null, 'sidePanel.setPanelBehavior'); },
+      getPanelBehavior: function (cb) { return settle(Promise.resolve(Object.assign({}, panelBehavior)), typeof cb === 'function' ? cb : null, 'sidePanel.getPanelBehavior'); },
+      open: function (o, cb) {
+        var opt = panelFor(o);
+        if (!opt.path || opt.enabled === false || typeof openUrl !== 'function') return refuse('open a side panel')(typeof cb === 'function' ? cb : undefined);
+        return answerWith(openUrl(opt.path, true).then(function () { return undefined; }), typeof cb === 'function' ? cb : undefined);
+      },
+      onOpened: noEvent(), onClosed: noEvent(),
+    };
+  }
+  if (!c.offscreen && hasPerm('offscreen')) {
+    c.offscreen = {
+      Reason: { TESTING: 'TESTING', AUDIO_PLAYBACK: 'AUDIO_PLAYBACK', IFRAME_SCRIPTING: 'IFRAME_SCRIPTING', DOM_SCRAPING: 'DOM_SCRAPING', BLOBS: 'BLOBS',
+        DOM_PARSER: 'DOM_PARSER', USER_MEDIA: 'USER_MEDIA', DISPLAY_MEDIA: 'DISPLAY_MEDIA', WEB_RTC: 'WEB_RTC', CLIPBOARD: 'CLIPBOARD', LOCAL_STORAGE: 'LOCAL_STORAGE',
+        WORKERS: 'WORKERS', BATTERY_STATUS: 'BATTERY_STATUS', MATCH_MEDIA: 'MATCH_MEDIA', GEOLOCATION: 'GEOLOCATION' },
+      createDocument: refuse('open an offscreen page'), closeDocument: done(undefined), hasDocument: done(false),
+    };
+  }
+  if (!c.identity && hasPerm('identity')) {
+    c.identity = {
+      getRedirectURL: function (path) { return 'https://' + c.runtime.id + '.chromiumapp.org/' + String(path || ''); },
+      launchWebAuthFlow: refuse('sign in through a browser window'), getAuthToken: refuse('sign in to an account'),
+      removeCachedAuthToken: done(undefined), clearAllCachedAuthTokens: done(undefined),
+      getProfileUserInfo: done({ email: '', id: '' }),
+      onSignInChanged: noEvent(),
+    };
+  }
   return true;
 }
 // === END vex-extension-stand-ins ===

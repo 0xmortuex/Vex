@@ -9,6 +9,9 @@ Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler
 - **Ayarlar’dan çıkınca belleğini geri veriyor.** Ayarlar’ı kapattıktan bir dakika sonra bölümleri sayfadan alınıyor (yaklaşık 57 MB), açtığınızda yeniden çiziliyor. Art arda açışlarda sınandı: hiçbir şey birikmiyor.
 - **Reklam engelleyici artık listelerinin ağır bir kopyasını bellekte tutmuyor.** İlk açılıştan sonra ve süzgeç listelerinin haftalık yenilenmesinden sonra Vex, yeni çözümlenmiş listeleri bir sonraki yeniden başlatmaya kadar tutuyordu: ana işlemde yaklaşık 100 MB. Artık önbelleğindeki kompakt biçimi kullanıyor (ana işlemin başlangıçtan 30 saniye sonraki betik belleği 123-135 MB’tan 32 MB’a indi). Öncekiyle aynı istekleri engelliyor.
 
+### Düzeltildi
+- **Claude eklentisinin araç çubuğu düğmesi yeniden çalışıyor.** Düğmeye tıklamak “Claude tıklamayı almadı: Failed to start service worker” diyordu. Arka plan betiği, Vex’te olmayan tarayıcı özelliklerini (sekme grupları, hata ayıklayıcı, yan paneller, ekran dışı sayfalar, oturum açma) okuyor ve yüklenirken duruyordu. Vex artık her birini dürüstçe sağlıyor: adlar ve renkler var, yalnızca Chrome’un yapabildiği şeyler (başka bir sekmeyi yönetme, sekme grubu oluşturma, tarayıcı penceresiyle oturum açma) eklentinin gösterebileceği açık bir iletiyle başarısız oluyor. Claude’un yan paneli kendi sekmesinde açılıyor. Bu izinleri isteyen her eklentiye yarar. Deneyin: Araç çubuğundaki Claude düğmesine tıklayın.
+
 ### Denetlendi
 - Vex’in paketlenmiş sürümlerinde ikişer kez ve gerçek uygulamada ölçüldü: Ayarlar’ı İngilizce ve Türkçe, aramayla birlikte beş kez kapatıp yeniden açma.
 - 18.097 testin tamamı Node 22’de geçti; kaynak denetimi, lint, tipler, duman testi ve arayüz denetimi (1.636 saniye, temiz) de geçti.

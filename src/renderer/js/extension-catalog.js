@@ -123,7 +123,7 @@ const VexExtensionCatalog = {
     'Syncing settings between machines (storage.sync works, but stays on this machine)',
     'Cookies and navigation events in private, burner and Tor tabs (cookies, webNavigation), and webNavigation\u2019s new-window and replaced-tab events',
     'History, bookmarks, tab groups, sessions, top sites and text-to-speech (history, bookmarks, tabGroups, sessions, topSites, tts)',
-    'User scripts (userScripts) and side panels (sidePanel)',
+    'User scripts (userScripts), driving other tabs with the debugger (debugger) and offscreen pages (offscreen). A side panel (sidePanel) opens as a tab of its own',
     'Any extension in Private, Off-the-Record or Tor tabs',
   ],
 

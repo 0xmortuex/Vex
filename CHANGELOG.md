@@ -7,6 +7,9 @@
 - **Settings gives its memory back when you leave it.** A minute after you close Settings its sections are taken out of the page (about 57 MB), and opening it draws them again. Checked over repeated opens: nothing piles up.
 - **The ad-blocker no longer keeps a heavy copy of its lists in memory.** After the first start, and after the weekly refresh of the filter lists, Vex kept the freshly parsed lists until the next restart: about 100 MB in the main process. It now uses the compact form saved in its cache (the main process's script memory 30 seconds after start went from 123-135 MB to 32 MB). It blocks the same requests as before.
 
+### Fixed
+- **The Claude extension's toolbar button works again.** Clicking it said "Claude did not get the click: Failed to start service worker". Its background script reads browser features Vex did not have (tab groups, the debugger, side panels, offscreen pages, sign-in) and stopped as it loaded. Vex now provides each one honestly: the names and colours exist, and what only Chrome can do (driving another tab, making a tab group, signing in through a browser window) fails with a clear message the extension can show. Claude's side panel opens as a tab of its own. This helps any extension that asks for these permissions. Try: Click the Claude button on the toolbar.
+
 ### Checked
 - Measured on packaged builds of Vex, twice each, and in the real app: close and reopen Settings five times, in English and Turkish, with the search.
 - All 18,097 tests pass under Node 22, with the source check, lint, types, the smoke test and the UI check (1,636 seconds, clean).
