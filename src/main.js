@@ -5645,6 +5645,7 @@ const _extNative = _extNativeMod.createExtensionNative({
 app.on('will-quit', () => { try { _extNative.stop({}); } catch (err) { console.error('[Extensions] could not stop native hosts at quit:', err.message); } });
 // An extension that tries to drive a tab while the switch is off used to just fail (Claude sat on "Working" for ever, 2026-10-28). Vex now asks the person,
 // in its own window (js/ext-debug-bar.js), once per ten minutes per extension; only their answer in that box turns the switch on.
+const _extPanelOpenedAt = new Map();   // extension id -> when its side panel was last opened
 const _extGrantAsked = new Map();   // "folder|grant" -> when it was last asked
 function _extAskGrant(folder, grant) {
   const key = folder + '|' + grant;
@@ -6325,7 +6326,9 @@ async function _extApi(senderUrl, ses, request) {
       needPerm('debugger');
       const key = `${partition}|${extId}`;
       const folder = path.basename(ext.path);
-      if ((r.op === 'debugger.attach' || r.op === 'debugger.sendCommand') && !_extGrants.has(_extGrantState(), 'debugger', folder)) _extAskGrant(folder, 'debugger');
+      // getTargets is also what an extension asks while it starts, so it only counts once the person has opened its side panel (Claude's first call of a task).
+      const engaged = r.op === 'debugger.getTargets' ? Date.now() - (_extPanelOpenedAt.get(extId) || 0) < 30 * 60 * 1000 : true;
+      if (engaged && r.op !== 'debugger.detach' && !_extGrants.has(_extGrantState(), 'debugger', folder)) _extAskGrant(folder, 'debugger');
       if (r.op === 'debugger.attach') return _extDebugger.attach({ ses, key, extId, folder, tabId, version: args.version });
       if (r.op === 'debugger.detach') return _extDebugger.detach({ key, tabId });
       if (r.op === 'debugger.sendCommand') return _extDebugger.sendCommand({ key, tabId, method: args.method, params: args.params, sessionId: args.sessionId });
@@ -6420,6 +6423,7 @@ async function _extApi(senderUrl, ses, request) {
     // chrome.sidePanel.open / close: the extension's own page, docked beside the tab it was opened for (js/ext-sidepanel.js, in the window that holds the tab).
     case 'sidePanel.open': case 'sidePanel.close': {
       needPerm('sidePanel');
+      if (r.op === 'sidePanel.open') _extPanelOpenedAt.set(extId, Date.now());
       const page = tabId !== null ? _extPage(ses, tabId) : await _extFrontPage(ses);
       if (!page || _extPageIsPrivate(page)) throw new Error('No tab to open the side panel for');
       const host = secureSessions.owner(page);

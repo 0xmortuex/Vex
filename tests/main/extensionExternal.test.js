@@ -138,9 +138,11 @@ describe('chrome://newtab from an extension', () => {
 });
 
 describe('the switch off while an extension tries to drive a tab', () => {
-  it('main asks the person once per ten minutes, on attach and sendCommand only (not on the getTargets it makes at start)', () => {
+  it('main asks the person once per ten minutes when an extension drives a tab with the switch off; getTargets (made at start too) counts only after its side panel was opened', () => {
     expect(MAIN).toMatch(/Date\.now\(\) - \(_extGrantAsked\.get\(key\) \|\| 0\) < 10 \* 60 \* 1000/);
-    expect(MAIN).toMatch(/\(r\.op === 'debugger\.attach' \|\| r\.op === 'debugger\.sendCommand'\) && !_extGrants\.has\(_extGrantState\(\), 'debugger', folder\)\) _extAskGrant\(folder, 'debugger'\)/);
+    expect(MAIN).toContain("const engaged = r.op === 'debugger.getTargets' ? Date.now() - (_extPanelOpenedAt.get(extId) || 0) < 30 * 60 * 1000 : true;");
+    expect(MAIN).toContain("if (engaged && r.op !== 'debugger.detach' && !_extGrants.has(_extGrantState(), 'debugger', folder)) _extAskGrant(folder, 'debugger');");
+    expect(MAIN).toContain("if (r.op === 'sidePanel.open') _extPanelOpenedAt.set(extId, Date.now());");
     expect(MAIN).toContain("mainWindow.webContents.send('extensions:grant-ask'");
   });
 });
