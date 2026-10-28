@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v42.36.1 (2026-10-28) — Vex çok daha az bellek kullanıyor: arayüz penceresi, reklam engelleyici ve Ayarlar
+## v42.63.4 (2026-10-28) — Vex çok daha az bellek kullanıyor: arayüz penceresi, reklam engelleyici ve Ayarlar
 
 ### Yeni
 - **Claude eklentisi sizin yerinize gezebiliyor, anahtar sizde.** Ayarlar > Eklentiler’de Claude kartında “Diğer sekmeleri denetlemesine izin ver” anahtarı var; siz açana kadar kapalı. Açıkken eklenti sekmelerinizi tarayıcının gerçek hata ayıklama protokolüyle yönetir (sayfa okuma, tıklama, yazma, ekran görüntüsü). Tuttuğu her sekmede adını ve bir Durdur düğmesini gösteren bir çubuk görünür; Durdur, sekmeyi kapatmak, anahtarı kapatmak ya da eklentiyi kaldırmak onu hemen bırakır. Gizli ve Tor sekmelerine asla ulaşmaz. Bir eklenti anahtar kapalıyken bir sekmeyi yönetmeye ilk kez kalkıştığında Vex size kendi kutusunda sorar (on dakikada bir) ve İzin ver anahtarı açar; önceden sadece başarısız oluyordu ve Claude “Working” üzerinde kalıyordu. Deneyin: Claude’dan bir web sitesi açmasını isteyin ve İzin ver’e basın.
