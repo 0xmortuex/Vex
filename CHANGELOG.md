@@ -1,6 +1,6 @@
 # Changelog
 
-## v41.90.1 (2026-10-28) — Vex uses far less memory: the interface window, the ad-blocker and Settings
+## v42.36.1 (2026-10-28) — Vex uses far less memory: the interface window, the ad-blocker and Settings
 
 ### New
 - **The Claude extension can browse for you, with a switch you control.** Settings > Extensions shows "Allow it to control other tabs" on the Claude card, off until you turn it on. When it is on the extension drives your tabs through the browser's real debugging protocol (reading pages, clicking, typing, screenshots). Every tab it holds shows a bar with its name and a Stop button; Stop, closing the tab, turning the switch off or removing the extension lets go at once. It never reaches private or Tor tabs. Try: Turn the switch on, open a page and ask Claude to read it.
