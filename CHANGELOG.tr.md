@@ -2,6 +2,17 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
+## v41.87.6 (2026-10-28) — Vex çok daha az bellek kullanıyor: arayüz penceresi, reklam engelleyici ve Ayarlar
+
+### Değişti
+- **Arayüz penceresi yarıdan az bellekle açılıyor.** Ayarlar’a bölüm ekleyen her modül, Vex henüz açılırken o ana kadar kayıtlı tüm bölümleri çiziyordu: yaklaşık 18.000 gizli sayfa öğesi ve bir yığın artık. Bölümler artık Ayarlar’ı açtığınızda çiziliyor. Yeni paketlenmiş bir Vex’te arayüz penceresi 266 MB’tan 130 MB’a, Vex’in tamamı 581 MB’tan 447 MB’a indi. Vex ayrıca çok daha çabuk açılıyor (başlangıç testi 18,0 sn’den 4,6 sn’ye düştü). Ayarlar’ın ilk açılışı yaklaşık 80 ms uzadı; içindeki her şey, arama ve Türkçe başlıklar dahil, aynı.
+- **Ayarlar’dan çıkınca belleğini geri veriyor.** Ayarlar’ı kapattıktan bir dakika sonra bölümleri sayfadan alınıyor (yaklaşık 57 MB), açtığınızda yeniden çiziliyor. Art arda açışlarda sınandı: hiçbir şey birikmiyor.
+- **Reklam engelleyici artık listelerinin ağır bir kopyasını bellekte tutmuyor.** İlk açılıştan sonra ve süzgeç listelerinin haftalık yenilenmesinden sonra Vex, yeni çözümlenmiş listeleri bir sonraki yeniden başlatmaya kadar tutuyordu: ana işlemde yaklaşık 100 MB. Artık önbelleğindeki kompakt biçimi kullanıyor (ana işlemin başlangıçtan 30 saniye sonraki betik belleği 123-135 MB’tan 32 MB’a indi). Öncekiyle aynı istekleri engelliyor.
+
+### Denetlendi
+- Vex’in paketlenmiş sürümlerinde ikişer kez ve gerçek uygulamada ölçüldü: Ayarlar’ı İngilizce ve Türkçe, aramayla birlikte beş kez kapatıp yeniden açma.
+- 18.097 testin tamamı Node 22’de geçti; kaynak denetimi, lint, tipler, duman testi ve arayüz denetimi (1.636 saniye, temiz) de geçti.
+
 ## v41.59.4 (2026-10-26) — Ödeme kartları, iki dilde daha akıllı Ctrl+K ve Ayarlar araması, ve artık kaybolmayan arayüz sesleri
 
 ### Yeni

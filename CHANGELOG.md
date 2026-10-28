@@ -1,5 +1,16 @@
 # Changelog
 
+## v41.87.6 (2026-10-28) — Vex uses far less memory: the interface window, the ad-blocker and Settings
+
+### Changed
+- **The interface window starts with less than half the memory.** Every module that adds a Settings section used to draw all the sections registered so far while Vex was still starting: about 18,000 hidden page elements and a pile of leftovers. Sections are now drawn when you open Settings. In a fresh packaged Vex the interface window went from 266 MB to 130 MB, and Vex as a whole from 581 MB to 447 MB. Vex also finishes starting much sooner (the start-up test went from 18.0 s to 4.6 s). Opening Settings for the first time takes about 80 ms longer; everything in it, including the search and the Turkish headings, is the same.
+- **Settings gives its memory back when you leave it.** A minute after you close Settings its sections are taken out of the page (about 57 MB), and opening it draws them again. Checked over repeated opens: nothing piles up.
+- **The ad-blocker no longer keeps a heavy copy of its lists in memory.** After the first start, and after the weekly refresh of the filter lists, Vex kept the freshly parsed lists until the next restart: about 100 MB in the main process. It now uses the compact form saved in its cache (the main process's script memory 30 seconds after start went from 123-135 MB to 32 MB). It blocks the same requests as before.
+
+### Checked
+- Measured on packaged builds of Vex, twice each, and in the real app: close and reopen Settings five times, in English and Turkish, with the search.
+- All 18,097 tests pass under Node 22, with the source check, lint, types, the smoke test and the UI check (1,636 seconds, clean).
+
 ## v41.59.4 (2026-10-26) — Payment cards, a smarter Ctrl+K and Settings search in both languages, and interface sounds that no longer go missing
 
 ### New
