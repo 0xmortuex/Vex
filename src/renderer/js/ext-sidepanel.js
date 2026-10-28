@@ -85,7 +85,7 @@ const VexExtSidePanel = {
     wv.className = 'ext-sidepanel-view';
     wv.setAttribute('src', url);
     wv.setAttribute('partition', 'persist:main');
-    wv.setAttribute('webpreferences', 'contextIsolation=yes');
+    wv.setAttribute('webpreferences', 'contextIsolation=yes,vexExtPanel=yes');
     wv.style.background = 'var(--vex-bg-base)';
     el.append(grip, head, wv);
     (document.getElementById('content-area') || document.body).appendChild(el);

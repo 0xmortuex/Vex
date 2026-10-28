@@ -1,4 +1,4 @@
-const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permission', 'geolocation:get', 'privacy:config-sync', 'screen-share:get-quality',
+const GUEST_CHANNELS = new Set(['extensions:external-ids', 'extensions:external-message', 'compatibility:get', 'geolocation:check-permission', 'geolocation:get', 'privacy:config-sync', 'screen-share:get-quality',
   '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut', 'page-dialog', 'start-page:is-own',
   // A page's passkey request and the list for a field's chooser, from the page
   // preload (preload-passkeys.js); main takes the site from the asking frame.
@@ -314,6 +314,8 @@ function installIpcPolicy(ipcMain, security) {
       noteRefusal(channel, err);
       if (channel === 'privacy:config-sync') { event.returnValue = { farble: false }; return; }
       if (channel === 'compatibility:get') { event.returnValue = { suppressPasskeys: false }; return; }
+      // A page asks which extensions it may message (sendSync); refused, it is told none.
+      if (channel === 'extensions:external-ids') { try { event.returnValue = []; } catch (replyErr) { console.error('[IPC] could not answer "extensions:external-ids":', replyErr.message); } return; }
       // A page's alert / confirm / prompt waits on this answer (sendSync), so a
       // refused one still answers: as cancelled, never left waiting for ever.
       // The start-page check waits on this one (sendSync): refused, it is told no.

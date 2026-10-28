@@ -1114,6 +1114,35 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       return undefined;
     };
   }
+  if (manifest.externally_connectable && c.runtime) {
+    // onMessageExternal: Electron never delivers it. A web page the manifest names (Claude's panel and claude.ai) messages the extension
+    // through main (main.js, extensions:external-message); main hands the message to the worker here and takes the answer back ('external.reply').
+    var externalListeners = [];
+    var externalEvent = {
+      addListener: function (fn) { if (typeof fn === 'function' && externalListeners.indexOf(fn) === -1) externalListeners.push(fn); },
+      removeListener: function (fn) { var i = externalListeners.indexOf(fn); if (i !== -1) externalListeners.splice(i, 1); },
+      hasListener: function (fn) { return externalListeners.indexOf(fn) !== -1; },
+      hasListeners: function () { return externalListeners.length > 0; },
+    };
+    try { Object.defineProperty(c.runtime, 'onMessageExternal', { value: externalEvent, configurable: true, enumerable: true, writable: true }); }
+    catch (err) { console.error('Vex could not make runtime.onMessageExternal work:', err.message); }
+    if (api) {
+      hubEvent('external.message').addListener(function (requestId, message, sender) {
+        var answered = false;
+        var keep = false;
+        var reply = function (value) {
+          if (answered) return;
+          answered = true;
+          api('external.reply', { requestId: requestId, response: value }).catch(function (err) { console.error('Could not answer a page message:', err.message); });
+        };
+        externalListeners.slice().forEach(function (fn) {
+          try { if (fn(message, sender, reply) === true) keep = true; }
+          catch (err) { setTimeout(function () { throw err; }, 0); }
+        });
+        if (!answered && !keep) api('external.reply', { requestId: requestId, closed: true }).catch(function (err) { console.error('Could not close a page message:', err.message); });
+      });
+    }
+  }
   if (!c.sidePanel && hasPerm('sidePanel')) {
     // Vex has no side panel for an extension, so the page the extension chose for it opens as a tab of its own (the extension's own page, as
     // tabs.create opens one). Options are remembered as Chrome keeps them: for every tab, or for one (tabId, which wins).
@@ -1301,6 +1330,45 @@ function vexStorageSyncShim(c) {
   return true;
 }
 // === END vex-storage-sync-shim ===
+// externally_connectable (main.js, extensions:external-message): the page may message an extension whose manifest names it. Runs in the page's own
+// world through contextBridge; `ids` are the extensions main allows this frame to message, `send` goes to main.
+function vexExternalShim(ids, send) {
+  var c = window.chrome || (window.chrome = {});
+  var rt = c.runtime || (c.runtime = {});
+  // Electron puts its own sendMessage on every page, and it always answers "Receiving end does not exist": this one takes its place on a page the
+  // manifest names.
+  var lastError = null;
+  try { Object.defineProperty(rt, 'lastError', { configurable: true, enumerable: true, get: function () { return lastError || undefined; } }); } catch (err) { console.error('Vex could not make runtime.lastError readable:', err.message); }
+  var vexSend = function (extensionId, message, options, callback) {
+    if (typeof options === 'function') { callback = options; options = undefined; }
+    if (typeof extensionId !== 'string') throw new TypeError('Error in invocation of runtime.sendMessage(optional string extensionId, any message, optional object options, optional function callback): No matching signature.');
+    var p;
+    try { p = Promise.resolve(send(extensionId, JSON.parse(JSON.stringify(message === undefined ? null : message)))); } catch (err) { p = Promise.reject(err); }
+    p = p.then(function (r) { return r && r.value; }, function (err) {
+      throw new Error(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (?:Error: )?/, ''));
+    });
+    if (typeof callback !== 'function') return p;
+    p.then(function (v) { callback(v); }, function (err) {
+      lastError = { message: err.message };
+      try { callback(); } finally { lastError = null; }
+    });
+    return undefined;
+  };
+  Object.defineProperty(rt, 'sendMessage', { configurable: true, enumerable: true, writable: true, value: vexSend });
+}
+if (/^https?:$/.test(location.protocol)) {
+  try {
+    var __vexAnc = location.ancestorOrigins && location.ancestorOrigins.length ? location.ancestorOrigins[location.ancestorOrigins.length - 1] : '';
+    if (window === window.top || /^chrome-extension:/.test(__vexAnc)) {
+      var __vexExtTargets = require('electron').ipcRenderer.sendSync('extensions:external-ids');
+      if (Array.isArray(__vexExtTargets) && __vexExtTargets.length && __vexCB) {
+        __vexCB.executeInMainWorld({ func: vexExternalShim, args: [__vexExtTargets, function (id, message) { return require('electron').ipcRenderer.invoke('extensions:external-message', { id: id, message: message }); }] });
+      }
+    }
+  } catch (err) {
+    console.error('[Vex] a page could not be given a way to message its extension:', err && err.message);
+  }
+}
 // Where the stand-ins run. A background page shares its world with this
 // preload; a toolbar popup or an options page is isolated from it, and there
 // they must be put into the page's own world.

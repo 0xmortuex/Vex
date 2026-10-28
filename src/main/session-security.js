@@ -214,6 +214,10 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
         // Or names the list it carried itself (carryHistory above).
         const named = prefs.vexHistoryFrom;
         delete prefs.vexHistoryFrom;
+        // An extension's side panel (renderer/js/ext-sidepanel.js) hosts the extension's website in a frame (Claude's panel hosts claude.ai), which
+        // needs the page preload to message its extension (externally_connectable). Only that webview, only for an extension page.
+        const extPanel = prefs.vexExtPanel;
+        delete prefs.vexExtPanel;
         let saved = null;
         if (typeof named === 'string' && /^c\d{1,9}$/.test(named)) {
           const mine = carried.get(hostId);
@@ -245,7 +249,7 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
         delete prefs.preload;
         delete prefs.preloadURL;
         prefs.nodeIntegration = false;
-        prefs.nodeIntegrationInSubFrames = false;
+        prefs.nodeIntegrationInSubFrames = !!extPanel && /^chrome-extension:\/\//.test(String((params && params.src) || ''));
         prefs.contextIsolation = true;
         prefs.sandbox = true;
         prefs.webSecurity = true;

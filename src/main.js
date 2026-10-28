@@ -6467,10 +6467,81 @@ async function _extApi(senderUrl, ses, request) {
       const rows = _extCommands().byFolder[path.basename(ext.path)] || [];
       return rows.map(row => ({ name: row.name, description: row.description, shortcut: row.shortcut }));
     }
+    // The answer to a page's message (see 'extensions:external-message'): only the extension that was asked can give it.
+    case 'external.reply': {
+      const p = _extExternalPending.get(String(args.requestId));
+      if (!p || p.extId !== extId) return undefined;
+      clearTimeout(p.timer);
+      _extExternalPending.delete(String(args.requestId));
+      if (args.closed === true) p.reject(new Error(EXT_PORT_CLOSED)); else p.resolve({ value: args.response });
+      return undefined;
+    }
     default: throw new Error('Vex does not know ' + String(r.op));
   }
 }
 ipcMain.handle('extensions:api', (event, request) => _extApi(event.senderFrame?.url, event.sender.session, request));
+
+// externally_connectable: a web page the extension's manifest names (the Claude extension names claude.ai) sends it a message with
+// chrome.runtime.sendMessage(extensionId, message). Electron does not deliver those, so the page preload (preload-webview.js) puts the
+// function there for such a page, and the message goes page -> main -> the extension's service worker, whose onMessageExternal listeners
+// answer through the 'external.reply' op. Main judges the page from the asking frame's own address, never from what the page says.
+const _extExternalPending = new Map();   // request id -> { resolve, reject, extId, timer }
+const EXT_PORT_CLOSED = 'The message port closed before a response was received.';
+function _extExternalTargets(ses, frameUrl) {
+  let u;
+  try { u = new URL(String(frameUrl || '')); } catch { return []; }
+  if (!/^https?:$/.test(u.protocol)) return [];
+  const out = [];
+  for (const e of _exts(ses).getAllExtensions()) {
+    const ec = e.manifest && e.manifest.externally_connectable;
+    const patterns = ec && Array.isArray(ec.matches) ? ec.matches : [];
+    if (patterns.some(p => { try { return _extMenuModel.matchPattern(String(p), u.href); } catch { return false; } })) out.push(e);
+  }
+  return out;
+}
+ipcMain.on('extensions:external-ids', (event) => {
+  try {
+    if (_extPageIsPrivate(event.sender)) { event.returnValue = []; return; }
+    event.returnValue = _extExternalTargets(event.sender.session, event.senderFrame && event.senderFrame.url).map(e => e.id);
+  } catch (err) {
+    console.error('[Extensions] could not list the extensions a page may message:', err.message);
+    event.returnValue = [];
+  }
+});
+async function _extWorkerSend(ses, ext, type, args) {
+  const prefix = `chrome-extension://${ext.id}/`;
+  let worker = null;
+  for (const [versionId, info] of Object.entries(ses.serviceWorkers.getAllRunning())) {
+    if (info.scope === prefix) { worker = ses.serviceWorkers.getWorkerFromVersionID(Number(versionId)); break; }
+  }
+  if (!worker || worker.isDestroyed()) worker = await ses.serviceWorkers.startWorkerForScope(prefix);
+  worker.send('extensions:event', { type, args });
+}
+ipcMain.handle('extensions:external-message', async (event, request) => {
+  const ses = event.sender.session;
+  const frameUrl = event.senderFrame && event.senderFrame.url;
+  const noReceiver = 'Could not establish connection. Receiving end does not exist.';
+  if (_extPageIsPrivate(event.sender)) throw new Error(noReceiver);
+  const ext = _extExternalTargets(ses, frameUrl).find(e => e.id === request.id);
+  if (!ext || !ext.manifest || !ext.manifest.background || !ext.manifest.background.service_worker) throw new Error(noReceiver);
+  const sender = { url: frameUrl, origin: new URL(frameUrl).origin, frameId: event.frameId || 0 };
+  // A frame inside one of the extension's own pages (its side panel) has no tab, as in Chrome; a tab's own page does.
+  if (!event.senderFrame || !event.senderFrame.parent) sender.tab = _extTabFor(ext, event.sender);
+  const requestId = require('crypto').randomUUID();
+  const answer = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { _extExternalPending.delete(requestId); reject(new Error(EXT_PORT_CLOSED)); }, 60000);
+    _extExternalPending.set(requestId, { resolve, reject, extId: ext.id, timer });
+  });
+  answer.catch(() => {});
+  try { await _extWorkerSend(ses, ext, 'external.message', [requestId, request.message, sender]); }
+  catch (err) {
+    const p = _extExternalPending.get(requestId);
+    if (p) { clearTimeout(p.timer); _extExternalPending.delete(requestId); }
+    console.error('[Extensions] could not reach ' + ext.id + ' for a page message:', err.message);
+    throw new Error(noReceiver);
+  }
+  return answer;
+});
 
 // --- Asked by the interface.
 ipcMain.handle('extensions:ui-state', () => _extUiSnapshot());

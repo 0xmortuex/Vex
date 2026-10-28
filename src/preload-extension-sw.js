@@ -878,6 +878,35 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       return undefined;
     };
   }
+  if (manifest.externally_connectable && c.runtime) {
+    // onMessageExternal: Electron never delivers it. A web page the manifest names (Claude's panel and claude.ai) messages the extension
+    // through main (main.js, extensions:external-message); main hands the message to the worker here and takes the answer back ('external.reply').
+    var externalListeners = [];
+    var externalEvent = {
+      addListener: function (fn) { if (typeof fn === 'function' && externalListeners.indexOf(fn) === -1) externalListeners.push(fn); },
+      removeListener: function (fn) { var i = externalListeners.indexOf(fn); if (i !== -1) externalListeners.splice(i, 1); },
+      hasListener: function (fn) { return externalListeners.indexOf(fn) !== -1; },
+      hasListeners: function () { return externalListeners.length > 0; },
+    };
+    try { Object.defineProperty(c.runtime, 'onMessageExternal', { value: externalEvent, configurable: true, enumerable: true, writable: true }); }
+    catch (err) { console.error('Vex could not make runtime.onMessageExternal work:', err.message); }
+    if (api) {
+      hubEvent('external.message').addListener(function (requestId, message, sender) {
+        var answered = false;
+        var keep = false;
+        var reply = function (value) {
+          if (answered) return;
+          answered = true;
+          api('external.reply', { requestId: requestId, response: value }).catch(function (err) { console.error('Could not answer a page message:', err.message); });
+        };
+        externalListeners.slice().forEach(function (fn) {
+          try { if (fn(message, sender, reply) === true) keep = true; }
+          catch (err) { setTimeout(function () { throw err; }, 0); }
+        });
+        if (!answered && !keep) api('external.reply', { requestId: requestId, closed: true }).catch(function (err) { console.error('Could not close a page message:', err.message); });
+      });
+    }
+  }
   if (!c.sidePanel && hasPerm('sidePanel')) {
     // Vex has no side panel for an extension, so the page the extension chose for it opens as a tab of its own (the extension's own page, as
     // tabs.create opens one). Options are remembered as Chrome keeps them: for every tab, or for one (tabId, which wins).

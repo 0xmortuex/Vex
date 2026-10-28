@@ -201,6 +201,9 @@ define('extensions:open-tab', [shape({ url: string(8192), active: optional(boole
 define('extensions:close-tab', [shape({ ids: value => Array.isArray(value) && value.length > 0 && value.length <= 500 && value.every(Number.isSafeInteger) })]);
 // An extension's menus, badge and shortcuts (main.js _extApi checks the rest).
 define('extensions:api', [shape({ op: string(40), args: optional(object) })]);
+// A web page the extension names in externally_connectable messaging it (main.js, extensions:external-message).
+define('extensions:external-ids', []);
+define('extensions:external-message', [shape({ id: string(64), message: () => true })]);
 // The interface: what the extensions show, a click on an item or a button,
 // and the extensions' shortcuts.
 const extId = value => typeof value === 'string' && /^[a-p]{32}$/.test(value);
