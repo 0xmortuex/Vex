@@ -6562,7 +6562,7 @@ ipcMain.handle('extensions:external-message', async (event, request) => {
     const p = _extExternalPending.get(requestId);
     if (p) { clearTimeout(p.timer); _extExternalPending.delete(requestId); }
     console.error('[Extensions] could not reach ' + ext.id + ' for a page message:', err.message);
-    throw new Error(noReceiver);
+    throw new Error(noReceiver, { cause: err });
   }
   return answer;
 });
