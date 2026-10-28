@@ -920,6 +920,30 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     try { Object.defineProperty(c.runtime, 'onMessage', { value: panelOnMessage, configurable: true, enumerable: true, writable: true }); }
     catch (err) { console.error('Vex could not make runtime.onMessage hide the side panel tab:', err.message); }
   }
+  // The Claude extension's worker asks for its feature flags with only Authorization and Content-Type, while its pages send the two headers
+  // anthropic-client-platform and anthropic-client-version too (its Bt.fetch). The server turns chrome_ext_cowork_iframe on for the request with both
+  // and leaves it off (defaultValue) for the one without, and both write the same cache: the worker's answer turned the panel's iframe off, and its
+  // check then refused every message from the panel ("cowork iframe transport is disabled", every task "anchor tab group not established",
+  // found 2026-10-28 by sending the one request both ways). Only that request, only when the headers are missing, gets the extension's own two.
+  if (typeof globalThis.fetch === 'function' && !globalThis.fetch.__vexFlagHeaders) {
+    var plainFetch = globalThis.fetch;
+    var flagFetch = function (input, init) {
+      try {
+        var target = typeof input === 'string' ? input : (input && input.url) || String(input);
+        if (/^https:\/\/api\.anthropic\.com\/api\/bootstrap\/features\//.test(target) && manifest.version) {
+          var h = new Headers((init && init.headers) || (input && typeof input === 'object' && input.headers) || undefined);
+          if (!h.has('anthropic-client-platform')) {
+            h.set('anthropic-client-platform', 'claude_browser_extension');
+            h.set('anthropic-client-version', manifest.version);
+            init = Object.assign({}, init, { headers: h });
+          }
+        }
+      } catch (err) { console.error('Vex could not add the extension\'s client headers to a feature request:', err.message); }
+      return plainFetch.call(globalThis, input, init);
+    };
+    flagFetch.__vexFlagHeaders = true;
+    try { globalThis.fetch = flagFetch; } catch (err) { console.error('Vex could not wrap fetch for the feature request:', err.message); }
+  }
   if (manifest.externally_connectable && c.runtime) {
     // onMessageExternal: Electron never delivers it. A web page the manifest names (Claude's panel and claude.ai) messages the extension
     // through main (main.js, extensions:external-message); main hands the message to the worker here and takes the answer back ('external.reply').
