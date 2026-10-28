@@ -86,6 +86,8 @@ const VexBoot = {
     { src: 'js/card-saver.js', usage: [] },
     // The bar over a tab an extension is controlling through the debugger (draws itself when main says a tab is held).
     { src: 'js/ext-debug-bar.js', usage: [] },
+    // An extension's side panel, docked beside the page (chrome.sidePanel.open).
+    { src: 'js/ext-sidepanel.js', usage: [] },
     { src: 'js/reading-aids.js', usage: ['reading-aids'] },
     { src: 'js/page-chrome.js', usage: [] },
     // Quick look at a finished download (Space in the Downloads panel): drawn only when asked for; the panel guards its global.

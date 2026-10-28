@@ -1057,8 +1057,22 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       getPanelBehavior: function (cb) { return settle(Promise.resolve(Object.assign({}, panelBehavior)), typeof cb === 'function' ? cb : null, 'sidePanel.getPanelBehavior'); },
       open: function (o, cb) {
         var opt = panelFor(o);
-        if (!opt.path || opt.enabled === false || typeof openUrl !== 'function') return refuse('open a side panel')(typeof cb === 'function' ? cb : undefined);
-        return answerWith(openUrl(opt.path, true).then(function () { return undefined; }), typeof cb === 'function' ? cb : undefined);
+        var callback = typeof cb === 'function' ? cb : undefined;
+        if (!opt.path || opt.enabled === false) return refuse('open a side panel')(callback);
+        // Docked beside the tab, through main (js/ext-sidepanel.js). Where there is no main to ask, the page opens as a tab of its own.
+        if (api) {
+          var p;
+          try { p = api('sidePanel.open', { tabId: o && typeof o.tabId === 'number' ? o.tabId : undefined, url: new URL(String(opt.path), c.runtime.getURL('')).href }); }
+          catch (err) { p = Promise.reject(err); }
+          return settle(p.then(function () { return undefined; }), callback, 'sidePanel.open');
+        }
+        if (typeof openUrl !== 'function') return refuse('open a side panel')(callback);
+        return answerWith(openUrl(opt.path, true).then(function () { return undefined; }), callback);
+      },
+      close: function (o, cb) {
+        var callback = typeof cb === 'function' ? cb : undefined;
+        if (!api) return settle(Promise.resolve(undefined), callback, 'sidePanel.close');
+        return settle(api('sidePanel.close', { tabId: o && typeof o.tabId === 'number' ? o.tabId : undefined }).then(function () { return undefined; }), callback, 'sidePanel.close');
       },
       onOpened: noEvent(), onClosed: noEvent(),
     };

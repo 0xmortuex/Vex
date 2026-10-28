@@ -1,0 +1,25 @@
+/* An extension's side panel, docked at the right edge of the page area (js/ext-sidepanel.js). The page shrinks to make room. */
+#content-area.ext-sp-open #webviews-container { width: calc(100% - var(--ext-sp-w, 420px)); }
+
+.ext-sidepanel {
+  position: absolute; top: 0; right: 0; bottom: 0; width: var(--ext-sp-w, 420px); z-index: 45;
+  display: flex; flex-direction: column; box-sizing: border-box;
+  background: var(--bg-2, var(--surface)); color: var(--text); border-left: 1px solid var(--border);
+}
+.ext-sidepanel[hidden] { display: none; }
+.ext-sidepanel-grip { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 2; }
+.ext-sidepanel-grip:hover, .ext-sidepanel-grip:active { background: color-mix(in srgb, var(--primary) 35%, transparent); }
+.ext-sidepanel-head {
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 30px; padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border); font-size: 12.5px; font-weight: 600;
+}
+.ext-sidepanel-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ext-sidepanel-close {
+  flex: none; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted);
+  font-size: 18px; line-height: 1; cursor: pointer;
+}
+.ext-sidepanel-close:hover { background: var(--vex-hover-fill, var(--surface)); color: var(--text); }
+.ext-sidepanel-close:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.ext-sidepanel-view { flex: 1; min-height: 0; width: 100%; border: 0; display: flex; }
+/* While the panel is being resized: over the page area, so the page's webview cannot take the mouse. */
+.ext-sidepanel-shield { position: absolute; inset: 0; z-index: 70; cursor: col-resize; }

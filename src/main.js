@@ -4295,6 +4295,10 @@ function _checkBackgroundStarts(folder, extPath) {
 // Unload one installed folder from every session that could be holding it.
 function _unloadFromAllSessions(extPath) {
   _extDebugger.stop({ folder: path.basename(extPath) });
+  for (const s of [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p)), ..._extraExtSessions]) {
+    try { for (const e of s.getAllExtensions()) if (path.resolve(e.path) === path.resolve(extPath) && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('extensions:sidepanel-close', { extId: e.id }); }
+    catch (err) { console.error('[Extensions] could not close the side panels of an unloaded extension:', err.message); }
+  }
   const sessions = [session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p)), ..._extraExtSessions];
   for (const ses of sessions) {
     try {
@@ -6338,6 +6342,25 @@ async function _extApi(senderUrl, ses, request) {
       const out = await win.webContents.executeJavaScript(`TabManager.extGroupOp(${JSON.stringify(r.op)}, ${JSON.stringify({ tabIds: ids, groupId: args.groupId, query: args.query, props: args.props })})`);
       const placed = (g) => (g && typeof g === 'object' && g.windowId === 0 ? { ...g, windowId: win.id } : g);
       return Array.isArray(out) ? out.map(placed) : placed(out);
+    }
+    // chrome.sidePanel.open / close: the extension's own page, docked beside the tab it was opened for (js/ext-sidepanel.js, in the window that holds the tab).
+    case 'sidePanel.open': case 'sidePanel.close': {
+      needPerm('sidePanel');
+      const page = tabId !== null ? _extPage(ses, tabId) : await _extFrontPage(ses);
+      if (!page || _extPageIsPrivate(page)) throw new Error('No tab to open the side panel for');
+      const host = secureSessions.owner(page);
+      const win = host && host.win;
+      if (!win || win.isDestroyed()) throw new Error('Vex has no window to open the side panel in');
+      if (r.op === 'sidePanel.close') {
+        await win.webContents.executeJavaScript(`typeof VexExtSidePanel === 'undefined' ? 0 : VexExtSidePanel.close(${JSON.stringify({ extId, tabId: page.id })})`);
+        return undefined;
+      }
+      let u;
+      try { u = new URL(String(args.url || '')); } catch { throw new Error('A side panel needs a page of the extension'); }
+      if (u.protocol !== 'chrome-extension:' || u.host !== extId) throw new Error('A side panel is one of the extension\'s own pages');
+      const name = (_extMeta().get(extId) || {}).name || ext.name;
+      await win.webContents.executeJavaScript(`if (typeof VexExtSidePanel === 'undefined') { throw new Error('Vex is still starting: try again in a moment'); } VexExtSidePanel.open(${JSON.stringify({ tabId: page.id, extId, name, url: u.href })})`);
+      return undefined;
     }
     // tabs.update with an address: a navigation that is a new entry in the tab's history, as in Chrome. Electron's own tabs.update replaced the
     // entry, so tabs.goBack found nowhere to go. Only web pages, about:blank and the extension's own pages; anything else stays Electron's.

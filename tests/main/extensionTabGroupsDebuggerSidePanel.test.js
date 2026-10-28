@@ -31,6 +31,7 @@ function worker(chrome) {
     if (op === 'tabs.group') { calls.push([ch, ...args]); return Promise.resolve(1); }
     if (op === 'tabs.ungroup') { calls.push([ch, ...args]); return Promise.resolve(null); }
     if (op && op.startsWith('tabGroups.')) { calls.push([ch, ...args]); return op === 'tabGroups.query' ? Promise.resolve([{ id: 1, title: 'Claude' }]) : Promise.resolve({ id: 1, windowId: 1, title: 'Claude', color: 'orange', collapsed: false }); }
+    if (op === 'sidePanel.open' || op === 'sidePanel.close') { calls.push([ch, ...args]); return Promise.resolve(undefined); }
     if (op === 'tabs.navigate') { calls.push([ch, ...args]); return Promise.resolve(6); }
     if (op === 'tabs.goBack' || op === 'tabs.goForward') { calls.push([ch, ...args]); return Promise.resolve(undefined); }
     if (op === 'tabs.captureVisibleTab') { calls.push([ch, ...args]); return Promise.resolve('data:image/png;base64,AAAA'); }
@@ -181,12 +182,15 @@ describe('chrome.debugger, offscreen and identity', () => {
   });
 });
 
-describe('chrome.sidePanel: the page the extension chose opens as a tab of Vex', () => {
-  it('opens the page set for that tab (Claude sets sidepanel.html?tabId=N, then opens it) in a tab of its own', async () => {
+describe('chrome.sidePanel: the page the extension chose is docked beside the tab (main/js/ext-sidepanel.js)', () => {
+  const asked = (calls) => calls.filter(x => x[0] === 'extensions:api' && /^sidePanel\./.test(x[1].op)).map(x => [x[1].op, x[1].args]);
+
+  it('asks main to dock the page set for that tab (Claude sets sidepanel.html?tabId=N, then opens it)', async () => {
     const { c, calls } = withPerms(CLAUDE_PERMS);
     await c.sidePanel.setOptions({ tabId: 6, path: 'sidepanel.html?tabId=6', enabled: true });
     expect(await c.sidePanel.open({ tabId: 6 })).toBeUndefined();
-    expect(calls.filter(x => x[0] === 'extensions:open-tab')).toEqual([['extensions:open-tab', { url: OWN + 'sidepanel.html?tabId=6', active: true }]]);
+    expect(asked(calls)).toEqual([['sidePanel.open', { tabId: 6, url: OWN + 'sidepanel.html?tabId=6' }]]);
+    expect(calls.filter(x => x[0] === 'extensions:open-tab')).toEqual([]);
   });
 
   it('a path set for every tab is the default, and one for a tab wins', async () => {
@@ -195,22 +199,30 @@ describe('chrome.sidePanel: the page the extension chose opens as a tab of Vex',
     await c.sidePanel.setOptions({ tabId: 3, path: 'other.html' });
     await c.sidePanel.open({ tabId: 9 });
     await c.sidePanel.open({ tabId: 3 });
-    expect(calls.filter(x => x[0] === 'extensions:open-tab').map(x => x[1].url)).toEqual([OWN + 'panel.html', OWN + 'other.html']);
+    await c.sidePanel.open({});
+    expect(asked(calls).map(x => [x[1].tabId, x[1].url])).toEqual([[9, OWN + 'panel.html'], [3, OWN + 'other.html'], [undefined, OWN + 'panel.html']]);
     expect(await c.sidePanel.getOptions({ tabId: 3 })).toMatchObject({ enabled: true, path: 'other.html' });
   });
 
   it('uses the manifest\'s own side panel page when no options were set', async () => {
     const { c, calls } = withPerms(CLAUDE_PERMS, { side_panel: { default_path: 'side/index.html' } });
     await c.sidePanel.open({ windowId: 1 });
-    expect(calls.filter(x => x[0] === 'extensions:open-tab').map(x => x[1].url)).toEqual([OWN + 'side/index.html']);
+    expect(asked(calls)).toEqual([['sidePanel.open', { tabId: undefined, url: OWN + 'side/index.html' }]]);
   });
 
-  it('is refused in words when there is no page, or the extension switched it off for that tab', async () => {
+  it('is refused in words when there is no page, or the extension switched it off for that tab, without asking main', async () => {
     const { c, calls } = withPerms(CLAUDE_PERMS);
     await expect(c.sidePanel.open({ tabId: 1 })).rejects.toThrow('Vex does not let an extension open a side panel');
     await c.sidePanel.setOptions({ tabId: 1, path: 'x.html', enabled: false });
     await expect(c.sidePanel.open({ tabId: 1 })).rejects.toThrow('open a side panel');
-    expect(calls.filter(x => x[0] === 'extensions:open-tab')).toEqual([]);
+    expect(asked(calls)).toEqual([]);
+  });
+
+  it('close asks main to close that tab\'s panel', async () => {
+    const { c, calls } = withPerms(CLAUDE_PERMS);
+    await c.sidePanel.close({ tabId: 6 });
+    await c.sidePanel.close({});
+    expect(asked(calls)).toEqual([['sidePanel.close', { tabId: 6 }], ['sidePanel.close', { tabId: undefined }]]);
   });
 
   it('remembers the panel behaviour it was given', async () => {

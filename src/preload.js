@@ -954,6 +954,8 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsDebugStop:      (request) => ipcRenderer.invoke('extensions:debug-stop', request),
   extensionsDebugState:     () => ipcRenderer.invoke('extensions:debug-state'),
   onExtensionsDebugState:   (callback) => subscribe('extensions:debug-state', callback),
+  // An extension was unloaded: its side panels close (js/ext-sidepanel.js).
+  onExtensionsSidePanelClose: (callback) => subscribe('extensions:sidepanel-close', callback),
   extensionsCommands:       () => ipcRenderer.invoke('extensions:commands'),
   extensionsSetCommandKey:  (request) => ipcRenderer.invoke('extensions:set-command-key', request),
   extensionsSetPinned:      (folderName, pinned) => ipcRenderer.invoke('extensions:set-pinned', folderName, pinned),
