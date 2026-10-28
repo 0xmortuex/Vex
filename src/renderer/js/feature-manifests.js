@@ -568,7 +568,7 @@
     { id: 'guest-session', title: 'Guest session', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.guest.enabled'],
       commands: ['guest:open', 'guest:forget', 'guest:throwaway', 'guest:throwaway-erase'], tiers: { minimal: false, standard: false },
       permissions: { reads: ['whether this window is a guest window; the number of tabs and sites in it or in the throwaway workspace'], writes: ['its own switch'], sends: [] } },
-    { id: 'extension-diff', title: 'Extension changes and pause', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.extDiff.enabled', 'vex.extDiff.snapshots', 'vex.extSitePause', 'vex.extSiteRules'],
+    { id: 'extension-diff', title: 'Extension changes and pause', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.extDiff.enabled', 'vex.extDiff.snapshots', 'vex.extSitePause', 'vex.extSiteRules', 'vex.extSidePanelWidth'],
       commands: ['extdiff:changes', 'extdiff:pause'], tiers: { minimal: false, standard: false },
       permissions: { reads: ['what each extension declares it can read and do; the address of the tab in front'], writes: ['the picture of each extension at your last review; which extensions you paused; your site rules, and switches extensions off and on when you ask or a rule applies'], sends: [] } },
     { id: 'clipboard-tripwire', title: 'Paste-and-run tripwire', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.clipTripwire.enabled', 'vex.clipTripwire.log'],

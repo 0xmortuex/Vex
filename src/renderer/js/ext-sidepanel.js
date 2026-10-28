@@ -78,7 +78,7 @@ const VexExtSidePanel = {
     x.type = 'button';
     x.className = 'ext-sidepanel-close';
     x.setAttribute('aria-label', this._t('extSpClose', 'Close the side panel'));
-    x.textContent = '×';
+    x.innerHTML = window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'x';
     x.addEventListener('click', () => this.close({ extId, tabId }));
     head.append(title, x);
     const wv = document.createElement('webview');
