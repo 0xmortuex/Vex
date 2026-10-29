@@ -94,7 +94,8 @@ describe('conflict detail', () => {
     await vi.waitFor(() => expect(engine.conflicts()).toEqual([]));
     expect(globalThis.vexConfirm).toHaveBeenCalled();
     expect(JSON.parse(localStorage.getItem('vex.notes')).map(n => n.title)).toEqual(['Shopping: milk, eggs']);
-    expect(done).toHaveBeenCalled();
+    // done runs a moment after the conflict list is empty: wait for it (this was a race that failed in CI, 2026-10-29)
+    await vi.waitFor(() => expect(done).toHaveBeenCalled());
     expect(document.getElementById('vex-sync-conflict-dialog')).toBeNull();
   });
 
