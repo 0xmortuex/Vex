@@ -1,9 +1,10 @@
 # Changelog
 
-## v42.71.0 (2026-10-29) — Quick Play on 3D Aim Trainer: a game can be picked, and sites that need Google's tag script no longer crash
+## v42.74.8 (2026-10-29) — 3D Aim Trainer Quick Play works: a game can be picked, and no picture-in-picture button appears over videos you cannot see
 
 ### Fixed
 - **Sites that call Google's tag script without checking it no longer break.** Vex blocks Google Tag Manager and Analytics, and a page that then pushes to `dataLayer` or calls `gtag` without checking that the script loaded threw an error and stopped. On app.3daimtrainer.com/quick-play no game could be picked, because the click handler died on `dataLayer.push`. When Vex blocks such a script it now gives that page an empty `dataLayer` and `gtag` that do nothing, and still sends nothing to Google. Checked in the real app: picking a game and pressing Skip now reaches the exercise list. Try: Open app.3daimtrainer.com/quick-play and pick a game.
+- **No picture-in-picture button over a video you cannot see.** Vex offered its blue PiP button for any video on the page, even one hidden underneath a full-window screen, so on app.3daimtrainer.com/quick-play blue squares appeared in empty space wherever the pointer went, and pressing one showed the hidden video. A video that is faded out, or that sits under a solid layer much bigger than itself, now gets no button. A normal visible video, and a player with its own click-to-pause layer, still get it. Checked in the real app: before, the button showed at 5 of 6 pointer positions over the hidden videos; after, at none. Try: Open app.3daimtrainer.com/quick-play and move the pointer around.
 
 ## v42.67.2 (2026-10-28) — Vex uses far less memory: the interface window, the ad-blocker and Settings
 

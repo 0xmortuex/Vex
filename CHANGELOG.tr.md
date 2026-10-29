@@ -2,10 +2,11 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v42.71.0 (2026-10-29) — 3D Aim Trainer Quick Play: oyun seçilebiliyor ve Google’ın etiket betiğine ihtiyaç duyan siteler artık çökmüyor
+## v42.74.8 (2026-10-29) — 3D Aim Trainer Quick Play çalışıyor: oyun seçilebiliyor ve göremediğiniz videoların üstünde resim içinde resim düğmesi çıkmıyor
 
 ### Düzeltildi
 - **Google’ın etiket betiğini denetlemeden kullanan siteler artık bozulmuyor.** Vex, Google Tag Manager ve Analytics’i engeller; betiğin yüklenip yüklenmediğini denetlemeden `dataLayer`’a veri ekleyen ya da `gtag` çağıran bir sayfa hata verip duruyordu. app.3daimtrainer.com/quick-play’de hiçbir oyun seçilemiyordu, çünkü tıklama işleyicisi `dataLayer.push` satırında çöküyordu. Vex böyle bir betiği engellediğinde sayfaya artık hiçbir şey yapmayan boş bir `dataLayer` ve `gtag` veriyor, yine de Google’a hiçbir şey göndermiyor. Gerçek uygulamada denendi: oyunu seçip Atla’ya basmak artık alıştırma listesine ulaşıyor. Deneyin: app.3daimtrainer.com/quick-play’i açın ve bir oyun seçin.
+- **Göremediğiniz bir videonun üstünde resim içinde resim düğmesi çıkmıyor.** Vex, sayfadaki her video için mavi PiP düğmesini sunuyordu; tam pencere bir ekranın altında gizli kalan videolar için bile. Bu yüzden app.3daimtrainer.com/quick-play’de işaretçinin gittiği her yerde boş alanda mavi kareler beliriyor, birine basınca gizli video görünüyordu. Soluklaştırılmış ya da kendisinden çok daha büyük, düz renkli bir katmanın altındaki video artık düğme almıyor. Normal görünen bir video ve kendi tıkla-durdur katmanı olan bir oynatıcı düğmeyi almaya devam ediyor. Gerçek uygulamada denendi: önceden düğme, gizli videoların üstündeki 6 işaretçi konumunun 5’inde çıkıyordu; şimdi hiçbirinde çıkmıyor. Deneyin: app.3daimtrainer.com/quick-play’i açın ve işaretçiyi gezdirin.
 
 ## v42.67.2 (2026-10-28) — Vex çok daha az bellek kullanıyor: arayüz penceresi, reklam engelleyici ve Ayarlar
 
