@@ -1,5 +1,10 @@
 # Changelog
 
+## v42.71.0 (2026-10-29) — Quick Play on 3D Aim Trainer: a game can be picked, and sites that need Google's tag script no longer crash
+
+### Fixed
+- **Sites that call Google's tag script without checking it no longer break.** Vex blocks Google Tag Manager and Analytics, and a page that then pushes to `dataLayer` or calls `gtag` without checking that the script loaded threw an error and stopped. On app.3daimtrainer.com/quick-play no game could be picked, because the click handler died on `dataLayer.push`. When Vex blocks such a script it now gives that page an empty `dataLayer` and `gtag` that do nothing, and still sends nothing to Google. Checked in the real app: picking a game and pressing Skip now reaches the exercise list. Try: Open app.3daimtrainer.com/quick-play and pick a game.
+
 ## v42.67.2 (2026-10-28) — Vex uses far less memory: the interface window, the ad-blocker and Settings
 
 ### New

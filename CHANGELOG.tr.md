@@ -2,6 +2,11 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
+## v42.71.0 (2026-10-29) — 3D Aim Trainer Quick Play: oyun seçilebiliyor ve Google’ın etiket betiğine ihtiyaç duyan siteler artık çökmüyor
+
+### Düzeltildi
+- **Google’ın etiket betiğini denetlemeden kullanan siteler artık bozulmuyor.** Vex, Google Tag Manager ve Analytics’i engeller; betiğin yüklenip yüklenmediğini denetlemeden `dataLayer`’a veri ekleyen ya da `gtag` çağıran bir sayfa hata verip duruyordu. app.3daimtrainer.com/quick-play’de hiçbir oyun seçilemiyordu, çünkü tıklama işleyicisi `dataLayer.push` satırında çöküyordu. Vex böyle bir betiği engellediğinde sayfaya artık hiçbir şey yapmayan boş bir `dataLayer` ve `gtag` veriyor, yine de Google’a hiçbir şey göndermiyor. Gerçek uygulamada denendi: oyunu seçip Atla’ya basmak artık alıştırma listesine ulaşıyor. Deneyin: app.3daimtrainer.com/quick-play’i açın ve bir oyun seçin.
+
 ## v42.67.2 (2026-10-28) — Vex çok daha az bellek kullanıyor: arayüz penceresi, reklam engelleyici ve Ayarlar
 
 ### Yeni
