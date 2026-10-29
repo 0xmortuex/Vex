@@ -142,9 +142,11 @@ describe('a video in a closed shadow root', () => {
     const at = PRELOAD.indexOf('Closed shadow roots, for Picture-in-Picture');
     expect(at).toBeGreaterThan(0);
     const block = PRELOAD.slice(at, at + 2500);
-    expect(block).toContain("init.mode === 'closed'");
+    expect(block).toContain("args[0].mode === 'closed'");
     expect(block).toContain('new WeakRef(r)');
-    expect(block).toContain('orig.apply(this, arguments)');
+    // a Proxy of the native function, so the page reads it back as native (tests/renderer/closedRootsHook.test.js)
+    expect(block).toContain('new Proxy(orig');
+    expect(block).toContain('Reflect.apply(target, thisArg, args)');
     expect(block).toContain('enumerable:false');
   });
 });
