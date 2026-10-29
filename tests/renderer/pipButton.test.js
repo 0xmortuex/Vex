@@ -524,3 +524,68 @@ describe('Turkish', () => {
     expect(VexI18nUI.SCOPES).toContain('#pip-btn');
   });
 });
+
+// A video nobody can see gets no button (2026-10-29). app.3daimtrainer.com/quick-play keeps its exercise videos (278x139) running behind the
+// full-window "I want to train for..." screen, a layer with a solid background, and the button appeared in empty space wherever the pointer crossed
+// one; pressing it showed the hidden video in a picture-in-picture window.
+describe('a video that cannot be seen', () => {
+  const styled = (win, bgOf, opacityOf = () => '1') => {
+    win.getComputedStyle = (el) => ({ cursor: el.style.cursor || 'auto', visibility: 'visible', display: 'block', opacity: opacityOf(el), backgroundColor: bgOf(el), backgroundImage: el.__image || 'none' });
+    return win;
+  };
+  const SOLID = 'rgb(19, 19, 21)', CLEAR = 'rgba(0, 0, 0, 0)';
+
+  it('has none while a solid layer much bigger than it covers it, even with the pointer on it', () => {
+    const win = page({ w: 1338, h: 502 });
+    const overlay = box('div', 0, 0, 1338, 502); overlay.__bg = SOLID; layers.unshift(overlay);
+    add(video(115, 104, 278, 139));
+    styled(win, (el) => el.__bg || CLEAR);
+    const g = vexPipPlace(document, win, { pointer: { x: 200, y: 150 } });
+    expect(g.btn).toBeNull();
+    expect(g.rect).toBeNull();
+    expect(g.over).toBe(false);
+  });
+  it('a background image covers as well as a colour', () => {
+    const win = page({ w: 1338, h: 502 });
+    const overlay = box('div', 0, 0, 1338, 502); overlay.__image = 'url(x.png)'; layers.unshift(overlay);
+    add(video(115, 104, 278, 139));
+    styled(win, () => CLEAR);
+    expect(vexPipPlace(document, win, {}).btn).toBeNull();
+  });
+  it('a clear layer, the player\'s own surface (about the video\'s size) and a small popup do not cover it', () => {
+    for (const [l, t, w, h, bg] of [[0, 0, 1338, 502, CLEAR], [115, 104, 278, 139, SOLID], [130, 110, 150, 120, SOLID]]) {
+      const win = page({ w: 1338, h: 502 });
+      const layer = box('div', l, t, w, h); layer.__bg = bg; layers.unshift(layer);
+      add(video(115, 104, 278, 139));
+      styled(win, (el) => el.__bg || CLEAR);
+      expect(vexPipPlace(document, win, {}).btn).not.toBeNull();
+    }
+  });
+  it('a layer that holds the video (its player or page) never covers it', () => {
+    const win = page({ w: 1338, h: 502 });
+    const holder = box('div', 0, 0, 1338, 502); holder.__bg = SOLID;
+    const v = video(115, 104, 278, 139);
+    holder.appendChild(v);
+    layers.unshift(v); layers.push(holder);
+    styled(win, (el) => el.__bg || CLEAR);
+    expect(vexPipPlace(document, win, {}).btn).not.toBeNull();
+  });
+  it('has none when the video is faded out, however it got there, and one when it is only a little faded', () => {
+    for (const [op, expectBtn] of [['0', false], ['0.02', false], ['0.5', true]]) {
+      const win = page();
+      const holder = box('div', 0, 0, 1000, 600);
+      const v = video(100, 50, 640, 360);
+      holder.appendChild(v);
+      add(v);
+      styled(win, () => CLEAR, (el) => (el === holder ? op : '1'));
+      expect(vexPipPlace(document, win, {}).btn !== null).toBe(expectBtn);
+    }
+  });
+  it('a video that cannot be hit (pointer-events none) is still offered, as before: it cannot be judged', () => {
+    const win = page({ w: 1338, h: 502 });
+    const overlay = box('div', 0, 0, 1338, 502); overlay.__bg = SOLID; layers.unshift(overlay);
+    video(115, 104, 278, 139);   // not in the layer stack at all
+    styled(win, (el) => el.__bg || CLEAR);
+    expect(vexPipPlace(document, win, {}).btn).not.toBeNull();
+  });
+});

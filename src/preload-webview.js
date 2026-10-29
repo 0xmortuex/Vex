@@ -1589,6 +1589,52 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     if (o.frame) els.push(o.frame);
     else for (const root of roots) for (const v of root.querySelectorAll('video')) if (els.indexOf(v) < 0) els.push(v);
 
+    const stackAt = (x, y) => {
+      const out = [];
+      for (const el of doc.elementsFromPoint(x, y)) {
+        const sr = el.shadowRoot || closedHosts.get(el);
+        if (sr && typeof sr.elementsFromPoint === 'function') for (const inner of sr.elementsFromPoint(x, y)) if (inner !== el) out.push(inner);
+        out.push(el);
+      }
+      return out;
+    };
+    // A video nobody can see: faded out, or under a solid layer much bigger than itself (a full-window picker or menu with the page left running
+    // beneath it: app.3daimtrainer.com/quick-play keeps its exercise videos behind the "I want to train for..." screen, and the button showed up in
+    // empty space wherever the pointer crossed one, found 2026-10-29). A layer about the video's own size is the player's surface, not a cover.
+    const alphaOf = (v) => {
+      const m = /^rgba?\(\s*[\d.]+[ ,]+[\d.]+[ ,]+[\d.]+(?:[ ,/]+([\d.]+%?))?\s*\)$/.exec(String(v || ''));
+      if (!m) return 0;
+      if (m[1] === undefined) return 1;
+      return m[1].slice(-1) === '%' ? parseFloat(m[1]) / 100 : parseFloat(m[1]);
+    };
+    const faded = (v) => {
+      let op = 1;
+      for (let n = v, k = 0; n && k < 30; n = n.parentNode || n.host, k++) {
+        if (n.nodeType !== 1) continue;
+        const o2 = parseFloat(win.getComputedStyle(n).opacity);
+        if (o2 === o2) op *= o2;   // a style with no opacity says nothing
+        if (op < 0.05) return true;
+      }
+      return false;
+    };
+    const covered = (c) => {
+      const chain = new Set();
+      for (let n = c.v; n; n = n.parentNode || n.host) chain.add(n);
+      let stack;
+      try { stack = stackAt(Math.round((c.l + c.r) / 2), Math.round((c.t + c.b) / 2)); } catch { return false; }
+      const idx = stack.indexOf(c.v);
+      if (idx < 0) return false;   // not hit-testable (pointer-events: none): cannot tell, so it stays a candidate
+      for (let i = 0; i < idx; i++) {
+        const el = stack[i];
+        if (el.nodeType !== 1 || chain.has(el) || (typeof el.contains === 'function' && el.contains(c.v))) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width * r.height < c.w * c.h * 2) continue;
+        const cs = win.getComputedStyle(el);
+        if (alphaOf(cs.backgroundColor) >= 0.9 || (cs.backgroundImage && cs.backgroundImage !== 'none')) return true;
+      }
+      return false;
+    };
+
     const cands = [];
     for (const v of els) {
       if (!o.frame && !(v.currentSrc || v.src || v.srcObject)) continue;
@@ -1597,7 +1643,9 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
       const w = rr - l, h = b - t;
       if (w < 160 || h < 90) continue;
       if (!o.frame) { const cs = win.getComputedStyle(v); if (cs.visibility === 'hidden' || cs.display === 'none') continue; }
-      cands.push({ v, l, t, r: rr, b, w, h, playing: !o.frame && !v.paused && !v.ended });
+      const cand = { v, l, t, r: rr, b, w, h, playing: !o.frame && !v.paused && !v.ended };
+      if (!o.frame && (faded(v) || covered(cand))) continue;
+      cands.push(cand);
     }
     const none = { vw, vh, rect: null, btn: null, over: false, frame: !!o.frame, count: els.length };
     if (!cands.length) return none;
@@ -1617,15 +1665,6 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     const ancestors = new Set();
     for (let n = pick.v; n; n = n.parentNode || n.host) ancestors.add(n);
 
-    const stackAt = (x, y) => {
-      const out = [];
-      for (const el of doc.elementsFromPoint(x, y)) {
-        const sr = el.shadowRoot || closedHosts.get(el);
-        if (sr && typeof sr.elementsFromPoint === 'function') for (const inner of sr.elementsFromPoint(x, y)) if (inner !== el) out.push(inner);
-        out.push(el);
-      }
-      return out;
-    };
     const blocks = (el) => {
       if (el === doc.documentElement || el === doc.body || el.nodeType !== 1) return false;
       const r = el.getBoundingClientRect();
