@@ -2585,21 +2585,25 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
 // video on this page" for it. This keeps a weak list of the closed roots a page
 // makes, so the scan can look into those too. attachShadow behaves exactly as
 // before; nothing is kept alive and the list is not enumerable on window.
+// The wrapper is a Proxy of the native function, not a function of our own: a page can read a function's source (Function.prototype.toString),
+// and Cloudflare's Turnstile checks that browser functions are still native. With a plain wrapper its widget, which draws itself in a closed
+// shadow root, failed with error 600010 (chess.com sign-up, found 2026-10-30). A Proxy reads back as "function () { [native code] }", and
+// the flag that says it is already in place lives in this closure, not on the function.
 (function () {
   let proto = '';
   try { proto = (window.location && window.location.protocol) || ''; } catch { return; }
   if (!(proto === 'http:' || proto === 'https:')) return;
   const src = `(function(){try{
     var p = Element.prototype, orig = p.attachShadow;
-    if(typeof orig !== 'function' || orig.__vexRoots || typeof WeakRef !== 'function') return;
+    if(typeof orig !== 'function' || typeof Proxy !== 'function' || typeof WeakRef !== 'function') return;
+    if(Object.prototype.hasOwnProperty.call(window,'__vexClosedRoots')) return;
     var list = [];
     try{ Object.defineProperty(window,'__vexClosedRoots',{configurable:true,enumerable:false,value:list}); }catch(e){ return; }
-    var patched = function(init){
-      var r = orig.apply(this, arguments);
-      try{ if(init && init.mode === 'closed') list.push(new WeakRef(r)); }catch(e){}
+    var patched = new Proxy(orig, { apply: function(target, thisArg, args){
+      var r = Reflect.apply(target, thisArg, args);
+      try{ if(args[0] && args[0].mode === 'closed') list.push(new WeakRef(r)); }catch(e){}
       return r;
-    };
-    patched.__vexRoots = true;
+    } });
     try{ Object.defineProperty(p,'attachShadow',{configurable:true,writable:true,value:patched}); }catch(e){}
   }catch(e){}})();`;
   // executeInMainWorld needs no document, so this runs before the page's first
