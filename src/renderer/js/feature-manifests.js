@@ -157,7 +157,7 @@
     { id: 'weather-place', title: 'Weather place search', group: 'Weather', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.weatherCountry'],
       permissions: { reads: ['the country you chose for place searches'], writes: ['that country'], sends: ['the place or postcode you search for, to Open-Meteo (names) or OpenStreetMap (postcodes), only when you press Search'] } },
     // Interface sounds (js/ui-sounds.js): on for everyone from the start, with its own switches in Settings > Sounds. Not staged: it is feedback, not an extra.
-    { id: 'ui-sounds', title: 'Interface sounds', group: 'Sounds', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.uiSounds.master', 'vex.uiSounds.typing', 'vex.uiSounds.hover', 'vex.uiSounds.tabs', 'vex.uiSounds.press', 'vex.uiSounds.volume', 'vex.uiSounds.style', 'vex.uiSounds.pitch'], usesKeys: ['vex.sounds.hours', 'vex.fun.quiet'],
+    { id: 'ui-sounds', title: 'Interface sounds', group: 'Sounds', maturity: 'stable', tiers: { minimal: true, standard: true }, storageKeys: ['vex.uiSounds.master', 'vex.uiSounds.typing', 'vex.uiSounds.hover', 'vex.uiSounds.tabs', 'vex.uiSounds.press', 'vex.uiSounds.volume', 'vex.uiSounds.style', 'vex.uiSounds.pitch'], usesKeys: ['vex.sounds.hours', 'vex.fun.quiet'],
       permissions: { reads: ['its own switches and the quiet hours of the sound packs'], writes: ['its own switches, volume, style and pitch'], sends: [] } },
     // Saved payment cards (js/card-saver.js, main/cards.js). The cards themselves are in the encrypted file cards.dat, not in a storage key.
     { id: 'payment-cards', title: 'Payment cards', group: 'Payment cards', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.cardNever', 'vex.cardOffer'], usesKeys: [],
@@ -165,11 +165,11 @@
       permissions: { reads: ['your saved cards, only to fill the one you pressed (never the security code, which is not kept)'], writes: ['the encrypted card file on this PC, its own switch and the sites it is not offered on'], sends: [] } },
     // The frame around a page (js/page-chrome.js): the link bar, the load bar and slim scrollbars. The first two are always on, with no switch;
     // the scrollbars are off until Settings > Appearance turns them on.
-    { id: 'link-bar', title: 'Link address bar', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+    { id: 'link-bar', title: 'Link address bar', group: 'Appearance', maturity: 'stable', tiers: { minimal: true, standard: true }, storageKeys: ['vex.linkBar.off'],
       permissions: { reads: ['the address of the link under the pointer, and the address of the page in front'], writes: [], sends: [] } },
-    { id: 'load-bar', title: 'Page load bar', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+    { id: 'load-bar', title: 'Page load bar', group: 'Appearance', maturity: 'stable', tiers: { minimal: true, standard: true }, storageKeys: ['vex.loadBar.off'],
       permissions: { reads: ['whether each tab is loading'], writes: [], sends: [] } },
-    { id: 'page-scrollbars', title: 'Slim scrollbars on websites', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.pageScrollbars', 'vex.pageScrollbarsOff'],
+    { id: 'page-scrollbars', title: 'Slim scrollbars on websites', group: 'Appearance', maturity: 'stable', tiers: { minimal: true, standard: true }, storageKeys: ['vex.pageScrollbars', 'vex.pageScrollbarsOff'],
       permissions: { reads: ['its own switch and site list, the address of each page, and whether the page styles its own scrollbars'], writes: ['its own switch and site list; a thin-scrollbar style inside a page while it is open'], sends: [] } },
     // The window's saved look (js/early-look.js): how the window looked, kept so the next start paints it from the first frame. Not staged: it is how the window opens.
     { id: 'early-look', title: 'Window look at start-up', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.bootLook'],
@@ -219,7 +219,7 @@
       permissions: { reads: ['the text and button addresses of a large notice on a page you open, a few seconds after it loads (never a private, Tor or routed tab)'], writes: ['its own switch'], sends: [] } },
     { id: 'api-playground', title: 'API playground', group: 'Developer helpers', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.playground', 'vex.playgroundSecretValues'], commands: ['apiplayground:open'],
       permissions: { reads: ['the requests, environments and history you saved; sensitive values only in the main process, never handed back to the window'], writes: ['saved requests, environments and a history without headers or bodies; sensitive values into an OS-sealed vault file'], sends: ['The one request you press Send on, from the main process, to the address you wrote (public addresses; localhost only when you tick Allow localhost)'] } },
-    { id: 'print-preview', title: 'Print preview', group: 'Print preview', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.printPreview.prefs'], commands: ['print'],
+    { id: 'print-preview', title: 'Print preview', group: 'Print preview', maturity: 'stable', tiers: { minimal: true, standard: true }, storageKeys: ['vex.printPreview.prefs'], commands: ['print'],
       permissions: { reads: ['the page in front, drawn to a PDF in the main process, and its title and address for the header; for a simplified copy, the article reading mode finds in it'], writes: ['your last paper, margins, scale and other print choices (not from a private or Tor tab), and a PDF only where you pick in the Save dialog'], sends: ['The pages to the printer you choose, only when you press Print'] } },
     { id: 'dev-loop-repos', title: 'Developer loop repositories', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.devLoop.repos'], commands: ['dev-loop'],
       permissions: { reads: ['the list of repositories you gave'], writes: ['the list of repositories you gave'], sends: [] } },

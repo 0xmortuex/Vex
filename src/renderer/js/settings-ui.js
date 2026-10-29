@@ -98,7 +98,7 @@ const SettingsUI = {
     { name: 'Tab Groups',      icon: 'layers',   color: '#fb923c', match: ['tab grouping', 'tab tools', 'more tab tools', 'tabs and navigation', 'links and windows', 'tab comforts', 'tidy'] },
     { name: 'History',         icon: 'clock',    color: '#7dd3fc', match: ['history', 'time travel', 'find by time'] },
     { name: 'Play',            icon: 'puzzle',   color: '#f472b6', match: ['play: ', 'playfulness', 'fun and', 'living vex', 'profile and medals', 'little surprises', 'weekly page, offline'] },
-    { name: 'Vex health',      icon: 'info',     color: '#94a3b8', match: ['health check', 'minimal vex', 'feature usage', 'release check', 'diagnostics', 'new for you', 'what each feature touches', 'search index', 'what i changed', 'usage counts'] },
+    { name: 'Vex health',      icon: 'info',     color: '#94a3b8', match: ['health check', 'minimal vex', 'feature usage', 'feature switches', 'release check', 'diagnostics', 'new for you', 'what each feature touches', 'search index', 'what i changed', 'usage counts'] },
     { name: 'Extras',          icon: 'cursor',   color: '#60a5fa', match: ['volume: ', 'browsing extras', 'gesture', 'page watcher', 'announcement desk', 'ai news', 'quiet hours', 'attention', 'why a tab is open', 'repeated searches', 'shopping comparison', 'why is this tab open', 'watcher alerts', 'inbox', 'community and chat', 'media control', 'shared from my phone', 'photo preparer', 'watch suggestions', 'slot watcher', 'watch templates'] },
     { name: 'Extensions',      icon: 'puzzle',   color: '#10b981', match: ['extension'] },
     { name: 'Permissions',     icon: 'lock',     color: '#eab308', match: ['permission', 'site settings'] },

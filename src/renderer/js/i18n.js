@@ -104,6 +104,15 @@
   Object.assign(strings.tr, { extSpResize: 'Boyutlandırmak için sürükleyin', extSpClose: 'Yan paneli kapat' });
   Object.assign(strings.en, { extDbgOne: '{name} is controlling this tab', extDbgMany: '{names} are controlling this tab', extDbgStop: 'Stop', extDbgStopFail: 'Could not stop it: ', extGrantAskTitle: 'Let {name} control your tabs?', extGrantAskBody: '{name} wants to read and control the pages of your tabs, to do what you asked it. While it does, a bar on the tab says so, and Stop lets go. It never reaches private or Tor tabs. You can turn this off any time in Settings > Extensions.', extGrantAskYes: 'Allow', extGrantAskDone: '{name} can now control your tabs. Ask it again.', extGrantAskFail: 'Could not allow it: ' });
   Object.assign(strings.tr, { extDbgOne: '{name} bu sekmeyi yönetiyor', extDbgMany: '{names} bu sekmeyi yönetiyor', extDbgStop: 'Durdur', extDbgStopFail: 'Durdurulamadı: ', extGrantAskTitle: '{name} sekmelerinizi yönetebilsin mi?', extGrantAskBody: '{name}, istediğinizi yapmak için sekmelerinizin sayfalarını okumak ve yönetmek istiyor. Bunu yaparken sekmedeki bir çubuk bunu söyler ve Durdur bırakmasını sağlar. Gizli ve Tor sekmelerine asla ulaşmaz. Bunu istediğiniz zaman Ayarlar > Eklentiler’den kapatabilirsiniz.', extGrantAskYes: 'İzin ver', extGrantAskDone: '{name} artık sekmelerinizi yönetebilir. Ona yeniden söyleyin.', extGrantAskFail: 'İzin verilemedi: ' });
+  // An on/off switch for every feature (js/feature-switches.js).
+  Object.assign(strings.en, { featTitle: 'Features', featSub: 'Every feature of Vex with its on/off switch. A feature that is off loses its Settings section; nothing you made with it is deleted.',
+    featSearch: 'Search features', featSummary: '{on} of {n} switchable features are on. {fixed} cannot be switched off.', featAlwaysOn: 'Always on', featNone: 'No feature matches that.',
+    featOpen: 'Open the features list', featGroupNote: '{n} features can be switched on and off here, and in each feature\'s own section; {on} are on.',
+    featSectionSwitch: 'Use {name}', featOffDone: '{name} is off. Turn it back on in Settings > Feature switches.', featUndo: 'Undo', featSwitchFail: 'Could not change it: ' });
+  Object.assign(strings.tr, { featTitle: 'Özellikler', featSub: 'Vex’in her özelliği, açma/kapama anahtarıyla. Kapalı bir özellik Ayarlar bölümünü kaybeder; onunla yaptığınız hiçbir şey silinmez.',
+    featSearch: 'Özellik ara', featSummary: 'Açılıp kapatılabilen {n} özelliğin {on} tanesi açık. {fixed} tanesi kapatılamaz.', featAlwaysOn: 'Her zaman açık', featNone: 'Buna uyan özellik yok.',
+    featOpen: 'Özellik listesini aç', featGroupNote: '{n} özellik burada ve her özelliğin kendi bölümünde açılıp kapatılabilir; {on} tanesi açık.',
+    featSectionSwitch: '{name} kullan', featOffDone: '{name} kapalı. Ayarlar > Özellik anahtarları’ndan yeniden açabilirsiniz.', featUndo: 'Geri al', featSwitchFail: 'Değiştirilemedi: ' });
   // Saved payment cards (js/card-saver.js).
   Object.assign(strings.en, {
     cardOpenPage: 'Open a web page first',

@@ -180,6 +180,10 @@ const VexUsageRegistry = {
       ChatLinkHygiene: () => (typeof ChatLinkHygiene !== 'undefined' ? ChatLinkHygiene : null),
       SafeWebExtras: () => (typeof SafeWebExtras !== 'undefined' ? SafeWebExtras : null),
       VexSnippets: () => (typeof VexSnippets !== 'undefined' ? VexSnippets : null),
+      VexLinkBar: () => (typeof VexLinkBar !== 'undefined' ? VexLinkBar : null),
+      VexLoadBar: () => (typeof VexLoadBar !== 'undefined' ? VexLoadBar : null),
+      VexPageScrollbars: () => (typeof VexPageScrollbars !== 'undefined' ? VexPageScrollbars : null),
+      VexPrintPreview: () => (typeof VexPrintPreview !== 'undefined' ? VexPrintPreview : null),
       TableExtract: () => (typeof TableExtract !== 'undefined' ? TableExtract : null),
       VideoTools: () => (typeof VideoTools !== 'undefined' ? VideoTools : null),
       NewsletterLane: () => (typeof NewsletterLane !== 'undefined' ? NewsletterLane : null),
@@ -607,6 +611,16 @@ const VexUsageRegistry = {
       ['night-coach', A.api(G.NightCoach, 'enabled', 'setEnabled')],
       // Wave 3 (tab tools, links and windows, taskbar actions, gesture editor).
       ['gesture-editor', A.api(G.VexGestureEditor, 'enabled', 'setEnabled')],
+      // Features that had no switch (2026-10-29): each off keeps what it kept.
+      ['link-bar', A.api(G.VexLinkBar, 'enabled', 'setEnabled')],
+      ['load-bar', A.api(G.VexLoadBar, 'enabled', 'setEnabled')],
+      ['page-scrollbars', A.api(G.VexPageScrollbars, 'on', 'setOn')],
+      ['print-preview', A.api(G.VexPrintPreview, 'enabled', 'setEnabled')],
+      ['ui-sounds', () => {
+        const S = typeof VexUiSounds !== 'undefined' ? VexUiSounds : null;
+        if (!S || typeof S.flag !== 'function' || typeof S.setFlag !== 'function') return null;
+        return { on: () => S.flag('master'), set: (v) => { S.setFlag('master', v); } };
+      }],
       ['tab-select', A.api(G.VexTabSelect, 'enabled', 'setEnabled')],
       ['tab-hold', A.api(G.VexTabHold, 'enabled', 'setEnabled')],
       ['tab-names', A.api(G.VexTabNames, 'enabled', 'setEnabled')],

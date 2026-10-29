@@ -80,6 +80,18 @@ const VexPageChromeText = {
 
 // ---- the link bar -----------------------------------------------------------------------------------
 const VexLinkBar = {
+  // Off: the link's address is no longer shown at the bottom of the page (the person's switch, Settings > Feature switches).
+  PREF: 'vex.linkBar.off',
+  enabled() {
+    try { return localStorage.getItem(this.PREF) !== '1'; }
+    catch (err) { throw new Error('The link address bar setting could not be read: ' + err.message, { cause: err }); }
+  },
+  setEnabled(on) {
+    try { if (on) localStorage.removeItem(this.PREF); else localStorage.setItem(this.PREF, '1'); }
+    catch (err) { throw new Error('The link address bar setting could not be saved: ' + err.message, { cause: err }); }
+    if (!on) this.hide();
+    return !!on;
+  },
   SHOW_MS: 90,    // a pointer sweeping over links does not flicker the bar
   HIDE_MS: 140,
   MIN_KEEP: 6,
@@ -109,6 +121,7 @@ const VexLinkBar = {
 
   // The pointer is over `url` (empty: it left the link) in the page of tab `tabId`.
   update(url, tabId, pageUrl) {
+    if (!this.enabled()) return;
     if (!url) { this._scheduleHide(); return; }
     if (!this.place()) return;
     this._tabId = tabId;
@@ -188,6 +201,18 @@ const VexLinkBar = {
 
 // ---- the load bar -----------------------------------------------------------------------------------
 const VexLoadBar = {
+  // Off: the thin bar along the top of a loading page is not drawn (the person's switch, Settings > Feature switches).
+  PREF: 'vex.loadBar.off',
+  enabled() {
+    try { return localStorage.getItem(this.PREF) !== '1'; }
+    catch (err) { throw new Error('The page load bar setting could not be read: ' + err.message, { cause: err }); }
+  },
+  setEnabled(on) {
+    try { if (on) localStorage.removeItem(this.PREF); else localStorage.setItem(this.PREF, '1'); }
+    catch (err) { throw new Error('The page load bar setting could not be saved: ' + err.message, { cause: err }); }
+    if (!on && this._mode !== 'idle') this._snap();
+    return !!on;
+  },
   QUICK_MS: 450,        // to QUICK_TO
   QUICK_TO: 0.7,
   CREEP_TO: 0.95,
@@ -240,7 +265,7 @@ const VexLoadBar = {
 
   // The tab in front (tabs.js syncReloadButton, on every change and every switch).
   show(tab) {
-    if (!tab || !this.place()) return;
+    if (!tab || !this.enabled() || !this.place()) return;
     if (tab.loading && !this._st.has(tab.id)) this.note(tab);
     const st = tab.loading ? this._st.get(tab.id) : null;
     if (this._mode !== 'idle' && this._shownId !== tab.id) this._snap();

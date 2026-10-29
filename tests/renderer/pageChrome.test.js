@@ -137,7 +137,7 @@ describe('the wiring', () => {
     expect(tabs).toContain("if (tab && typeof VexLoadBar !== 'undefined') VexLoadBar.show(tab);");
   });
   it('the module is a late module (the start-up budget allows no more blocking scripts) and its style sheet comes before a11y.css', () => {
-    expect(read('src/renderer/js/lazy-boot.js')).toContain("{ src: 'js/page-chrome.js', usage: [] }");
+    expect(read('src/renderer/js/lazy-boot.js')).toContain("{ src: 'js/page-chrome.js', usage: ['link-bar', 'load-bar', 'page-scrollbars'] }");
     expect(read('src/renderer/index.html')).not.toContain('<script src="js/page-chrome.js">');
     const html = read('src/renderer/index.html');
     expect(html.indexOf('css/page-chrome.css')).toBeGreaterThan(-1);
@@ -162,5 +162,47 @@ describe('the wiring', () => {
     const manifests = read('src/renderer/js/feature-manifests.js');
     expect(manifests).toContain("storageKeys: ['vex.pageScrollbars', 'vex.pageScrollbarsOff']");
     expect(read('src/renderer/js/app.js')).toContain("'vex.pageScrollbars', 'vex.pageScrollbarsOff'");
+  });
+});
+
+// A switch of its own for the link bar and the load bar (Settings > Feature switches, 2026-10-29).
+describe('the link bar and the load bar can be switched off', () => {
+  const { VexLinkBar } = require('../../src/renderer/js/page-chrome.js');
+  it('the link bar is on until switched off, remembers it, and shows nothing while off', () => {
+    expect(VexLinkBar.enabled()).toBe(true);
+    VexLinkBar._shown = false; VexLinkBar._showTimer = null;
+    expect(VexLinkBar.setEnabled(false)).toBe(false);
+    expect(localStorage.getItem('vex.linkBar.off')).toBe('1');
+    expect(VexLinkBar.enabled()).toBe(false);
+    VexLinkBar.update('https://example.com/', 't1', 'https://a.test/');
+    expect(VexLinkBar._shown).toBe(false);
+    expect(VexLinkBar._showTimer).toBeNull();
+    VexLinkBar.setEnabled(true);
+    expect(localStorage.getItem('vex.linkBar.off')).toBeNull();
+    expect(VexLinkBar.enabled()).toBe(true);
+  });
+  it('the load bar is on until switched off, remembers it, and draws nothing while off', () => {
+    expect(VexLoadBar.enabled()).toBe(true);
+    expect(VexLoadBar.setEnabled(false)).toBe(false);
+    expect(localStorage.getItem('vex.loadBar.off')).toBe('1');
+    VexLoadBar.show({ id: 'x', loading: true });
+    expect(VexLoadBar._mode).toBe('idle');
+    VexLoadBar.setEnabled(true);
+    expect(VexLoadBar.enabled()).toBe(true);
+  });
+  it('a setting that cannot be read or saved is an error that says so, never a silent default', () => {
+    const real = Storage.prototype.getItem;
+    Storage.prototype.getItem = () => { throw new Error('locked'); };
+    try {
+      expect(() => VexLinkBar.enabled()).toThrow(/could not be read.*locked/);
+      expect(() => VexLoadBar.enabled()).toThrow(/could not be read.*locked/);
+    } finally { Storage.prototype.getItem = real; }
+  });
+  it('the usage registry switches these five, and lazy-boot registers them when their files load', () => {
+    const reg = read('src/renderer/js/vex-usage-registry.js');
+    for (const id of ['link-bar', 'load-bar', 'page-scrollbars', 'print-preview', 'ui-sounds']) expect(reg).toContain("['" + id + "',");
+    const boot = read('src/renderer/js/lazy-boot.js');
+    expect(boot).toContain("{ src: 'js/page-chrome.js', usage: ['link-bar', 'load-bar', 'page-scrollbars'] }");
+    expect(boot).toContain("{ src: 'js/print-preview-ui.js', usage: ['print-preview'] }");
   });
 });

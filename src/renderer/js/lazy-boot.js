@@ -43,6 +43,7 @@ const VexBoot = {
     { src: 'js/timeline-actions.js', usage: [] },
     { src: 'js/extension-audit-view.js', usage: [] },
     { src: 'js/vex-usage-ui.js', usage: [] },
+    { src: 'js/feature-switches.js', usage: [] },
     { src: 'js/fun/fun-settings.js', usage: [] },
     { src: 'js/attention-settings.js', usage: [] },
     { src: 'js/quiet-hours-ui.js', usage: [] },
@@ -76,7 +77,7 @@ const VexBoot = {
     { src: 'js/image-viewer-host.js', usage: ['image-viewer'] },
     { src: 'js/doc-viewer-host.js', usage: ['doc-viewer'] },
     { src: 'js/folder-viewer-host.js', usage: ['folder-browser'] },
-    { src: 'js/print-preview-ui.js', usage: [] },
+    { src: 'js/print-preview-ui.js', usage: ['print-preview'] },
     { src: 'js/pdf-viewer-host.js', usage: ['pdf-viewer'] },
     { src: 'js/reading-aids-lists.js', usage: [] },
     { src: 'js/turkish-lemma.js', usage: [] },
@@ -89,7 +90,7 @@ const VexBoot = {
     // An extension's side panel, docked beside the page (chrome.sidePanel.open).
     { src: 'js/ext-sidepanel.js', usage: [] },
     { src: 'js/reading-aids.js', usage: ['reading-aids'] },
-    { src: 'js/page-chrome.js', usage: [] },
+    { src: 'js/page-chrome.js', usage: ['link-bar', 'load-bar', 'page-scrollbars'] },
     // Quick look at a finished download (Space in the Downloads panel): drawn only when asked for; the panel guards its global.
     { src: 'js/download-quicklook.js', usage: [] },
     // Dark mode for websites: the Settings rows and the page-menu toggle. The pages themselves are handled by

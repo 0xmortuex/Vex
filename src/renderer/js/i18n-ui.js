@@ -426,7 +426,7 @@ const VexI18nUI = {
       'Boosts': 'Güçlendirmeler', 'Developer': 'Geliştirici', 'Chains': 'Zincirler', 'Extras': 'Ekstralar', 'Play': 'Oyun',
       // Chips added with the 2026-10 features.
       'Focus OS': 'Odak planı', 'Knowledge': 'Bilgi', 'Vex health': 'Vex sağlığı',
-      'Health check': 'Sağlık denetimi', 'Minimal Vex': 'Sade Vex', 'Feature usage': 'Özellik kullanımı',
+      'Health check': 'Sağlık denetimi', 'Minimal Vex': 'Sade Vex', 'Feature usage': 'Özellik kullanımı', 'Feature switches': 'Özellik anahtarları',
       'Little surprises': 'Küçük sürprizler', 'Living Vex': 'Yaşayan Vex', 'Citations in Notes': 'Notlarda kaynakça',
       'Knowledge base': 'Bilgi tabanı', 'Research board': 'Araştırma panosu', 'Translation glossary': 'Çeviri sözlüğü',
       'Meeting copilot': 'Toplantı yardımcısı', 'Listen to articles': 'Makaleleri dinle',

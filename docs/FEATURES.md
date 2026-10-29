@@ -288,7 +288,6 @@ Blocking, isolation, Tor, and the things that follow you.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Link address bar** (`link-bar`): Hold the pointer over a link and a slim bar at the bottom-left of the page shows where it goes, with the site’s own domain in bold. A link to a different site is marked, and a look-alike address, or one that hides its real host behind a name before an @, is drawn as a warning. A long address is cut in the middle. The bar steps to the other corner when the pointer enters it.
   - Open: Settings > Appearance.
-  - Default: always on, no switch.
 - **Fake update guard** (`fake-update-guard`): Warns when a page covers the window with a fake "your browser is out of date, download the update" notice that leads to a program. It only warns: it changes and clicks nothing, and skips private, Tor and routed tabs. On an existing profile it starts off; turn it on in Settings > Fake update guard.
   - Open: Settings > Fake update guard.
   - Default: New: starts off on an existing profile until you switch it on.
@@ -426,7 +425,6 @@ Getting to the words, and getting through them.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Print preview** (`print-preview`): Shows the pages as they will print, beside the options: printer or Save as PDF, copies, which pages, pages per sheet, orientation, paper, scale, margins, background graphics, headers and footers, colour, and a simplified copy without menus and ads. Open it with Ctrl+P or Ctrl+K: Print.
   - Open: Ctrl+K: "Print…"; Settings > Print preview.
-  - Default: always on, no switch.
 - **Reading triage by goals** (`reading-triage`): Ranks your read-later queue against goals you type, marking each item read now, skim or drop. Reach it from Ctrl+K with "Triage my read-later queue". On an existing profile it starts off; turn it on in Settings > Reading triage by goals.
   - Open: Ctrl+K: "Triage my read-later queue".
   - Default: New: starts off on an existing profile until you switch it on.
@@ -1086,10 +1084,8 @@ Themes, layout, per-site tweaks, extensions.
   - Open: Settings > Light and dark.
 - **Page load bar** (`load-bar`): A slim bar under the toolbar fills while the page in front loads, then finishes and fades. It replaces the spinner that used to sit in the middle of the page, and each tab keeps its own, so switching tabs shows that tab’s state. With Reduce motion it is a still line.
   - Open: Settings > Appearance.
-  - Default: always on, no switch.
 - **Slim scrollbars on websites** (`page-scrollbars`): A thin scrollbar in your theme’s colours on websites. A page that styles its own scrollbars keeps them, Vex’s own pages are left alone, and you can list sites that keep their usual one. Off by default: turn it on in Settings > Appearance.
   - Open: Settings > Slim scrollbars on websites.
-  - Default: always on, no switch.
 - **Your look from the first frame** (`early-look`): Vex remembers how its window looked and paints that from the very first frame, so it no longer opens in the default theme and then switches to yours. An incognito window opens in your theme and look too. Always on; there is nothing to set.
   - Open: Settings > Appearance.
   - Default: always on, no switch.
@@ -1404,7 +1400,6 @@ Features no other browser has, built out of the parts above.
   - Default: always on, no switch.
 - **Interface sounds** (`ui-sounds`): Short sounds for Vex's own controls, like Opera GX: a soft key click in the address bar, Ctrl+K, search boxes and the New Tab page's search, a tick when the pointer enters a toolbar, sidebar, tab or bookmarks-bar button, and two rising notes when a tab opens or falling ones when it closes. On from the start; in Settings > Sounds switch each kind off, add a click for button presses, pick one of five styles (Soft, Mechanical, Bubble, Arcade, Glass), and change the pitch and the volume. Silent in Game mode, meetings, Focus sessions and quiet hours.
   - Open: Settings > Sounds.
-  - Default: always on, no switch.
 - **Setup offered again** (`setup-again`): Offers the short version of the setup wizard again by itself, a month after it last ran, and after Vex was uninstalled by hand and installed again. An update never starts it, and every step has a Skip. Turn the monthly offer off in Settings > General.
   - Open: Settings > Setup wizard.
   - Default: always on, no switch.

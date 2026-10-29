@@ -238,3 +238,8 @@ html[data-skin-glow="halo"] :is(.nav-btn.active, .sidebar-icon.active, .tab.acti
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 14%, transparent);
 }
+
+/* Settings > Features (js/feature-switches.js): the list's search box, and the switch row at the top of a feature's own section. */
+.vex-features-search { width: 100%; box-sizing: border-box; padding: 8px 10px; margin: 0 0 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+.vex-features-list .setting-toggle-row { padding: 6px 0; }
+.vex-feature-switch { margin: 2px 0 8px; }

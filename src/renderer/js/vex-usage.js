@@ -137,6 +137,9 @@ const VexUsage = {
   // feature that arrives late out of play too).
   onRegister(fn) { this._registerHooks.push(fn); },
   onChange(fn) { this._listeners.push(fn); },
+  // Called with the Settings content each time its sections are matched to features (applyGroups): js/feature-switches.js adds each section's own switch there.
+  _groupHooks: [],
+  onGroups(fn) { if (typeof fn === 'function') this._groupHooks.push(fn); },
   _emit() {
     for (const fn of this._listeners.slice()) {
       try { fn(); } catch (err) { console.error('[Usage] a listener failed:', err); }
@@ -291,6 +294,19 @@ const VexUsage = {
     const label = group.querySelector(':scope > .setting-label') || group.querySelector('.setting-label, h3, h2');
     return label ? String(label.textContent || '').trim().toLowerCase() : '';
   },
+  // The features a Settings section belongs to: the one whose id the section's element id carries (setting-<id>, vex-sg-<id>: what a module that
+  // registers its section gets), else the ones whose `group` its heading starts with, the most specific group first. A feature's group is often
+  // not its heading ("Mouse gestures" for the section "Mouse gesture editor"), which is why the id comes first.
+  featuresOfSection(g, byGroup) {
+    const id = g.id || '';
+    for (const prefix of ['setting-', 'vex-sg-']) {
+      if (id.startsWith(prefix) && this._features.has(id.slice(prefix.length))) return [this._features.get(id.slice(prefix.length))];
+    }
+    const heading = this._heading(g);
+    let best = '';
+    if (heading) for (const key of byGroup.keys()) if (heading.startsWith(key) && key.length > best.length) best = key;
+    return best ? byGroup.get(best) : [];
+  },
   // Hides a Settings section when EVERY feature that belongs to it is hidden, and shows the ones
   // that are no longer hidden. A section that is shown again is exactly as it was: only a class
   // comes and goes. Two rules keep a section from taking a sibling's switches with it:
@@ -310,12 +326,14 @@ const VexUsage = {
       byGroup.get(key).push(f);
     }
     scope.querySelectorAll('.setting-group').forEach(g => {
-      const heading = this._heading(g);
-      let best = '';
-      if (heading) for (const key of byGroup.keys()) if (heading.startsWith(key) && key.length > best.length) best = key;
-      const hide = !!best && byGroup.get(best).every(f => hidden.has(f.id));
+      const owners = this.featuresOfSection(g, byGroup);
+      const hide = owners.length > 0 && owners.every(f => hidden.has(f.id));
       g.classList.toggle('vex-usage-hidden', hide);
     });
+    for (const hook of this._groupHooks.slice()) {
+      try { hook(scope); }
+      catch (err) { console.error('[Usage] a Settings hook failed:', err); }
+    }
   },
 };
 
