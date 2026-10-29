@@ -618,6 +618,9 @@
       permissions: { reads: ['the text of your open and sleeping web tabs, not private or Tor ones'], writes: ['nothing: the text stays in memory'], sends: [] } },
 
     // ---- Wave 3: more tab tools, links and windows, taskbar actions, the gesture editor (all new: off on a profile that already existed, offered to try) ----
+    // The strokes themselves (hold the right button and drag). The editor below only chooses what each stroke does; this is the switch that stops them.
+    { id: 'mouse-gestures', title: 'Mouse gestures', group: 'Mouse gestures', maturity: 'stable', tiers: { minimal: true, standard: true }, storageKeys: ['vex.gesturesEnabled'],
+      permissions: { reads: ['the strokes you make with the right mouse button on a page'], writes: ['its own switch'], sends: [] } },
     { id: 'gesture-editor', title: 'Mouse gesture editor', group: 'Mouse gestures', maturity: 'new', storageKeys: ['vex.gestureEditor', 'vex.gestureBindings'],
       permissions: { reads: ["the strokes you drew with the right button"], writes: ["which action each stroke does"], sends: [] } },
     { id: 'tab-select', title: 'Pick several tabs', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.tabSelect'],

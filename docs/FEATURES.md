@@ -53,6 +53,9 @@ How Vex holds the pages you have open.
 - **Find text in all tabs** (`tab-text-find`): Searches the text of all your open tabs, including sleeping ones, for the exact words you type. It lists which tabs have them and how often. Open it from Ctrl+K, "Find text in all tabs". On an existing profile it starts off; turn it on in Settings > Tab comforts.
   - Open: Ctrl+K: "Find text in all tabs"; Settings > Tab comforts.
   - Default: New: starts off on an existing profile until you switch it on.
+- **Mouse gestures** (`mouse-gestures`): Hold the right button and flick: left goes back, right forward, down-then-right closes a tab. Ten gestures in all.
+  - Catalogue: (`gestures`).
+  - Open: Settings > Mouse gestures.
 - **Mouse gesture editor** (`gesture-editor`): A screen in Settings where you choose what each right-button mouse stroke does. A stroke can run one of Vex's own actions or any Ctrl+K command, including a command chain. On an existing profile it starts off; turn it on in Settings > Mouse gestures.
   - Open: Settings > Mouse gesture editor.
   - Default: New: starts off on an existing profile until you switch it on.
@@ -129,8 +132,6 @@ How Vex holds the pages you have open.
   - Open: Ctrl+K: "Save Session".
 - **reopen** (`reopen`): Brings back the tab you just closed — and the one before that.
   - Open: Ctrl+K: "Reopen Closed Tab".
-- **Mouse gestures** (`gestures`): Hold the right button and flick: left goes back, right forward, down-then-right closes a tab. Ten gestures in all.
-  - Open: Settings > Mouse gestures.
 - **Container tabs** (`containers`): A tab with its own separate cookies, so you can be signed into two accounts on the same site at once. Work, Personal and Shopping are ready-made.
   - Open: Ctrl+K: "New Work Container Tab".
 - **pinsite** (`pinsite`): Turns a site into a permanent sidebar panel — it stays loaded and signed in beside the page.

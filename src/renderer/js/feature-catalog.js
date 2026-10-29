@@ -114,7 +114,7 @@ const VexFeatures = {
       what: 'Save a named set of tabs and bring it back whenever you want. Auto-saved too, so a crash costs you nothing.' },
     { id: 'reopen', cat: 'tabs', cmd: 'reopen',
       what: 'Brings back the tab you just closed — and the one before that.' },
-    { id: 'gestures', cat: 'tabs', name: 'Mouse gestures', manual: true, setting: { id: 'setting-gestures', label: 'Mouse gestures' },
+    { id: 'gestures', feature: 'mouse-gestures', cat: 'tabs', name: 'Mouse gestures', manual: true, setting: { id: 'setting-gestures', label: 'Mouse gestures' },
       what: 'Hold the right button and flick: left goes back, right forward, down-then-right closes a tab. Ten gestures in all.' },
     { id: 'containers', phrases: 'two accounts multiple accounts separate logins work and personal', cat: 'tabs', cmd: 'container-work', name: 'Container tabs',
       steps: [

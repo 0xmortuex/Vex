@@ -611,6 +611,12 @@ const VexUsageRegistry = {
       ['night-coach', A.api(G.NightCoach, 'enabled', 'setEnabled')],
       // Wave 3 (tab tools, links and windows, taskbar actions, gesture editor).
       ['gesture-editor', A.api(G.VexGestureEditor, 'enabled', 'setEnabled')],
+      // The right-button strokes themselves; the Settings > Browser checkbox follows (it is read once at start-up). Off, no stroke does anything.
+      ['mouse-gestures', () => {
+        const M = typeof MouseGestures !== 'undefined' ? MouseGestures : null;
+        if (!M || typeof M.enabled !== 'function' || typeof M.setEnabled !== 'function') return null;
+        return { on: () => M.enabled(), set: (v) => { M.setEnabled(v); if (M.enabled() !== !!v) throw new Error('The mouse gestures setting could not be saved'); const box = typeof document !== 'undefined' ? document.getElementById('setting-gestures') : null; if (box) box.checked = !!v; } };
+      }],
       // Features that had no switch (2026-10-29): each off keeps what it kept.
       ['link-bar', A.api(G.VexLinkBar, 'enabled', 'setEnabled')],
       ['load-bar', A.api(G.VexLoadBar, 'enabled', 'setEnabled')],

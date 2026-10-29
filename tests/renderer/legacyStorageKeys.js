@@ -178,7 +178,6 @@ module.exports = [
   "vex.gameMode",
   "vex.gameMode.games",
   "vex.gameMode.pages",
-  "vex.gesturesEnabled",
   "vex.githubDesk.cache",
   "vex.githubWatches",
   "vex.guiColors",
