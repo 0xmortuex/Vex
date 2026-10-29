@@ -3183,6 +3183,7 @@ ipcMain.handle('devbench:log-list', _devReply(() => ({ logs: _devLogTail.list() 
 ipcMain.handle('devbench:pkg', _devReply(async (_e, eco, name) => ({ info: await _devPkg.lookup(eco, name) })));
 app.on('before-quit', () => _devLogTail.closeAll());
 
+const _analyticsStub = require('./main/analytics-stub');
 function wireAdblockerOnSession(ses, tag) {
   if (!ses || ses.__vexAdblockWired) return;
   ses.__vexAdblockWired = true;
@@ -3209,6 +3210,9 @@ function wireAdblockerOnSession(ses, tag) {
     }
     if (verdict === 'ad') {
       _recordTracker(details.url, details.webContentsId);
+      // Google's tag scripts stay blocked, and the page gets an inert dataLayer and gtag (main/analytics-stub.js): a page that pushes to dataLayer
+      // unchecked crashed on its click handlers.
+      _analyticsStub.provide(details, (id) => webContents.fromId(id));
       callback({ cancel: true });
     } else {
       // A response override the person turned on for this page's origin
