@@ -1,5 +1,14 @@
 # Changelog
 
+## v42.97.3 (2026-10-30) — An on/off switch for every feature, and Mouse gestures can be turned off
+
+### New
+- **An on/off switch for every feature.** Settings > Feature switches lists every feature of Vex with its own switch and a search box, and each feature's own Settings section starts with the same switch. A feature that is off loses its Settings section; nothing you made with it is deleted. Turning one off shows where to turn it back on, with an Undo. The link address bar, the page load bar, page scrollbars, print preview and interface sounds could not be switched before and now can. Features that keep Vex running (saving settings, the storage ledger, your data) are listed as "Always on".
+- **Mouse gestures has its own switch.** "Mouse gesture editor" only chooses what your custom strokes do, so turning it off left the built-in strokes working. The new "Mouse gestures" switch stops every stroke, and the checkbox in Settings > Browser follows it.
+
+### Changed
+- **The page hook that finds closed shadow roots is now a Proxy of the browser's own function**, so a page cannot tell it from the native one. This was tried against the Cloudflare "Verification failed" (error 600010) on the chess.com sign-up; it did not fix that yet.
+
 ## v42.74.8 (2026-10-29) — 3D Aim Trainer Quick Play works: a game can be picked, and no picture-in-picture button appears over videos you cannot see
 
 ### Fixed

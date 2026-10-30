@@ -2,6 +2,15 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
+## v42.97.3 (2026-10-30) — Her özellik için aç/kapat anahtarı ve Fare hareketleri kapatılabiliyor
+
+### Yeni
+- **Her özellik için aç/kapat anahtarı.** Ayarlar > Özellik anahtarları, Vex'in tüm özelliklerini kendi anahtarı ve bir arama kutusuyla listeler; her özelliğin kendi Ayarlar bölümü de aynı anahtarla başlar. Kapalı bir özelliğin Ayarlar bölümü gizlenir; onunla yaptığınız hiçbir şey silinmez. Birini kapattığınızda nereden geri açacağınız bir Geri al düğmesiyle gösterilir. Bağlantı adres çubuğu, sayfa yükleme çubuğu, sayfa kaydırma çubukları, yazdırma önizlemesi ve arayüz sesleri daha önce kapatılamıyordu, artık kapatılabiliyor. Vex'in çalışmasını sağlayanlar (ayarların kaydı, depolama defteri, verileriniz) "Her zaman açık" olarak listelenir.
+- **Fare hareketlerinin kendi anahtarı var.** "Fare hareketi düzenleyicisi" yalnızca özel çizgilerinizin ne yapacağını seçer; bu yüzden kapatınca yerleşik çizgiler çalışmaya devam ediyordu. Yeni "Fare hareketleri" anahtarı tüm çizgileri durdurur, Ayarlar > Tarayıcı'daki kutu da onu izler.
+
+### Değiştirildi
+- **Kapalı gölge kökleri bulan sayfa kancası artık tarayıcının kendi işlevinin bir Proxy'si**; sayfa onu yerlisinden ayırt edemez. Bu, chess.com kaydındaki Cloudflare "Doğrulama başarısız" (hata 600010) için denendi; henüz çözmedi.
+
 ## v42.74.8 (2026-10-29) — 3D Aim Trainer Quick Play çalışıyor: oyun seçilebiliyor ve göremediğiniz videoların üstünde resim içinde resim düğmesi çıkmıyor
 
 ### Düzeltildi
