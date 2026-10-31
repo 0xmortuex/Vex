@@ -1087,7 +1087,7 @@
       backdrop-filter: var(--vex-blur-light); -webkit-backdrop-filter: var(--vex-blur-light);
       border: 1px solid var(--vex-border-subtle); border-radius: 12px;
       padding: 6px; min-width: 200px;
-      box-shadow: 0 18px 50px rgba(0,0,0,0.4);
+      box-shadow: var(--vex-elev-3);
     }
     .engine-menu.hidden { display: none; }
     .engine-opt {
@@ -1193,7 +1193,7 @@
       -webkit-backdrop-filter: var(--vex-blur-medium);
       border: 1px solid var(--vex-border-medium);
       border-radius: 14px;
-      box-shadow: 0 8px 28px var(--vex-accent-glow);
+      box-shadow: var(--vex-elev-3);
       padding: 6px;
       overflow: hidden;
       text-align: left;
@@ -1284,6 +1284,7 @@
       background: var(--vex-accent-glow);
       border-color: var(--vex-border-accent);
       transform: translateY(-2px);
+      box-shadow: var(--vex-elev-2);
     }
 
     .shortcut-icon {
@@ -1935,6 +1936,7 @@
     }
   </style>
   <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/design-tokens.css">
   <script src="js/vex-icons.js"></script>
   <script src="js/theme-custom.js"></script>
   <script src="js/geo-search.js"></script>

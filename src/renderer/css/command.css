@@ -24,7 +24,7 @@
   -webkit-backdrop-filter: var(--vex-blur-heavy);
   border: 1px solid var(--vex-border-medium);
   border-radius: var(--vex-radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.04) inset;
+  box-shadow: var(--vex-elev-3), 0 0 0 1px rgba(255,255,255,0.04) inset;
   overflow: hidden;
   animation: commandIn 0.15s ease;
 }
