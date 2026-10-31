@@ -749,6 +749,8 @@ const WebviewManager = {
           window.ReduceMotion?.paintStartPage(webview);
           // And the cursor and click effect (js/pointer-fx.js), which it draws itself.
           window.VexPointerFx?.paintStartPage(webview);
+          // And the wallpaper chosen in the Wallpaper Store (js/wallpaper-store.js); nothing is sent when none is chosen.
+          if (window.VexWallpapers) window.VexWallpapers.paintStartPage(webview).catch(err => console.error('[wallpapers] New Tab at load failed:', err && err.message));
           // The search engine chosen now, a search engine of your own too
           // (js/search-engine-custom.js): the page's own copy can be stale.
           webview.executeJavaScript(VexTypedAddress.startPageEngineJs())
