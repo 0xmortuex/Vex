@@ -166,3 +166,15 @@ describe('toast buttons', () => {
     expect(instances[2].opts.toastXml).toBeUndefined();
   });
 });
+
+// The "Vex (dev)" shortcut must not share the installed Vex's AppUserModelID,
+// or Windows search / taskbar pinning can attach to the dev shortcut.
+describe('dev AppUserModelID', () => {
+  it('main.js gives a source run its own id and the dev shortcut uses the same constant', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../src/main.js', import.meta.url), 'utf8');
+    expect(src).toContain("app.isPackaged ? 'com.vex.browser' : 'com.vex.browser.dev'");
+    expect(src).toContain('app.setAppUserModelId(VEX_APP_USER_MODEL_ID)');
+    expect(src).toMatch(/ensureDevShortcut\(\{[\s\S]*?appUserModelId: VEX_APP_USER_MODEL_ID/);
+  });
+});
