@@ -438,6 +438,16 @@ define('theme:get-custom-image', [optional(themeId)]);
 define('theme:set-custom-image', [optional(value => typeof value === 'string' && value.length <= 12 * 1024 * 1024 && /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value)), optional(themeId)]);
 // A theme from your Windows wallpaper (src/main/wallpaper.js): read only.
 define('theme:read-wallpaper', []);
+// The Wallpaper Store (src/main/wallpaper-store.js): the optional photo list, and the pictures it keeps.
+const wallpaperId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{1,62}$/.test(value);
+const wallpaperKind = oneOf(['thumb', 'full', 'mine']);
+const wallpaperBytes = value => value instanceof ArrayBuffer && value.byteLength <= 4 * 1024 * 1024;
+define('wallpaper:catalogue', [value => typeof value === 'string' && value.length <= 2048, optional(boolean)]);
+define('wallpaper:download', [value => typeof value === 'string' && value.length <= 2048, oneOf(['thumb', 'full'])]);
+define('wallpaper:save', [wallpaperId, wallpaperKind, wallpaperBytes]);
+define('wallpaper:read', [wallpaperId, wallpaperKind]);
+define('wallpaper:remove', [wallpaperId, optional(wallpaperKind)]);
+define('wallpaper:stats wallpaper:clear-cache', []);
 // Website appearance (src/main/website-appearance.js): light or dark for pages.
 define('theme:set-website-appearance', [oneOf(['system', 'light', 'dark'])]);
 define('i18n:set-language', [oneOf(['en', 'tr'])]);

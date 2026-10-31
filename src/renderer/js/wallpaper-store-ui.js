@@ -1,0 +1,411 @@
+// === The Wallpaper Store: its own screen, its Settings section and its Ctrl+K entry ===
+//
+// Ctrl+K > "Wallpapers" or Settings > Appearance > Wallpapers > "Open the Wallpaper Store".
+// A grid of cards (the thumbnails are made when a card scrolls into view and let go of when it
+// is far out of view), categories, search, favourites and recent, a preview that shows the
+// wallpaper under sample text with the real readability check, and the sliders.
+//
+// Keys inside the store: arrow keys move over the cards, Enter previews, Ctrl+Enter applies,
+// "/" goes to the search box, Escape closes it.
+// The logic is js/wallpaper-store.js; the painting js/wallpaper-paint.js.
+
+(function (root) {
+  'use strict';
+
+  const L = (s) => (typeof root.VexI18nUI !== 'undefined' && root.VexI18nUI.lookup && root.VexI18nUI.lookup(s)) || s;
+  const doc = root.document;
+  const W = () => root.VexWallpapers;
+  const PAGE = 120;
+  const icon = (name, size = 14) => (typeof root.VexIcons !== 'undefined' ? root.VexIcons.svg(name, { size }) : '');
+  const toast = (msg, kind) => { root.showToast?.(msg, kind || 'info'); };    // answers to a button the person just pressed
+  const fail = (err) => { root.console.error('[wallpapers]', err); toast(err && err.message ? err.message : String(err), 'error'); };
+
+  function el(tag, cls, text) {
+    const e = doc.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function button(label, onClick, { cls = 'btn-secondary', iconName, aria } = {}) {
+    const b = el('button', cls);
+    b.type = 'button';
+    if (iconName) b.innerHTML = icon(iconName, 14);
+    b.append(doc.createTextNode((iconName ? ' ' : '') + label));
+    if (aria) b.setAttribute('aria-label', aria);
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  // --- the store ---------------------------------------------------------------------------
+
+  const Store = {
+    open({ select } = {}) {
+      const V = W();
+      if (!V) throw new Error('Wallpapers are not loaded yet');
+      if (!root.VexSettingsGroups) throw new Error('The dialog helpers are not loaded');
+      const dlg = root.VexSettingsGroups.dialog({ id: 'vex-wallpaper-store', title: L('Wallpaper Store'), sub: L('Pictures for your New Tab page. Arrow keys move over the cards, Enter previews, Ctrl+Enter applies, / searches, Escape closes.') });
+      dlg.overlay.classList.add('vws');
+      dlg.overlay.querySelector('.vexsr-card').classList.add('vws-card');
+      const ui = { cat: 'all', q: '', sel: null, limit: PAGE, draft: { ...V.DEFAULTS }, io: null, thumbToken: 0 };
+      const cur = V.current();
+      if (cur) { ui.sel = cur.id; ui.draft = { dim: cur.dim, blur: cur.blur, auto: cur.auto }; }
+      if (select && V.get(select)) ui.sel = select;
+
+      // --- parts
+      const top = el('div', 'vws-top');
+      const search = el('input', 'vws-search');
+      search.type = 'search';
+      search.placeholder = L('Search wallpapers');
+      search.setAttribute('aria-label', L('Search wallpapers'));
+      const addBtn = button(L('Use my own picture…'), () => pick(), { iconName: 'upload' });
+      const settingsBtn = button(L('Settings'), () => { dlg.close(); if (root.SettingsUI && root.SettingsUI.openSection) root.SettingsUI.openSection('setting-wallpapers'); }, { iconName: 'gear' });
+      top.append(search, addBtn, settingsBtn);
+
+      const cats = el('div', 'vws-cats');
+      cats.setAttribute('role', 'tablist');
+      cats.setAttribute('aria-label', L('Wallpaper categories'));
+      const status = el('div', 'vws-status');
+      status.setAttribute('role', 'status');
+      const main = el('div', 'vws-main');
+      const gridWrap = el('div', 'vws-gridwrap');
+      const grid = el('div', 'vws-grid');
+      grid.setAttribute('role', 'listbox');
+      grid.setAttribute('aria-label', L('Wallpapers'));
+      gridWrap.append(grid);
+      const panel = el('aside', 'vws-panel');
+      panel.setAttribute('aria-label', L('Preview'));
+      main.append(gridWrap, panel);
+      dlg.body.append(top, cats, status, main);
+
+      const say = (text) => { status.textContent = text || ''; };
+      const items = () => V.search({ query: ui.q, category: ui.cat });
+
+      // --- categories
+      function renderCats() {
+        cats.textContent = '';
+        const have = V.list();
+        const chips = [['all', L('All')], ['fav', L('Favourites')], ['recent', L('Recent')], ['mine', L('My pictures')]];
+        if (have.some(i => i.source === 'catalogue')) chips.push(['photos', L('Photos')]);
+        for (const c of V.categories()) chips.push([c.id, L(c.title)]);
+        for (const [id, label] of chips) {
+          const b = el('button', 'vws-chip', label);
+          b.type = 'button';
+          b.setAttribute('role', 'tab');
+          b.setAttribute('aria-selected', String(ui.cat === id));
+          b.addEventListener('click', () => { ui.cat = id; ui.limit = PAGE; renderCats(); renderGrid(); });
+          cats.append(b);
+        }
+      }
+
+      // --- the grid; a card's picture exists only while the card is near the screen
+      function releaseThumbs() { if (ui.io) { ui.io.disconnect(); ui.io = null; } }
+      function renderGrid() {
+        releaseThumbs();
+        grid.textContent = '';
+        const list = items();
+        if (!list.length) {
+          const empty = el('div', 'vws-empty', ui.cat === 'fav' ? L('No favourites yet. Press the heart on a wallpaper to keep it here.')
+            : ui.cat === 'recent' ? L('Nothing here yet. Wallpapers you apply show up here.')
+              : ui.cat === 'mine' ? L('You have not added a picture of your own yet.')
+                : ui.cat === 'photos' ? L('No photo list is set. Settings > Wallpapers can point Vex at a list of free photos.')
+                  : L('No wallpaper matches that.'));
+          grid.append(empty);
+          renderPanel();
+          return;
+        }
+        const shown = list.slice(0, ui.limit);
+        const onId = (V.current() || {}).id;
+        ui.io = new root.IntersectionObserver((entries) => {
+          for (const e of entries) {
+            const card = e.target, img = card.querySelector('img');
+            if (e.isIntersecting) {
+              if (img.dataset.state === 'idle') {
+                img.dataset.state = 'loading';
+                const id = card.dataset.id, d = V.get(id);
+                V.thumbOf(d).then((src) => { if (card.isConnected && img.dataset.state === 'loading') { img.src = src; img.dataset.state = 'shown'; } })
+                  .catch((err) => { img.dataset.state = 'idle'; card.classList.add('vws-broken'); root.console.error('[wallpapers] preview failed:', err.message); });
+              }
+            } else if (img.dataset.state === 'shown') { img.removeAttribute('src'); img.dataset.state = 'idle'; }
+          }
+        }, { root: gridWrap, rootMargin: '500px 0px' });
+        for (const d of shown) {
+          const card = el('button', 'vws-card-item');
+          card.type = 'button';
+          card.dataset.id = d.id;
+          card.setAttribute('role', 'option');
+          card.setAttribute('aria-selected', String(d.id === ui.sel));
+          card.tabIndex = d.id === ui.sel ? 0 : -1;
+          card.style.setProperty('--vws-dom', d.dominant || '#444');
+          const img = el('img', 'vws-thumb');
+          img.alt = '';
+          img.decoding = 'async';
+          img.dataset.state = 'idle';
+          const name = el('span', 'vws-name', d.title);
+          const meta = el('span', 'vws-meta', d.source === 'generated' ? L(root.WallpaperData.categoryTitle(d.category)) : (d.author || ''));
+          card.append(img, name, meta);
+          const badges = el('span', 'vws-badges');
+          if (V.isFavourite(d.id)) { const h = el('span', 'vws-badge'); h.innerHTML = icon('heart', 12); h.title = L('Favourite'); badges.append(h); }
+          if (d.id === onId) { const c = el('span', 'vws-badge vws-on'); c.innerHTML = icon('check', 12); c.title = L('On your New Tab'); badges.append(c); }
+          card.append(badges);
+          card.setAttribute('aria-label', d.title + (d.id === onId ? ', ' + L('on your New Tab') : '') + (V.isFavourite(d.id) ? ', ' + L('favourite') : ''));
+          card.addEventListener('click', () => choose(d.id, card));
+          card.addEventListener('dblclick', () => { choose(d.id, card); apply().catch(fail); });
+          grid.append(card);
+          ui.io.observe(card);
+        }
+        if (list.length > shown.length) {
+          const more = button(L('Show more') + ' (' + (list.length - shown.length) + ')', () => { ui.limit += PAGE; renderGrid(); });
+          more.classList.add('vws-more');
+          grid.append(more);
+        }
+        if (!ui.sel || !list.some(i => i.id === ui.sel)) ui.sel = list[0].id;
+        renderPanel();
+      }
+
+      function choose(id, card) {
+        ui.sel = id;
+        const c = V.current();
+        ui.draft = c && c.id === id ? { dim: c.dim, blur: c.blur, auto: c.auto } : { ...V.DEFAULTS };
+        for (const n of grid.querySelectorAll('.vws-card-item')) { const on = n.dataset.id === id; n.setAttribute('aria-selected', String(on)); n.tabIndex = on ? 0 : -1; }
+        if (card) card.focus({ preventScroll: true });
+        renderPanel();
+      }
+
+      // Arrow keys over the cards.
+      grid.addEventListener('keydown', (e) => {
+        const cards = Array.from(grid.querySelectorAll('.vws-card-item'));
+        const i = cards.indexOf(doc.activeElement);
+        if (i < 0) return;
+        const cols = cards.filter(c => c.offsetTop === cards[0].offsetTop).length || 1;
+        let to = -1;
+        if (e.key === 'ArrowRight') to = i + 1; else if (e.key === 'ArrowLeft') to = i - 1;
+        else if (e.key === 'ArrowDown') to = i + cols; else if (e.key === 'ArrowUp') to = i - cols;
+        else if (e.key === 'Home') to = 0; else if (e.key === 'End') to = cards.length - 1;
+        else if (e.key === 'PageDown') to = i + cols * 3; else if (e.key === 'PageUp') to = i - cols * 3;
+        else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); choose(cards[i].dataset.id, cards[i]); apply().catch(fail); return; }
+        else return;
+        e.preventDefault();
+        to = Math.max(0, Math.min(cards.length - 1, to));
+        for (const c of cards) c.tabIndex = -1;
+        cards[to].tabIndex = 0;
+        cards[to].focus();
+      });
+      dlg.overlay.addEventListener('keydown', (e) => {
+        if (e.key === '/' && doc.activeElement !== search && !(doc.activeElement && /^(input|textarea|select)$/i.test(doc.activeElement.tagName))) { e.preventDefault(); search.focus(); }
+      });
+      let searchTimer = null;
+      search.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { ui.q = search.value; ui.limit = PAGE; renderGrid(); }, 120); });
+
+      // --- the preview panel
+      let previewToken = 0, sliderTimer = null;
+      async function renderPanel() {
+        const mine = ++previewToken;
+        let previewSrc = null;
+        panel.textContent = '';
+        const d = ui.sel ? V.get(ui.sel) : null;
+        if (!d) { panel.append(el('div', 'vws-empty', L('Choose a wallpaper to preview it.'))); return; }
+        const box = el('div', 'vws-preview');
+        const pic = el('div', 'vws-pv-pic');
+        const scrim = el('div', 'vws-pv-scrim');
+        const sample = el('div', 'vws-pv-text');
+        sample.append(el('div', 'vws-s1', L('Good evening')), el('div', 'vws-s2', L('Search the web or type an address')), el('div', 'vws-s3', L('Recent')));
+        box.append(pic, scrim, sample);
+        const read = el('div', 'vws-read');
+        read.setAttribute('role', 'status');
+        const title = el('h3', 'vws-title', d.title);
+        const by = el('div', 'vws-by');
+        by.textContent = d.source === 'generated' ? L('Drawn by Vex. Free to use, nothing is downloaded.') : d.source === 'mine' ? L('Your own picture, kept on this computer.') : (L('Photo by') + ' ' + d.author + ' · ' + d.licence);
+        panel.append(box, read, title, by);
+        if (d.sourceUrl) {
+          panel.append(button(L('Open the source page'), () => {
+            if (typeof root.TabManager === 'undefined') { fail(new Error('Tabs are not available')); return; }
+            root.TabManager.createTab(d.sourceUrl);
+          }, { iconName: 'globe' }));
+        }
+
+        // sliders
+        const sliders = el('div', 'vws-sliders');
+        const mk = (label, key, min, max, step, fmt) => {
+          const row = el('label', 'vws-slider');
+          const name = el('span', 'vws-slider-name', label);
+          const val = el('span', 'vws-slider-val', fmt(ui.draft[key]));
+          const input = el('input');
+          input.type = 'range'; input.min = min; input.max = max; input.step = step; input.value = ui.draft[key];
+          input.setAttribute('aria-label', label);
+          input.addEventListener('input', () => { ui.draft[key] = Number(input.value); val.textContent = fmt(ui.draft[key]); measure(); });
+          input.addEventListener('change', () => liveApply());
+          row.append(name, val, input);
+          return row;
+        };
+        const auto = el('label', 'vws-check');
+        const autoBox = el('input');
+        autoBox.type = 'checkbox'; autoBox.checked = ui.draft.auto;
+        autoBox.addEventListener('change', () => { ui.draft.auto = autoBox.checked; measure(); liveApply(); });
+        auto.append(autoBox, doc.createTextNode(' ' + L('Keep text readable (adds only as much shade as the text needs)')));
+        sliders.append(mk(L('Dim'), 'dim', 0, 0.9, 0.01, v => Math.round(v * 100) + '%'), mk(L('Blur'), 'blur', 0, 30, 1, v => v + ' px'), auto);
+        panel.append(sliders);
+
+        // buttons
+        const isOn = (V.current() || {}).id === d.id;
+        const actions = el('div', 'vws-actions');
+        const applyBtn = button(isOn ? L('Apply changes') : L('Apply'), () => apply().catch(fail), { cls: 'btn-primary', iconName: 'check' });
+        const fav = button(V.isFavourite(d.id) ? L('Remove from favourites') : L('Add to favourites'), () => { try { V.toggleFavourite(d.id); renderGrid(); } catch (err) { fail(err); } }, { iconName: 'heart' });
+        fav.setAttribute('aria-pressed', String(V.isFavourite(d.id)));
+        actions.append(applyBtn, fav);
+        panel.append(actions);
+        const more = el('div', 'vws-actions');
+        more.append(button(L('Use colours from this wallpaper'), () => colours(d.id), { iconName: 'palette' }));
+        if (V.current()) more.append(button(L('Remove wallpaper'), () => V.remove().then(() => { say(L('The wallpaper is off. Your New Tab uses the theme again.')); renderGrid(); }).catch(fail), { cls: 'btn-danger', iconName: 'x' }));
+        if (d.source === 'mine') more.append(button(L('Delete this picture'), () => del(d), { cls: 'btn-danger', iconName: 'trash' }));
+        panel.append(more);
+
+        // The picture behind the sample, drawn from the same source the New Tab gets.
+        try {
+          const { src } = await V.sourceOf(d);
+          if (mine !== previewToken) return;
+          previewSrc = src;
+          pic.style.backgroundImage = 'url("' + src + '")';
+          measure();
+        } catch (err) {
+          if (mine !== previewToken) return;
+          read.textContent = err.message;
+          read.className = 'vws-read vws-bad';
+        }
+
+        function measure() {
+          const P = root.WallpaperPaint;
+          if (!P || !previewSrc || mine !== previewToken) return;
+          V.summarise(previewSrc, d.id).then((s) => {
+            if (mine !== previewToken) return;
+            const { scrim: bg, inks } = P.pageColours();
+            const need = P.neededScrim({ inks, extremes: [P.hexRgb(s.lightest), P.hexRgb(s.darkest)], scrim: bg });
+            const alpha = ui.draft.auto ? Math.max(ui.draft.dim, need.alpha) : ui.draft.dim;
+            scrim.style.backgroundColor = 'rgb(' + bg.map(Math.round).join(' ') + ' / ' + alpha.toFixed(2) + ')';
+            pic.style.filter = ui.draft.blur ? 'blur(' + Math.round(ui.draft.blur * 0.5) + 'px)' : '';
+            const worst = P.worstContrast(inks, [P.hexRgb(s.lightest), P.hexRgb(s.darkest)], bg, alpha);
+            const ok = worst >= P.AA;
+            read.className = 'vws-read ' + (ok ? 'vws-good' : 'vws-bad');
+            read.textContent = (ok ? L('Text reads at') : L('Text is hard to read, only')) + ' ' + worst.toFixed(1) + ':1 · ' + L('shade') + ' ' + Math.round(alpha * 100) + '%' + (ok ? '' : ' · ' + L('turn on "Keep text readable" or raise Dim'));
+          }).catch((err) => { read.textContent = err.message; read.className = 'vws-read vws-bad'; });
+        }
+      }
+
+      async function apply() {
+        const d = V.get(ui.sel);
+        if (!d) throw new Error('Choose a wallpaper first');
+        say(L('Applying…'));
+        await V.apply(d.id, ui.draft);
+        say(L('Applied: ') + d.title + '. ' + L('Open a New Tab to see it.'));
+        renderGrid();
+      }
+      // A slider let go of on the wallpaper that is on: the New Tab follows at once.
+      function liveApply() {
+        const c = V.current();
+        if (!c || c.id !== ui.sel) return;
+        clearTimeout(sliderTimer);
+        sliderTimer = setTimeout(() => V.apply(c.id, ui.draft).catch(fail), 150);
+      }
+      async function colours(id) {
+        try {
+          if (!root.ThemeStudio) throw new Error('The theme editor is not available');
+          const file = await V.rasterFile(id);
+          dlg.close();
+          await root.ThemeStudio.openFromPicture(file);
+        } catch (err) { fail(err); }
+      }
+      async function del(d) {
+        const ok = await root.vexConfirm({ title: L('Delete this picture?'), message: '"' + d.title + '" ' + L('will be removed from this computer. The original file you picked is not touched.'), okLabel: L('Delete'), danger: true });
+        if (!ok) return;
+        try { await V.removeMine(d.id); ui.sel = null; renderCats(); renderGrid(); } catch (err) { fail(err); }
+      }
+      function pick() {
+        const input = doc.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/png,image/jpeg,image/webp';
+        input.style.display = 'none';
+        input.addEventListener('change', async () => {
+          const file = input.files && input.files[0];
+          input.remove();
+          if (!file) return;
+          say(L('Adding your picture…'));
+          try { const d = await V.addPicture(file); ui.cat = 'mine'; ui.sel = d.id; ui.draft = { ...V.DEFAULTS }; renderCats(); renderGrid(); say(L('Added: ') + d.title); }
+          catch (err) { say(''); fail(err); }
+        });
+        doc.body.appendChild(input);
+        input.click();
+      }
+
+      const unsub = V.onChange(() => { if (!dlg.overlay.isConnected) { unsub(); releaseThumbs(); return; } renderCats(); renderGrid(); });
+
+      renderCats();
+      renderGrid();
+      search.focus();
+
+      // The photo list is read only now, and only if an address is set.
+      if (V.catalogueUrl()) {
+        say(L('Looking for the photo list…'));
+        V.loadCatalogue().then((r) => {
+          if (!dlg.overlay.isConnected) return;
+          const info = V.catalogueInfo() || {};
+          say(r.entries + ' ' + L('photos') + (info.stale ? ' · ' + L('offline, showing the saved list') : '') + (info.problems && info.problems.length ? ' · ' + info.problems.length + ' ' + L('entries were skipped (see the console)') : ''));
+          if (info.problems && info.problems.length) root.console.warn('[wallpapers] skipped list entries:\n' + info.problems.join('\n'));
+          renderCats(); renderGrid();
+        }).catch((err) => { if (dlg.overlay.isConnected) say(L('The photo list could not be read: ') + err.message); });
+      }
+      return dlg;
+    },
+  };
+
+  // --- Settings > Appearance > Wallpapers ------------------------------------------------------
+
+  function renderSettings(body) {
+    const V = W(), G = root.VexSettingsGroup;
+    if (!V) { body.textContent = L('Wallpapers are not loaded yet.'); return; }
+    const again = () => { body.textContent = ''; renderSettings(body); };
+    const c = V.current();
+    body.append(G.note(L('Pictures for your New Tab page: 74 drawn by Vex, free photos from a list you can point Vex at, and your own pictures. Nothing is downloaded until you open the store with a list address set.')));
+    body.append(G.field(L('Now'), el('span', 'vws-now', c ? c.title : L('No wallpaper'))));
+    const row = el('div', 'vws-set-actions');
+    row.append(button(L('Open the Wallpaper Store'), () => { try { Store.open(); } catch (err) { fail(err); } }, { cls: 'btn-primary', iconName: 'palette' }));
+    if (c) row.append(button(L('Remove wallpaper'), () => V.remove().then(again).catch(fail), { iconName: 'x' }));
+    body.append(row);
+    body.append(G.toggle(L('Show the wallpaper on the New Tab'), V.enabled(), (on) => { try { V.setEnabled(on); if (typeof root.VexUsage !== 'undefined') root.VexUsage.touch(V.FEATURE); } catch (err) { fail(err); } }));
+
+    const url = el('input', 'set-input');
+    url.type = 'url';
+    url.placeholder = 'https://example.com/wallpaper-catalogue.json';
+    url.value = V.catalogueUrl();
+    url.setAttribute('aria-label', L('Photo list address'));
+    body.append(G.field(L('Photo list address'), url));
+    const urow = el('div', 'vws-set-actions');
+    urow.append(
+      button(L('Save address'), () => { try { V.setCatalogueUrl(url.value); toast(url.value.trim() ? L('Saved. Open the store to read the list.') : L('Cleared. Vex fetches no photos.'), 'success'); } catch (err) { fail(err); } }),
+      button(L('Check the list now'), async () => {
+        try { V.setCatalogueUrl(url.value); const r = await V.loadCatalogue({ force: true }); toast(r.configured ? r.entries + ' ' + L('photos in the list') + (r.problems && r.problems.length ? ' · ' + r.problems.length + ' ' + L('skipped') : '') : L('No address is set'), r.configured ? 'success' : 'info'); }
+        catch (err) { fail(err); }
+      }),
+    );
+    body.append(urow);
+    body.append(G.note(L('The list is a small JSON file you host yourself; every photo in it must be free to use (CC0, public domain, Pexels or Unsplash licence) and name its author. Vex checks each entry and skips any it cannot verify. Left empty, Vex never contacts anything for wallpapers.')));
+
+    const stat = el('div', 'vws-stat');
+    body.append(stat);
+    V.stats().then((s) => {
+      stat.textContent = L('Kept on this computer: ') + (s.cacheBytes / 1048576).toFixed(1) + ' MB ' + L('of downloaded photos') + ' (' + L('at most') + ' ' + Math.round(s.cacheMax / 1048576) + ' MB), ' + s.mineFiles + ' ' + L('of your own pictures') + '.';
+      if (s.cacheFiles || s.catalogue) stat.append(doc.createTextNode(' '), button(L('Clear downloaded photos'), () => V.clearCache().then(again).catch(fail)));
+    }).catch((err) => { stat.textContent = err.message; });
+  }
+
+  const UI = { open: (o) => Store.open(o), renderSettings, Store };
+  root.VexWallpaperStore = UI;
+  if (typeof module !== 'undefined' && module.exports) module.exports = { VexWallpaperStore: UI };
+
+  if (doc) {
+    if (root.VexSettingsGroups) {
+      root.VexSettingsGroups.register({ id: 'wallpapers', title: 'Wallpapers', keywords: 'wallpaper background picture photo new tab store gradient image theme pack', render: (body) => renderSettings(body) });
+    }
+    if (typeof VexExtras !== 'undefined') {
+      VexExtras.registerCommand({ id: 'wallpapers', label: 'Wallpapers', hint: 'The Wallpaper Store: pictures for your New Tab page', icon: 'palette', action: () => { try { Store.open(); } catch (err) { fail(err); } } });
+    }
+  }
+})(typeof window !== 'undefined' ? window : globalThis);

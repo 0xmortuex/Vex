@@ -865,6 +865,14 @@ contextBridge.exposeInMainWorld('vex', {
   setCustomThemeImage: (dataUrl, id) => (id ? ipcRenderer.invoke('theme:set-custom-image', dataUrl, id) : ipcRenderer.invoke('theme:set-custom-image', dataUrl)),
   // A theme from your Windows wallpaper (js/theme-from-image.js): read only.
   readWallpaper: () => ipcRenderer.invoke('theme:read-wallpaper'),
+  // The Wallpaper Store (js/wallpaper-store.js): the optional photo list and the pictures Vex keeps for it.
+  wallpaperCatalogue: (url, force) => ipcRenderer.invoke('wallpaper:catalogue', url, !!force),
+  wallpaperDownload: (url, kind) => ipcRenderer.invoke('wallpaper:download', url, kind),
+  wallpaperSave: (id, kind, bytes) => ipcRenderer.invoke('wallpaper:save', id, kind, bytes),
+  wallpaperRead: (id, kind) => ipcRenderer.invoke('wallpaper:read', id, kind),
+  wallpaperRemove: (id, kind) => (kind ? ipcRenderer.invoke('wallpaper:remove', id, kind) : ipcRenderer.invoke('wallpaper:remove', id)),
+  wallpaperStats: () => ipcRenderer.invoke('wallpaper:stats'),
+  wallpaperClearCache: () => ipcRenderer.invoke('wallpaper:clear-cache'),
   // Light and dark (js/theme-auto.js): Windows' app mode, now and on change.
   getSystemDark: () => ipcRenderer.invoke('system-theme:get'),
   // Website appearance (js/website-appearance.js): 'system', 'light' or 'dark'.

@@ -68,6 +68,12 @@ const VexBoot = {
     { src: 'js/day-shape.js', usage: ['day-shape'] },
     { src: 'js/whats-new-me.js', usage: ['whats-new-me'] },
     { src: 'js/pointer-fx.js', usage: ['custom-cursor', 'click-effect'] },
+    // The Wallpaper Store: pictures drawn by code (data, generators), the painter shared with the New Tab, the logic and API (window.VexWallpapers) and its screen.
+    { src: 'js/wallpaper-generators.js', usage: [] },
+    { src: 'js/wallpaper-data.js', usage: [] },
+    { src: 'js/wallpaper-paint.js', usage: [] },
+    { src: 'js/wallpaper-store.js', usage: ['wallpaper-store'] },
+    { src: 'js/wallpaper-store-ui.js', usage: [] },
     { src: 'js/update-tour.js', usage: ['whats-new-me'] },
     { src: 'js/media-control.js', usage: ['media-control'] },
     { src: 'js/media-viewer-host.js', usage: ['media-viewer'] },

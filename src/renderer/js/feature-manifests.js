@@ -525,6 +525,8 @@
       permissions: { reads: [], writes: ['the cursor style, colour and size you chose'], sends: [] } },
     { id: 'click-effect', title: 'Click effect', group: 'Click effect', maturity: 'new', storageKeys: ['vex.clickFx'],
       permissions: { reads: [], writes: ['the click effect and colour you chose'], sends: [] } },
+    { id: 'wallpaper-store', title: 'Wallpapers', group: 'Wallpapers', maturity: 'new', commands: ['wallpapers'], storageKeys: ['vex.wallpaper', 'vex.wallpaper.catalogueUrl', 'vex.wallpaper.enabled'], budget: { storageKB: 20 },
+      permissions: { reads: ['the pictures you add yourself, to show them as a wallpaper'], writes: ['the wallpaper you chose, your favourites, and the shrunk pictures it keeps in Vex\'s own folder (at most 80 MB of downloaded photos and 24 of your own)'], sends: ['A request for the photo list, and for the pictures it names, to the address you set in Settings > Wallpapers; only when you open the Wallpaper Store with an address set (none by default)'] } },
     { id: 'revisit-watch', title: 'Watch suggestions', group: 'Watch suggestions', maturity: 'new', storageKeys: ['vex.revisit', 'vex.revisit.enabled'],
       permissions: { reads: ['the address and title of the pages you open (never a private or Tor tab)', 'the words of a page you open often, once per visit, only to tell whether it changed'], writes: ['the address, title and open times of up to 200 pages, and up to 6 short fingerprints of each (not the words), here'], sends: [] } },
     { id: 'workspace-archive', title: 'Idle workspaces', group: 'Idle workspaces', maturity: 'new',

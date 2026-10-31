@@ -11147,6 +11147,8 @@ require('./main/wallpaper').registerWallpaper({
   ipcMain, platform: process.platform, env: process.env,
   execFile: require('child_process').execFile, fs, nativeImage,
 });
+// The Wallpaper Store's files (userData/wallpapers) and its one optional list fetch (src/main/wallpaper-store.js).
+require('./main/wallpaper-store').registerWallpaperStore({ ipcMain, dir: path.join(app.getPath('userData'), 'wallpapers'), fs, path, fetch: boundedPublicFetch });
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
 // Retry DRM setup: CLEAR the cached Widevine component, then relaunch so the
 // castLabs component install runs from scratch. A plain relaunch isn't enough
