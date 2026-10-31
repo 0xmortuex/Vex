@@ -251,6 +251,20 @@ const VexGeo = {
   _suggestCache: new Map(),
   _suggestSeq: 0,
 
+  // The words attachSuggest writes itself (its callers' own text is translated by their pages). The list sits on
+  // <body>, outside the areas the app's dictionary (i18n-ui.js) walks, so the helper says it in the language it is
+  // given. Keep these in step with the entries in i18n-ui.js and start.html.
+  SUGGEST_TR: {
+    'Press Enter or Search to look up this postcode.': 'Bu posta kodunu aramak için Enter’a veya Ara’ya basın.',
+    'Suggestions are not available. Press Search to try again.': 'Öneriler alınamıyor. Yeniden denemek için Ara’ya basın.',
+    'One place found': 'Bir yer bulundu',
+    '{n} places found': '{n} yer bulundu',
+  },
+  _say(text, lang, n) {
+    const tr = String(lang || '').slice(0, 2) === 'tr' ? this.SUGGEST_TR[text] : null;
+    return (tr || text).replace('{n}', n == null ? '' : String(n));
+  },
+
   _suggestStyle(doc) {
     if (doc.getElementById('vex-geo-suggest-style')) return;
     const st = doc.createElement('style');
@@ -263,7 +277,9 @@ const VexGeo = {
       + '.vex-geo-suggest[hidden]{display:none}'
       + '.vex-geo-suggest [role=option]{padding:8px 10px;border-radius:7px;cursor:pointer;white-space:normal;overflow-wrap:anywhere}'
       + '.vex-geo-suggest [role=option][aria-selected=true]{background:color-mix(in srgb,var(--primary,var(--vex-accent,#6366f1)) 22%,transparent)}'
-      + '.vex-geo-suggest [role=status]{padding:8px 10px;color:var(--text-muted,var(--vex-text-muted,#aaa));font-size:12px}';
+      + '.vex-geo-suggest [role=status],.vex-geo-suggest [role=alert]{padding:8px 10px;color:var(--text-muted,var(--vex-text-muted,#aaa));font-size:12px}'
+      // Said to screen readers, never seen.
+      + '.vex-geo-live{position:fixed;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}';
     (doc.head || doc.documentElement).appendChild(st);
   },
 
@@ -283,6 +299,12 @@ const VexGeo = {
     list.setAttribute('role', 'listbox');
     list.hidden = true;
     doc.body.appendChild(list);
+    // Tells a screen reader how many places the list holds, once per answer (arrow keys read the rows themselves).
+    const live = doc.createElement('div');
+    live.className = 'vex-geo-live';
+    live.setAttribute('role', 'status');
+    live.setAttribute('aria-live', 'polite');
+    doc.body.appendChild(live);
     input.setAttribute('role', 'combobox');
     input.setAttribute('aria-autocomplete', 'list');
     input.setAttribute('aria-expanded', 'false');
@@ -298,6 +320,7 @@ const VexGeo = {
     const isOpen = () => !list.hidden;
     const status = (text) => { if (typeof o.onStatus === 'function') o.onStatus(text); };
     const close = () => {
+      live.textContent = '';
       list.hidden = true;
       active = -1;
       input.setAttribute('aria-expanded', 'false');
@@ -331,11 +354,12 @@ const VexGeo = {
       close();
       o.onPick(hit);
     };
+    const lang = () => (typeof o.getLang === 'function' ? (o.getLang() || 'en') : 'en');
     const note = (text) => {
       list.textContent = '';
       const row = doc.createElement('div');
-      row.setAttribute('role', 'status');
-      row.textContent = text;
+      row.setAttribute('role', 'alert');
+      row.textContent = VexGeo._say(text, lang());
       list.appendChild(row);
       hits = [];
       open();
@@ -355,30 +379,32 @@ const VexGeo = {
       });
       active = -1;
       open();
+      live.textContent = VexGeo._say(hits.length === 1 ? 'One place found' : '{n} places found', lang(), hits.length);
     };
 
     const query = async () => {
       const q = input.value.trim();
       const mine = ++token;
       if (q.length < VexGeo.SUGGEST_MIN_CHARS) { close(); status(''); return; }
-      if (VexGeo.looksLikePostcode(q)) { close(); status('Press Enter or Search to look up this postcode.'); return; }
+      if (VexGeo.looksLikePostcode(q)) { close(); status(VexGeo._say('Press Enter or Search to look up this postcode.', lang())); return; }
       status('');
       const country = typeof o.getCountry === 'function' ? (o.getCountry() || '') : '';
-      const lang = typeof o.getLang === 'function' ? (o.getLang() || 'en') : 'en';
-      const key = q.toLowerCase() + '|' + country + '|' + lang;
+      const key = q.toLowerCase() + '|' + country + '|' + lang();
       let found = VexGeo._suggestCache.get(key);
       if (!found) {
-        try { found = await VexGeo.search(q, { country, lang }); }
+        try { found = await VexGeo.search(q, { country, lang: lang() }); }
         catch (err) {
           if (mine !== token || dead) return;
           console.warn('[VexGeo] suggestions could not be loaded:', err);
-          note('Suggestions are not available (' + ((err && err.message) || 'no connection') + '). Press Search to try again.');
+          if (doc.activeElement !== input) return;
+          note('Suggestions are not available. Press Search to try again.');
           return;
         }
         if (VexGeo._suggestCache.size > 60) VexGeo._suggestCache.delete(VexGeo._suggestCache.keys().next().value);
         VexGeo._suggestCache.set(key, found);
       }
       if (mine !== token || dead) return;        // a newer keystroke is already being answered
+      if (doc.activeElement !== input) return;   // the person has left the box (Search button, another field): no list out of nowhere
       const seen = new Set();
       hits = [];
       for (const h of found.hits || []) {
@@ -403,7 +429,11 @@ const VexGeo = {
         const n = hits.length;
         mark(e.key === 'ArrowDown' ? (active + 1) % n : (active - 1 + n) % n);
       } else if (e.key === 'Enter') {
-        if (isOpen() && active >= 0) { e.preventDefault(); e.stopImmediatePropagation(); pick(active); }
+        if (isOpen() && active >= 0) { e.preventDefault(); e.stopImmediatePropagation(); pick(active); return; }
+        // Enter without a marked row is the caller's own full search: no late suggestion may cover its results.
+        if (timer) { clearTimeout(timer); timer = null; }
+        token++;
+        close();
       } else if (e.key === 'Escape') {
         // Closes the list only; the box or wizard behind keeps its own Escape for the next press.
         if (isOpen()) { e.preventDefault(); e.stopImmediatePropagation(); close(); }
@@ -414,6 +444,9 @@ const VexGeo = {
     input.addEventListener('input', onInput);
     input.addEventListener('keydown', onKey);
     input.addEventListener('blur', close);
+    // Coming back to a box that already holds a name (after choosing a country, say) shows its suggestions again.
+    const onFocus = () => { if (input.value.trim().length >= VexGeo.SUGGEST_MIN_CHARS && !isOpen()) onInput(); };
+    input.addEventListener('focus', onFocus);
     win.addEventListener('resize', onMove);
     win.addEventListener('scroll', onMove, true);
 
@@ -426,9 +459,11 @@ const VexGeo = {
         input.removeEventListener('input', onInput);
         input.removeEventListener('keydown', onKey);
         input.removeEventListener('blur', close);
+        input.removeEventListener('focus', onFocus);
         win.removeEventListener('resize', onMove);
         win.removeEventListener('scroll', onMove, true);
         list.remove();
+        live.remove();
         for (const a of ['role', 'aria-autocomplete', 'aria-expanded', 'aria-controls', 'aria-activedescendant']) input.removeAttribute(a);
       },
     };
