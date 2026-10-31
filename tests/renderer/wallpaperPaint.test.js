@@ -32,10 +32,20 @@ describe('neededScrim', () => {
     expect(r.ok).toBe(true);
     expect(P.worstContrast([[40, 40, 50]], [white, black], [250, 247, 242], r.alpha)).toBeGreaterThanOrEqual(P.AIM);
   });
-  it('says not ok when the text cannot read even on the page colour alone (nothing to fix with a scrim)', () => {
+  it('asks no more of a text colour than it gives on the page itself (a 4.6:1 muted text is not asked for 4.7 over a picture)', () => {
+    const page = [255, 255, 255], muted = [118, 118, 118];
+    const own = P.contrast(muted, page);
+    expect(own).toBeGreaterThan(4.4); expect(own).toBeLessThan(4.7);
+    const r = P.neededScrim({ inks: [muted], extremes: [[200, 220, 255], [240, 249, 255]], scrim: page });
+    expect(r.alpha).toBeLessThan(1);
+    expect(r.ok).toBe(true);
+    const full = P.neededScrim({ inks: [muted], extremes: [black], scrim: page });
+    expect(P.worstContrast([muted], [black], page, full.alpha)).toBeGreaterThanOrEqual(own - 0.03 - 0.001);
+  });
+  it('a text colour that does not read on the page itself holds the wallpaper only to "no worse than the page"', () => {
     const r = P.neededScrim({ inks: [[120, 120, 120]], extremes: [white, black], scrim: [130, 130, 130] });
-    expect(r.ok).toBe(false);
-    expect(r.alpha).toBe(1);
+    expect(r.alpha).toBeLessThanOrEqual(1);
+    expect(P.worstContrast([[120, 120, 120]], [white, black], [130, 130, 130], r.alpha)).toBeGreaterThanOrEqual(P.contrast([120, 120, 120], [130, 130, 130]) - 0.04);
   });
   it('refuses missing input', () => {
     expect(() => P.neededScrim({ inks: [], extremes: [white], scrim: page })).toThrow(/text colours/);

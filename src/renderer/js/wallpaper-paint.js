@@ -46,18 +46,26 @@
     return worst;
   }
 
-  // The weakest scrim (0..1, steps of 0.01) under which every ink reads. ok: false when even a full scrim does not
-  // (the theme's own ink does not read on its own background: nothing a wallpaper can fix).
+  // What a text colour can be asked to reach over the picture: the aim (4.7), but never more than it reaches on the
+  // page's own background (a muted text that is 4.6:1 on the plain page cannot be asked for 4.7 over a picture; the
+  // wallpaper is held to "no worse than the page", which a full scrim always gives).
+  const targetFor = (ink, scrim, min) => Math.min(min, contrast(ink, scrim) - 0.03);
+
+  // The weakest scrim (0..1, steps of 0.01) under which every ink reads as well as it is asked to (targetFor).
+  // ok: every ink is at 4.5:1, or as close to it as the page's own colours allow (within 0.05).
   function neededScrim({ inks, extremes, scrim, min = AIM }) {
     if (!Array.isArray(inks) || !inks.length) throw new Error('neededScrim needs the text colours');
     if (!Array.isArray(extremes) || !extremes.length) throw new Error('neededScrim needs the picture\'s lightest and darkest colours');
-    for (let i = 0; i <= 100; i++) {
-      const a = i / 100;
-      const w = worstContrast(inks, extremes, scrim, a);
-      if (w >= min) return { alpha: a, ok: true, worst: w };
-    }
-    const w = worstContrast(inks, extremes, scrim, 1);
-    return { alpha: 1, ok: w >= AA, worst: w };
+    const targets = inks.map(ink => targetFor(ink, scrim, min));
+    const reads = (a) => extremes.every(p => { const under = mixRgb(p, scrim, a); return inks.every((ink, i) => contrast(ink, under) >= targets[i]); });
+    let alpha = 1;
+    for (let i = 0; i <= 100; i++) { if (reads(i / 100)) { alpha = i / 100; break; } }
+    return { alpha, ok: judge(inks, extremes, scrim, alpha).ok, worst: worstContrast(inks, extremes, scrim, alpha) };
+  }
+  // Does every ink read at this scrim: 4.5:1, or what the page's own colours give if that is less?
+  function judge(inks, extremes, scrim, alpha) {
+    const ok = extremes.every(p => { const under = mixRgb(p, scrim, alpha); return inks.every(ink => contrast(ink, under) >= Math.min(AA, contrast(ink, scrim)) - 0.05); });
+    return { ok, worst: worstContrast(inks, extremes, scrim, alpha) };
   }
 
   // --- the page ---------------------------------------------------------------
@@ -149,8 +157,8 @@ html[data-wallpaper][data-wallpaper][data-wallpaper], html[data-wallpaper][data-
     const need = neededScrim({ inks, extremes, scrim: bg });
     const alpha = last.auto ? Math.max(last.dim, need.alpha) : last.dim;
     scrim.style.backgroundColor = 'rgb(' + bg.map(Math.round).join(' ') + ' / ' + alpha.toFixed(2) + ')';
-    const worst = worstContrast(inks, extremes, bg, alpha);
-    return { alpha, required: need.alpha, worst, ok: worst >= AA, readable: need.ok };
+    const j = judge(inks, extremes, bg, alpha);
+    return { alpha, required: need.alpha, worst: j.worst, ok: j.ok, readable: need.ok };
   }
 
   // The colours of the page change (theme, look, light and dark): the scrim follows.
@@ -176,7 +184,7 @@ html[data-wallpaper][data-wallpaper][data-wallpaper], html[data-wallpaper][data-
   }
 
   const api = {
-    AIM, AA, contrast, luminance, mixRgb, hexRgb, neededScrim, worstContrast,
+    AIM, AA, contrast, luminance, mixRgb, hexRgb, neededScrim, worstContrast, judge,
     paint(spec) { const out = paint(spec); watch(); return out; },
     measure: () => measure(), pageColours, clear, current: () => (last ? { ...last } : null),
   };

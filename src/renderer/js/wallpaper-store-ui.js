@@ -100,6 +100,7 @@
       // --- the grid; a card's picture exists only while the card is near the screen
       function releaseThumbs() { if (ui.io) { ui.io.disconnect(); ui.io = null; } }
       function renderGrid() {
+        const hadFocus = grid.contains(doc.activeElement) || doc.activeElement === doc.body;
         releaseThumbs();
         grid.textContent = '';
         const list = items();
@@ -159,6 +160,9 @@
           grid.append(more);
         }
         if (!ui.sel || !list.some(i => i.id === ui.sel)) ui.sel = list[0].id;
+        // A redraw (after Apply, a favourite) must not drop the keyboard: focus goes back to the chosen card.
+        const chosen = Array.from(grid.querySelectorAll('.vws-card-item')).find(c => c.dataset.id === ui.sel);
+        if (chosen) { chosen.tabIndex = 0; chosen.setAttribute('aria-selected', 'true'); if (hadFocus) chosen.focus({ preventScroll: true }); }
         renderPanel();
       }
 
@@ -190,9 +194,12 @@
         cards[to].tabIndex = 0;
         cards[to].focus();
       });
-      dlg.overlay.addEventListener('keydown', (e) => {
-        if (e.key === '/' && doc.activeElement !== search && !(doc.activeElement && /^(input|textarea|select)$/i.test(doc.activeElement.tagName))) { e.preventDefault(); search.focus(); }
-      });
+      // "/" goes to the search box from anywhere in the store (focus may be on the page behind after a card list is redrawn).
+      const onSlash = (e) => {
+        if (!dlg.overlay.isConnected) { doc.removeEventListener('keydown', onSlash, true); return; }
+        if (e.key === '/' && !e.ctrlKey && !e.metaKey && doc.activeElement !== search && !(doc.activeElement && /^(input|textarea|select)$/i.test(doc.activeElement.tagName))) { e.preventDefault(); search.focus(); }
+      };
+      doc.addEventListener('keydown', onSlash, true);
       let searchTimer = null;
       search.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { ui.q = search.value; ui.limit = PAGE; renderGrid(); }, 120); });
 
@@ -282,8 +289,7 @@
             const alpha = ui.draft.auto ? Math.max(ui.draft.dim, need.alpha) : ui.draft.dim;
             scrim.style.backgroundColor = 'rgb(' + bg.map(Math.round).join(' ') + ' / ' + alpha.toFixed(2) + ')';
             pic.style.filter = ui.draft.blur ? 'blur(' + Math.round(ui.draft.blur * 0.5) + 'px)' : '';
-            const worst = P.worstContrast(inks, [P.hexRgb(s.lightest), P.hexRgb(s.darkest)], bg, alpha);
-            const ok = worst >= P.AA;
+            const { worst, ok } = P.judge(inks, [P.hexRgb(s.lightest), P.hexRgb(s.darkest)], bg, alpha);
             read.className = 'vws-read ' + (ok ? 'vws-good' : 'vws-bad');
             read.textContent = (ok ? L('Text reads at') : L('Text is hard to read, only')) + ' ' + worst.toFixed(1) + ':1 · ' + L('shade') + ' ' + Math.round(alpha * 100) + '%' + (ok ? '' : ' · ' + L('turn on "Keep text readable" or raise Dim'));
           }).catch((err) => { read.textContent = err.message; read.className = 'vws-read vws-bad'; });

@@ -169,7 +169,8 @@
     const img = new root.Image();
     img.src = src;
     try { await img.decode(); } catch (err) { throw new Error('That wallpaper could not be drawn', { cause: err }); }
-    const w = 96, h = 54;
+    // 1280 x 720: fine specks (the stars of a night sky) must still count as the lightest pixel.
+    const w = 1280, h = 720;
     const cv = root.document.createElement('canvas');
     cv.width = w; cv.height = h;
     const x = cv.getContext('2d', { willReadFrequently: true });
@@ -251,9 +252,11 @@
     return webview.executeJavaScript(startPageJs(s)).catch((err) => { root.console.error('[wallpapers] could not reach a New Tab page:', err && err.message); return { ok: false, error: err && err.message }; });
   }
   async function paintStartPages() {
-    if (typeof root.WebviewManager === 'undefined' || !root.WebviewManager.webviews || typeof root._isTrustedStartPage !== 'function') return [];
+    // WebviewManager is a top-level const of the window, not a property of window.
+    const WM = typeof WebviewManager !== 'undefined' ? WebviewManager : root.WebviewManager;
+    if (!WM || !WM.webviews || typeof root._isTrustedStartPage !== 'function') return [];
     const pages = [];
-    for (const wv of root.WebviewManager.webviews.values()) {
+    for (const wv of WM.webviews.values()) {
       let url = '';
       try { url = wv.getURL(); } catch (err) { /* vex-allow-empty-catch: a webview that has not finished attaching has no address yet; it is handed the wallpaper when it loads (js/webview.js, dom-ready) */ }
       if (url && root._isTrustedStartPage(url)) pages.push(wv);
@@ -432,4 +435,9 @@
   root.VexWallpapers = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = { VexWallpapers: api, logic: { normalize, toggleFav, pushRecent, search } };
   if (root.document && typeof root.document.dispatchEvent === 'function') root.document.dispatchEvent(new root.Event('vex-wallpapers-ready'));
+  // This file loads after start-up (js/lazy-boot.js): a New Tab that was already open (the first tab of a start) loaded before
+  // there was anything to hand it, so it is handed the saved wallpaper now.
+  if ((typeof WebviewManager !== 'undefined' || typeof root.WebviewManager !== 'undefined') && root.localStorage && root.localStorage.getItem(KEY)) {
+    api.paintStartPages().catch(err => root.console.error('[wallpapers] the open New Tab could not be painted at start-up:', err && err.message));
+  }
 })(typeof window !== 'undefined' ? window : globalThis);
