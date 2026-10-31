@@ -1991,6 +1991,8 @@ const SidebarManager = {
       if (o.name) btn.title = o.name;
       if (o.icon && SIDEBAR_ICONS[o.icon]) btn.innerHTML = SIDEBAR_ICONS[o.icon];
     });
+    // Headings follow what is now shown (a group with nothing shown has none).
+    if (typeof VexSidebarGroups !== 'undefined') VexSidebarGroups.arrange();
     this.fitRail();
   },
 
@@ -2068,6 +2070,8 @@ const SidebarManager = {
   },
 
   applySidebarOrder() {
+    // Sidebar groups (js/sidebar-groups.js) lay the rail out themselves, in the same saved order; off, this runs as it always did.
+    if (typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.arrange()) return;
     const bar = document.getElementById('icon-sidebar');
     if (!bar) return;
     const spacer = bar.querySelector('.sidebar-spacer');
@@ -2088,7 +2092,12 @@ const SidebarManager = {
     let order = this._loadOrder().filter(p => panels.includes(p));
     panels.forEach(p => { if (!order.includes(p)) order.push(p); }); // seed from current order
     const i = order.indexOf(panel);
-    const j = dir < 0 ? i - 1 : i + 1;
+    let j = dir < 0 ? i - 1 : i + 1;
+    // With groups on, a panel moves among the panels of its own group: the next one up or down that shares it.
+    if (i >= 0 && typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.enabled()) {
+      const g = VexSidebarGroups.groupOf(panel);
+      while (j >= 0 && j < order.length && VexSidebarGroups.groupOf(order[j]) !== g) j += dir < 0 ? -1 : 1;
+    }
     if (i < 0 || j < 0 || j >= order.length) return;
     [order[i], order[j]] = [order[j], order[i]];
     this._saveOrder(order);
@@ -2202,11 +2211,40 @@ const SidebarManager = {
       simpleHint.textContent = 'Simple mode is on, so only Start, Bookmarks, History, Downloads, Notes, Privacy, Settings and your pinned sites are on the sidebar. What you set here is kept, and shows as soon as Simple mode is off (Settings › General, or All features in the toolbar).';
       host.appendChild(simpleHint);
     }
+    const grouped = typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.enabled();
+    let lastGroup = null;
     btns.forEach((btn) => {
       const panel = btn.dataset.panel;
       const o = ov[panel] || {};
       const hidden = !!o.hidden;
       const name = o.name || btn.title || panel;
+      // With groups on, a heading with a fold toggle starts each group (the same fold the rail has).
+      if (grouped) {
+        const gid = VexSidebarGroups.groupOf(panel);
+        if (gid !== lastGroup) {
+          lastGroup = gid;
+          if (gid) {
+            const info = VexSidebarGroups.groupInfo(gid);
+            const open = !VexSidebarGroups.isFolded(gid);
+            const head = document.createElement('button');
+            head.type = 'button';
+            head.className = 'sidebar-manager-group';
+            head.dataset.groupHead = gid;
+            head.setAttribute('aria-expanded', String(open));
+            head.title = 'Show or hide the buttons in this group';
+            head.innerHTML = '<span class="smg-chev" aria-hidden="true">' + VexIcons.svg(open ? 'chevron-down' : 'chevron-right', { size: 12 }) + '</span><span class="smg-label"></span>';
+            head.querySelector('.smg-label').textContent = info.label;
+            if (typeof VexI18nUI !== 'undefined') { VexI18nUI.translateEl(head); VexI18nUI.translateEl(head.querySelector('.smg-label')); }
+            head.addEventListener('click', () => {
+              VexSidebarGroups.toggleFolded(gid);
+              this.renderSidebarManager();
+              host.querySelector('[data-group-head="' + gid + '"]')?.focus();
+            });
+            host.appendChild(head);
+          }
+        }
+        if (gid && VexSidebarGroups.isFolded(gid)) return;
+      }
       const isUrl = this._isUrlPanel(panel);
       const row = document.createElement('div');
       row.dataset.panelRow = panel;
@@ -2240,7 +2278,8 @@ const SidebarManager = {
         else if (ev.key === 'Home') to = rowBtns[0];
         else if (ev.key === 'End') to = rowBtns[rowBtns.length - 1];
         else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
-          const other = ev.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+          let other = ev.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+          while (other && !other.dataset.panelRow && other.dataset.groupHead) other = ev.key === 'ArrowDown' ? other.nextElementSibling : other.previousElementSibling;
           if (other && other.dataset.panelRow) to = other.querySelector('button[data-act="' + rowBtns[i].dataset.act + '"]') || other.querySelector('button[data-act]');
         }
         if (!to) return;

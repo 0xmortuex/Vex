@@ -795,6 +795,10 @@
       permissions: { reads: ['what you saved'], writes: ['what you saved'], sends: [] } },
     { id: 'sidebar-visibility', title: 'Sidebar on or off', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.sidebar'],
       permissions: { reads: ['whether you want the sidebar'], writes: ['whether you want the sidebar'], sends: [] } },
+    // A layout choice with its own switch in Settings > Sidebar (not a feature to stage): a new profile gets it on, a profile in use
+    // before it, or with a saved sidebar order, gets it off, written once.
+    { id: 'sidebar-groups', title: 'Sidebar groups', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.sidebarGroups', 'vex.sidebarGroups.folded'], usesKeys: ['vex.sidebarOrder', 'vex.panelOverrides'],
+      permissions: { reads: ['which panels the sidebar has and in what order'], writes: ['whether the sidebar is grouped and which groups are folded'], sends: [] } },
     { id: 'feature-registry', title: 'Feature records', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.featureUsage', 'vex.usage.prior.', 'vex.minimalMode', 'vex.registry'],
       permissions: { reads: ['which features exist'], writes: ['which features you use, and which are staged'], sends: [] } },

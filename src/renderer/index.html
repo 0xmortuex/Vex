@@ -82,6 +82,8 @@
   <link rel="stylesheet" href="css/gui-browser.css">
   <!-- Sidebar off (js/sidebar-visibility.js): after the looks it overrides. -->
   <link rel="stylesheet" href="css/sidebar-visibility.css">
+  <!-- Headings that fold the rail's buttons (js/sidebar-groups.js). -->
+  <link rel="stylesheet" href="css/sidebar-groups.css">
   <link rel="stylesheet" href="css/discover.css">
   <link rel="stylesheet" href="css/toolbox-workbench.css">
   <link rel="stylesheet" href="css/dev-mode.css">
@@ -482,6 +484,10 @@
               <div class="setting-toggle-row" style="margin-bottom:8px">
                 <span>Show the sidebar <span style="color:var(--text-muted);font-size:11px">· the strip of panel buttons and the side-panel button. Off hides it in every look; the panels still open with Ctrl+K, and Settings gets a button in the toolbar</span></span>
                 <label class="toggle"><input type="checkbox" id="setting-sidebar" aria-label="Show the sidebar" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="setting-toggle-row" style="margin-bottom:8px">
+                <span>Group the sidebar buttons <span style="color:var(--text-muted);font-size:11px">· Knowledge, Browsing, Security and privacy, Tools and Apps each get a heading you can fold. Every panel keeps its button, its shortcut and its place in Ctrl+K. Off keeps one flat list, in your own order</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-sidebar-groups" aria-label="Group the sidebar buttons" checked><span class="toggle-slider"></span></label>
               </div>
               <p class="setting-info muted" style="margin-bottom:8px">Rename, change the icon, hide/show, reorder, or (for web buttons) change the link. You can also right-click any button in the sidebar directly.</p>
               <div id="sidebar-manager-list" style="border:1px solid var(--border);border-radius:var(--radius);padding:4px 10px;max-height:340px;overflow:auto"></div>
@@ -2102,6 +2108,7 @@
   <script src="js/gui-style.js"></script>
   <script src="js/look-sidebar.js"></script>
   <script src="js/sidebar-visibility.js"></script>
+  <script src="js/sidebar-groups.js"></script>
   <script src="js/skills.js"></script>
   <script src="js/boosts.js"></script>
   <script src="js/userscripts.js"></script>
