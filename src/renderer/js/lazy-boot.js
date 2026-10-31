@@ -27,6 +27,7 @@ const VexBoot = {
   KEEP: 10,
   LATE_MODULES: [
     { src: 'js/release-checklist.js', usage: ['release-check'] },
+    { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/diagnostics-bundle.js', usage: [] },
     { src: 'js/your-data.js', usage: [] },
     { src: 'js/page-recorder.js', usage: [] },

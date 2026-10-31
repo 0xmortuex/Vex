@@ -38,7 +38,7 @@
     try { localStorage.setItem(KEY, on ? 'on' : OFF); }
     catch (err) { throw new Error('Could not save the sidebar setting: ' + err.message, { cause: err }); }
     apply();
-    window.dispatchEvent(new CustomEvent(EVENT, { detail: { enabled: !!on } }));
+    window.dispatchEvent(new CustomEvent('vex:sidebar-visibility', { detail: { enabled: !!on } }));
     return !!on;
   }
 

@@ -432,7 +432,7 @@
     _reset() { state = null; remote = []; remoteInfo = null; listeners.clear(); summaries.clear(); token = 0; },
   };
 
-  root.VexWallpapers = api;
+  if (typeof window !== 'undefined') window.VexWallpapers = api; else root.VexWallpapers = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = { VexWallpapers: api, logic: { normalize, toggleFav, pushRecent, search } };
   if (root.document && typeof root.document.dispatchEvent === 'function') root.document.dispatchEvent(new root.Event('vex-wallpapers-ready'));
   // This file loads after start-up (js/lazy-boot.js): a New Tab that was already open (the first tab of a start) loaded before
