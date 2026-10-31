@@ -766,6 +766,14 @@ function vexOwnTextFocused(doc) {
         if (statusEl) statusEl.textContent = 'Saved ' + loc.city;
         showCurrent();
       };
+      // Place names are suggested while typing; a postcode still waits for Enter or Search (its service forbids autocomplete).
+      const geoSuggest = VexGeo.attachSuggest(input, {
+        getCountry: () => (countrySel ? countrySel.value : ''),
+        getLang: () => { try { return (localStorage.getItem('vex.lang') || 'en').slice(0, 2); } catch { return 'en'; } },
+        onStatus: (text) => { if (statusEl) statusEl.textContent = text || ''; },
+        onPick: (hit) => pick(hit),
+      });
+      if (countrySel) countrySel.addEventListener('change', () => geoSuggest.refresh());
       const search = async () => {
         const q = input.value.trim();
         if (!q) { if (statusEl) statusEl.textContent = 'Type a city or district.'; return; }

@@ -225,7 +225,6 @@ const Onboarding = {
       case 'ollama':         return this._route() === 'local';
       case 'ondevice':       return this._flag('vex.preferOnDeviceAI');
       case 'sync':           return this._has('vex.syncWorkerUrl');
-      case 'passwords':      return this._flag('vex.vaultSeeded');
       case 'browsing':       return this._flag('vex.browsingConfigured');
       case 'aidata':         return this._flag('vex.aiDataConfigured');
       case 'notifications':  return this._flag('vex.notificationsChecked');
@@ -324,13 +323,13 @@ const Onboarding = {
       { key: 'ollama',         title: 'Local AI (Ollama)',        sub: 'Run models locally with Ollama — private and free. We’ll detect a running Ollama for you.' , secs: 45},
       { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' , secs: 45},
       { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' , secs: 45},
-      { key: 'passwords',      title: 'Password manager',         sub: 'Vex has a built-in, OS-encrypted password vault. Add your first login now, or skip and add them as you browse.' , secs: 40},
       { key: 'notifications',  title: 'Notifications',            sub: 'Reminders, alarms, page-change alerts and websites you allow all arrive as Windows notifications. Send one now to be sure they reach you — if it does not show, the fix is in Windows, and this page says where.' , secs: 25},
       { key: 'done',           title: 'All set',                     sub: 'You’re ready. Everything here lives in Settings if you want to change it later — and Discover (Ctrl+K → “Discover”) introduces every feature Vex has, one at a time.' , quick: true, secs: 10},
     ].map(step => ({ ...step, title: window.VexI18n?.t(step.key, step.title) || step.title, sub: window.VexI18n?.t(step.key + '.sub', step.sub) || step.sub }));
   },
 
   _close() {
+    if (this._geoSuggest) { this._geoSuggest.destroy(); this._geoSuggest = null; }   // its list is on the page, not in the wizard
     document.getElementById('vex-onboarding')?.remove();
     if (this._keyHandler) { document.removeEventListener('keydown', this._keyHandler); this._keyHandler = null; }
     if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
@@ -1039,30 +1038,6 @@ const Onboarding = {
         ${input('ob-sync-url', 'https://vex-sync.your-name.workers.dev', cur)}
         <p style="font-size:11.5px;color:var(--text-muted);margin:0">Blank keeps Sync off. To link another device later, just paste the same URL there too.</p>
       </div>`;
-    } else if (key === 'passwords') {
-      body.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:9px">
-          ${input('ob-pw-host', 'Website (e.g. github.com)')}
-          ${input('ob-pw-user', 'Username or email')}
-          <div style="position:relative">${input('ob-pw-pass', 'Password')}</div>
-          <button id="ob-pw-save" style="padding:10px 16px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Save this login</button>
-          <span id="ob-pw-status" style="font-size:12.5px;color:var(--text-muted)"></span>
-          <p style="font-size:11.5px;color:var(--text-muted);margin:0">Stored encrypted with your OS keychain. Optional — you can also let Vex offer to save logins as you sign in.</p>
-        </div>`;
-      body.querySelector('#ob-pw-pass').type = 'password';
-      body.querySelector('#ob-pw-save')?.addEventListener('click', async () => {
-        const host = body.querySelector('#ob-pw-host')?.value.trim();
-        const username = body.querySelector('#ob-pw-user')?.value.trim();
-        const password = body.querySelector('#ob-pw-pass')?.value || '';
-        const st = body.querySelector('#ob-pw-status');
-        if (!host || !username || !password) { if (st) st.textContent = 'Fill in website, username, and password first.'; return; }
-        try {
-          await window.vex.vaultSave?.({ host, username, password });
-          try { localStorage.setItem('vex.vaultSeeded', 'true'); } catch {}
-          if (st) st.textContent = 'Saved to your encrypted vault.';
-          body.querySelector('#ob-pw-pass').value = '';
-        } catch (e) { if (st) st.textContent = 'Could not save: ' + (e.message || 'error'); }
-      });
     } else if (key === 'done') {
       // Single first-run welcome ends here; offer the interface tour as an
       // opt-in button instead of a second stacked welcome overlay.
@@ -1267,6 +1242,11 @@ const Onboarding = {
         id: 'memory', name: 'Save memory',
         desc: 'Tabs sleep by themselves after 10 minutes, without asking, and when the window is minimized. For a machine with 8 GB, or for forty open tabs.',
         values: { sleep: 'auto', memorySaver: true, autosleep: true, minutes: 10, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+      },
+      {
+        id: 'game', name: 'Game performance',
+        desc: 'For playing with Vex open: tabs sleep after 5 minutes without asking, and when the window is minimized; the memory guard sits at 900 MB and ads stay blocked so pages do less work. Your game gets the memory and the processor first.',
+        values: { sleep: 'auto', memorySaver: true, autosleep: true, minutes: 5, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
       },
       {
         id: 'privacy', name: 'Maximum privacy',
@@ -1553,11 +1533,30 @@ const Onboarding = {
       + '</div>'
       + '<div id="ob-city-status" style="font-size:12px;color:var(--text-muted);margin-top:8px;min-height:16px"></div>';
 
+    // Place names are suggested while typing (js/geo-search.js attachSuggest). A postcode is not: its
+    // service forbids autocomplete, so the Search button / Enter below still does that one.
+    if (this._geoSuggest) this._geoSuggest.destroy();
+    const cityInput = body.querySelector('#ob-city');
+    const cityStatus = body.querySelector('#ob-city-status');
+    this._geoSuggest = VexGeo.attachSuggest(cityInput, {
+      getCountry: () => this._weatherCountry,
+      getLang: () => { try { return (this._pendingLang || localStorage.getItem('vex.lang') || 'en').slice(0, 2); } catch { return 'en'; } },
+      onStatus: (text) => { if (cityStatus) cityStatus.textContent = text || ''; },
+      onPick: (hit) => {
+        this._pendingLoc = VexGeo.toLocation(hit);
+        const wrap = body.querySelector('#ob-city-results-wrap');
+        if (wrap) wrap.style.display = 'none';
+        if (cityStatus) { cityStatus.textContent = 'Using ' + VexGeo.label(hit) + ' — Save & continue to confirm.'; cityStatus.style.color = 'var(--text)'; }
+      },
+    });
+    // Typing again means the place that was picked is no longer what the box says.
+    cityInput.addEventListener('input', () => { this._pendingLoc = null; });
+
     const country = body.querySelector('#ob-country');
     country.addEventListener('change', () => {
       this._weatherCountry = country.value;
-      const typed = (body.querySelector('#ob-city') || {}).value;
-      if (typed && typed.trim()) this._searchCity(typed.trim(), body);
+      this._pendingLoc = null;
+      this._geoSuggest.refresh();
     });
 
     const run = () => this._searchCity((body.querySelector('#ob-city') || {}).value.trim(), body);

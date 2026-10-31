@@ -3237,7 +3237,8 @@
         pickList.innerHTML = '';
         setTimeout(() => input.focus(), 30);
       };
-      const close = () => modal.classList.remove('show');
+      let geoSuggest = null;   // the as-you-type list (js/geo-search.js), built below and closed with the box
+      const close = () => { modal.classList.remove('show'); if (geoSuggest) geoSuggest.close(); };
       document.getElementById('weather-loc-btn')?.addEventListener('click', open);
       document.getElementById('loc-cancel')?.addEventListener('click', close);
       modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
@@ -3250,6 +3251,14 @@
         syncLocBtn();
         loadWeather();
       };
+
+      // Place names are suggested while typing; a postcode still waits for Enter or Search (its service forbids autocomplete).
+      geoSuggest = VexGeo.attachSuggest(input, {
+        getCountry: () => country.value || '',
+        getLang: () => { try { return (localStorage.getItem('vex.lang') || 'en').slice(0, 2); } catch { return 'en'; } },
+        onStatus: (text) => { status.textContent = text || ''; },
+        onPick: (hit) => pick(hit),
+      });
 
       // Search in the page's own language and across enough matches to contain
       // the right one: asking for 5 results in Turkish meant the Manchester or
@@ -3295,7 +3304,7 @@
         const hit = hits[parseInt(pickList.value, 10)];
         if (hit) pick(hit);
       });
-      country.addEventListener('change', () => { if (input.value.trim()) search(); });
+      country.addEventListener('change', () => { if (geoSuggest) geoSuggest.refresh(); });
       document.getElementById('loc-save')?.addEventListener('click', search);
       input?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') search();

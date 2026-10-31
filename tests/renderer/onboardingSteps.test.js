@@ -60,7 +60,7 @@ describe('what the wizard covers', () => {
   // nothing it promised ever happened.
   it('each preset says, and sets, whether Vex may sleep things by itself', () => {
     const by = Object.fromEntries(Onboarding.PERF_PRESETS().map(p => [p.id, p.values.sleep]));
-    expect(by).toEqual({ balanced: 'ask', memory: 'auto', privacy: 'ask', nothing: 'never' });
+    expect(by).toEqual({ balanced: 'ask', memory: 'auto', game: 'auto', privacy: 'ask', nothing: 'never' });
     // No "Sleep after" the Settings select cannot hold.
     const minutes = Onboarding.PERF_FIELDS().find(f => f.key === 'minutes').select.map(x => x[0]);
     expect(Math.max(...minutes)).toBe(60);
