@@ -343,7 +343,7 @@
   max-height: calc(100vh - 16px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  box-shadow: 0 12px 40px var(--vex-shadow-color, rgba(0,0,0,0.5));
+  box-shadow: var(--vex-elev-3);
   animation: tab-ctx-in 0.14s ease;
 }
 @keyframes tab-ctx-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }

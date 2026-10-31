@@ -13,7 +13,7 @@
   display: flex; flex-direction: column;
   background: var(--surface); color: var(--text);
   border: 1px solid var(--border); border-radius: 14px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--vex-elev-4);
 }
 .vexkeys-head { display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px 12px; border-bottom: 1px solid var(--border); }
 .vexkeys-head h2 { margin: 0 0 3px; font-size: 16px; font-weight: 700; }
@@ -68,7 +68,7 @@
   display: flex; align-items: center; gap: 8px; max-width: min(520px, 90vw);
   padding: 10px 12px; border-radius: 11px;
   background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border); box-shadow: var(--vex-elev-3);
   font-size: 12.5px;
   animation: vexslow-in 180ms ease-out;
 }

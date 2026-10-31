@@ -27,7 +27,7 @@
   border: 1px solid var(--border, #1f2530);
   border-radius: 14px;
   padding: 18px 20px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--vex-elev-4);
   z-index: 100001;
   transition: top .22s ease, left .22s ease;
 }

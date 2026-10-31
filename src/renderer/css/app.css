@@ -271,7 +271,7 @@ body {
   color: #fff;
   font: 500 14px/1.4 var(--vex-font-base, system-ui, sans-serif);
   text-align: center;
-  box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
+  box-shadow: var(--vex-elev-2);
   pointer-events: none;
 }
 
@@ -327,7 +327,7 @@ body:not([data-gui-family="browser"]) #top-bar.tb-compact #url-bar-wrapper { pad
   border-radius: 12px;
   background: var(--surface, var(--vex-bg-elevated, #1b1b24));
   border: 1px solid var(--border, var(--vex-border-subtle));
-  box-shadow: 0 14px 44px var(--vex-shadow-color, rgba(0,0,0,0.40));
+  box-shadow: var(--vex-elev-3);
 }
 .tb-overflow-item {
   display: flex;
@@ -739,7 +739,7 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
   border-radius: var(--vex-radius-md);
   padding: 6px 10px;
   z-index: 50;
-  box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
+  box-shadow: var(--vex-elev-2);
 }
 
 #find-input {
@@ -793,7 +793,7 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
   color: var(--vex-text-primary);
   font-size: 13px;
   z-index: 1000;
-  box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
+  box-shadow: var(--vex-elev-2);
   animation: toastIn 0.3s ease;
 }
 
@@ -858,7 +858,7 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
   border: 1px solid var(--vex-border-accent);
   border-left: 3px solid var(--vex-accent);
   border-radius: var(--vex-radius-md); padding: 10px 14px; display: flex; align-items: center; gap: 8px;
-  min-width: 220px; max-width: 360px; box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
+  min-width: 220px; max-width: 360px; box-shadow: var(--vex-elev-2);
   transform: translateX(calc(100% + 40px)); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
   /* Clicks pass through: a toast is text only (app.js showToast has nothing
      to click) and sits above every menu, so with auto it swallowed clicks on

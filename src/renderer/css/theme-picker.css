@@ -22,7 +22,7 @@
   background: var(--vex-bg-elevated, var(--surface));
   border: 1px solid var(--vex-border-strong, var(--border));
   border-radius: var(--vex-radius-lg, 12px);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--vex-elev-4);
   padding: 22px 24px 26px;
   transform: translateY(8px) scale(0.985);
   transition: transform 0.18s ease;

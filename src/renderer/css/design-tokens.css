@@ -1,0 +1,111 @@
+/* Design tokens: ONE scale for spacing, type, elevation, motion and icon stroke.
+ *
+ * Why: the sheets had grown 25 font sizes, 19 corner radii and 15 different
+ * floating-surface shadows (most of them hard black, which turned muddy on a
+ * light theme). Firefox and Brave feel finished because everything draws from
+ * one small scale. This file defines the scale; the sheets use it.
+ *
+ * What it does NOT do: it does not set a look. Colours, fonts and corner
+ * radii (--vex-radius-sm/md/lg) stay with the themes and the looks (theme-tokens,
+ * gui-browser, gui-glass, skins); only the radius steps the themes never defined
+ * (xl, pill) are added here. Elevation reads --vex-shadow-color, so a light theme
+ * gets a soft shadow and a dark one a deep one from the same token.
+ *
+ * Cascade: loaded after the feature sheets and before the look sheets
+ * (gui-browser.css) and a11y.css, which stays last. The shared interaction layer
+ * at the bottom uses :where() (specificity 0), so any rule that already sets a
+ * transition or animation keeps it; this only fills the gaps. */
+
+:root {
+  /* Spacing: a 4px grid. */
+  --vex-space-1: 4px;
+  --vex-space-2: 8px;
+  --vex-space-3: 12px;
+  --vex-space-4: 16px;
+  --vex-space-5: 20px;
+  --vex-space-6: 24px;
+  --vex-space-8: 32px;
+  --vex-space-10: 40px;
+
+  /* Radius steps the themes do not define (sm / md / lg stay theirs). */
+  --vex-radius-xl: 16px;
+  --vex-radius-pill: 999px;
+
+  /* Type: seven sizes, four weights. */
+  --vex-fs-xs: 11px;
+  --vex-fs-sm: 12px;
+  --vex-fs-base: 13px;
+  --vex-fs-md: 14px;
+  --vex-fs-lg: 16px;
+  --vex-fs-xl: 20px;
+  --vex-fs-2xl: 28px;
+  --vex-fw-regular: 400;
+  --vex-fw-medium: 500;
+  --vex-fw-semibold: 600;
+  --vex-fw-bold: 700;
+  --vex-lh-tight: 1.25;
+  --vex-lh-base: 1.5;
+
+  /* Elevation 1-4: a close, sharp shadow plus a wide, soft one. Both are the
+     theme's --vex-shadow-color, scaled, so every theme keeps its own depth.
+       1 raised control or card   2 menu, popover, tooltip
+       3 floating bar (command, suggestions)   4 dialog, sheet, peek */
+  --vex-elev-1: 0 1px 2px color-mix(in srgb, var(--vex-shadow-color, rgba(0, 0, 0, 0.35)) 70%, transparent),
+                0 1px 1px color-mix(in srgb, var(--vex-shadow-color, rgba(0, 0, 0, 0.35)) 40%, transparent);
+  --vex-elev-2: 0 2px 6px color-mix(in srgb, var(--vex-shadow-color, rgba(0, 0, 0, 0.35)) 50%, transparent),
+                0 8px 20px color-mix(in srgb, var(--vex-shadow-color, rgba(0, 0, 0, 0.35)) 70%, transparent);
+  --vex-elev-3: 0 4px 12px color-mix(in srgb, var(--vex-shadow-color, rgba(0, 0, 0, 0.35)) 50%, transparent),
+                0 14px 36px color-mix(in srgb, var(--vex-shadow-color, rgba(0, 0, 0, 0.35)) 90%, transparent);
+  --vex-elev-4: 0 8px 20px color-mix(in srgb, var(--vex-shadow-color, rgba(0, 0, 0, 0.35)) 60%, transparent),
+                0 24px 64px color-mix(in srgb, var(--vex-shadow-color, rgba(0, 0, 0, 0.35)) 100%, transparent);
+
+  /* Motion: quick, quiet, ends softly. */
+  --vex-dur-fast: 120ms;
+  --vex-dur-base: 180ms;
+  --vex-dur-slow: 260ms;
+  --vex-ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --vex-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Icons: VexIcons are drawn at this stroke (js/vex-icons.js). */
+  --vex-icon-stroke: 1.75;
+}
+
+/* The retro looks (XP, 98, Terminal) and the Neobrutal look are hard-edged on
+   purpose; they get no soft shadows and no easing. */
+body[data-gui-style="win98"],
+body[data-gui-style="xp"],
+body[data-gui-style="terminal"],
+body[data-gui-style="neobrutal"] {
+  --vex-dur-fast: 0ms;
+  --vex-dur-base: 0ms;
+  --vex-dur-slow: 0ms;
+}
+
+/* Shared interaction layer: a hover or press eases in instead of snapping.
+   Only colour-type properties move, so nothing shifts or reflows. Anything
+   that sets its own transition keeps it (specificity 0). a11y.css still
+   removes the motion under prefers-reduced-motion; the media query here is
+   the second guard. */
+@media (prefers-reduced-motion: no-preference) {
+  :where(button, [role="button"], [role="tab"], [role="menuitem"], a[href], input, select, textarea, summary, label.switch, .nav-btn, .command-result, .sb-suggestion, .setting-row) {
+    transition-property: background-color, border-color, color, box-shadow, opacity;
+    transition-duration: var(--vex-dur-fast);
+    transition-timing-function: var(--vex-ease-standard);
+  }
+
+  /* A press sinks half a pixel: the buttons of the shared dialog and the two
+     stock button classes only, because other buttons may carry a transform. */
+  :where(.vex-dialog button, .btn-primary, .btn-secondary):active {
+    transform: translateY(0.5px);
+  }
+
+  /* The toolbar overflow menu arrived with no motion at all; the command bar,
+     dialogs and the tab menu already had their own. A short fade and a 4px rise. */
+  :where(.tb-overflow-menu) {
+    animation: vex-surface-in var(--vex-dur-base) var(--vex-ease-out);
+  }
+}
+
+@keyframes vex-surface-in {
+  from { opacity: 0; transform: translateY(4px); }
+}
