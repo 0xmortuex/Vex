@@ -108,7 +108,7 @@
     if (on) set.add(id); else set.delete(id);
     write(FOLDED_KEY, JSON.stringify([...set]));
     refresh();
-    window.dispatchEvent(new CustomEvent(EVENT, { detail: { folded: [...set] } }));
+    window.dispatchEvent(new CustomEvent('vex:sidebar-groups', { detail: { folded: [...set] } }));
   }
   const toggleFolded = (id) => { setFolded(id, !isFolded(id)); return isFolded(id); };
 
@@ -121,7 +121,7 @@
     }
     const box = document.getElementById('setting-sidebar-groups');
     if (box) box.checked = !!on;
-    window.dispatchEvent(new CustomEvent(EVENT, { detail: { enabled: !!on } }));
+    window.dispatchEvent(new CustomEvent('vex:sidebar-groups', { detail: { enabled: !!on } }));
     return !!on;
   }
 
