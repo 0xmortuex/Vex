@@ -1245,7 +1245,7 @@ const Onboarding = {
       },
       {
         id: 'game', name: 'Game performance',
-        desc: 'For playing with Vex open: tabs sleep after 5 minutes without asking, and when the window is minimized; the memory guard sits at 900 MB and ads stay blocked so pages do less work. Your game gets the memory and the processor first.',
+        desc: 'For playing with Vex open: tabs sleep after 5 minutes without asking, and when the window is minimized. When a game starts, the background tabs and panels sleep too and local AI frees its graphics memory; they wake when the game ends. The memory guard sits at 900 MB and ads stay blocked.',
         values: { sleep: 'auto', memorySaver: true, autosleep: true, minutes: 5, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
       },
       {
