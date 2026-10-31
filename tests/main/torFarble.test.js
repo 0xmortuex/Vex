@@ -19,10 +19,37 @@ describe('SE10: Tor pages are always farbled', () => {
     expect(helpers.farbleOn(false, 'otr-1', null)).toBe(false);
     expect(helpers.farbleOn(true, 'persist:main', {})).toBe(true);
   });
-  it('the page preload is told through farbleOn, with the page’s own session', () => {
+  it('the page preload is told through farbleFor, with the page’s own session and address', () => {
     const at = main.indexOf("ipcMain.on('privacy:config-sync'");
     expect(at).toBeGreaterThan(-1);
     const body = main.slice(at, at + 600);
-    expect(body).toMatch(/farble: _mainHelpers\.farbleOn\(privacyCfg\.farble, partition, e\.sender\.session\)/);
+    expect(body).toMatch(/farble: _mainHelpers\.farbleFor\(privacyCfg\.farble, partition, e\.sender\.session, pageUrl\)/);
+  });
+});
+
+// Discord: with the noise on, its microphone bar and the green "speaking" outline stayed on while the microphone
+// was silent (Vex only, fixed by switching fingerprint protection off).
+describe('sites exempt from fingerprint noise (Discord)', () => {
+  it('Discord is exempt, with its subdomains, and look-alike addresses are not', () => {
+    expect(helpers.farbleExemptSite('https://discord.com/app')).toBe(true);
+    expect(helpers.farbleExemptSite('https://canary.discord.com/channels/@me')).toBe(true);
+    expect(helpers.farbleExemptSite('https://discord.com.example.test/')).toBe(false);
+    expect(helpers.farbleExemptSite('https://notdiscord.com/')).toBe(false);
+    expect(helpers.farbleExemptSite('https://discord.com.au/')).toBe(false);
+    expect(helpers.farbleExemptSite('https://example.com/')).toBe(false);
+    expect(helpers.farbleExemptSite('')).toBe(false);
+    expect(helpers.farbleExemptSite('not an address')).toBe(false);
+  });
+  it('an exempt site gets no noise even with the switch on; every other site follows the switch', () => {
+    expect(helpers.farbleFor(true, 'persist:discord', {}, 'https://discord.com/app')).toBe(false);
+    expect(helpers.farbleFor(true, 'persist:main', {}, 'https://discord.com/channels/@me')).toBe(false);
+    expect(helpers.farbleFor(true, 'persist:main', {}, 'https://example.com/')).toBe(true);
+    expect(helpers.farbleFor(false, 'persist:main', {}, 'https://example.com/')).toBe(false);
+    expect(helpers.farbleFor(false, 'persist:main', {}, 'https://discord.com/app')).toBe(false);
+  });
+  it('a Tor page always gets the noise, even on an exempt site', () => {
+    expect(helpers.farbleFor(false, 'tor-abc', { __vexTor: true }, 'https://discord.com/app')).toBe(true);
+    expect(helpers.farbleFor(true, 'persist:route-tor', {}, 'https://discord.com/app')).toBe(true);
+    expect(helpers.farbleFor(false, 'persist:container-work', { __vexTor: true }, 'https://discord.com/app')).toBe(true);
   });
 });

@@ -102,6 +102,20 @@ function farbleSeed(key, partition, topUrl) {
 function farbleOn(globalOn, partition, ses) {
   return !!globalOn || partition === 'persist:route-tor' || !!(ses && ses.__vexTor);
 }
+// Sites that never get the noise, because it broke the page's own voice meter: with fingerprint protection on,
+// Discord's microphone bar and the green "speaking" outline stayed on while the microphone was silent, in Vex only
+// (found 2026-10-31; switching the protection off fixed it). Matched by the page's site (farbleSite), so
+// canary.discord.com is covered and discord.com.example.test is not.
+const FARBLE_EXEMPT_SITES = new Set(['discord.com']);
+function farbleExemptSite(url) {
+  return FARBLE_EXEMPT_SITES.has(farbleSite(url));
+}
+// What the page preload is told: Tor pages always get the noise (farbleOn), whatever the exemption says; any other
+// page follows the switch unless its site is exempt.
+function farbleFor(globalOn, partition, ses, pageUrl) {
+  const tor = partition === 'persist:route-tor' || !!(ses && ses.__vexTor);
+  return tor || (farbleOn(globalOn, partition, ses) && !farbleExemptSite(pageUrl));
+}
 
 // === URL/path normalisation for argv from Windows shell ===
 function normalizeLaunchArg(arg) {
@@ -561,6 +575,8 @@ module.exports = {
   farbleSite,
   farbleSeed,
   farbleOn,
+  farbleExemptSite,
+  farbleFor,
   externalScheme,
   externalAppName,
   opensRemoteDocument,

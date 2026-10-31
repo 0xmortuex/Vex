@@ -12036,7 +12036,7 @@ function _gpcFor(ses, pageUrl) {
 ipcMain.on('privacy:config-sync', (e) => {
   const partition = secureSessions.partitionOf(e.sender);
   const pageUrl = e.sender.getURL() || (e.senderFrame && e.senderFrame.url) || '';
-  e.returnValue = { farble: _mainHelpers.farbleOn(privacyCfg.farble, partition, e.sender.session), seed: _mainHelpers.farbleSeed(FARBLE_KEY, partition, pageUrl), gpc: _gpcFor(e.sender.session, pageUrl) };
+  e.returnValue = { farble: _mainHelpers.farbleFor(privacyCfg.farble, partition, e.sender.session, pageUrl), seed: _mainHelpers.farbleSeed(FARBLE_KEY, partition, pageUrl), gpc: _gpcFor(e.sender.session, pageUrl) };
 });
 ipcMain.on('compatibility:get', e => {
   try {
