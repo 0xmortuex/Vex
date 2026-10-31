@@ -735,6 +735,11 @@ function vexOwnTextFocused(doc) {
       if (typeof ThemePicker !== 'undefined') ThemePicker.open();
     });
 
+    // Theme packs: design, icons and colours together (js/theme-pack-ui.js).
+    document.getElementById('setting-open-theme-packs')?.addEventListener('click', () => {
+      if (typeof ThemePackUI !== 'undefined') ThemePackUI.open();
+    });
+
     // Weather location — district-accurate pick-list, mirrored to the start page.
     (function wireWeather() {
       const input = document.getElementById('setting-weather-input');

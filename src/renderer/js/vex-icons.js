@@ -292,14 +292,15 @@ const VexIcons = {
   // icon must be visible to whoever is working on the code, not a silent gap.
   svg(name, opts) {
     const o = opts || {};
-    const inner = this.has(name) ? this.icons[name] : null;
+    // glyph() / decorate() are set by js/icon-packs.js: the icon pack in force may draw this icon its own way.
+    const inner = this.has(name) ? ((this.glyph && this.glyph(name)) || this.icons[name]) : null;
     if (inner === null) {
       try { console.warn('[VexIcons] unknown icon name:', name); } catch {}
       return '';
     }
     const size = Number(o.size) > 0 ? Number(o.size) : 16;
     const cls = o.className ? ` class="vex-icon ${String(o.className).replace(/"/g, '')}"` : ' class="vex-icon"';
-    return `<svg${cls} width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor"`
+    return `<svg${cls} data-vex-icon="${name}"${this.decorate ? this.decorate(name) : ''} width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor"`
       + ` stroke-width="${this.STROKE}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"`
       + ` style="flex:none;display:inline-block;vertical-align:middle">${inner}</svg>`;
   },
