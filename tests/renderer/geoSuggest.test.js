@@ -278,6 +278,39 @@ describe('for screen readers and the Turkish app', () => {
   });
 });
 
+describe('the layer register of the app window', () => {
+  afterEach(() => { delete globalThis.VexLayer; });
+
+  it('is in the register while open (menu tier, own z-index kept) and out of it when closed or destroyed', async () => {
+    const layers = new Set();
+    globalThis.VexLayer = {
+      track: vi.fn((el, o) => { layers.add(el); expect(o.tier).toBe('menu'); expect(typeof o.close).toBe('function'); return el; }),
+      close: vi.fn((el) => { if (!layers.has(el)) return false; layers.delete(el); [...document.querySelectorAll('.vex-geo-suggest')].find((n) => n === el).hidden = true; return true; }),
+    };
+    vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Bursa')], elsewhere: 0 });
+    type('Bur'); await settle();
+    expect(VexLayer.track).toHaveBeenCalledWith(list(), expect.objectContaining({ tier: 'menu' }));
+    expect(layers.has(list())).toBe(true);
+    expect(list().style.zIndex).toBe('');            // the stylesheet's z-index stays: it sits above the setup wizard
+    key('Escape');
+    expect(layers.has(list())).toBe(false);
+    expect(list().hidden).toBe(true);
+    type('Burs'); await settle();
+    expect(layers.has(list())).toBe(true);
+    handle.destroy();
+    expect(layers.size).toBe(0);
+  });
+
+  it('works where there is no register (the start page)', async () => {
+    expect(typeof VexLayer).toBe('undefined');
+    vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Bursa')], elsewhere: 0 });
+    type('Bur'); await settle();
+    expect(list().hidden).toBe(false);
+    key('Escape');
+    expect(list().hidden).toBe(true);
+  });
+});
+
 describe('cleaning up', () => {
   it('destroy removes the list and the accessibility attributes', async () => {
     vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Bursa')], elsewhere: 0 });

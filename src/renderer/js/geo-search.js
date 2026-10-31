@@ -319,13 +319,17 @@ const VexGeo = {
 
     const isOpen = () => !list.hidden;
     const status = (text) => { if (typeof o.onStatus === 'function') o.onStatus(text); };
-    const close = () => {
+    const hide = () => {
       live.textContent = '';
       list.hidden = true;
       active = -1;
       input.setAttribute('aria-expanded', 'false');
       input.removeAttribute('aria-activedescendant');
     };
+    // The app window keeps a register of what is on top of the page (js/vex-layer.js): the list is in it while it is open,
+    // in the menu tier, and keeps its own z-index so it stays above the setup wizard. The start page is another document
+    // with no register; there the list simply keeps its z-index.
+    const close = () => { if (!(typeof VexLayer !== 'undefined' && VexLayer.close(list))) hide(); };
     const place = () => {
       const r = input.getBoundingClientRect();
       list.style.left = r.left + 'px';
@@ -337,6 +341,7 @@ const VexGeo = {
       place();
       list.hidden = false;
       input.setAttribute('aria-expanded', 'true');
+      if (typeof VexLayer !== 'undefined') VexLayer.track(list, { tier: 'menu', id: uid, close: hide });
     };
     const mark = (i) => {
       active = i;
@@ -462,6 +467,7 @@ const VexGeo = {
         input.removeEventListener('focus', onFocus);
         win.removeEventListener('resize', onMove);
         win.removeEventListener('scroll', onMove, true);
+        close();
         list.remove();
         live.remove();
         for (const a of ['role', 'aria-autocomplete', 'aria-expanded', 'aria-controls', 'aria-activedescendant']) input.removeAttribute(a);
