@@ -1,0 +1,36 @@
+/* === Sidebar groups (js/sidebar-groups.js) ===================================
+   A heading with a fold toggle above each group of rail buttons, and the same headings in Settings > Sidebar.
+   The rail is 44 to 54px wide in every look: the heading is a stacked chevron + one short word and is never wider than the
+   rail's own button column, so the rail does not grow. */
+#icon-sidebar .sidebar-group-head {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  align-self: stretch; box-sizing: border-box; min-width: 0; margin: 2px 0 0; padding: 3px 0 2px;
+  background: transparent; border: 0; border-top: 1px solid var(--b-toolbar-border, var(--vex-border-medium));
+  border-radius: 0; cursor: pointer; flex-shrink: 0;
+  color: var(--b-text, var(--vex-text-primary));
+  font-family: inherit; font-size: 8.5px; font-weight: 600; line-height: 1.1; letter-spacing: 0;
+}
+#icon-sidebar .sidebar-group-head[hidden] { display: none; }
+#icon-sidebar .sidebar-group-head .sgh-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#icon-sidebar .sidebar-group-head .sgh-chev { display: grid; place-items: center; line-height: 0; transition: transform 0.15s ease; }
+#icon-sidebar .sidebar-group-head .sgh-chev svg { width: 9px; height: 9px; }
+#icon-sidebar .sidebar-group-head[aria-expanded="false"] .sgh-chev { transform: rotate(-90deg); }
+#icon-sidebar .sidebar-group-head:hover { background: var(--b-btn-hover, var(--vex-hover-fill)); }
+#icon-sidebar .sidebar-group-head:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { #icon-sidebar .sidebar-group-head .sgh-chev { transition: none; } }
+
+/* A folded group shows its heading only, except the button of the panel that is open: the rail still says where you are. */
+#icon-sidebar .sidebar-icon.sb-grp-folded:not(.active) { display: none !important; }
+
+/* Settings > Sidebar */
+.sidebar-manager-group {
+  display: flex; align-items: center; gap: 6px; width: 100%; margin: 8px 0 0; padding: 6px 2px;
+  background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; cursor: pointer;
+  color: var(--text); font-size: 12px; font-weight: 600; text-align: left;
+}
+.sidebar-manager-group:hover { background: var(--vex-hover-fill, transparent); }
+.sidebar-manager-group:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: -2px; }
+.sidebar-manager-group .smg-chev { display: grid; place-items: center; }
+
+/* The panel picker of the docked looks. */
+#look-sb-picker optgroup { font-weight: 600; }

@@ -91,10 +91,24 @@
     if (!picker || !title || !panel) return;
     const choices = panelChoices();
     picker.innerHTML = '';
-    for (const c of choices) {
+    const addOption = (parent, c) => {
       const o = document.createElement('option');
       o.value = c.panel; o.textContent = c.label;
-      picker.appendChild(o);
+      parent.appendChild(o);
+    };
+    // Sidebar groups on (js/sidebar-groups.js): the panels sit under their headings; Settings stays below them.
+    if (typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.enabled()) {
+      const layout = VexSidebarGroups.pickerPlan(choices);
+      for (const g of layout.groups) {
+        const og = document.createElement('optgroup');
+        og.label = typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup ? (VexI18nUI.lookup(g.label) || g.label) : g.label;
+        og.dataset.group = g.id;
+        g.items.forEach(c => addOption(og, c));
+        picker.appendChild(og);
+      }
+      layout.essentials.forEach(c => addOption(picker, c));
+    } else {
+      for (const c of choices) addOption(picker, c);
     }
     picker.value = panel;
     const cur = choices.find(c => c.panel === panel);
