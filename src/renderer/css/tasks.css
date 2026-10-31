@@ -23,7 +23,7 @@
   color: var(--text, #e5e9f0);
   border: 1px solid var(--border, #1f2530);
   border-radius: 14px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--vex-elev-4);
   overflow: hidden;
 }
 .vextasks-head {
@@ -143,7 +143,7 @@
   background: var(--surface, #151921);
   border: 1px solid var(--border, #1f2530);
   border-radius: 10px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--vex-elev-3);
 }
 .vextasks-menu button {
   font-family: inherit;

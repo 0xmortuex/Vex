@@ -735,6 +735,11 @@ function vexOwnTextFocused(doc) {
       if (typeof ThemePicker !== 'undefined') ThemePicker.open();
     });
 
+    // Theme packs: design, icons and colours together (js/theme-pack-ui.js).
+    document.getElementById('setting-open-theme-packs')?.addEventListener('click', () => {
+      if (typeof ThemePackUI !== 'undefined') ThemePackUI.open();
+    });
+
     // Weather location — district-accurate pick-list, mirrored to the start page.
     (function wireWeather() {
       const input = document.getElementById('setting-weather-input');
@@ -816,7 +821,7 @@ function vexOwnTextFocused(doc) {
   // destroyed data and reset nothing. The list below is every preference key a
   // control in this panel writes; anything not on it is user content and stays.
   const SETTINGS_PREF_KEYS = [
-    'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors',
+    'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors', 'vex.sidebar',
     'vex.theme', 'vex.customThemeImage', 'vex.lookName', 'vex.lookPalette', 'vex.themeAuto', 'vex.windDown',
     'vex.memorySaver', 'vex.autoGroupSuggest', 'vex.autoAddToGroups',
     'vex.aiIndexingEnabled', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',

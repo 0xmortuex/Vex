@@ -96,6 +96,16 @@ const ThemePicker = {
       grid.appendChild(look);
       container.append(h, grid);
     }
+    // Theme packs: a theme as a design and a set of icons too (js/theme-pack-ui.js).
+    if (typeof ThemePackUI !== 'undefined') {
+      const ph = document.createElement('div');
+      ph.className = 'vtp-section-title';
+      ph.textContent = 'Theme packs';
+      const pg = document.createElement('div');
+      pg.className = 'vtp-grid';
+      pg.appendChild(this._makePacksCard());
+      container.append(ph, pg);
+    }
     section('Favorites', favThemes);
     // Your own themes (js/theme-studio.js), and the way to make one.
     const own = ThemeManager.THEMES.filter(t => t.user);
@@ -109,6 +119,21 @@ const ThemePicker = {
     grid.appendChild(this._makeFromPictureCard());
     container.append(h, grid);
     section('All themes', ThemeManager.THEMES.filter(t => !t.user));
+  },
+
+  // "Theme packs…": the pack picker, where a theme brings its own tabs, panels and icons.
+  _makePacksCard() {
+    const card = document.createElement('button');
+    card.className = 'vtp-card vtp-make-own';
+    card.dataset.theme = 'theme-packs';
+    card.innerHTML = `
+      <div class="vtp-thumb vtp-make-own-thumb">${VexIcons.svg('palette', { size: 30 })}<span>Design, icons and colours together</span></div>
+      <div class="vtp-label"><span class="vtp-label-text">Theme packs…</span></div>`;
+    card.addEventListener('click', () => {
+      this.close();
+      ThemePackUI.open();
+    });
+    return card;
   },
 
   // "Make your own": the editor, starting from the theme you wear now.

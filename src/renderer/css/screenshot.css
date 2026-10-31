@@ -7,7 +7,7 @@
 .screenshot-preview {
   max-width: 80vw; max-height: 70vh; background: var(--surface);
   border: 1px solid var(--border); border-radius: var(--radius-lg);
-  overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  overflow: hidden; box-shadow: var(--vex-elev-4);
 }
 .screenshot-preview img { max-width: 100%; max-height: 60vh; display: block; }
 .screenshot-actions {

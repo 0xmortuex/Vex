@@ -112,6 +112,8 @@ describe('the pickers and the New Tab page know the styles', () => {
     localStorage.setItem('vex.guiStyle', 'terminal');
     window.VexGuiStyle = { get: () => 'terminal', getColors: () => 'look', set: vi.fn() };
     Onboarding._renderLook(body);
+    // The step leads with the looks that suit the sidebar answer; every look is behind "Show all looks".
+    body.querySelector('#ob-look-all').click();
     for (const s of STYLES) expect(body.querySelector(`[data-look="${s}"]`)).not.toBeNull();
     // The colour row shows for a style, as for a browser look.
     expect(body.querySelector('#ob-look-colors').style.display).toBe('block');

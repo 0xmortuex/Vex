@@ -114,7 +114,11 @@ app.commandLine.appendSwitch('disable-features', _disableFeatures);
 // Windows a toast is silently dropped unless the process has an
 // AppUserModelID. Packaged installs get one via the electron-builder shortcut,
 // but the runtime call makes dev runs behave the same. Matches build.appId.
-app.setAppUserModelId('com.vex.browser');
+// A run from source has its OWN id: the "Vex (dev)" Start Menu shortcut carries
+// it, so Windows search, taskbar pinning and toasts for the installed Vex are
+// never attached to the dev shortcut (they shared one id before).
+const VEX_APP_USER_MODEL_ID = app.isPackaged ? 'com.vex.browser' : 'com.vex.browser.dev';
+app.setAppUserModelId(VEX_APP_USER_MODEL_ID);
 
 const path = require('path');
 const fs = require('fs');
@@ -11406,7 +11410,7 @@ try {
     startMenuDir: process.env.APPDATA ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs') : null,
     execPath: process.execPath, appPath: app.getAppPath(),
     iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
-    appUserModelId: 'com.vex.browser',
+    appUserModelId: VEX_APP_USER_MODEL_ID,
     log: (m) => console.log(m),
   });
 } catch (err) { console.error('[Notify] could not write the dev Start Menu shortcut:', err.message); }

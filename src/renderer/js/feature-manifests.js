@@ -174,6 +174,9 @@
     // The window's saved look (js/early-look.js): how the window looked, kept so the next start paints it from the first frame. Not staged: it is how the window opens.
     { id: 'early-look', title: 'Window look at start-up', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.bootLook'],
       permissions: { reads: ['the theme and look attributes of the window'], writes: ['a snapshot of them, to paint the next start from the first frame'], sends: [] } },
+    // Theme packs (js/theme-packs.js, js/icon-packs.js, js/theme-pack-ui.js): a theme as a design, a set of icons and colours. Part of how the window looks, not an extra.
+    { id: 'theme-packs', title: 'Theme packs', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.themePack', 'vex.iconPack'],
+      permissions: { reads: ['the theme, font and skin you use now, so Reset can give them back'], writes: ['the pack, design and icon style you chose, and the theme, font and skin the pack sets'], sends: [] } },
     // Dark mode for websites (js/dark-mode.js, src/dark-mode-preload.js, main/dark-mode.js): a choice in Settings > Appearance whose "Off" is its own
     // switch, not an extra to hold back. It owns the per-site list the page menu always kept (vex.forceDarkHosts) and the old everywhere flag.
     { id: 'dark-mode-websites', title: 'Dark mode for websites', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.darkMode.', 'vex.forceDarkHosts', 'vex.forceDarkSites'],
@@ -792,6 +795,8 @@
     { id: 'library-data', title: 'Notes, bookmarks and read later', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.notes', 'vex.bookmarks', 'vex.readLater', 'vex.annotations', 'vex.stickyNotes'],
       permissions: { reads: ['what you saved'], writes: ['what you saved'], sends: [] } },
+    { id: 'sidebar-visibility', title: 'Sidebar on or off', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.sidebar'],
+      permissions: { reads: ['whether you want the sidebar'], writes: ['whether you want the sidebar'], sends: [] } },
     { id: 'feature-registry', title: 'Feature records', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.featureUsage', 'vex.usage.prior.', 'vex.minimalMode', 'vex.registry'],
       permissions: { reads: ['which features exist'], writes: ['which features you use, and which are staged'], sends: [] } },

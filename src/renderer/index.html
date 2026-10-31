@@ -66,6 +66,8 @@
   <link rel="stylesheet" href="css/tab-tools-more.css">
   <link rel="stylesheet" href="css/version-review.css">
   <link rel="stylesheet" href="css/skins.css">
+  <link rel="stylesheet" href="css/icon-packs.css">
+  <link rel="stylesheet" href="css/theme-packs.css">
   <link rel="stylesheet" href="css/settings-redesign.css">
 <link rel="stylesheet" href="css/userscripts.css">
   <link rel="stylesheet" href="css/peek.css">
@@ -75,8 +77,12 @@
   <link rel="stylesheet" href="css/extras.css">
   <link rel="stylesheet" href="css/read-aloud.css">
   <link rel="stylesheet" href="css/tabs-nav.css">
+  <!-- The shared scale (spacing, type, elevation, motion): after the feature sheets, before the looks. -->
+  <link rel="stylesheet" href="css/design-tokens.css">
   <!-- After every feature sheet so the browser looks win; a11y.css stays last. -->
   <link rel="stylesheet" href="css/gui-browser.css">
+  <!-- Sidebar off (js/sidebar-visibility.js): after the looks it overrides. -->
+  <link rel="stylesheet" href="css/sidebar-visibility.css">
   <link rel="stylesheet" href="css/discover.css">
   <link rel="stylesheet" href="css/toolbox-workbench.css">
   <link rel="stylesheet" href="css/dev-mode.css">
@@ -251,6 +257,8 @@
       </button>
       <!-- The nearest running timer, ticking; opens the Clock panel. -->
       <button id="timer-pill" type="button" hidden><span>0:00</span></button>
+      <!-- Settings, in the toolbar, while the sidebar is off and the rail's own button is gone (css/sidebar-visibility.css). -->
+      <button id="btn-settings-top" class="nav-btn" type="button" title="Settings" aria-label="Settings"></button>
       <button id="btn-command" class="nav-btn" title="Command Bar (Ctrl+K)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
@@ -472,6 +480,10 @@
 
             <div class="setting-group">
               <label class="setting-label">Sidebar Buttons</label>
+              <div class="setting-toggle-row" style="margin-bottom:8px">
+                <span>Show the sidebar <span style="color:var(--text-muted);font-size:11px">· the strip of panel buttons and the side-panel button. Off hides it in every look; the panels still open with Ctrl+K, and Settings gets a button in the toolbar</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-sidebar" aria-label="Show the sidebar" checked><span class="toggle-slider"></span></label>
+              </div>
               <p class="setting-info muted" style="margin-bottom:8px">Rename, change the icon, hide/show, reorder, or (for web buttons) change the link. You can also right-click any button in the sidebar directly.</p>
               <div id="sidebar-manager-list" style="border:1px solid var(--border);border-radius:var(--radius);padding:4px 10px;max-height:340px;overflow:auto"></div>
             </div>
@@ -1403,6 +1415,7 @@
                 <div>
                   <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Theme</label>
                   <button id="setting-open-theme-picker" class="btn-secondary">Choose a theme…</button>
+                  <button id="setting-open-theme-packs" class="btn-secondary" title="A theme as a design, a set of icons and colours together">Theme packs…</button>
                 </div>
               </div>
             </div>
@@ -1756,6 +1769,7 @@
   <script src="../main/find-policy.js"></script>
   <!-- The icon set. Must load before anything that renders an icon. -->
   <script src="js/vex-icons.js"></script>
+  <script src="js/icon-packs.js"></script>
   <script src="js/geo-search.js"></script>
   <script src="js/image-fallback.js"></script>
   <script src="js/service-status.js"></script>
@@ -2048,6 +2062,8 @@
   <script src="js/tab-cost.js"></script>
   <script src="js/fonts.js"></script>
   <script src="js/skins.js"></script>
+  <script src="js/theme-packs.js"></script>
+  <script src="js/theme-pack-ui.js"></script>
   <script src="js/private-routing.js"></script>
   <script src="js/incognito.js"></script>
   <script src="js/site-routes.js"></script>
@@ -2086,6 +2102,7 @@
   <script src="js/update-log.js"></script>
   <script src="js/gui-style.js"></script>
   <script src="js/look-sidebar.js"></script>
+  <script src="js/sidebar-visibility.js"></script>
   <script src="js/skills.js"></script>
   <script src="js/boosts.js"></script>
   <script src="js/userscripts.js"></script>

@@ -25,7 +25,7 @@
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--vex-radius-lg, 14px);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--vex-elev-4);
   padding: 22px 24px 16px;
   box-sizing: border-box;
 }

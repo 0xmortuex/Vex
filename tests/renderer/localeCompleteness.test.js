@@ -174,7 +174,7 @@ describe('T3-053 the strings in js/i18n.js', () => {
   });
 
   it('every setup step has a Turkish title and sub-title', () => {
-    const steps = ['welcome', 'setupstyle', 'theme', 'job', 'language', 'wisdom', 'name', 'weather', 'github', 'search', 'defaultbrowser', 'aicloud', 'ollama', 'ondevice', 'sync', 'passwords', 'done', 'look', 'performance', 'browsing', 'aidata', 'privacy', 'notifications'];
+    const steps = ['welcome', 'setupstyle', 'theme', 'job', 'language', 'wisdom', 'name', 'weather', 'github', 'search', 'defaultbrowser', 'aicloud', 'ollama', 'ondevice', 'sync', 'done', 'look', 'performance', 'browsing', 'aidata', 'privacy', 'notifications'];
     for (const k of steps) { expect(tr[k], k).toBeTruthy(); expect(tr[k + '.sub'], k + '.sub').toBeTruthy(); }
   });
 });

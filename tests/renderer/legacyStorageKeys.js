@@ -441,7 +441,6 @@ module.exports = [
   "vex.updateSnoozeUntil",
   "vex.userName",
   "vex.userShortcuts",
-  "vex.vaultSeeded",
   "vex.videoSpeeds",
   "vex.watches",
   "vex.weatherCache",

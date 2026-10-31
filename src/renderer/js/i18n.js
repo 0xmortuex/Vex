@@ -12,10 +12,10 @@
   Object.assign(strings.tr, { import: 'Eşyalarınızı getirin', 'import.sub': 'Chrome, Edge, Brave, Firefox ve diğerlerinden yer imleri, geçmiş ve kayıtlı parolalar; böylece sıfırdan başlamazsınız. İsteğe bağlı.' });
   // The first step's two choices (js/onboarding.js, _renderWelcome): {n} is the minutes.
   Object.assign(strings.en, { paceQuick: 'Just the essentials — about {n} minutes', paceQuickSub: 'How Vex looks, which panels you keep, your name, your search engine, three privacy choices, and whether links open here. Everything else has a sensible default and lives in Settings.',
-    paceFull: 'Everything — about {n} minutes', paceFullSub: 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync, passwords and notifications.',
+    paceFull: 'Everything — about {n} minutes', paceFullSub: 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync and notifications.',
     paceNote: 'Either way, every step has a <b>Skip</b>, nothing here is permanent, and <b>Skip setup</b> leaves the whole thing. Vex works before you answer a single question.' });
   Object.assign(strings.tr, { paceQuick: 'Yalnızca gerekenler — yaklaşık {n} dakika', paceQuickSub: 'Vex’in görünümü, hangi panelleri tutacağınız, adınız, arama motorunuz, üç gizlilik seçimi ve bağlantıların burada açılıp açılmayacağı. Geri kalan her şeyin makul bir varsayılanı vardır ve Ayarlar’da durur.',
-    paceFull: 'Her şey — yaklaşık {n} dakika', paceFullSub: 'Aynısı, ayrıca hız ve bellek, Vex’in nelere bakabileceği, iş araçlarınız, dil, günün ayeti, hava durumu, GitHub, üç tür yapay zekâ, Eşitleme, parolalar ve bildirimler.',
+    paceFull: 'Her şey — yaklaşık {n} dakika', paceFullSub: 'Aynısı, ayrıca hız ve bellek, Vex’in nelere bakabileceği, iş araçlarınız, dil, günün ayeti, hava durumu, GitHub, üç tür yapay zekâ, Eşitleme ve bildirimler.',
     paceNote: 'Hangisini seçerseniz seçin, her adımda <b>Atla</b> vardır, buradaki hiçbir şey kalıcı değildir ve <b>Kurulumu atla</b> hepsini bırakır. Vex tek bir soruyu yanıtlamadan da çalışır.' });
   Object.assign(strings.en, { skipSetup: 'Skip setup', getStarted: 'Get started', finish: 'Finish', saveContinue: 'Save & continue', configured: 'Already set', confirm: 'Confirm', step: 'Step', of: 'of' });
   Object.assign(strings.tr, { skipSetup: 'Kurulumu atla', getStarted: 'Başlayalım', finish: 'Bitir', saveContinue: 'Kaydet ve devam et', configured: 'Zaten ayarlandı', confirm: 'Onayla', step: 'Adım', of: '/',
@@ -40,6 +40,18 @@
     'performance.sub': 'Vex’in gerçekte nasıl davranacağını belirleyen ayarlar. Çalışma biçiminize uyanı seçin ya da listeyi açıp dokuzunu da kendiniz ayarlayın.',
     'browsing.sub': 'Günlük davranışlar: sekmelerin yeri, fare hareketleri, çerez bildirimleri, kopyalamayı engelleyen siteler, oturumunuzun kaydedilmesi. Her biri daha sonra Ayarlar’da bir anahtardır.',
     'aidata.sub': 'İki özellik çalışmak için kendi verilerinizi okur: yapay zekâ geçmiş dizini (Vex AI ziyaret ettiğiniz sayfaları hatırlayabilsin diye) ve e-posta kodu doldurma (giriş kodu gelen kutunuzdan doldurulsun diye). İkisi de bu bilgisayarda kalır. Şimdi seçin; daha sonra Ayarlar’dan değiştirin.',
+    sidebar: 'Kenar çubuğu ister misiniz?',
+    'sidebar.sub': 'Kenar çubuğu, sayfanın yanında duran ve Vex’in kendi panellerini (Discord, Spotify, Notlar, İndirilenler, Yer imleri ve daha fazlasını) bulunduğunuz sayfadan ayrılmadan açan düğme şeridir. Hayır derseniz Vex sade bir tarayıcı olur; paneller yine Ctrl+K ile açılır.',
+    sidebarYes: 'Evet, kenar çubuğu görünsün',
+    sidebarYesSub: 'Sayfanın yanında bir düğme şeridi: tek tıkla Discord, Spotify, Notlar, İndirilenler, Yer imleri ve diğerleri açılır.',
+    sidebarNo: 'Hayır, pencere sade kalsın',
+    sidebarNoSub: 'Şerit ve yan panel düğmesi olmaz. Her panel yine Ctrl+K ile açılır; Ayarlar › Kenar çubuğu onu geri getirir.',
+    sidebarNote: 'Sekmeleriniz kenar çubuğunun parçası değildir. Sonraki adım, yanıtınıza uyan görünümleri önce gösterir.',
+    looksSidebar: 'Kenar çubuklu görünümler',
+    looksSidebarSub: 'Bunlar panellerinizi sayfanın yanındaki bir şeritte tutar.',
+    looksNoSidebar: 'Kenar çubuğunu yolundan çeken görünümler',
+    looksNoSidebarSub: 'Bunlar şeritsiz bir pencereye uyar. Paneller yine Ctrl+K ile açılır.',
+    showAllLooks: 'Tüm görünümleri göster',
     privacy: 'Gizlilik seçimleri',
     'privacy.sub': 'İnternetteki bir hizmete soran üç özellik. Her biri sizin seçiminizdir ve her biri daha sonra Ayarlar’da bir anahtardır.',
     'notifications.sub': 'Hatırlatıcılar, alarmlar, sayfa değişikliği uyarıları ve izin verdiğiniz siteler Windows bildirimi olarak gelir. Size ulaştığından emin olmak için şimdi bir tane gönderin; görünmezse düzeltme Windows’tadır ve bu sayfa nerede olduğunu söyler.' });
