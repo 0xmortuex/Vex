@@ -9923,7 +9923,7 @@ const VexI18nUI = {
       'Outlined panels over scan lines': 'Tarama çizgilerinin üstünde çerçeveli paneller',
       'Daybreak': 'Şafak',
       'Soft cards on a grain of paper': 'Kâğıt dokusunun üstünde yumuşak kartlar',
-      'Clear': 'Net',
+      'Airy': 'Ferah',
       'Big targets and space between them': 'Büyük hedefler ve aralarında boşluk',
       'Outline': 'Çizgi',
       'Vex’s own thin line icons': 'Vex’in kendi ince çizgili simgeleri',

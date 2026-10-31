@@ -33,7 +33,7 @@
     { id: 'islands',   name: 'Islands',    note: 'A toolbar that floats, panels that sit above the page', tabs: 'soft', bar: 'float', surface: 'lift', density: 'default', skin: { shape: 'round', glow: 'lift', pattern: 'none' } },
     { id: 'mainframe', name: 'Mainframe',  note: 'Outlined panels over scan lines', tabs: 'block', bar: 'line', surface: 'outline', density: 'default', skin: { shape: 'sharp', glow: 'flat', pattern: 'lines', strength: 'soft' } },
     { id: 'daybreak',  name: 'Daybreak',   note: 'Soft cards on a grain of paper', tabs: 'folder', bar: 'flat', surface: 'sheet', density: 'default', skin: { shape: 'soft', glow: 'normal', pattern: 'noise', strength: 'soft' } },
-    { id: 'clear',     name: 'Clear',      note: 'Big targets and space between them', tabs: 'soft', bar: 'default', surface: 'flat', density: 'roomy', skin: { shape: 'round', glow: 'normal', pattern: 'none' } },
+    { id: 'clear',     name: 'Airy',       note: 'Big targets and space between them', tabs: 'soft', bar: 'default', surface: 'flat', density: 'roomy', skin: { shape: 'round', glow: 'normal', pattern: 'none' } },
   ];
 
   // ---- Packs ---------------------------------------------------------------------------------------------------------------------------------
