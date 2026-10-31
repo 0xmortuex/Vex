@@ -757,16 +757,6 @@ const WebviewManager = {
       } catch {}
     });
 
-    // Keyboard link hints (press `f`): tell the guest whether the feature is on.
-    // Default ON; toggle via the `vex.linkHints` setting. Injected each load so a
-    // setting change applies on next navigation without restart.
-    onWebview('dom-ready', () => {
-      try {
-        const on = localStorage.getItem('vex.linkHints') !== 'off';
-        webview.executeJavaScript(`window.__vexLinkHintsEnabled = ${on};`).catch(() => {});
-      } catch {}
-    });
-
     // Media decode failures announced by preload-webview.js. Always logged
     // (with the page URL, so "video frozen on site X" reports are diagnosable
     // from the host console); the frozen-decode signature additionally gets

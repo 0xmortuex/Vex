@@ -211,7 +211,6 @@ module.exports = [
   "vex.libraryOpenFeature",
   "vex.libraryQuery",
   "vex.libraryTab",
-  "vex.linkHints",
   "vex.linkMemory",
   "vex.liveChannels",
   "vex.liveChannelsState",
