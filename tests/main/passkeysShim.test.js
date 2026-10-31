@@ -60,6 +60,27 @@ describe('availability', () => {
   });
 });
 
+describe('a site that sets toJSON on the credential', () => {
+  // GitHub's script does `credential.toJSON = () => ...` in a strict-mode module. On a real
+  // credential toJSON is a writable method, so the assignment works; a read-only property made
+  // it throw, and the site showed "Passkey registration failed" after Vex had saved the passkey.
+  for (const [kind, result] of [['create', attestationResult], ['get', assertionResult]]) {
+    it(`takes the assignment on a ${kind} credential and calls the new function`, async () => {
+      const p = page({ bridge: bridgeOf(() => result) });
+      const out = await p.run(`
+        (async () => {
+          'use strict';
+          const c = await navigator.credentials.${kind}({ publicKey: { challenge: new Uint8Array([1, 2, 3]).buffer, rpId: 'example.com',
+            rp: { name: 'Example' }, user: { id: new Uint8Array([7]), name: 'u', displayName: 'U' }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }] } });
+          c.toJSON = () => ({ replaced: true });
+          return { json: c.toJSON(), keys: Object.keys(c) };
+        })()`);
+      expect(out.json).toEqual({ replaced: true });
+      expect(out.keys).toEqual(expect.not.arrayContaining(['id']));
+    });
+  }
+});
+
 describe('navigator.credentials.get', () => {
   it('sends base64url fields, takes no origin from the page, and returns a credential that passes instanceof', async () => {
     const b = bridgeOf(() => assertionResult);

@@ -120,7 +120,13 @@ function vexPasskeyShim(bridge, mode) {
       id: c.id, type: 'public-key', rawId: decode(c.rawId), response: responseFor(kind, c),
       authenticatorAttachment: c.authenticatorAttachment || 'platform',
       getClientExtensionResults: function getClientExtensionResults() { return JSON.parse(JSON.stringify(ext)); },
-      toJSON: function toJSON() { return JSON.parse(JSON.stringify(json)); },
+    });
+    // Writable, as the native method is: GitHub's script assigns `credential.toJSON = ...`
+    // in a strict-mode module, and a read-only property made that throw after the passkey
+    // was already saved.
+    Object.defineProperty(cred, 'toJSON', {
+      value: function toJSON() { return JSON.parse(JSON.stringify(json)); },
+      enumerable: false, configurable: true, writable: true,
     });
     return cred;
   }
