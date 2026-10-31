@@ -76,6 +76,8 @@
   <link rel="stylesheet" href="css/tabs-nav.css">
   <!-- After every feature sheet so the browser looks win; a11y.css stays last. -->
   <link rel="stylesheet" href="css/gui-browser.css">
+  <!-- Sidebar off (js/sidebar-visibility.js): after the looks it overrides. -->
+  <link rel="stylesheet" href="css/sidebar-visibility.css">
   <link rel="stylesheet" href="css/discover.css">
   <link rel="stylesheet" href="css/toolbox-workbench.css">
   <link rel="stylesheet" href="css/dev-mode.css">
@@ -250,6 +252,8 @@
       </button>
       <!-- The nearest running timer, ticking; opens the Clock panel. -->
       <button id="timer-pill" type="button" hidden><span>0:00</span></button>
+      <!-- Settings, in the toolbar, while the sidebar is off and the rail's own button is gone (css/sidebar-visibility.css). -->
+      <button id="btn-settings-top" class="nav-btn" type="button" title="Settings" aria-label="Settings"></button>
       <button id="btn-command" class="nav-btn" title="Command Bar (Ctrl+K)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
@@ -471,6 +475,10 @@
 
             <div class="setting-group">
               <label class="setting-label">Sidebar Buttons</label>
+              <div class="setting-toggle-row" style="margin-bottom:8px">
+                <span>Show the sidebar <span style="color:var(--text-muted);font-size:11px">· the strip of panel buttons and the side-panel button. Off hides it in every look; the panels still open with Ctrl+K, and Settings gets a button in the toolbar</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-sidebar" aria-label="Show the sidebar" checked><span class="toggle-slider"></span></label>
+              </div>
               <p class="setting-info muted" style="margin-bottom:8px">Rename, change the icon, hide/show, reorder, or (for web buttons) change the link. You can also right-click any button in the sidebar directly.</p>
               <div id="sidebar-manager-list" style="border:1px solid var(--border);border-radius:var(--radius);padding:4px 10px;max-height:340px;overflow:auto"></div>
             </div>
@@ -2085,6 +2093,7 @@
   <script src="js/update-log.js"></script>
   <script src="js/gui-style.js"></script>
   <script src="js/look-sidebar.js"></script>
+  <script src="js/sidebar-visibility.js"></script>
   <script src="js/skills.js"></script>
   <script src="js/boosts.js"></script>
   <script src="js/userscripts.js"></script>

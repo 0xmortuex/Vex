@@ -499,6 +499,11 @@
     set: apply,
     get: current,
     styles: () => Object.keys(STYLES),
+    // How a look opens the sidebar's panels: 'rail' (an icon strip on screen) or 'toolbar' (a toolbar button). Classic has the rail.
+    launcher: (style) => {
+      if (!STYLES[style]) throw new Error(`Unknown GUI style: ${style}`);
+      return STYLES[style].sidebar ? STYLES[style].sidebar.launcher : 'rail';
+    },
     isBrowserLook,
     setColors: applyColors,
     getColors: currentColors,

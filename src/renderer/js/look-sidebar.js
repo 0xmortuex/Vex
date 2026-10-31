@@ -244,7 +244,8 @@
     localStorage.setItem(RAIL_KEY, hidden ? '1' : '0');
     syncButtonLabel();
   }
-  function toggleRail() { setRailHidden(!railHidden()); }
+  // With the sidebar switched off (js/sidebar-visibility.js) there is no rail to show or hide: Ctrl+B must not flip an invisible flag.
+  function toggleRail() { if (document.body.dataset.sidebar === 'off') return; setRailHidden(!railHidden()); }
   function syncButtonLabel() {
     const btn = document.getElementById('btn-look-sidebar');
     if (!btn) return;

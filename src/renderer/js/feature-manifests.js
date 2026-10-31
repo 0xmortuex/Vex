@@ -790,6 +790,8 @@
     { id: 'library-data', title: 'Notes, bookmarks and read later', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.notes', 'vex.bookmarks', 'vex.readLater', 'vex.annotations', 'vex.stickyNotes'],
       permissions: { reads: ['what you saved'], writes: ['what you saved'], sends: [] } },
+    { id: 'sidebar-visibility', title: 'Sidebar on or off', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.sidebar'],
+      permissions: { reads: ['whether you want the sidebar'], writes: ['whether you want the sidebar'], sends: [] } },
     { id: 'feature-registry', title: 'Feature records', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.featureUsage', 'vex.usage.prior.', 'vex.minimalMode', 'vex.registry'],
       permissions: { reads: ['which features exist'], writes: ['which features you use, and which are staged'], sends: [] } },

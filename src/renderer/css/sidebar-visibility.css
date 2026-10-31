@@ -1,0 +1,27 @@
+/* === Sidebar off (js/sidebar-visibility.js) ===============================
+   body[data-sidebar="off"] hides the icon rail and the toolbar button that opens a side panel, in every look.
+   Written after css/gui-browser.css and css/gui-glass.css; the doubled ids outrank the looks' own `display` rules
+   (Glass forces its toolbar buttons on with !important at a higher specificity). The tab list is not touched. */
+body[data-sidebar="off"] #icon-sidebar#icon-sidebar,
+body[data-sidebar="off"] #btn-look-sidebar#btn-look-sidebar { display: none !important; }
+
+/* The panels (Ctrl+K, a shortcut) open over the whole page area. The docked looks already have that as their
+   "maximized" panel, so it is forced on here and the buttons that would undock it go. */
+body[data-sidebar="off"][data-sb-side][data-sidebar-panel] #panels-container {
+  position: absolute; inset: 0; width: auto; border: none; order: 0;
+}
+body[data-sidebar="off"][data-sb-side] :is(#look-sb-max, #look-sb-resize) { display: none; }
+
+/* Settings used to be one button on the rail: with the rail gone it is a gear in the toolbar. */
+/* !important both ways: Glass forces every toolbar button on, which would show this gear next to the rail's own. */
+body:not([data-sidebar="off"]) #btn-settings-top#btn-settings-top { display: none !important; }
+body[data-sidebar="off"] #btn-settings-top#btn-settings-top { display: inline-flex !important; align-items: center; justify-content: center; }
+
+/* Classic's panels have no header with a close button (the rail icon closed them): this one does it. */
+#sb-off-close { display: none; }
+body[data-sidebar="off"]:not([data-sb-side])[data-sidebar-panel] #sb-off-close {
+  display: grid; place-items: center; position: absolute; top: 8px; right: 12px; z-index: 30;
+  width: 26px; height: 26px; padding: 0; cursor: pointer;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 50%;
+}
+body[data-sidebar="off"]:not([data-sb-side])[data-sidebar-panel] #sb-off-close:hover { background: var(--vex-hover-fill, var(--border)); }

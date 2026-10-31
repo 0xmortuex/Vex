@@ -213,6 +213,7 @@ const Onboarding = {
       case 'theme':          return this._has('vex.theme');
       case 'job':            return this._has('vex.job');
       case 'name':           return this._has('vex.userName');
+      case 'sidebar':        return !!(window.VexSidebarVisibility && window.VexSidebarVisibility.chosen());
       case 'look':           return this._flag('vex.guiStyleChosen');
       case 'performance':    return this._flag('vex.perfConfigured');
       case 'weather':        return this._has('vex.weatherLoc');
@@ -306,6 +307,7 @@ const Onboarding = {
       { key: 'import',         title: 'Bring your things over',   sub: 'Bookmarks, history and saved passwords from Chrome, Edge, Brave, Firefox and others, so you do not start from nothing. Optional.', quick: true, secs: 45 },
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; Simple mode is a switch in Settings › General, and the panels are in Settings › Sidebar.' , quick: true, secs: 40},
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
+      { key: 'sidebar',        title: 'Do you want a sidebar?',   sub: 'The sidebar is the strip of buttons beside the page that opens Vex’s own panels — Discord, Spotify, Notes, Downloads, Bookmarks and more — without leaving the page you are on. Say no and Vex is a plain browser; the panels still open with Ctrl+K.' , quick: true, secs: 15},
       { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape, or a Fluent, Glossy, Neobrutal or Terminal style. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
       { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' , secs: 40},
       { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' , secs: 40},
@@ -348,6 +350,7 @@ const Onboarding = {
     else if (key === 'sync')    this._session.sync = grab('#ob-sync-url');
     else if (key === 'weather') this._session.weatherText = grab('#ob-city');
     else if (key === 'search')  this._session.engine = this._pendingEngine;
+    else if (key === 'sidebar') this._session.sidebar = this._pendingSidebar;
   },
 
   // English | Türkçe on the first step. English is selected until someone picks otherwise: nothing reads the Windows language, because Turkish
@@ -854,6 +857,8 @@ const Onboarding = {
         body.querySelectorAll('[data-theme]').forEach(x => x.style.borderColor = 'var(--border)');
         b.style.borderColor = 'var(--primary)';
       }));
+    } else if (key === 'sidebar') {
+      this._renderSidebar(body);
     } else if (key === 'look') {
       this._renderLook(body);
     } else if (key === 'performance') {
@@ -1109,6 +1114,46 @@ const Onboarding = {
   // Geocode the typed text and show up to 5 matches (district · province · country)
   // so the user picks the exact place — districts like "Ataşehir" resolve reliably
   // instead of silently snapping to whatever the single top hit happens to be.
+  // === "Do you want a sidebar?" — asked in both the short and the full setup ===
+  //
+  // The answer is VexSidebarVisibility (js/sidebar-visibility.js, vex.sidebar) and decides which looks the next step offers first.
+  // Yes is pre-selected for a new profile and for one that never answered, because the sidebar is what Vex has always had.
+  _wantsSidebar() {
+    if (typeof this._session.sidebar === 'boolean') return this._session.sidebar;
+    return window.VexSidebarVisibility ? window.VexSidebarVisibility.enabled() : true;
+  },
+
+  _renderSidebar(body) {
+    const cur = this._wantsSidebar();
+    this._pendingSidebar = cur;
+    const tt = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
+    // A little window: the strip at its side is the sidebar.
+    const mock = (on) => '<span aria-hidden="true" style="flex:none;width:62px;height:42px;display:flex;overflow:hidden;border:1px solid var(--border);border-radius:7px;background:var(--surface)">'
+      + (on ? '<span style="flex:none;width:13px;background:var(--primary);opacity:.6"></span>' : '')
+      + '<span style="flex:1;margin:5px;border-radius:3px;background:var(--border)"></span></span>';
+    const card = (id, name, desc, on) => '<button data-sb-answer="' + id + '" aria-pressed="' + (cur === (id === 'yes')) + '" style="display:flex;align-items:center;gap:13px;width:100%;box-sizing:border-box;padding:13px 14px;margin-bottom:9px;border-radius:12px;border:2px solid '
+      + (cur === (id === 'yes') ? 'var(--primary)' : 'var(--border)')
+      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;text-align:left">' + mock(on)
+      + '<span style="display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">' + this._esc(name) + '</span>'
+      + '<span style="font-size:11.5px;color:var(--text-muted);line-height:1.5">' + this._esc(desc) + '</span></span></button>';
+    body.innerHTML =
+      card('yes', tt('sidebarYes', 'Yes, show the sidebar'),
+        tt('sidebarYesSub', 'A strip of buttons beside the page: one click opens Discord, Spotify, Notes, Downloads, Bookmarks and the rest.'), true)
+      + card('no', tt('sidebarNo', 'No, keep the window clean'),
+        tt('sidebarNoSub', 'No strip and no side-panel button. Every panel still opens with Ctrl+K, and Settings › Sidebar brings it back.'), false)
+      + '<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;line-height:1.5">'
+      + this._esc(tt('sidebarNote', 'Your tabs are not part of the sidebar. The next step shows the looks that suit your answer first.')) + '</div>';
+    body.querySelectorAll('[data-sb-answer]').forEach((b) => b.addEventListener('click', () => {
+      this._pendingSidebar = b.dataset.sbAnswer === 'yes';
+      this._session.sidebar = this._pendingSidebar;
+      body.querySelectorAll('[data-sb-answer]').forEach((x) => {
+        const on = (x.dataset.sbAnswer === 'yes') === this._pendingSidebar;
+        x.style.borderColor = on ? 'var(--primary)' : 'var(--border)';
+        x.setAttribute('aria-pressed', String(on));
+      });
+    }));
+  },
+
   // === "Pick a look" — every GUI style, not just Glass vs Classic ==========
   //
   // The browser looks were reachable only from Settings → Appearance, so most
@@ -1135,6 +1180,26 @@ const Onboarding = {
     ];
   },
 
+  // The looks by how they open the sidebar's panels, in the order they are offered (gui-style.js STYLES, sidebar.launcher; a test keeps the two
+  // in step): an icon rail that stays on screen, or a toolbar button.
+  LOOK_ORDER() {
+    return {
+      rail: ['classic', 'glass', 'firefox', 'firefox-dark', 'win98', 'neobrutal', 'terminal'],
+      toolbar: ['chrome', 'chrome-dark', 'safari', 'xp', 'fluent', 'fluent-dark', 'glossy'],
+    };
+  },
+  // Which looks lead for the answer, and the rest. A sidebar wanted -> the rail looks first; no sidebar -> the toolbar looks first.
+  looksForSidebar(want) {
+    const o = this.LOOK_ORDER();
+    const first = want ? o.rail : o.toolbar;
+    return { first: first.slice(), rest: (want ? o.toolbar : o.rail).slice() };
+  },
+  // The look that is on when setup reaches the look step: the one already on if it suits the answer, else the best match (the first).
+  bestLook(want, current) {
+    const { first } = this.looksForSidebar(want);
+    return first.includes(current) ? current : first[0];
+  },
+
   _renderLook(body) {
     const looks = this.LOOKS();
     let cur = 'classic';
@@ -1143,6 +1208,19 @@ const Onboarding = {
     try { colors = (window.VexGuiStyle && VexGuiStyle.getColors && VexGuiStyle.getColors()) || 'look'; } catch { colors = 'look'; }
     let tabs = 'horizontal';
     try { tabs = JSON.parse(localStorage.getItem('vex.tabLayout') || '"horizontal"'); } catch { tabs = 'horizontal'; }
+
+    const tt = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
+    const want = this._wantsSidebar();
+    const order = this.looksForSidebar(want);
+    const failed = (err) => window.showToast?.('Could not apply that look: ' + (err && err.message), 'error');
+    // The best match is put on unless the person has picked a look themselves: a pick is never overridden.
+    if (window.VexGuiStyle && !this._flag('vex.guiStyleChosen') && !order.first.includes(cur)) {
+      const best = this.bestLook(want, cur);
+      try { Promise.resolve(window.VexGuiStyle.set(best)).catch(failed); cur = best; }
+      catch (err) { failed(err); }
+    }
+    // A look picked earlier that is not among the leading ones must stay on screen, so the full list opens.
+    let expanded = !order.first.includes(cur);
 
     const card = (l) => '<button data-look="' + l.id + '" style="text-align:left;padding:11px 13px;border-radius:11px;border:2px solid '
       + (l.id === cur ? 'var(--primary)' : 'var(--border)')
@@ -1153,73 +1231,89 @@ const Onboarding = {
     // Browser looks and styles both offer the look's own colours or the theme's.
     const isBorrowed = (id) => { const l = looks.find((x) => x.id === id) || {}; return !!(l.borrowed || l.styled); };
 
-    body.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      + looks.filter((l) => !l.borrowed && !l.styled).map(card).join('') + '</div>'
-      + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Wear another browser</div>'
-      + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Vex, shaped like a browser you already know. Every Vex feature still works the same.</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      + looks.filter((l) => l.borrowed).map(card).join('') + '</div>'
-      + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Or a style</div>'
-      + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Whole-window styles after the popular Discord themes.</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      + looks.filter((l) => l.styled).map(card).join('') + '</div>'
-      + '<div id="ob-look-tabs" style="margin-top:15px;display:' + (cur === 'classic' ? 'block' : 'none') + '">'
-      + '<div style="font-size:12px;font-weight:700;color:var(--text)">Where your tabs go</div>'
-      + '<div style="display:flex;gap:9px;margin-top:7px">'
-      + '<button data-tabs="vertical" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
-      + (tabs === 'vertical' ? 'var(--primary)' : 'var(--border)')
-      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Down the side</button>'
-      + '<button data-tabs="horizontal" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
-      + (tabs === 'horizontal' ? 'var(--primary)' : 'var(--border)')
-      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Along the top</button>'
-      + '</div></div>'
-      + '<div id="ob-look-colors" style="margin-top:15px;display:' + (isBorrowed(cur) ? 'block' : 'none') + '">'
-      + '<div style="font-size:12px;font-weight:700;color:var(--text)">Colours for that look</div>'
-      + '<div style="display:flex;gap:9px;margin-top:7px">'
-      + '<button data-colors="look" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
-      + (colors === 'look' ? 'var(--primary)' : 'var(--border)')
-      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Its own colours</button>'
-      + '<button data-colors="theme" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
-      + (colors === 'theme' ? 'var(--primary)' : 'var(--border)')
-      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">My Vex theme’s colours</button>'
-      + '</div></div>';
-
     const repaint = (sel, key, value) => body.querySelectorAll(sel).forEach((x) => {
       x.style.borderColor = x.dataset[key] === value ? 'var(--primary)' : 'var(--border)';
     });
 
-    body.querySelectorAll('[data-look]').forEach((b) => b.addEventListener('click', () => {
-      const id = b.dataset.look;
-      try { window.VexGuiStyle?.set(id); }
-      catch (err) { window.showToast?.('Could not apply that look: ' + (err && err.message), 'error'); return; }
-      cur = id;
-      try { localStorage.setItem('vex.guiStyleChosen', '1'); }
-      catch (err) { console.warn('[setup] could not record the look choice:', err && err.message); }
-      repaint('[data-look]', 'look', id);
-      const colorRow = body.querySelector('#ob-look-colors');
-      if (colorRow) colorRow.style.display = isBorrowed(id) ? 'block' : 'none';
-      const tabRow = body.querySelector('#ob-look-tabs');
-      if (tabRow) tabRow.style.display = id === 'classic' ? 'block' : 'none';
-    }));
+    const draw = () => {
+      const grid = (list) => '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">' + list.map(card).join('') + '</div>';
+      const named = (ids) => ids.map((id) => looks.find((l) => l.id === id));
+      const lead = '<div style="font-size:12px;font-weight:700;color:var(--text)">' + this._esc(want ? tt('looksSidebar', 'Looks with a sidebar') : tt('looksNoSidebar', 'Looks that keep the sidebar out of the way')) + '</div>'
+        + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">' + this._esc(want
+          ? tt('looksSidebarSub', 'These keep your panels in a strip beside the page.')
+          : tt('looksNoSidebarSub', 'These suit a window without the strip. Your panels still open with Ctrl+K.')) + '</div>';
+      body.innerHTML = (expanded
+        ? grid(looks.filter((l) => !l.borrowed && !l.styled))
+          + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Wear another browser</div>'
+          + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Vex, shaped like a browser you already know. Every Vex feature still works the same.</div>'
+          + grid(looks.filter((l) => l.borrowed))
+          + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Or a style</div>'
+          + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Whole-window styles after the popular Discord themes.</div>'
+          + grid(looks.filter((l) => l.styled))
+        : lead + grid(named(order.first))
+          + '<button id="ob-look-all" type="button" style="margin-top:11px;background:none;border:none;padding:2px 0;color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px">'
+          + this._esc(tt('showAllLooks', 'Show all looks')) + '</button>')
+        + '<div id="ob-look-tabs" style="margin-top:15px;display:' + (cur === 'classic' ? 'block' : 'none') + '">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--text)">Where your tabs go</div>'
+        + '<div style="display:flex;gap:9px;margin-top:7px">'
+        + '<button data-tabs="vertical" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+        + (tabs === 'vertical' ? 'var(--primary)' : 'var(--border)')
+        + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Down the side</button>'
+        + '<button data-tabs="horizontal" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+        + (tabs === 'horizontal' ? 'var(--primary)' : 'var(--border)')
+        + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Along the top</button>'
+        + '</div></div>'
+        + '<div id="ob-look-colors" style="margin-top:15px;display:' + (isBorrowed(cur) ? 'block' : 'none') + '">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--text)">Colours for that look</div>'
+        + '<div style="display:flex;gap:9px;margin-top:7px">'
+        + '<button data-colors="look" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+        + (colors === 'look' ? 'var(--primary)' : 'var(--border)')
+        + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Its own colours</button>'
+        + '<button data-colors="theme" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+        + (colors === 'theme' ? 'var(--primary)' : 'var(--border)')
+        + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">My Vex theme’s colours</button>'
+        + '</div></div>';
+      bind();
+    };
 
-    body.querySelectorAll('[data-tabs]').forEach((b) => b.addEventListener('click', () => {
-      const mode = b.dataset.tabs;
-      const sel = document.getElementById('setting-tab-layout');
-      if (sel) { sel.value = mode; sel.dispatchEvent(new Event('change', { bubbles: true })); }
-      else {
-        try { localStorage.setItem('vex.tabLayout', JSON.stringify(mode)); } catch (err) { console.warn('[setup] could not save the tab layout:', err && err.message); }
-        document.body.dataset.tabLayout = mode;
-      }
-      tabs = mode;
-      repaint('[data-tabs]', 'tabs', mode);
-    }));
+    const bind = () => {
+      body.querySelector('#ob-look-all')?.addEventListener('click', () => { expanded = true; draw(); body.querySelector('[data-look]')?.focus(); });
 
-    body.querySelectorAll('[data-colors]').forEach((b) => b.addEventListener('click', () => {
-      const mode = b.dataset.colors;
-      try { window.VexGuiStyle?.setColors(mode); }
-      catch (err) { window.showToast?.('Could not change those colours: ' + (err && err.message), 'error'); return; }
-      repaint('[data-colors]', 'colors', mode);
-    }));
+      body.querySelectorAll('[data-look]').forEach((b) => b.addEventListener('click', () => {
+        const id = b.dataset.look;
+        try { window.VexGuiStyle?.set(id); }
+        catch (err) { failed(err); return; }
+        cur = id;
+        try { localStorage.setItem('vex.guiStyleChosen', '1'); }
+        catch (err) { console.warn('[setup] could not record the look choice:', err && err.message); }
+        repaint('[data-look]', 'look', id);
+        const colorRow = body.querySelector('#ob-look-colors');
+        if (colorRow) colorRow.style.display = isBorrowed(id) ? 'block' : 'none';
+        const tabRow = body.querySelector('#ob-look-tabs');
+        if (tabRow) tabRow.style.display = id === 'classic' ? 'block' : 'none';
+      }));
+
+      body.querySelectorAll('[data-tabs]').forEach((b) => b.addEventListener('click', () => {
+        const mode = b.dataset.tabs;
+        const sel = document.getElementById('setting-tab-layout');
+        if (sel) { sel.value = mode; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+        else {
+          try { localStorage.setItem('vex.tabLayout', JSON.stringify(mode)); } catch (err) { console.warn('[setup] could not save the tab layout:', err && err.message); }
+          document.body.dataset.tabLayout = mode;
+        }
+        tabs = mode;
+        repaint('[data-tabs]', 'tabs', mode);
+      }));
+
+      body.querySelectorAll('[data-colors]').forEach((b) => b.addEventListener('click', () => {
+        const mode = b.dataset.colors;
+        try { window.VexGuiStyle?.setColors(mode); }
+        catch (err) { window.showToast?.('Could not change those colours: ' + (err && err.message), 'error'); return; }
+        repaint('[data-colors]', 'colors', mode);
+      }));
+    };
+
+    draw();
   },
 
   // === "Speed, memory & privacy" — the settings that actually matter =======
@@ -1787,6 +1881,12 @@ const Onboarding = {
       } else if (sel && sel.chosen) {
         this._applySetupProfile(sel);
       }
+    } else if (key === 'sidebar') {
+      // Applied at once, so the window behind the wizard shows it; the look step that follows is filtered by it.
+      try {
+        if (!window.VexSidebarVisibility) throw new Error('Vex cannot change the sidebar here');
+        window.VexSidebarVisibility.setEnabled(this._pendingSidebar !== false);
+      } catch (err) { this._showError(overlay, 'The sidebar choice was not saved: ' + ((err && err.message) || err)); return; }
     } else if (key === 'language') {
       // The start pages re-read it on the reload that finish() triggers.
       this.setLanguage(this._pendingLang || 'en', { reloadStartPages: false });

@@ -17,7 +17,7 @@
   'use strict';
   var KEY = 'vex.bootLook';
   var HTML_ATTRS = ['data-theme', 'data-scheme', 'data-look'];
-  var BODY_ATTRS = ['data-gui-style', 'data-gui-family', 'data-gui-colors', 'data-sb-side', 'data-sb-launcher', 'data-tab-layout', 'data-ui-mode'];
+  var BODY_ATTRS = ['data-gui-style', 'data-gui-family', 'data-gui-colors', 'data-sb-side', 'data-sb-launcher', 'data-tab-layout', 'data-ui-mode', 'data-sidebar'];
 
   function customProps(el) {
     var out = {};
