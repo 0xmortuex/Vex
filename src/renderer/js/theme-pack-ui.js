@@ -62,7 +62,9 @@ const ThemePackUI = {
   _esc(v) { return window.escapeHtml ? window.escapeHtml(String(v)) : String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
 
   _lookName(id) {
-    return document.querySelector(`#setting-gui-style option[value="${id}"]`)?.textContent || id;
+    // "Glass (frosted · tabs on top · shortcuts bar)": the name is what comes before the bracket.
+    const full = document.querySelector(`#setting-gui-style option[value="${id}"]`)?.textContent || id;
+    return full.split(' (')[0].split(' · ')[0];
   },
 
   // A mini window in the pack's own colours, tab shape, toolbar and card, with its icons, drawn with inline styles only (as the theme cards are),
@@ -158,7 +160,8 @@ const ThemePackUI = {
     body.querySelectorAll('[data-icons]').forEach((b) => b.addEventListener('click', () => this._do(() => P.setIcons(b.dataset.icons))));
     body.querySelector('.vpk-select').addEventListener('change', (e) => this._do(() => P.setColours(e.target.value)));
 
-    const name = cur.pack ? P.pack(cur.pack).name : 'Custom';
+    const plain = cur.design === 'default' && cur.icons === window.VexIconPacks.DEFAULT;
+    const name = cur.pack ? P.pack(cur.pack).name : (plain ? 'Vex’s own design' : 'Custom');
     el.querySelector('.vpk-now').textContent = `Now: ${name} (design ${P.design(cur.design).name}, icons ${window.VexIconPacks.current().name}).`;
   },
 };
