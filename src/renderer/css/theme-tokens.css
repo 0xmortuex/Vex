@@ -311,6 +311,21 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --danger: #ef4444; --success: #22c55e; --warning: #f59e0b;
 }
 
+/* The default theme keeps the old navy/indigo values for --bg, --surface and --primary, while the window itself is coloured
+   from the amber/graphite --vex-* values above. The setup wizard and the place-suggestion list are built from the old tokens, so
+   in Graphite they showed a navy card, a black select and indigo buttons over a brown window (found 2026-10-31). Both take the
+   window's own colours here. Not in Glass (it derives its own) and not in a browser look wearing its own palette (the look sets
+   the tokens then). */
+html[data-theme="default"] body:not([data-gui-style="glass"]):is(:not([data-gui-family="browser"]), [data-gui-colors="theme"]) :is(#vex-onboarding, .vex-geo-suggest) {
+  --bg: var(--vex-bg-deep);
+  --surface: var(--vex-bg-elevated);
+  --border: var(--vex-border-medium);
+  --text: var(--vex-text-primary);
+  --text-muted: var(--vex-text-secondary);
+  --primary: var(--vex-accent);
+  --on-primary: #000000;
+}
+
 /* ── MIDNIGHT — deep violet on near-black ─────────────────────────────────── */
 [data-theme="midnight"] {
   --vex-bg-base: #05050a;

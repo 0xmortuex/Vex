@@ -24,6 +24,7 @@ let input;
 let handle;
 let picked;
 let status;
+let lang = 'en';
 
 const type = (text) => {
   input.value = text;
@@ -44,13 +45,15 @@ beforeEach(() => {
   input = document.getElementById('city');
   picked = [];
   status = [];
+  lang = 'en';
   VexGeo._suggestCache.clear();
   handle = VexGeo.attachSuggest(input, {
     getCountry: () => 'TR',
-    getLang: () => 'tr',
+    getLang: () => lang,
     onPick: (hit) => picked.push(hit),
     onStatus: (t) => status.push(t),
   });
+  input.focus();    // the list only appears for the box the person is in
 });
 
 afterEach(() => {
@@ -66,7 +69,7 @@ describe('when suggestions are asked for', () => {
     expect(search).not.toHaveBeenCalled();
     await settle();
     expect(search).toHaveBeenCalledTimes(1);
-    expect(search).toHaveBeenCalledWith('Atas', { country: 'TR', lang: 'tr' });
+    expect(search).toHaveBeenCalledWith('Atas', { country: 'TR', lang: 'en' });
     expect(rows()).toHaveLength(1);
     expect(list().hidden).toBe(false);
     expect(input.getAttribute('aria-expanded')).toBe('true');
@@ -125,9 +128,9 @@ describe('what is shown', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(VexGeo, 'search').mockRejectedValue(new Error('no connection'));
     type('Ankara'); await settle();
-    const note = list().querySelector('[role=status]');
+    const note = list().querySelector('[role=alert]');
     expect(note).not.toBeNull();
-    expect(note.textContent).toMatch(/not available.*no connection.*Search/);
+    expect(note.textContent).toMatch(/not available.*Search/);
     expect(warn).toHaveBeenCalled();
     expect(rows()).toHaveLength(0);
   });
@@ -170,11 +173,11 @@ describe('picking', () => {
     expect(list().hidden).toBe(true);
   });
 
-  it('leaves Enter alone when nothing is marked, so the Search it belongs to still runs', () => {
+  it('leaves Enter alone when nothing is marked, so the Search it belongs to still runs, and closes the list', () => {
     const enter = key('Enter');
     expect(enter.defaultPrevented).toBe(false);
     expect(picked).toHaveLength(0);
-    expect(list().hidden).toBe(false);
+    expect(list().hidden).toBe(true);
   });
 
   it('picks with a click, and a click does not take the focus out of the box', () => {
@@ -198,6 +201,116 @@ describe('picking', () => {
   });
 });
 
+describe('the person leaving the box', () => {
+  it('shows no list for an answer that arrives after the focus has moved on', async () => {
+    let answer;
+    vi.spyOn(VexGeo, 'search').mockImplementation(() => new Promise((res) => { answer = res; }));
+    type('Ankara'); await settle();               // asked, waiting
+    document.body.insertAdjacentHTML('beforeend', '<button id="go">Search</button>');
+    document.getElementById('go').focus();        // pressed Search
+    answer({ hits: [place('Ankara')], elsewhere: 0 });
+    await vi.advanceTimersByTimeAsync(5);
+    expect(list().hidden).toBe(true);
+  });
+
+  it('Enter with nothing marked drops a suggestion that was still on its way', async () => {
+    let answer;
+    vi.spyOn(VexGeo, 'search').mockImplementation(() => new Promise((res) => { answer = res; }));
+    type('Ankara'); await settle();
+    key('Enter');
+    answer({ hits: [place('Ankara')], elsewhere: 0 });
+    await vi.advanceTimersByTimeAsync(5);
+    expect(list().hidden).toBe(true);
+  });
+
+  it('shows the suggestions again when the box gets the focus back (after a country was chosen)', async () => {
+    const search = vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Ankara')], elsewhere: 0 });
+    type('Ank'); await settle();
+    input.blur();
+    expect(list().hidden).toBe(true);
+    input.focus();
+    await settle();
+    expect(list().hidden).toBe(false);
+    expect(search).toHaveBeenCalledTimes(1);      // from the cache, no second request
+  });
+});
+
+describe('for screen readers and the Turkish app', () => {
+  const liveText = () => document.querySelector('.vex-geo-live').textContent;
+
+  it('announces how many places were found, and clears it when the list closes', async () => {
+    vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Ataşehir'), place('Ataköy'), place('Atakent')], elsewhere: 0 });
+    type('Ata'); await settle();
+    const region = document.querySelector('.vex-geo-live');
+    expect(region.getAttribute('role')).toBe('status');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    expect(liveText()).toBe('3 places found');
+    key('Escape');
+    expect(liveText()).toBe('');
+  });
+
+  it('says one place, not "1 places"', async () => {
+    vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Ataşehir')], elsewhere: 0 });
+    type('Ata'); await settle();
+    expect(liveText()).toBe('One place found');
+  });
+
+  it('speaks Turkish when given Turkish: the count, the postcode hint and the failure row', async () => {
+    lang = 'tr';
+    const search = vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Ataşehir'), place('Ataköy')], elsewhere: 0 });
+    type('Ata'); await settle();
+    expect(liveText()).toBe('2 yer bulundu');
+    type('34750'); await settle();
+    expect(status.at(-1)).toBe('Bu posta kodunu aramak için Enter’a veya Ara’ya basın.');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    search.mockRejectedValue(new Error('offline'));
+    type('Ankara'); await settle();
+    expect(list().querySelector('[role=alert]').textContent).toBe('Öneriler alınamıyor. Yeniden denemek için Ara’ya basın.');
+  });
+
+  it('every phrase it can say has a Turkish line, and the app dictionary has the same ones', () => {
+    const { VexI18nUI } = require('../../src/renderer/js/i18n-ui.js');
+    for (const [en, tr] of Object.entries(VexGeo.SUGGEST_TR)) {
+      expect(tr, en).toBeTruthy();
+      const key = en.replace('{n}', '{1}');
+      expect(VexI18nUI.TABLE.tr[key], key).toBe(tr.replace('{n}', '{1}'));
+    }
+  });
+});
+
+describe('the layer register of the app window', () => {
+  afterEach(() => { delete globalThis.VexLayer; });
+
+  it('is in the register while open (menu tier, own z-index kept) and out of it when closed or destroyed', async () => {
+    const layers = new Set();
+    globalThis.VexLayer = {
+      track: vi.fn((el, o) => { layers.add(el); expect(o.tier).toBe('menu'); expect(typeof o.close).toBe('function'); return el; }),
+      close: vi.fn((el) => { if (!layers.has(el)) return false; layers.delete(el); [...document.querySelectorAll('.vex-geo-suggest')].find((n) => n === el).hidden = true; return true; }),
+    };
+    vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Bursa')], elsewhere: 0 });
+    type('Bur'); await settle();
+    expect(VexLayer.track).toHaveBeenCalledWith(list(), expect.objectContaining({ tier: 'menu' }));
+    expect(layers.has(list())).toBe(true);
+    expect(list().style.zIndex).toBe('');            // the stylesheet's z-index stays: it sits above the setup wizard
+    key('Escape');
+    expect(layers.has(list())).toBe(false);
+    expect(list().hidden).toBe(true);
+    type('Burs'); await settle();
+    expect(layers.has(list())).toBe(true);
+    handle.destroy();
+    expect(layers.size).toBe(0);
+  });
+
+  it('works where there is no register (the start page)', async () => {
+    expect(typeof VexLayer).toBe('undefined');
+    vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Bursa')], elsewhere: 0 });
+    type('Bur'); await settle();
+    expect(list().hidden).toBe(false);
+    key('Escape');
+    expect(list().hidden).toBe(true);
+  });
+});
+
 describe('cleaning up', () => {
   it('destroy removes the list and the accessibility attributes', async () => {
     vi.spyOn(VexGeo, 'search').mockResolvedValue({ hits: [place('Bursa')], elsewhere: 0 });
@@ -205,6 +318,7 @@ describe('cleaning up', () => {
     expect(list()).not.toBeNull();
     handle.destroy();
     expect(list()).toBeNull();
+    expect(document.querySelector('.vex-geo-live')).toBeNull();
     expect(input.hasAttribute('role')).toBe(false);
     expect(input.hasAttribute('aria-controls')).toBe(false);
     type('Burs');

@@ -1556,6 +1556,9 @@ const Onboarding = {
     country.addEventListener('change', () => {
       this._weatherCountry = country.value;
       this._pendingLoc = null;
+      // Results of a Search in the old country no longer fit the box; the suggestions are asked again for the new one.
+      const oldResults = body.querySelector('#ob-city-results-wrap');
+      if (oldResults) oldResults.style.display = 'none';
       this._geoSuggest.refresh();
     });
 
