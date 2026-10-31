@@ -489,7 +489,7 @@ const Onboarding = {
       card('quick', tt('paceQuick', 'Just the essentials — about {n} minutes').replace('{n}', mins(all.filter(x => x.quick))),
         tt('paceQuickSub', 'How Vex looks, which panels you keep, your name, your search engine, three privacy choices, and whether links open here. Everything else has a sensible default and lives in Settings.'), pace !== 'full')
       + card('full', tt('paceFull', 'Everything — about {n} minutes').replace('{n}', mins(all)),
-        tt('paceFullSub', 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync, passwords and notifications.'), pace === 'full')
+        tt('paceFullSub', 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync and notifications.'), pace === 'full')
       + `<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;line-height:1.5">${tt('paceNote', 'Either way, every step has a <b>Skip</b>, nothing here is permanent, and <b>Skip setup</b> leaves the whole thing. Vex works before you answer a single question.')}</div>`;
     body.querySelectorAll('[data-pace]').forEach(btn => {
       btn.addEventListener('click', () => this.setPace(btn.dataset.pace));

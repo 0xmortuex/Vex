@@ -110,6 +110,13 @@ describe('the presets and the steps the owner asked about', () => {
     expect(localStorage.getItem('vex.vaultSeeded')).toBeNull();
     localStorage.setItem('vex.vaultSeeded', 'true');
     expect(Onboarding._isStepDone('passwords')).toBe(false);
+    // The full-setup blurb must not list it either (English in the code, Turkish in i18n.js).
+    const fsx = require('fs');
+    for (const f of ['onboarding.js', 'i18n.js']) {
+      const line = fsx.readFileSync(require('path').join(__dirname, '../../src/renderer/js', f), 'utf8').split(/\r?\n/).filter(l => l.includes('paceFullSub')).join(' ');
+      expect(line).toMatch(/paceFullSub/);
+      expect(line).not.toMatch(/passwords|parolalar/i);
+    }
   });
 });
 
