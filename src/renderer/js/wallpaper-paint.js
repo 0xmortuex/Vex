@@ -71,31 +71,33 @@ html[data-wallpaper][data-wallpaper][data-wallpaper], html[data-wallpaper][data-
 @media (prefers-reduced-motion: no-preference) { #vex-wallpaper-scrim { transition: background-color 0.25s ease; } }
 `;
 
-  let last = null, observer = null, timer = null, probe = null, cv = null;
+  let last = null, observer = null, timer = null, cv = null;
 
-  function resolveCss(value) {
-    // value: any CSS colour, or var(--x). -> [r, g, b, a]
-    if (!probe) { probe = root.document.createElement('span'); probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none'; }
-    if (!probe.isConnected) root.document.documentElement.appendChild(probe);
-    probe.style.color = '';
-    probe.style.color = value;
-    if (!probe.style.color) throw new Error('Not a colour: ' + value);
-    const computed = root.getComputedStyle(probe).color;
+  // The colour a page token (--vex-text-primary ...) has now -> [r, g, b, a]. The token's value is read from the root
+  // (custom properties arrive with their var() references already filled in) and the canvas, which understands
+  // hex, rgb(), color-mix() and the like, turns it into numbers.
+  function resolveToken(name) {
+    const raw = root.getComputedStyle(root.document.documentElement).getPropertyValue(name).trim();
+    if (!raw) throw new Error('The page has no ' + name + ' colour');
     if (!cv) { cv = root.document.createElement('canvas'); cv.width = cv.height = 1; }
     const x = cv.getContext('2d', { willReadFrequently: true });
-    x.clearRect(0, 0, 1, 1);
-    x.fillStyle = '#010203';
-    x.fillStyle = computed;
-    x.fillRect(0, 0, 1, 1);
-    const d = x.getImageData(0, 0, 1, 1).data;
-    return [d[0], d[1], d[2], d[3] / 255];
+    for (const sentinel of ['#010203', '#040506']) {
+      x.clearRect(0, 0, 1, 1);
+      x.fillStyle = sentinel;
+      x.fillStyle = raw;
+      x.fillRect(0, 0, 1, 1);
+      const d = x.getImageData(0, 0, 1, 1).data;
+      const same = d[0] === parseInt(sentinel.slice(1, 3), 16) && d[1] === parseInt(sentinel.slice(3, 5), 16) && d[2] === parseInt(sentinel.slice(5, 7), 16);
+      if (!same) return [d[0], d[1], d[2], d[3] / 255];
+    }
+    throw new Error(name + ' is not a colour the page can read: ' + raw);
   }
 
   function pageColours() {
-    const scrimRaw = resolveCss('var(--vex-bg-base)');
+    const scrimRaw = resolveToken('--vex-bg-base');
     const scrim = [scrimRaw[0], scrimRaw[1], scrimRaw[2]];
     const inks = ['--vex-text-primary', '--vex-text-secondary', '--vex-text-muted', '--vex-accent'].map((name) => {
-      const c = resolveCss('var(' + name + ')');
+      const c = resolveToken(name);
       // A translucent ink is seen over the page's background.
       return c[3] < 1 ? mixRgb(scrim, [c[0], c[1], c[2]], c[3]) : [c[0], c[1], c[2]];
     });

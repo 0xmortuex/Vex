@@ -58,7 +58,7 @@
       search.placeholder = L('Search wallpapers');
       search.setAttribute('aria-label', L('Search wallpapers'));
       const addBtn = button(L('Use my own picture…'), () => pick(), { iconName: 'upload' });
-      const settingsBtn = button(L('Settings'), () => { dlg.close(); if (root.SettingsUI && root.SettingsUI.openSection) root.SettingsUI.openSection('setting-wallpapers'); }, { iconName: 'gear' });
+      const settingsBtn = button(L('Settings'), () => { dlg.close(); if (root.SettingsUI && root.SettingsUI.openSection) root.SettingsUI.openSection('setting-wallpapers'); }, { iconName: 'sliders' });
       top.append(search, addBtn, settingsBtn);
 
       const cats = el('div', 'vws-cats');
