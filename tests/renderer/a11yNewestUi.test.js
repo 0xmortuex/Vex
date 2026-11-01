@@ -49,10 +49,11 @@ describe('the setup wizard', () => {
   it('hides the progress dots and bar from a screen reader (the step number says it in words)', () => {
     Onboarding._render();
     const label = document.getElementById('ob-progress-label');
-    const dots = label.parentElement.querySelector('[aria-hidden="true"]');
-    expect(dots).toBeTruthy();
-    expect(dots.querySelectorAll('span').length).toBeGreaterThan(3);
-    expect(document.getElementById('ob-progress-fill').parentElement.getAttribute('aria-hidden')).toBe('true');
+    // No dots any more (25 of them overflowed the card): one line of text and a slim bar that says the same in numbers.
+    expect(label.parentElement.querySelectorAll('span').length).toBe(1);
+    const bar = document.getElementById('ob-progress-fill').parentElement;
+    expect(bar.getAttribute('role')).toBe('progressbar');
+    expect(bar.getAttribute('aria-valuenow')).toBe('1');
   });
 
   it('the pace cards say which one is chosen', () => {

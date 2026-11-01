@@ -156,9 +156,34 @@ const Onboarding = {
     return (this._pace || this.pace()) === 'full' ? all : all.filter(step => step.quick);
   },
 
+  // The starting-point cards only choose which sidebar panels and shortcuts you keep (and Simple vs full), so with the sidebar answered "no" the step is
+  // left out of the walk, the counts and Back (owner, 2026-11-01). A new profile that never saw it still ends up Simple (finish()).
+  _stepHidden(step) { return !!step && step.key === 'setupstyle' && !this._wantsSidebar(); },
+  _visibleSteps(steps) { return steps.filter(step => !this._stepHidden(step)); },
+  // The answer on the sidebar step adds or removes the starting-point step, so the count and the bar follow it at once.
+  _refreshProgress() {
+    const overlay = document.getElementById('vex-onboarding');
+    const label = overlay && overlay.querySelector('#ob-progress-label');
+    const bar = overlay && overlay.querySelector('#ob-progress-fill');
+    if (!label || !bar) return;
+    const steps = this.activeSteps || this.STEPS();
+    const vis = this._visibleSteps(steps);
+    const pos = Math.max(0, vis.findIndex(step => step.key === steps[this.step]?.key));
+    label.textContent = `${window.VexI18n?.t('step', 'Step') || 'Step'} ${pos + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${vis.length} · ${this._timeLeft(vis, pos)}`;
+    bar.style.width = Math.round(((pos + 1) / vis.length) * 100) + '%';
+    bar.parentElement.setAttribute('aria-valuemax', String(vis.length));
+  },
+  // Next/previous step that is shown; past the end is the finish.
+  _move(dir) {
+    const steps = this.activeSteps || this.STEPS();
+    let i = this.step + dir;
+    while (i >= 0 && i < steps.length && this._stepHidden(steps[i])) i += dir;
+    this.step = Math.max(0, i);
+  },
+
   // "about two minutes left", from what each remaining step actually asks for.
-  _timeLeft(steps) {
-    const secs = steps.slice(this.step + 1).reduce((n, step) => n + (step.secs || 25), 0);
+  _timeLeft(steps, at = this.step) {
+    const secs = steps.slice(at + 1).reduce((n, step) => n + (step.secs || 25), 0);
     // Through VexI18n like the rest of the header: it stayed English in
     // Turkish (found 2026-09-29).
     const t = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
@@ -395,7 +420,7 @@ const Onboarding = {
   _skip(key, overlay) {
     this._stash(key, overlay);
     if (key === 'sidebar') delete this._session.sidebar;
-    this.step++;
+    this._move(1);
     this._render();
   },
 
@@ -407,14 +432,16 @@ const Onboarding = {
     const overlay = document.createElement('div');
     overlay.id = 'vex-onboarding';
     overlay.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
-    const dots = steps.map((_, i) => `<span style="width:7px;height:7px;border-radius:50%;background:${i === this.step ? 'var(--primary)' : 'var(--border)'};display:inline-block"></span>`).join(' ');
-    const isLast = this.step === steps.length - 1;
-    const pct = Math.round(((this.step + 1) / steps.length) * 100);
+    // Hidden steps (the starting point with no sidebar) are not counted. A slim bar and one line of text: 25 dots overflowed the 520px card.
+    const vis = this._visibleSteps(steps);
+    const pos = Math.max(0, vis.findIndex(step => step.key === s.key));
+    const isLast = pos === vis.length - 1;
+    const pct = Math.round(((pos + 1) / vis.length) * 100);
     overlay.innerHTML = `
       <div style="width:520px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,0.55);overflow:hidden">
         <div style="padding:24px 26px 8px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><span id="ob-progress-label" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Step ${this.step + 1} of ${steps.length}</span><span style="flex:1"></span><span aria-hidden="true" style="display:flex;gap:10px;align-items:center">${dots}</span></div>
-          <div aria-hidden="true" style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-bottom:4px;min-width:0"><span id="ob-progress-label" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;white-space:nowrap">Step ${pos + 1} of ${vis.length}</span></div>
+          <div role="progressbar" aria-label="Setup progress" aria-valuemin="1" aria-valuemax="${vis.length}" aria-valuenow="${pos + 1}" style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
             <span style="font-size:21px;font-weight:700;color:var(--text)">${this._esc(s.title)}</span>
             ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:var(--success);background:color-mix(in srgb, var(--success) 12%, transparent);border:1px solid color-mix(in srgb, var(--success) 40%, transparent);padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">' + VexIcons.svg('check', { size: 11 }) + ' ' + window.escapeHtml(window.VexI18n?.t('configured', 'Already set') || 'Already set') + '</span>' : ''}
@@ -425,9 +452,9 @@ const Onboarding = {
         <div style="display:flex;align-items:center;gap:8px;padding:16px 26px;border-top:1px solid var(--border)">
           <button id="ob-skipall" style="background:none;border:none;color:var(--text-muted);font-family:inherit;font-size:12.5px;cursor:pointer">Skip setup</button>
           <span style="flex:1"></span>
-          ${this.step > 0 ? `<button id="ob-back" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Back</button>` : ''}
+          ${pos > 0 ? `<button id="ob-back" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Back</button>` : ''}
           ${!isLast ? `<button id="ob-skip" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Skip</button>` : ''}
-          <button id="ob-next" style="padding:9px 22px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${this.step === 0 ? 'Get started' : isLast ? 'Finish' : 'Save &amp; continue'}</button>
+          <button id="ob-next" style="padding:9px 22px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${pos === 0 ? 'Get started' : isLast ? 'Finish' : 'Save &amp; continue'}</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -437,10 +464,10 @@ const Onboarding = {
     overlay.firstElementChild.setAttribute('aria-label', s.title);
     // Said after the name when the step opens: "Step 3 of 9" and what the step is for.
     overlay.firstElementChild.setAttribute('aria-describedby', 'ob-progress-label ob-sub');
-    const labels = { 'ob-skipall': ['skipSetup', 'Skip setup'], 'ob-back': ['back', 'Back'], 'ob-skip': ['skip', 'Skip'], 'ob-next': this.step === 0 ? ['getStarted', 'Get started'] : isLast ? ['finish', 'Finish'] : ['saveContinue', 'Save & continue'] };
+    const labels = { 'ob-skipall': ['skipSetup', 'Skip setup'], 'ob-back': ['back', 'Back'], 'ob-skip': ['skip', 'Skip'], 'ob-next': pos === 0 ? ['getStarted', 'Get started'] : isLast ? ['finish', 'Finish'] : ['saveContinue', 'Save & continue'] };
     for (const [id, [key, fallback]] of Object.entries(labels)) { const button = overlay.querySelector('#' + id); if (button) button.textContent = window.VexI18n?.t(key, fallback) || fallback; }
     overlay.querySelector('#ob-progress-label').textContent =
-      `${window.VexI18n?.t('step', 'Step') || 'Step'} ${this.step + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${steps.length} · ${this._timeLeft(steps)}`;
+      `${window.VexI18n?.t('step', 'Step') || 'Step'} ${pos + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${vis.length} · ${this._timeLeft(vis, pos)}`;
     // The language comes first, above the agreement: everything after it, the agreement included, is in the language chosen here.
     if (this.step === 0) this._langSwitch(overlay);
     // The agreement: "I agree" or "Quit Vex", and nothing that skips past it.
@@ -464,7 +491,7 @@ const Onboarding = {
     }
     else overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
     if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
-    overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
+    overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this._move(-1); this._render(); });
     overlay.querySelector('#ob-skip')?.addEventListener('click', () => this._skip(s.key, overlay));
     overlay.querySelector('#ob-next').addEventListener('click', () => this._commitAndNext(s.key, overlay));
     // Escape closes what is open first (a drop-down, an opened list), and
@@ -1198,6 +1225,7 @@ const Onboarding = {
     body.querySelectorAll('[data-sb-answer]').forEach((b) => b.addEventListener('click', () => {
       this._pendingSidebar = b.dataset.sbAnswer === 'yes';
       this._session.sidebar = this._pendingSidebar;
+      this._refreshProgress();
       body.querySelectorAll('[data-sb-answer]').forEach((x) => {
         const on = (x.dataset.sbAnswer === 'yes') === this._pendingSidebar;
         x.style.borderColor = on ? 'var(--primary)' : 'var(--border)';
@@ -2032,7 +2060,7 @@ const Onboarding = {
       // Done either way: the point was to offer the check, not to insist.
       try { localStorage.setItem('vex.notificationsChecked', 'true'); } catch (err) { console.warn('[setup] could not record the notification check:', err && err.message); }
     }
-    this.step++;
+    this._move(1);
     this._render();
   },
 };
