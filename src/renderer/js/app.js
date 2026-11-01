@@ -738,8 +738,11 @@ function vexOwnTextFocused(doc) {
     });
 
     // Theme packs: design, icons and colours together (js/theme-pack-ui.js).
-    document.getElementById('setting-open-theme-packs')?.addEventListener('click', () => {
-      if (typeof ThemePackUI !== 'undefined') ThemePackUI.open();
+    // The picker loads after start-up (lazy-boot.js): a click before it is here waits for it, and a file that failed to load says so.
+    document.getElementById('setting-open-theme-packs')?.addEventListener('click', async () => {
+      if (typeof ThemePackUI === 'undefined' && typeof VexBoot !== 'undefined') await VexBoot.whenSettled();
+      if (typeof ThemePackUI === 'undefined') { showToast('Theme packs could not be loaded. Restart Vex and try again.', 'error'); return; }
+      ThemePackUI.open();
     });
 
     // Weather location — district-accurate pick-list, mirrored to the start page.

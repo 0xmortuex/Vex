@@ -9973,6 +9973,7 @@ const VexI18nUI = {
       'Skin': 'Kaplama',
       'Theme packs': 'Tema paketleri',
       'Theme packs…': 'Tema paketleri…',
+      'Theme packs could not be loaded. Restart Vex and try again.': 'Tema paketleri yüklenemedi. Vex’i yeniden başlatıp tekrar dene.',
       'A theme as a design, a set of icons and colours together': 'Bir temayı tasarım, simge seti ve renklerle birlikte seç',
       'Design, icons and colours together': 'Tasarım, simgeler ve renkler birlikte',
       'A pack is more than colours: the shape of the tabs, toolbar and panels, a set of icons and, for some, a font. It keeps the look you chose (Classic, Firefox, Chrome...).': 'Paket yalnızca renk değildir: sekmelerin, araç çubuğunun ve panellerin biçimi, bir simge seti ve bazılarında bir yazı tipi de vardır. Seçtiğin görünümü (Klasik, Firefox, Chrome...) değiştirmez.',
