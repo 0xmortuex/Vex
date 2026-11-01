@@ -201,7 +201,7 @@
     write(DEFS_KEY, JSON.stringify(defs));
     cache = null;
     relayout();
-    window.dispatchEvent(new CustomEvent(EVENT, { detail: Object.assign({ groups: true }, detail) }));
+    window.dispatchEvent(new CustomEvent('vex:sidebar-groups', { detail: Object.assign({ groups: true }, detail) }));
   }
 
   const clean = (v, max, what) => {
@@ -320,7 +320,7 @@
     catch (err) { throw new Error('Could not reset the sidebar groups: ' + err.message, { cause: err }); }
     cache = null;
     relayout();
-    window.dispatchEvent(new CustomEvent(EVENT, { detail: { groups: true, reset: true } }));
+    window.dispatchEvent(new CustomEvent('vex:sidebar-groups', { detail: { groups: true, reset: true } }));
   }
 
   // ---- Which folders are open ---------------------------------------------------------------------------------------
@@ -338,7 +338,7 @@
     if (on) set.add(id); else set.delete(id);
     write(OPEN_KEY, JSON.stringify([...set]));
     applyOpen();
-    window.dispatchEvent(new CustomEvent(EVENT, { detail: { open: [...set] } }));
+    window.dispatchEvent(new CustomEvent('vex:sidebar-groups', { detail: { open: [...set] } }));
   }
   const toggleOpen = (id) => { setOpen(id, !isOpen(id)); return isOpen(id); };
   // The names the first version of this feature used (a heading that folds): a group is folded when it is not open.
@@ -370,7 +370,7 @@
     }
     const box = document.getElementById('setting-sidebar-groups');
     if (box) box.checked = !!on;
-    window.dispatchEvent(new CustomEvent(EVENT, { detail: { enabled: !!on } }));
+    window.dispatchEvent(new CustomEvent('vex:sidebar-groups', { detail: { enabled: !!on } }));
     return !!on;
   }
 

@@ -138,7 +138,7 @@ describe('Work is part of the Toolbox', () => {
 
   it('the Change button closes the Toolbox before the job picker opens', () => {
     document.body.innerHTML = '<div id="vex-toolbox"><div id="tb-job"></div></div>';
-    window.JobSetup = { open: vi.fn() };
+    window.JobSetup = { open: vi.fn(), nameOf: (j) => (j && j.name) || '', catOf: (c) => c, needsTr: () => false, ensureTr: () => Promise.resolve() };
     WorkPanel.refresh();
     document.querySelector('#wp-change').click();
     expect(document.getElementById('vex-toolbox')).toBeNull();
