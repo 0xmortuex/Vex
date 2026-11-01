@@ -307,6 +307,9 @@ Blocking, isolation, Tor, and the things that follow you.
 - **Cheat tools and fake updates** (`download-guard`): Holds a download whose name looks like a cheat or exploit tool or a fake update, and asks you before it is kept.
   - Open: Settings > Web safety.
   - Default: always on, no switch.
+- **Dangerous site warnings** (`threat-list`): Before a page opens, Vex looks its address up in a list of reported phishing and malware sites kept on this computer. If it is listed you get a full-page warning with Go back to safety as the main choice. The address is never sent anywhere. Settings > Privacy & security: dangerous sites has the switch, the date of the list and Update now.
+  - Open: Ctrl+K: "Dangerous Site Protection", "Test the Dangerous Site Warning"; Settings > Privacy & security: dangerous sites.
+  - Default: always on, no switch.
 - **Reject cookie banners** (`cookie-reject`): Presses the site's own Reject button on cookie banners for you. Use Ctrl+K, Cookie banners, to leave a site alone or handle it again.
   - Open: Ctrl+K: "Cookie banners: leave this site alone, or handle it again"; Settings > Safer browsing helpers.
 - **Marketplace red-flag checklist** (`marketplace-signs`): Checks a listing on a trading site you list for five scam signs: a very low price, payment by IBAN, moving off-site, a new seller and pressure to hurry. Run it from Ctrl+K, Check this listing for red flags. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.

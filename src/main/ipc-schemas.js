@@ -816,6 +816,10 @@ define('websafety:allow-host websafety:forget-host', [string(253)]);
 define('websafety:set-paranoid', [string(2048), boolean]);
 define('websafety:check', [string(2048)]);
 define('websafety:third-party-count', [shape({ site: string(253), partition: optional(string(160)), hosts: value => Array.isArray(value) && value.length <= 500 && value.every(string(253)) })]);
+// Known dangerous sites (src/main/threat-list.js, js/threat-list-ui.js): the switch, the list's status and its update. Vex's own window only.
+define('threat:status threat:update threat:continue-log', []);
+define('threat:set-enabled threat:set-auto-update', [boolean]);
+define('threat:forget-host', [string(253)]);
 define('downloads:explain', [string(64), optional(boolean)]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);
