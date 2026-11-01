@@ -413,13 +413,13 @@ const Onboarding = {
     overlay.innerHTML = `
       <div style="width:520px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,0.55);overflow:hidden">
         <div style="padding:24px 26px 8px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><span id="ob-progress-label" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Step ${this.step + 1} of ${steps.length}</span><span style="flex:1"></span>${dots}</div>
-          <div style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><span id="ob-progress-label" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Step ${this.step + 1} of ${steps.length}</span><span style="flex:1"></span><span aria-hidden="true" style="display:flex;gap:10px;align-items:center">${dots}</span></div>
+          <div aria-hidden="true" style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
             <span style="font-size:21px;font-weight:700;color:var(--text)">${this._esc(s.title)}</span>
             ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:var(--success);background:color-mix(in srgb, var(--success) 12%, transparent);border:1px solid color-mix(in srgb, var(--success) 40%, transparent);padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">' + VexIcons.svg('check', { size: 11 }) + ' ' + window.escapeHtml(window.VexI18n?.t('configured', 'Already set') || 'Already set') + '</span>' : ''}
           </div>
-          <div style="font-size:13px;color:var(--text-muted);margin-top:6px;line-height:1.5">${this._esc(s.sub)}</div>
+          <div id="ob-sub" style="font-size:13px;color:var(--text-muted);margin-top:6px;line-height:1.5">${this._esc(s.sub)}</div>
         </div>
         <div id="ob-body" style="padding:14px 26px;overflow-y:auto;flex:1"></div>
         <div style="display:flex;align-items:center;gap:8px;padding:16px 26px;border-top:1px solid var(--border)">
@@ -435,6 +435,8 @@ const Onboarding = {
     overlay.firstElementChild.setAttribute('role', 'dialog');
     overlay.firstElementChild.setAttribute('aria-modal', 'true');
     overlay.firstElementChild.setAttribute('aria-label', s.title);
+    // Said after the name when the step opens: "Step 3 of 9" and what the step is for.
+    overlay.firstElementChild.setAttribute('aria-describedby', 'ob-progress-label ob-sub');
     const labels = { 'ob-skipall': ['skipSetup', 'Skip setup'], 'ob-back': ['back', 'Back'], 'ob-skip': ['skip', 'Skip'], 'ob-next': this.step === 0 ? ['getStarted', 'Get started'] : isLast ? ['finish', 'Finish'] : ['saveContinue', 'Save & continue'] };
     for (const [id, [key, fallback]] of Object.entries(labels)) { const button = overlay.querySelector('#' + id); if (button) button.textContent = window.VexI18n?.t(key, fallback) || fallback; }
     overlay.querySelector('#ob-progress-label').textContent =
@@ -458,7 +460,7 @@ const Onboarding = {
         });
       });
       overlay.querySelector('#ob-next').textContent = window.VexI18n?.t('legalAgree', 'I agree') || 'I agree';
-      overlay.firstElementChild.setAttribute('aria-describedby', 'vex-legal-intro');
+      overlay.firstElementChild.setAttribute('aria-describedby', 'ob-progress-label vex-legal-intro');
     }
     else overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
     if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
@@ -481,6 +483,8 @@ const Onboarding = {
     };
     document.addEventListener('keydown', this._keyHandler);
     this._renderBody(s.key, overlay.querySelector('#ob-body'));
+    this._nameFields(overlay, s);
+    this._markChoices(overlay.querySelector('#ob-body'));
     overlay.querySelector('input,button')?.focus();
   },
 
@@ -512,6 +516,28 @@ const Onboarding = {
 
   _input(id, ph, val) {
     return `<input id="${id}" placeholder="${this._esc(ph)}" value="${this._esc(val || '')}" spellcheck="false" autocomplete="off" style="width:100%;box-sizing:border-box;padding:11px 13px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none;font-family:'Outfit',sans-serif">`;
+  },
+
+  // A field that has only a placeholder has no name for a screen reader. A label written just above it is tied to it; otherwise the
+  // step's title names it.
+  _nameFields(overlay, step) {
+    for (const f of overlay.querySelectorAll('#ob-body input, #ob-body select, #ob-body textarea')) {
+      if (f.type === 'hidden' || f.getAttribute('aria-label') || f.getAttribute('aria-labelledby') || (f.labels && f.labels.length)) continue;
+      const prev = f.previousElementSibling;
+      if (prev && prev.tagName === 'LABEL' && !prev.htmlFor && f.id) { prev.htmlFor = f.id; continue; }
+      f.setAttribute('aria-label', step.title);
+    }
+  },
+
+  // The cards that choose one answer show it with a coloured border only. They say it to a screen reader too: pressed or not, kept up
+  // to date after each click (the cards change their own border in place or the step is drawn again).
+  _markChoices(body) {
+    if (!body) return;
+    const mark = () => body.querySelectorAll('button[data-pace], button[data-profile], button[data-theme], button[data-lang], button[data-wisdom], button[data-engine], button[data-look], button[data-tabs], button[data-colors], button[data-preset]').forEach((b) => {
+      b.setAttribute('aria-pressed', String(/border[^;]*var\(--primary\)/.test(b.getAttribute('style') || '')));
+    });
+    mark();
+    body.addEventListener('click', () => setTimeout(mark, 0));
   },
 
   // === Setup style — Full Vex / Minimal / Custom pick-and-choose ===

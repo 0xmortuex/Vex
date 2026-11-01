@@ -320,6 +320,10 @@ const SettingsUI = {
     this._putInOrder(root, groups, ranked ? (a, b) => (ranked.get(b) - ranked.get(a)) || byOrder(a, b) : byOrder);
     const nav = (root.parentElement || root).querySelector('.set-nav');
     if (nav) this._resultsInNav(nav, root, groups, ranked);
+    // How many results, said once per search to a screen reader (the empty note below says it when there are none).
+    const found = nav ? nav.querySelectorAll('.set-result-chip').length : 0;
+    const said = this._searchStatus(root);
+    if (said) said.textContent = q && found ? (found === 1 ? '1 result' : found + ' results') : '';
     root.querySelectorAll(':scope > .set-subnav').forEach(row => { row.style.display = q ? 'none' : ''; });
     // While searching, Simple mode hides nothing: the advanced sections that
     // match are in the results (css/simple-mode.css marks them Advanced).
@@ -338,12 +342,27 @@ const SettingsUI = {
     this._syncPad(root);
     let empty = root.querySelector('.set-empty');
     if (q && !any) {
-      if (!empty) { empty = document.createElement('div'); empty.className = 'set-empty'; empty.style.cssText = 'color:var(--text-muted);font-size:13px;padding:20px 4px'; root.appendChild(empty); }
+      if (!empty) { empty = document.createElement('div'); empty.className = 'set-empty'; empty.setAttribute('role', 'status'); empty.style.cssText = 'color:var(--text-muted);font-size:13px;padding:20px 4px'; root.appendChild(empty); }
       empty.textContent = 'No settings match “' + query + '”.';
       empty.style.display = '';
     } else if (empty) { empty.style.display = 'none'; }
     // The results, and the empty note, get their place in the columns.
     this._layout(root);
+  },
+
+  // The search's own status line: read by a screen reader, never drawn.
+  _searchStatus(root) {
+    const panel = root.parentElement || root;
+    let st = panel.querySelector('.set-search-status');
+    if (!st) {
+      const inner = panel.querySelector('.set-toolbar-inner');
+      if (!inner) return null;
+      st = document.createElement('div');
+      st.className = 'set-search-status vex-sr-only';
+      st.setAttribute('role', 'status');
+      inner.appendChild(st);
+    }
+    return st;
   },
 
   // ---- searching: ranking, order and the result list ------------------------------------------
@@ -503,6 +522,7 @@ const SettingsUI = {
       span.textContent = h.title;
       b.appendChild(span);
       if (h.el) {
+        b.appendChild(document.createTextNode(' '));   // the name reads "setting, section", not one run-together word
         const sub = document.createElement('small');
         sub.className = 'set-result-sub';
         sub.textContent = h.section;
@@ -524,6 +544,10 @@ const SettingsUI = {
       for (let d = el.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
     }
     target.scrollIntoView({ behavior: 'smooth', block: el ? 'center' : 'start' });
+    // The highlight is only seen: the keyboard goes to the setting that was found, so a screen reader reads it.
+    const CONTROL = 'input:not([type="hidden"]), select, textarea, button:not(.set-info-btn):not(.set-more-btn)';
+    const go = el && el.isConnected && el.matches && el.matches(CONTROL) ? el : target.querySelector(CONTROL);
+    if (go && !go.disabled) go.focus({ preventScroll: true });
     const cls = el ? 'set-item-hit' : 'set-hit';
     target.classList.add(cls);
     setTimeout(() => target.classList.remove(cls), 1600);

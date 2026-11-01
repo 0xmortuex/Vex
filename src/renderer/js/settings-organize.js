@@ -123,6 +123,13 @@ const SettingsOrganize = {
         el.before(btn);
         btn.classList.add('set-info-btn--line');
       }
+      // Named by the row it explains: "About this setting" alone, a hundred times, tells a screen reader nothing.
+      const src = row ? row.querySelector(':scope > span') : (btn.previousElementSibling || null);
+      if (src && src !== el && !src.contains(el) && !src.classList.contains('set-info-folded') && (src.textContent || '').trim().length > 0 && src.textContent.trim().length <= 90) {
+        if (!src.id) src.id = 'set-info-for-' + this._seq;
+        btn.id = 'set-info-btn-' + this._seq;
+        btn.setAttribute('aria-labelledby', btn.id + ' ' + src.id);
+      }
       el.dataset.infoFolded = '1';
       el.classList.add('set-info-folded');
       btn.addEventListener('click', () => {
