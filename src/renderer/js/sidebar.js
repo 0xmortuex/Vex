@@ -368,6 +368,7 @@ const SidebarManager = {
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const panel = btn.dataset.panel;
+        if (!panel) return;   // a group folder (js/sidebar-groups.js) opens and closes itself
         // The "Start Page" (house) icon has no corresponding panel UI —
         // panel-start is an empty div — so opening it used to blank the
         // webview area. Route it to open/focus the real start-page tab
@@ -2066,6 +2067,10 @@ const SidebarManager = {
     for (const el of Array.from(bar.children)) {
       if (el.classList && el.classList.contains('sidebar-spacer')) break;
       if (el.classList && el.classList.contains('sidebar-icon') && el.dataset.panel) out.push(el);
+      // The buttons inside the group folders (js/sidebar-groups.js), in the order the rail shows them.
+      else if (el.classList && el.classList.contains('sb-folder')) {
+        el.querySelectorAll('.sb-folder-inner > .sidebar-icon[data-panel]').forEach(b => out.push(b));
+      }
     }
     return out;
   },
@@ -2096,6 +2101,8 @@ const SidebarManager = {
     let j = dir < 0 ? i - 1 : i + 1;
     // With groups on, a panel moves among the panels of its own group: the next one up or down that shares it.
     if (i >= 0 && typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.enabled()) {
+      // A group that lists its panels keeps their order itself; the buttons move inside it.
+      if (VexSidebarGroups.isListed(panel)) { VexSidebarGroups.nudgePanel(panel, dir); return; }
       const g = VexSidebarGroups.groupOf(panel);
       while (j >= 0 && j < order.length && VexSidebarGroups.groupOf(order[j]) !== g) j += dir < 0 ? -1 : 1;
     }
@@ -2151,6 +2158,8 @@ const SidebarManager = {
       if (e.button !== 0) return;
       const btn = e.target.closest && e.target.closest('.sidebar-icon');
       if (!btn || !this._topButtons().includes(btn)) return;
+      // With the sidebar in group folders the buttons are moved between groups (js/sidebar-groups-ui.js).
+      if (typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.enabled()) return;
       drag = { btn, x: e.clientX, y: e.clientY, id: e.pointerId, active: false, target: null };
     });
     bar.addEventListener('pointermove', (e) => {
@@ -2219,32 +2228,23 @@ const SidebarManager = {
       const o = ov[panel] || {};
       const hidden = !!o.hidden;
       const name = o.name || btn.title || panel;
-      // With groups on, a heading with a fold toggle starts each group (the same fold the rail has).
+      // With groups on, a heading names each group (the folders of the rail; every button stays in this list, open folder or not).
       if (grouped) {
         const gid = VexSidebarGroups.groupOf(panel);
         if (gid !== lastGroup) {
           lastGroup = gid;
           if (gid) {
-            const info = VexSidebarGroups.groupInfo(gid);
-            const open = !VexSidebarGroups.isFolded(gid);
-            const head = document.createElement('button');
-            head.type = 'button';
+            const head = document.createElement('div');
             head.className = 'sidebar-manager-group';
             head.dataset.groupHead = gid;
-            head.setAttribute('aria-expanded', String(open));
-            head.title = 'Show or hide the buttons in this group';
-            head.innerHTML = '<span class="smg-chev" aria-hidden="true">' + VexIcons.svg(open ? 'chevron-down' : 'chevron-right', { size: 12 }) + '</span><span class="smg-label"></span>';
-            head.querySelector('.smg-label').textContent = info.label;
-            if (typeof VexI18nUI !== 'undefined') { VexI18nUI.translateEl(head); VexI18nUI.translateEl(head.querySelector('.smg-label')); }
-            head.addEventListener('click', () => {
-              VexSidebarGroups.toggleFolded(gid);
-              this.renderSidebarManager();
-              host.querySelector('[data-group-head="' + gid + '"]')?.focus();
-            });
+            head.setAttribute('role', 'heading');
+            head.setAttribute('aria-level', '4');
+            head.setAttribute('translate', 'no');
+            head.innerHTML = '<span class="smg-chev" aria-hidden="true">' + VexIcons.svg(VexSidebarGroups.groupInfo(gid).icon, { size: 14 }) + '</span><span class="smg-label"></span>';
+            head.querySelector('.smg-label').textContent = VexSidebarGroups.fullNameOf(VexSidebarGroups.groupInfo(gid));
             host.appendChild(head);
           }
         }
-        if (gid && VexSidebarGroups.isFolded(gid)) return;
       }
       const isUrl = this._isUrlPanel(panel);
       const row = document.createElement('div');
@@ -2308,6 +2308,8 @@ const SidebarManager = {
       const to = row && (row.querySelector('button[data-act="' + refocus.act + '"]') || row.querySelector('button[data-act]'));
       if (to) this._rowFocus(to);
     }
+    // The list of groups above it (js/sidebar-groups-ui.js).
+    if (typeof VexSidebarGroupsUI !== 'undefined') VexSidebarGroupsUI.renderManager();
   },
 
   // Roving focus inside a Sidebar Buttons row: the focused button is the
@@ -2819,6 +2821,11 @@ const SidebarManager = {
       });
     }
     items.push({ separator: true });
+    // Where the button can go without dragging it (js/sidebar-groups-ui.js): into another group, up or down inside its own.
+    if (typeof VexSidebarGroupsUI !== 'undefined') {
+      const move = VexSidebarGroupsUI.panelMenuItems(panelName, e);
+      if (move.length) items.push(...move, { separator: true });
+    }
     if (isSite) {
       // Pinned sites are removed entirely, not just hidden.
       items.push({ label: 'Unpin', danger: true, action: () => this.unpinSite(panelName) });
