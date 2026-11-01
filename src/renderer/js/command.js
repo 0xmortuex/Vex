@@ -1013,7 +1013,9 @@ const CommandBar = {
     let e = this._loweredCache.get(c);
     if (!e || e.label !== c.label || e.id !== c.id) {
       const l = _tr().fold(c.label);
-      e = { label: c.label, id: c.id, l, i: _tr().fold(c.id), words: l.split(/\s+/) };
+      // The label in the other language ("Settings" ~ "Ayarlar"): what is shown is the translation, so a name typed in either language is a name match.
+      const twin = typeof VexSmartSearch !== 'undefined' && VexSmartSearch.otherLanguage ? _tr().fold(VexSmartSearch.otherLanguage(c.label)) : '';
+      e = { label: c.label, id: c.id, l, i: _tr().fold(c.id), words: l.split(/\s+/), twin, twinWords: twin ? twin.split(/\s+/) : [] };
       this._loweredCache.set(c, e);
     }
     return e;
@@ -1032,7 +1034,9 @@ const CommandBar = {
 
     let score = 0;
     if (label.startsWith(q)) score = 100;
+    else if (low.twin && low.twin.startsWith(q)) score = 100;
     else if (low.words.some(w => w.startsWith(q))) score = 85;
+    else if (low.twinWords.some(w => w.startsWith(q))) score = 85;
     else if (id.startsWith(q)) score = 80;
     else if (q.includes(' ') && q.split(/\s+/).filter(Boolean).every(t => label.includes(t) || hint().includes(t))) score = 70;
     else if (label.includes(q) || id.includes(q)) score = 60;
@@ -1250,6 +1254,21 @@ const CommandBar = {
     try { return !!c.when(); } catch (err) { console.error('[Command] when() failed for ' + c.id, err); return false; }
   },
 
+  // What sets commands apart inside one name tier: a name that is exactly what was typed (in either language) is above one that merely starts with it
+  // (+9), and a shorter name above a longer one (+0..1: "Ayarlar" above "Ayar danışmanı: ..." for "ayar"). History (below) never lifts a command over a
+  // better name tier.
+  _nameExtra(q, c, score) {
+    if (score < 85) return 0;
+    const f = _tr().fold(q).trim();
+    const low = this._lowered(c);
+    if (low.l === f || low.twin === f) return 9;
+    const names = [low.l, low.twin].filter(Boolean);
+    const hit = names.filter(n => (score >= 100 ? n.startsWith(f) : n.split(/\s+/).some(w => w.startsWith(f))));
+    if (!hit.length) return 0;
+    return f.length / Math.min(...hit.map(n => n.length));
+  },
+  // The largest amount history may add: below the gap between two name tiers (5), so it settles ties and never reorders tiers.
+  HISTORY_CAP: 4,
   _rankCommands(q, withScores) {
     const usage = this._usage();
     const now = Date.now();
@@ -1258,8 +1277,9 @@ const CommandBar = {
       .map(c => {
         let score = this._scoreCommand(q, c);
         if (score > 0) {
+          score += this._nameExtra(q, c, score);
           const u = usage[c.id];
-          if (u) score += this._frecencyBonus(u, now);
+          if (u) score += Math.min(this.HISTORY_CAP, this._frecencyBonus(u, now));
         }
         return { c, score };
       })
@@ -1276,31 +1296,37 @@ const CommandBar = {
     const days = Math.max(0, (now - (u.at || 0)) / 864e5);
     return Math.min(12, (u.n || 0) * 3) * Math.pow(0.5, days / this.HALF_LIFE_DAYS) + (days < 1 ? 3 : 0);
   },
-  _ago(ms) {
-    const d = Math.floor(Math.max(0, ms) / 864e5);
-    if (d < 1) return 'today';
-    if (d === 1) return 'yesterday';
-    return d + ' days ago';
-  },
   // The reason the highlighted result is where it is, in one line, or '' for a result that is not a command.
   // query is what is in the box (a leading > is ignored).
+  // One piece of the "Why this order" line in the language of the window; {1} {2} are filled in. The English is the table key (js/i18n-ui.js).
+  _say(en, ...args) {
+    let text = en;
+    try {
+      if (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup) { const hit = VexI18nUI.lookup(en); if (hit != null) text = hit; }
+    } catch (err) { console.warn('[Command] the order line could not be translated:', err.message); }
+    return text.replace(/\{(\d)\}/g, (all, n) => (args[n - 1] != null ? args[n - 1] : all));
+  },
   _whyOrder(item, query, now = Date.now()) {
     if (!item || !this.commands.includes(item)) return '';
     const q = String(query || '').replace(/^>/, '').trim().toLowerCase();
     const u = this._usage()[item.id];
-    const used = u ? 'used ' + u.n + (u.n === 1 ? ' time' : ' times') + ', last ' + this._ago(now - (u.at || 0)) : '';
+    const d = u ? Math.floor(Math.max(0, now - (u.at || 0)) / 864e5) : 0;
+    const when = this._say(d < 1 ? 'today' : d === 1 ? 'yesterday' : '{1} days ago', d);
+    const used = u ? this._say(u.n === 1 ? 'used {1} time, last {2}' : 'used {1} times, last {2}', u.n, when) : '';
+    const head = this._say('Why this order:') + ' ';
     if (!q) {
       const pinned = typeof VexUsageCounters !== 'undefined' && VexUsageCounters.pinnedCommands().includes(item.id);
-      if (pinned) return 'Why this order: you pinned it' + (used ? '; ' + used : '');
-      return 'Why this order: ' + (used ? 'you ' + used : 'a suggestion Vex starts with');
+      if (pinned) return head + this._say('you pinned it') + (used ? '; ' + used : '');
+      return head + (u ? this._say(u.n === 1 ? 'you used {1} time, last {2}' : 'you used {1} times, last {2}', u.n, when) : this._say('a suggestion Vex starts with'));
     }
     const tiers = [[100, 'its name starts with what you typed'], [85, 'a word in its name starts with what you typed'], [80, 'its id starts with what you typed'],
       [70, 'every word you typed is in its name or description'], [60, 'its name contains what you typed'], [45, 'its description contains what you typed'], [30, 'the letters you typed appear in its name in order']];
     const score = this._scoreCommand(q, item);
-    const tier = tiers.find(t => t[0] === score);
-    if (!tier) return 'Why this order: it came from a shortcut word or another list, not from the name';
-    const bonus = u ? this._frecencyBonus(u, now) : 0;
-    return 'Why this order: ' + tier[1] + (u ? '; ' + used + ' (adds ' + (Math.round(bonus * 10) / 10) + ')' : '');
+    const exact = score === 100 && this._nameExtra(q, item, score) >= 9;
+    const tier = exact ? [100, 'its name is what you typed'] : tiers.find(t => t[0] === score);
+    if (!tier) return head + this._say('it came from a shortcut word or another list, not from the name');
+    const bonus = u ? Math.min(this.HISTORY_CAP, this._frecencyBonus(u, now)) : 0;
+    return head + this._say(tier[1]) + (u ? '; ' + used + ' (' + this._say('adds {1}', Math.round(bonus * 10) / 10) + ')' : '');
   },
   _showWhy() {
     const box = document.getElementById('command-bar');

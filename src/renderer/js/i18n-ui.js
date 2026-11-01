@@ -10937,6 +10937,27 @@ const VexI18nUI = {
       'About {1}': '{1} hakkında',
       'Turn this off': 'Bunu kapat',
       // --- end look step and first-use card ---
+      // --- ctrlk ranking (agent) ---
+      'Why this order:': 'Bu sıranın nedeni:',
+      'you pinned it': 'sabitlediniz',
+      'a suggestion Vex starts with': 'Vex’in başlangıçta önerdiği bir şey',
+      'it came from a shortcut word or another list, not from the name': 'addan değil, bir kısayol sözcüğünden ya da başka bir listeden geldi',
+      'its name is what you typed': 'adı tam olarak yazdığınız şey',
+      'its name starts with what you typed': 'adı yazdığınız şeyle başlıyor',
+      'a word in its name starts with what you typed': 'adındaki bir sözcük yazdığınız şeyle başlıyor',
+      'its id starts with what you typed': 'kimliği yazdığınız şeyle başlıyor',
+      'every word you typed is in its name or description': 'yazdığınız her sözcük adında ya da açıklamasında var',
+      'its name contains what you typed': 'adı yazdığınız şeyi içeriyor',
+      'its description contains what you typed': 'açıklaması yazdığınız şeyi içeriyor',
+      'the letters you typed appear in its name in order': 'yazdığınız harfler adında sırayla geçiyor',
+      'today': 'bugün',
+      '{1} days ago': '{1} gün önce',
+      'used {1} time, last {2}': '{1} kez kullanıldı, son kullanım {2}',
+      'used {1} times, last {2}': '{1} kez kullanıldı, son kullanım {2}',
+      'you used {1} time, last {2}': '{1} kez kullandınız, son kullanım {2}',
+      'you used {1} times, last {2}': '{1} kez kullandınız, son kullanım {2}',
+      'adds {1}': '{1} ekliyor',
+      // --- end ctrlk ranking ---
     },
   },
 
