@@ -200,7 +200,7 @@ const DownloadsPanel = {
     // The card above is inside Vex. A long download is one you have gone off to
     // do something else during, so say it on the desktop too.
     if (dl.state !== 'cancelled' && !document.hasFocus() && typeof window.vex?.notify === 'function') {
-      window.vex.notify(dl.state === 'completed' ? 'Download finished' : 'Download failed', dl.filename)
+      window.vex.notify((window.vexTr || String)(dl.state === 'completed' ? 'Download finished' : 'Download failed'), dl.filename)
         .catch(err => window.VexProblems?.note('Downloads', 'Could not show the desktop notification', err));
     }
   },

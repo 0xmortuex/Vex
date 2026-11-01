@@ -801,7 +801,7 @@ const SyncEngine = (() => {
       const name = String(d.deviceName || 'A device').slice(0, 60);
       const body = name + ' signed in to your sync account. If that was not you, remove it in Settings › Sync: whoever did it could read the sign-in code sent to your email.';
       window.showToast?.(body, 'info', 15000);
-      try { await window.vex?.notify?.('A new device signed in to Vex Sync', body); }
+      try { await window.vex?.notify?.((window.vexTr || String)('A new device signed in to Vex Sync'), body); }
       catch (err) { console.error('[Sync] Could not show the new-device notice:', err); }
     }
     return fresh;

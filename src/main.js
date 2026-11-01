@@ -11691,6 +11691,8 @@ const notifier = require('./main/notify').createNotifier({
   iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
   // No sound over a full-screen game (T1-038): the toast still goes to Action Center.
   quiet: _fullscreenGameNow,
+  // The title, body and buttons follow the interface language (main/i18n-main.js).
+  translate: (text) => _i18nMain.t(text),
   // Clicking a toast brings Vex forward; a reminder's toast also opens the
   // reminder itself in the interface, with a way to snooze it.
   onClick: ({ tag } = {}) => {

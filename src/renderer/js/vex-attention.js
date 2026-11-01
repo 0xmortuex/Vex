@@ -234,7 +234,7 @@ const VexAttention = {
       if (this.isMuted(opts.feature)) return waits('muted', true);
       if (this.isLess(opts.feature) && this._list(this.KEYS.log).some(e => e && e.f === opts.feature && now - e.t < this.DAY_MS)) return waits('shown less: once a day', true);
     }
-    const res = await bridge.notify(String(opts.title).slice(0, 200), opts.body == null ? '' : String(opts.body), { urgency, feature: opts.feature, id: opts.id });
+    const res = await bridge.notify((window.vexTr || String)(String(opts.title)).slice(0, 200), opts.body == null ? '' : (window.vexTr || String)(String(opts.body)), { urgency, feature: opts.feature, id: opts.id });
     if (res && res.suppressed) return waits(res.reason || 'held back', false);
     if (urgency === 'useful' || urgency === 'ambient') {
       const log = this._list(this.KEYS.log).filter(e => e && now - e.t < this.DAY_MS);

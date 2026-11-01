@@ -24,7 +24,9 @@
 // their own, so the URL carries it, and the launch picks that profile.
 // quiet(): true while a full-screen game has the screen (T1-038). A toast then makes no
 // sound; it is still shown (Windows holds it in Action Center) and a reminder is never dropped.
-function createNotifier({ Notification, nativeImage, iconPath, onClick, log, showTimeoutMs = 5000, profile = null, quiet = null }) {
+// translate(text): the language of the interface (main/i18n-main.js). What the code writes stays English; the title, the body and the
+// buttons are put through it on their way to Windows, so a Turkish Vex gets Turkish toasts. A text it has no entry for is shown as written.
+function createNotifier({ Notification, nativeImage, iconPath, onClick, log, showTimeoutMs = 5000, profile = null, quiet = null, translate = (s) => s }) {
   if (!Notification) throw new Error('createNotifier needs Electron\'s Notification class');
   const note = typeof log === 'function' ? log : () => {};
 
@@ -59,16 +61,16 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
       return `<toast activationType="protocol" launch="vex://news-open/${xmlEsc(tag)}${inProfile}">
   <visual><binding template="ToastGeneric">${image}<text>${xmlEsc(title)}</text><text>${xmlEsc(body)}</text></binding></visual>
   <actions>
-    <action content="Open" activationType="protocol" arguments="vex://news-open/${xmlEsc(tag)}${inProfile}"/>
-    <action content="Mute this source" activationType="protocol" arguments="vex://news-mute/${xmlEsc(tag)}${inProfile}"/>
+    <action content="${xmlEsc(translate('Open'))}" activationType="protocol" arguments="vex://news-open/${xmlEsc(tag)}${inProfile}"/>
+    <action content="${xmlEsc(translate('Mute this source'))}" activationType="protocol" arguments="vex://news-mute/${xmlEsc(tag)}${inProfile}"/>
   </actions>${mute}
 </toast>`;
     }
     return `<toast scenario="reminder" activationType="protocol" launch="vex://open/${xmlEsc(tag)}${inProfile}">
   <visual><binding template="ToastGeneric">${image}<text>${xmlEsc(title)}</text><text>${xmlEsc(body)}</text></binding></visual>
   <actions>
-    <action content="Snooze 9 min" activationType="protocol" arguments="vex://snooze/${xmlEsc(tag)}${inProfile}"/>
-    <action content="Open" activationType="protocol" arguments="vex://open/${xmlEsc(tag)}${inProfile}"/>
+    <action content="${xmlEsc(translate('Snooze 9 min'))}" activationType="protocol" arguments="vex://snooze/${xmlEsc(tag)}${inProfile}"/>
+    <action content="${xmlEsc(translate('Open'))}" activationType="protocol" arguments="vex://open/${xmlEsc(tag)}${inProfile}"/>
   </actions>${mute}
 </toast>`;
   }
@@ -80,7 +82,7 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   // chrome.notifications.onClicked) in place of the one for every toast.
   function show({ title, body, silent: wantSilent = false, tag, actions = false, kind, onClick: ownClick } = {}) {
     const silent = !!wantSilent || (typeof quiet === 'function' && !!quiet());
-    const heading = String(title || '').trim();
+    const heading = translate(String(title || '').trim());
     if (!heading) return Promise.reject(new Error('A notification needs a title'));
     if (!isSupported()) return Promise.reject(new Error('This system does not support desktop notifications'));
 
@@ -94,7 +96,8 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
 
       let n;
       try {
-        const opts = { title: heading, body: String(body || ''), silent: !!silent };
+        body = translate(String(body || ''));
+        const opts = { title: heading, body, silent: !!silent };
         if (icon) opts.icon = icon;
         // Buttons need the raw toast XML, which replaces everything above on
         // Windows; the tag is what the buttons carry back.
