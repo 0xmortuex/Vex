@@ -1,6 +1,6 @@
 # Changelog
 
-## v49.88.2 (2026-11-02) — A friendlier setup and Settings, theme packs and wallpapers, and updates that cannot fail silently
+## v49.89.2 (2026-11-02) — A friendlier setup and Settings, theme packs and wallpapers, and updates that cannot fail silently
 
 Vex looks and feels different on the first day now. Setup asks whether you want a sidebar and a game-friendly mode, Settings shows one short category at a time with a search that finds the exact setting, and you can dress the whole browser with a theme pack, an icon style and a wallpaper that Vex can recolour itself to match. It also warns you before a reported scam site opens, explains why a movie will not play, and a bad update can now undo itself.
 
@@ -36,6 +36,7 @@ Vex looks and feels different on the first day now. Setup asks whether you want 
 - **Updates, step by step.** "Update now" can no longer do nothing silently: a downloaded update survives a restart and installs when you quit, a failed install is reported, and every step goes to Settings › About › Update log. A copy run from a folder (like `dist\win-unpacked`) updates in its own folder, unless an installed Vex exists, in which case that one is updated and the cover says so. A new version that fails to start twice in a row is replaced by the previous version's saved installer, once, and Vex says so and does not offer that version again.
 
 ### Fixed
+- **The Stop button no longer throws an error on a tab that was only just opened.** A page that is not ready yet has nothing to stop; any other error is still shown.
 - **Extension popups no longer run off the screen.** Opened from the far-right extensions menu, Dark Reader and others came up with most of the window past the screen edge. The popup now opens under the button you pressed and stays inside the Vex window and the screen (above the button if there is no room below), and Stylus's popup opens under its button instead of mid-screen.
 - **2FA codes are no longer offered as new passwords**, and the saved-account chooser no longer opens over code boxes (found on the Riot account page).
 - **Extensions whose files start with a byte-order mark** no longer fail with a JSON error, and a failed unpack leaves no half-written folder.
