@@ -662,6 +662,8 @@ const ExtensionsSettings = (() => {
           folder: btn.dataset.popup,
           x: Math.max(0, Math.round(window.screenX + rect.left)),
           y: Math.max(0, Math.round(window.screenY + rect.bottom)),
+          right: Math.max(0, Math.round(window.screenX + rect.right)),
+          top: Math.max(0, Math.round(window.screenY + rect.top)),
           tab: Number.isInteger(tab) && tab > 0 ? tab : null
         });
         if (!r.ok) _toast('Could not open popup: ' + (r.error || 'unknown'), 'error');
