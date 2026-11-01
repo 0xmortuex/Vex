@@ -10957,6 +10957,8 @@ const VexI18nUI = {
       'you used {1} time, last {2}': '{1} kez kullandınız, son kullanım {2}',
       'you used {1} times, last {2}': '{1} kez kullandınız, son kullanım {2}',
       'adds {1}': '{1} ekliyor',
+      'you taught Vex this word': 'bu sözcüğü Vex’e siz öğrettiniz',
+      'it is your own shortcut word': 'sizin kendi kısayol sözcüğünüz',
       // --- end ctrlk ranking ---
       // --- notifications (agent) ---
       'Vex is using {1} MB, over your {2} MB ceiling. Sleep {3} idle tab{4} to free about {5} MB?': 'Vex {1} MB kullanıyor, {2} MB üst sınırınızı aşıyor. Boştaki {3} sekme uyutulup yaklaşık {5} MB boşaltılsın mı?',

@@ -103,3 +103,42 @@ describe('"Why this order" is translated', () => {
     expect(stray).toBe('Bu sıranın nedeni: addan değil, bir kısayol sözcüğünden ya da başka bir listeden geldi');
   });
 });
+
+describe('learned and own shortcut words against a name', () => {
+  const { VexAliases } = require('../../src/renderer/js/command-aliases.js');
+  const save = (aliases) => localStorage.setItem(VexAliases.KEY, JSON.stringify({ aliases, typed: {}, blocked: [] }));
+  const finish = (q) => VexAliases.apply(q, CommandBar._rankCommands(q), CommandBar.commands).map(c => c.id);
+  beforeEach(() => { globalThis.CommandBar = CommandBar; });
+  afterEach(() => { delete globalThis.CommandBar; });
+
+  it('a learned word does not hide the command named so ("ayar" -> Site Settings is ignored)', () => {
+    save({ ayar: { id: 'siteprofiles', auto: true, at: Date.now() } });
+    localStorage.setItem(CommandBar.USAGE_KEY, JSON.stringify({ siteprofiles: { n: 5, at: Date.now() } }));
+    expect(finish('ayar')[0]).toBe('settings');
+  });
+  it('a learned word still wins over a command that only matches by description', () => {
+    save({ zorbl: { id: 'siteprofiles', auto: true, at: Date.now() } });
+    expect(finish('zorbl')[0]).toBe('siteprofiles');
+  });
+  it('a word you made yourself keeps forcing its command', () => {
+    save({ ayar: { id: 'siteprofiles', auto: false, at: Date.now() } });
+    expect(finish('ayar')[0]).toBe('siteprofiles');
+  });
+  it('learning refuses a word that another command is named by', () => {
+    const site = CommandBar.commands.find(c => c.id === 'siteprofiles');
+    for (let i = 0; i < 5; i++) expect(VexAliases.learn('ayar', site, CommandBar.commands, 3)).toBeNull();
+    expect(Object.keys(VexAliases.all().aliases)).toEqual([]);
+    expect(Object.keys(VexAliases.all().typed)).toEqual([]);
+  });
+  it('says which rule applied', () => {
+    localStorage.setItem('vex.lang', 'tr');
+    const settings = CommandBar.commands.find(c => c.id === 'settings');
+    save({ ayar: { id: 'siteprofiles', auto: true, at: Date.now() } });
+    expect(CommandBar._whyOrder(settings, 'ayar')).toBe('Bu sıranın nedeni: adı yazdığınız şeyle başlıyor');
+    save({ zorbl: { id: 'siteprofiles', auto: true, at: Date.now() } });
+    const first = VexAliases.apply('zorbl', [], CommandBar.commands)[0];
+    expect(CommandBar._whyOrder(first, 'zorbl')).toBe('Bu sıranın nedeni: bu sözcüğü Vex’e siz öğrettiniz');
+    save({ zorbl: { id: 'siteprofiles', auto: false, at: Date.now() } });
+    expect(CommandBar._whyOrder(first, 'zorbl')).toBe('Bu sıranın nedeni: sizin kendi kısayol sözcüğünüz');
+  });
+});

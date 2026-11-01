@@ -144,6 +144,25 @@ const VexAliases = {
     return m.size;
   },
 
+  // Is another command named what was typed (its name starts with it, in either language)? Then a LEARNED word must not hide it:
+  // "ayar" was learned for "Site settings" while "Settings" is named "ayar...". Words you made yourself are deliberate and not asked.
+  _namedElsewhere(w, id, commands) {
+    if (typeof CommandBar === 'undefined' || typeof CommandBar._scoreCommand !== 'function') return false;
+    return (commands || this._commands()).some(x => x.id !== id && x.id !== 'alias-add' && CommandBar._scoreCommand(w, x) >= 100);
+  },
+  // The command a typed word puts first, or null: a word you made always; a learned word or a pack's word only when no other command is
+  // named that way. { id, auto }.
+  winner(q, commands) {
+    const w = this.normalize(q);
+    if (!w || !this.NAME.test(w)) return null;
+    const id = this.lookup(w);
+    if (!id) return null;
+    const a = this.all().aliases[w];
+    const auto = !a || !!a.auto;
+    if (auto && this._namedElsewhere(w, id, commands)) return null;
+    return { id, auto };
+  },
+
   lookup(word) {
     if (!this.prefs().enabled) return null;
     const w = this.normalize(word);
@@ -157,8 +176,9 @@ const VexAliases = {
   apply(q, results, commands, shown) {
     const w = this.normalize(q);
     if (!w || !this.NAME.test(w)) return results;
-    const id = this.lookup(w);
-    if (!id) return results;
+    const win = this.winner(w, commands);
+    if (!win) return results;
+    const id = win.id;
     const c = (commands || this._commands()).find(x => x.id === id);
     if (!c || (typeof shown === 'function' && !shown(c))) return results;
     const rest = results.filter(r => !(r && r.id === id));
@@ -185,6 +205,8 @@ const VexAliases = {
     if (index === 0 && !s.aliases[w]) return null;
     // A word that is another command's name is not a shortcut for this one.
     if (cmds.some(x => x.id !== c.id && (x.id.toLowerCase() === w || this._labelOf(x).toLowerCase() === w))) return null;
+    // Nor is a word another command's name starts with, in either language: the name wins, so a shortcut would only be a wrong one.
+    if (this._namedElsewhere(w, c.id, cmds)) return null;
     const now = Date.now();
     const row = s.typed[w] || (s.typed[w] = {});
     const e = row[c.id] || (row[c.id] = { n: 0, at: 0 });
