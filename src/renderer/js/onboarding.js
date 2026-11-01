@@ -215,6 +215,7 @@ const Onboarding = {
       case 'name':           return this._has('vex.userName');
       case 'sidebar':        return !!(window.VexSidebarVisibility && window.VexSidebarVisibility.chosen());
       case 'look':           return this._flag('vex.guiStyleChosen');
+      case 'font':           return this._has('vex.font');
       case 'performance':    return this._flag('vex.perfConfigured');
       case 'weather':        return this._has('vex.weatherLoc');
       case 'github':         return this._has('vex.githubUsername');
@@ -305,10 +306,11 @@ const Onboarding = {
       ...(this._legalNeeded() ? [{ key: 'legal', title: 'Before you start', sub: 'Vex does some things by itself. Read what they are, then agree to the privacy policy and terms to use Vex.', quick: true, secs: 30 }] : []),
       { key: 'welcome',       title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
       { key: 'import',         title: 'Bring your things over',   sub: 'Bookmarks, history and saved passwords from Chrome, Edge, Brave, Firefox and others, so you do not start from nothing. Optional.', quick: true, secs: 45 },
+      { key: 'sidebar',        title: 'Do you want a sidebar?',   sub: 'The sidebar is the strip of buttons beside the page that opens Vex’s own panels — Discord, Spotify, Notes, Downloads, Bookmarks and more — without leaving the page you are on. Say no and Vex is a plain browser; the panels still open with Ctrl+K.' , quick: true, secs: 15},
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; Simple mode is a switch in Settings › General, and the panels are in Settings › Sidebar.' , quick: true, secs: 40},
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
-      { key: 'sidebar',        title: 'Do you want a sidebar?',   sub: 'The sidebar is the strip of buttons beside the page that opens Vex’s own panels — Discord, Spotify, Notes, Downloads, Bookmarks and more — without leaving the page you are on. Say no and Vex is a plain browser; the panels still open with Ctrl+K.' , quick: true, secs: 15},
       { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape, or a Fluent, Glossy, Neobrutal or Terminal style. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
+      { key: 'font',           title: 'Pick a font',              sub: 'The typeface Vex wears: its tabs, menus, settings and start page. Try one and read the line below it; Skip keeps what you have now. Every font here is already on your PC, and Settings › Appearance has the full list.' , secs: 20},
       { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' , secs: 40},
       { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' , secs: 40},
       { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' , secs: 30},
@@ -351,6 +353,7 @@ const Onboarding = {
     else if (key === 'weather') this._session.weatherText = grab('#ob-city');
     else if (key === 'search')  this._session.engine = this._pendingEngine;
     else if (key === 'sidebar') this._session.sidebar = this._pendingSidebar;
+    else if (key === 'font')    this._session.font = this._pendingFont;
   },
 
   // English | Türkçe on the first step. English is selected until someone picks otherwise: nothing reads the Windows language, because Turkish
@@ -869,6 +872,8 @@ const Onboarding = {
       this._renderSidebar(body);
     } else if (key === 'look') {
       this._renderLook(body);
+    } else if (key === 'font') {
+      this._renderFont(body);
     } else if (key === 'performance') {
       this._renderPerformance(body);
     } else if (key === 'job') {
@@ -1150,7 +1155,7 @@ const Onboarding = {
       + card('no', tt('sidebarNo', 'No, keep the window clean'),
         tt('sidebarNoSub', 'No strip and no side-panel button. Every panel still opens with Ctrl+K, and Settings › Sidebar brings it back.'), false)
       + '<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;line-height:1.5">'
-      + this._esc(tt('sidebarNote', 'Your tabs are not part of the sidebar. The next step shows the looks that suit your answer first.')) + '</div>';
+      + this._esc(tt('sidebarNote', 'Your tabs are not part of the sidebar. The look step later shows the looks that suit your answer first.')) + '</div>';
     body.querySelectorAll('[data-sb-answer]').forEach((b) => b.addEventListener('click', () => {
       this._pendingSidebar = b.dataset.sbAnswer === 'yes';
       this._session.sidebar = this._pendingSidebar;
@@ -1159,6 +1164,39 @@ const Onboarding = {
         x.style.borderColor = on ? 'var(--primary)' : 'var(--border)';
         x.setAttribute('aria-pressed', String(on));
       });
+    }));
+  },
+
+  // === "Pick a font" — full setup only ===
+  //
+  // The same list as Settings › Appearance (js/fonts.js, vex.font). Choosing only moves the preview line; the font is written on Save, so
+  // Skip leaves it untouched. A few readable faces rather than all of them: the rest are one click away in Settings.
+  FONT_CHOICES: ['times', 'default', 'segoe', 'calibri', 'verdana', 'georgia', 'arial', 'system'],
+  _renderFont(body) {
+    const tt = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
+    if (typeof VexFonts === 'undefined') throw new Error('Vex cannot offer fonts here');
+    const cur = this._session.font || VexFonts.current().id;
+    this._pendingFont = cur;
+    const list = this.FONT_CHOICES.map(id => VexFonts.get(id)).filter(Boolean);
+    const sample = tt('fontSample', 'The quick brown fox jumps over the lazy dog. 0123456789');
+    const card = (f) => '<button data-font="' + f.id + '" aria-pressed="' + (f.id === cur) + '" style="display:flex;flex-direction:column;gap:2px;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:2px solid '
+      + (f.id === cur ? 'var(--primary)' : 'var(--border)') + ';background:var(--bg);color:var(--text);cursor:pointer;text-align:left;font-family:' + this._esc(f.stack) + '">'
+      + '<span style="font-size:15px;font-weight:600">' + this._esc(f.name) + '</span>'
+      + '<span style="font-size:11.5px;color:var(--text-muted)">' + this._esc(f.note) + '</span></button>';
+    body.innerHTML = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px">' + list.map(card).join('') + '</div>'
+      + '<div id="ob-font-preview" aria-live="polite" style="margin-top:12px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:15px;line-height:1.5;font-family:'
+      + this._esc((VexFonts.get(cur) || list[0]).stack) + '">' + this._esc(sample) + '</div>';
+    body.querySelectorAll('[data-font]').forEach((b) => b.addEventListener('click', () => {
+      const f = VexFonts.get(b.dataset.font);
+      if (!f) throw new Error('There is no font called "' + b.dataset.font + '"');
+      this._pendingFont = f.id;
+      this._session.font = f.id;
+      body.querySelectorAll('[data-font]').forEach((x) => {
+        const on = x.dataset.font === f.id;
+        x.style.borderColor = on ? 'var(--primary)' : 'var(--border)';
+        x.setAttribute('aria-pressed', String(on));
+      });
+      body.querySelector('#ob-font-preview').style.fontFamily = f.stack;
     }));
   },
 
@@ -1895,6 +1933,12 @@ const Onboarding = {
         if (!window.VexSidebarVisibility) throw new Error('Vex cannot change the sidebar here');
         window.VexSidebarVisibility.setEnabled(this._pendingSidebar !== false);
       } catch (err) { this._showError(overlay, 'The sidebar choice was not saved: ' + ((err && err.message) || err)); return; }
+    } else if (key === 'font') {
+      // Written only on Save: Skip leaves the font exactly as it was.
+      try {
+        if (typeof VexFonts === 'undefined') throw new Error('Vex cannot change the font here');
+        VexFonts.set(this._pendingFont || VexFonts.current().id);
+      } catch (err) { this._showError(overlay, 'The font was not saved: ' + ((err && err.message) || err)); return; }
     } else if (key === 'language') {
       // The start pages re-read it on the reload that finish() triggers.
       this.setLanguage(this._pendingLang || 'en', { reloadStartPages: false });
