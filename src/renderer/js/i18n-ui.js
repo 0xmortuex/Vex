@@ -52,6 +52,25 @@ const VexI18nUI = {
   // English.
   TABLE: {
     tr: {
+      // --- This site (js/this-site.js) ---
+      'Settings for this site': 'Bu sitenin ayarları',
+      'Site settings': 'Site ayarları',
+      'Ad and tracker blocking here': 'Burada reklam ve izleyici engelleme',
+      'Zoom for this site': 'Bu site için yakınlaştırma',
+      'Always open through a route': 'Her zaman bir yol üzerinden aç',
+      'Fix and clean': 'Düzelt ve temizle',
+      'Cookies and storage': 'Çerezler ve depolama',
+      'Clear this site’s data and reload': 'Bu sitenin verilerini temizle ve yenile',
+      'Look and language': 'Görünüm ve dil',
+      'Boost this site (own CSS or script)': 'Bu siteyi güçlendir (kendi CSS’in veya betiğin)',
+      'Translate this page side by side': 'Bu sayfayı yan yana çevir',
+      'Always translate, dark mode, never sleep': 'Hep çevir, koyu mod, asla uyutma',
+      'Keep and remember': 'Sakla ve hatırla',
+      'Pin to the sidebar': 'Kenar çubuğuna sabitle',
+      'Remind me about this site': 'Bu site için bana hatırlat',
+      'Save the page as one file': 'Sayfayı tek dosya olarak kaydet',
+      'More for this site': 'Bu site için daha fazlası',
+      'Open a website to see what Vex can do for it.': 'Vex’in bir site için neler yapabileceğini görmek için bir web sitesi aç.',
       // --- Documents and e-books viewer (js/office-viewer-host.js) ---
       'Documents and e-books': 'Belgeler ve e-kitaplar',
       'Documents and e-books viewer': 'Belge ve e-kitap görüntüleyici',
