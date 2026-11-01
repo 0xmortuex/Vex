@@ -31,7 +31,7 @@
 /* The Start button wears the same card and carries its name under it, so the first button of the rail is not the odd one out. */
 #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label] {
   --sbf-fg: var(--b-text, var(--vex-text-primary));
-  position: relative; margin: 0 auto 17px; color: var(--sbf-fg);
+  position: relative; margin: 0 auto 17px; color: var(--sbf-fg) !important;
   background: color-mix(in srgb, var(--sbf-fg) 7%, transparent);
   border: 1px solid color-mix(in srgb, var(--sbf-fg) 20%, transparent);
   border-radius: 8px;
