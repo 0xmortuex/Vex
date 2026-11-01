@@ -90,6 +90,15 @@ describe('the Reload button while a page loads', () => {
     expect(btn().dataset.state).toBe('reload');
   });
 
+  it('Stop on a webview that has not fired dom-ready stops nothing and still ends the loading state; any other error is raised', () => {
+    TabManager.updateTab('t1', { loading: true });
+    page.stop = () => { throw new Error('The WebView must be attached to the DOM and the dom-ready event emitted before this method can be called.'); };
+    expect(WebviewManager.stop()).toBe(true);
+    expect(TabManager.tabs[0].loading).toBe(false);
+    page.stop = () => { throw new Error('something else broke'); };
+    expect(() => WebviewManager.stop()).toThrow('something else broke');
+  });
+
   it('the address bar knows what it would show (Esc compares against it)', () => {
     expect(TabManager.urlBarText(TabManager.tabs[0])).toBe('https://old.example/');
     TabManager.tabs[0]._typedUrl = 'https://new.example/';

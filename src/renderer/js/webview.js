@@ -1654,7 +1654,9 @@ const WebviewManager = {
   stop(tabId = TabManager.activeTabId) {
     const wv = this.webviews.get(tabId);
     if (!wv) return false;
-    wv.stop();
+    // A webview that has not fired dom-ready has nothing loading to stop and throws "must be attached ... dom-ready" (seen in CI when Esc
+    // landed just after a tab was made). Any other error is still raised.
+    try { wv.stop(); } catch (err) { if (!/dom-ready|attached/i.test(String(err && err.message))) throw err; }
     const tab = TabManager.tabs.find(t => t.id === tabId);
     // Stop means stopped, as in every browser: Vex's own loading state ends now, whether or not the page sends its "stopped" event (it did
     // not on a page that kept a request open, and the X then did nothing at all).
