@@ -28,8 +28,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--vex-border-subtle);
   background: var(--vex-glass-tab-inactive);
   color: var(--vex-text-secondary);
@@ -68,8 +68,8 @@
 }
 
 .sidebar-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   color: inherit;
 }
 
@@ -194,11 +194,11 @@ body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon .icon-badge.discord-ca
    invisible AND looked unreachable. It shrinks to fit first, and only says it
    scrolls when even that is not enough. */
 #icon-sidebar.compact { gap: 5px; padding: 8px 5px; }
-#icon-sidebar.compact .sidebar-icon { width: 30px; height: 30px; }
-#icon-sidebar.compact .sidebar-icon svg { width: 17px; height: 17px; }
+#icon-sidebar.compact .sidebar-icon { width: 34px; height: 34px; }
+#icon-sidebar.compact .sidebar-icon svg { width: 18px; height: 18px; }
 #icon-sidebar.tight { gap: 3px; padding: 6px 4px; }
-#icon-sidebar.tight .sidebar-icon { width: 26px; height: 26px; border-radius: 7px; }
-#icon-sidebar.tight .sidebar-icon svg { width: 15px; height: 15px; }
+#icon-sidebar.tight .sidebar-icon { width: 32px; height: 32px; border-radius: 8px; }
+#icon-sidebar.tight .sidebar-icon svg { width: 18px; height: 18px; }
 /* Still too many: a fade at the foot, and a thin scrollbar under the pointer,
    so there is something to tell you the list goes on. */
 #icon-sidebar.scrolls { mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%); }

@@ -48,8 +48,8 @@ html[data-vex-density] .tab-item {
   padding: calc(8px * var(--vex-density)) calc(10px * var(--vex-density));
 }
 html[data-vex-density] .sidebar-icon {
-  width: calc(42px * var(--vex-density));
-  height: calc(42px * var(--vex-density));
+  width: calc(36px * var(--vex-density));
+  height: calc(36px * var(--vex-density));
 }
 html[data-vex-density] .setting-toggle-row,
 html[data-vex-density] .settings-content .setting-toggle-row {
