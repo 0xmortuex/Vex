@@ -89,6 +89,14 @@ body {
   height: 22px;
   flex-shrink: 0;
 }
+/* The mark paints itself from theme tokens so it reads on every frame: the
+   diamond is the wordmark's own colour (the accent text, 4.5:1 on the bar), the
+   chevron is the page colour cut out of it, and the two upper halves shade the
+   diamond a little toward that same colour. */
+#vex-logo .vex-logo-body { fill: currentColor; stroke: currentColor; }
+#vex-logo .vex-logo-shade { fill: var(--vex-bg-base, #0b0d18); fill-opacity: 0.12; }
+#vex-logo .vex-logo-shade-2 { fill-opacity: 0.2; }
+#vex-logo .vex-logo-chev { stroke: var(--vex-bg-base, #0b0d18); }
 
 #nav-buttons {
   display: flex;
