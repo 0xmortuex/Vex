@@ -54,6 +54,7 @@ const VexBoot = {
     { src: 'js/feature-switches.js', usage: [] },
     { src: 'js/fun/fun-settings.js', usage: [] },
     { src: 'js/attention-settings.js', usage: [] },
+    { src: 'js/inbox-hub.js', usage: [] },
     { src: 'js/quiet-hours-ui.js', usage: [] },
     { src: 'js/tabs-nav-settings.js', usage: [] },
     { src: 'js/capture-tools.js', usage: [] },

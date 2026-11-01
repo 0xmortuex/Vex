@@ -583,7 +583,7 @@ Notes, sessions, monitoring, automation.
 - **First open of the day** (`first-open`): The first time you open Vex after being away, can open a New Tab with what is due. It learns the hours you come back at. On an existing profile it starts off; turn it on in Settings > First open of the day.
   - Open: Settings > First open of the day.
   - Default: New: starts off on an existing profile until you switch it on.
-- **One inbox** (`inbox-unified`): Everything you captured (notes, saved pages, highlights, sticky notes, quick captures) in one list. On an existing profile it starts off; turn it on in Settings > Inbox.
+- **One inbox** (`inbox-unified`): Everything you captured (notes, saved pages, highlights, sticky notes, quick captures) in one list. On an existing profile it starts off; turn it on in Settings > Inbox. It is the Things I saved tab of the Inbox window, next to Notices and Waiting on me; the three lists stay separate.
   - Open: Ctrl+K: "Inbox"; Settings > Inbox.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Next step per workspace** (`next-step`): One line per workspace: the very next move, shown where you will see it again. On an existing profile it starts off; turn it on in Settings > Next step.
@@ -992,7 +992,7 @@ Apps and tools that live beside the page instead of in a tab.
 - **VIP people and words** (`vip-rules`): A list of people, words and panels that always count as important in Needs me and the digests. On an existing profile it starts off; turn it on in Settings > Panels and messages.
   - Open: Settings > Panels and messages.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Needs me** (`needs-me`): Everything waiting on you (unread panels, kept notifications, the Inbox), ranked, with the reason. On an existing profile it starts off; turn it on in Settings > Panels and messages.
+- **Needs me** (`needs-me`): Everything waiting on you (unread panels, kept notifications, the Inbox), ranked, with the reason. On an existing profile it starts off; turn it on in Settings > Panels and messages. It is the Waiting on me tab of the Inbox window.
   - Open: Ctrl+K: "Needs me"; Settings > Panels and messages.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Panel state and unread ledger** (`panel-state`): A ledger of how each panel’s unread count moved, and the song playing in a panel such as Spotify. On an existing profile it starts off; turn it on in Settings > Panels and messages.
@@ -1427,7 +1427,7 @@ Features no other browser has, built out of the parts above.
   - Open: Settings > Game mode helpers.
 - **Playfulness** (`playfulness`): One level (Off, Calm, Full) that decides how playful everything fun may be. Calm is the default. Settings > Playfulness.
   - Open: Settings > Playfulness.
-- **Attention Inbox** (`attention-inbox`): The bell that holds notices that did not fit the cap, instead of interrupting you. On by default; Settings > Attention.
+- **Attention Inbox** (`attention-inbox`): The bell that holds notices that did not fit the cap, instead of interrupting you. On by default; Settings > Attention. It is the Notices tab of the Inbox window.
   - Open: Ctrl+K: "Open the Inbox"; Settings > Attention.
 - **Weather place search** (`weather-place`): Pick where the start-page weather is for by city, district or postcode, with a country filter. A postcode is looked up at OpenStreetMap, a name at Open-Meteo, and you choose from the matches. Settings > Weather location, the Change location button on the New Tab page, or the setup wizard.
   - Open: Settings > Weather location.
