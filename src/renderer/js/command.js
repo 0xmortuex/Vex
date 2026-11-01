@@ -1307,8 +1307,14 @@ const CommandBar = {
     return text.replace(/\{(\d)\}/g, (all, n) => (args[n - 1] != null ? args[n - 1] : all));
   },
   _whyOrder(item, query, now = Date.now()) {
+    // A shortcut word's command is shown as a copy of the command (js/command-aliases.js apply).
+    if (item && !this.commands.includes(item) && typeof item.hint === 'string' && item.hint.startsWith('Your shortcut ')) item = this.commands.find(c => c.id === item.id) || item;
     if (!item || !this.commands.includes(item)) return '';
     const q = String(query || '').replace(/^>/, '').trim().toLowerCase();
+    if (q && typeof VexAliases !== 'undefined') {
+      const win = VexAliases.winner(q, this.commands);
+      if (win && win.id === item.id) return this._say('Why this order:') + ' ' + this._say(win.auto ? 'you taught Vex this word' : 'it is your own shortcut word');
+    }
     const u = this._usage()[item.id];
     const d = u ? Math.floor(Math.max(0, now - (u.at || 0)) / 864e5) : 0;
     const when = this._say(d < 1 ? 'today' : d === 1 ? 'yesterday' : '{1} days ago', d);
