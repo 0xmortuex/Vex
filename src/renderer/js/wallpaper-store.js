@@ -162,7 +162,7 @@
     throw new Error('That picture is too big to keep, even shrunk');
   }
 
-  // The lightest and darkest colours of a picture and its mean brightness, from a 96 px copy.
+  // The lightest and darkest colours of a picture, its average colour and brightness, from a 1280 x 720 copy.
   const summaries = new Map();
   async function summarise(src, key) {
     if (summaries.has(key)) return summaries.get(key);
@@ -178,15 +178,8 @@
     img.src = '';
     const d = x.getImageData(0, 0, w, h).data, P = root.WallpaperPaint;
     if (!P) throw new Error('js/wallpaper-paint.js is not loaded');
-    let lo = Infinity, hi = -1, loC = null, hiC = null, sum = 0;
-    for (let i = 0; i < d.length; i += 4) {
-      const c = [d[i], d[i + 1], d[i + 2]], y = P.luminance(c);
-      sum += y;
-      if (y < lo) { lo = y; loC = c; }
-      if (y > hi) { hi = y; hiC = c; }
-    }
-    const hex = (c) => '#' + c.map(v => v.toString(16).padStart(2, '0')).join('');
-    const s = { lightest: hex(hiC), darkest: hex(loC), meanY: sum / (d.length / 4) };
+    // The extremes (single pixels and blur-sized cells), the average colour and brightness: the same maths the tests run.
+    const s = P.summarisePixels(d, w, h);
     if (summaries.size > 120) summaries.delete(summaries.keys().next().value);
     summaries.set(key, s);
     return s;
@@ -240,7 +233,7 @@
     const d = describe(cur.id);
     if (!d) throw new Error('The chosen wallpaper "' + cur.id + '" no longer exists');
     const { src, summary } = await sourceOf(d);
-    return { id: d.id, src, lightest: summary.lightest, darkest: summary.darkest, dim: cur.dim, blur: cur.blur, auto: cur.auto };
+    return { id: d.id, src, lightest: summary.lightest, darkest: summary.darkest, plateLightest: summary.plateLightest, plateDarkest: summary.plateDarkest, mean: summary.mean, meanY: summary.meanY, dim: cur.dim, blur: cur.blur, auto: cur.auto };
   }
   function startPageJs(spec) {
     if (!spec) return '(() => { if (window.WallpaperPaint) WallpaperPaint.clear(); return { ok: true, cleared: true }; })()';
@@ -265,7 +258,7 @@
     const spec = await buildSpec();       // built once, handed to every open New Tab
     const results = await Promise.all(pages.map(wv => paintStartPage(wv, spec)));
     const done = results.find(r => r && !r.error && typeof r.alpha === 'number');
-    if (done) lastPaint = { alpha: done.alpha, required: done.required, readable: done.readable !== false, textOk: done.ok !== false };
+    if (done) lastPaint = { alpha: done.alpha, required: done.required, readable: done.readable !== false, textOk: done.ok !== false, scheme: done.scheme, plate: done.plate };
     return results;
   }
   let lastPaint = null;       // what the New Tab said when it last painted: { alpha, required, readable }
@@ -278,10 +271,8 @@
     const P = root.WallpaperPaint;
     if (!P) throw new Error('js/wallpaper-paint.js is not loaded');
     const { summary } = await sourceOf(describe(cur.id));
-    const { scrim, inks } = P.pageColours();
-    const need = P.neededScrim({ inks, extremes: [P.hexRgb(summary.lightest), P.hexRgb(summary.darkest)], scrim });
-    const alpha = cur.auto ? Math.max(cur.dim, need.alpha) : cur.dim;
-    return { alpha, required: need.alpha, readable: need.ok, shows: 1 - alpha, fromPage: false };
+    const p = P.plan({ summary, accent: P.pageColours().accent, dim: cur.dim, auto: cur.auto });
+    return { alpha: p.shade, required: p.required, readable: p.ok, textOk: p.ok, shows: 1 - p.shade, scheme: p.scheme, plate: p.plateAlpha, fromPage: false };
   }
 
   // --- the API ----------------------------------------------------------------------------------
