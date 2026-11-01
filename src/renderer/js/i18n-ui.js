@@ -11516,6 +11516,10 @@ const VexI18nUI = {
       'forward': 'ileri',
       'Moved the file to the Recycle Bin': 'Dosya Geri Dönüşüm Kutusu’na taşındı',
       // --- end notifications ---
+      // --- job picker errors (integrator) ---
+      'The job list could not be translated: {1}': 'Meslek listesi çevrilemedi: {1}',
+      'The job name could not be translated: {1}': 'Meslek adı çevrilemedi: {1}',
+      // --- end job picker errors ---
     },
   },
 
