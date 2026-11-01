@@ -27,6 +27,8 @@ const SettingsOrganize = {
   MORE_AFTER: 8,
   // …but only when at least this many rows would be folded away.
   MORE_MIN: 3,
+  // …and never fewer than this share of a section stays on the page (the rest is "Advanced").
+  MORE_SHOWN: 0.6,
 
   INFO_SELECTOR: '.setting-info, .setting-hint, .vex-platform-note, .set-layout-hint, [style*="text-muted"]',
 
@@ -204,9 +206,9 @@ const SettingsOrganize = {
         n++;
       }
       const rows = Array.from(box.children).filter(c => this._isRow(c));
-      if (rows.length - Math.max(this.MORE_AFTER, Math.ceil(rows.length * 0.6)) < this.MORE_MIN) continue;
+      if (rows.length - Math.max(this.MORE_AFTER, Math.ceil(rows.length * this.MORE_SHOWN)) < this.MORE_MIN) continue;
       // Never more than 40% of a section is folded: "Advanced" holds the rare rows, the common ones are on the page.
-      const cut = rows[Math.max(this.MORE_AFTER, Math.ceil(rows.length * 0.6))];
+      const cut = rows[Math.max(this.MORE_AFTER, Math.ceil(rows.length * this.MORE_SHOWN))];
       const tail = [];
       for (let node = cut; node; node = node.nextSibling) tail.push(node);
       const { btn, body } = this._makeMore(rows.length - rows.indexOf(cut), rows.slice(rows.indexOf(cut)));
@@ -289,7 +291,7 @@ const SettingsOrganize = {
   // Open whatever hides `el`: a closed More options, a folded explanation.
   open(el) {
     if (!el || !el.closest) return;
-    for (let body = el.closest('.set-more-body'); body; body = body.parentElement && body.parentElement.closest('.set-more-body')) {
+    for (let body = el.closest('.set-more-body, .set-fs-body'); body; body = body.parentElement && body.parentElement.closest('.set-more-body, .set-fs-body')) {
       body.setAttribute('data-open', '');
       const btn = body.previousElementSibling;
       if (btn && btn.classList.contains('set-more-btn')) btn.setAttribute('aria-expanded', 'true');

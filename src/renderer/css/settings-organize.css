@@ -60,7 +60,7 @@
 .set-more-btn:has(.set-more-names:not(:empty)) .set-more-label::after { content: ":"; }
 .set-more-names { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
 .set-more-count { flex: 0 0 auto; }
-.set-more-body:not([data-open]) { display: none; }
+.set-more-body:not([data-open]), .set-fs-body:not([data-open]) { display: none; }
 /* A search shows everything it matched, folded or not. */
 .set-searching .set-more-body { display: block; }
 .set-searching .set-more-btn { display: none; }

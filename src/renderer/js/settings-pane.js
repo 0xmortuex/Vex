@@ -155,6 +155,7 @@ const SettingsPane = {
     'Show all': 'Tümünü göster',
     'Advanced': 'Gelişmiş',
     'Rarely used': 'Nadiren kullanılan',
+    'Feature switches': 'Özellik anahtarları',
   },
 
   // ---- which card a section belongs to --------------------------------------------------------
@@ -514,6 +515,32 @@ const SettingsPane = {
     if (!g || typeof SettingsOrganize === 'undefined') return 0;
     let n = 0;
     const muted = this._mutedColor();
+    // 0. "Use X" feature switches (js/feature-switches.js) sit above the section's real settings and repeat its heading ("Use Slim
+    // scrollbars" over "Slim scrollbars"). A section with other rows keeps them in ONE closed fold at its end.
+    const fsRows = Array.from(g.querySelectorAll(':scope > .vex-feature-switch'));
+    if (fsRows.length && Array.from(g.children).some(c => !c.matches('.vex-feature-switch, .setting-label, .set-info-btn, .set-info-folded, .set-more-btn, .set-more-body, .set-fs-fold, .set-chevron, .set-clamp-btn, script, style') && c.querySelector('input:not([type="hidden"]), select, textarea, button:not(.set-info-btn)'))) {
+      const title = this._t('Feature switches');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'set-more-btn set-fs-fold';
+      btn.setAttribute('aria-expanded', 'false');
+      btn.innerHTML = (typeof VexIcons !== 'undefined' ? VexIcons.svg('chevron-down', { size: 14 }) : '') + '<span class="set-more-label"></span><span class="set-more-names"></span><span class="set-more-count"></span>';
+      btn.querySelector('.set-more-label').textContent = title;
+      const names = fsRows.map(r => { const t = r.querySelector('.setting-label-text'); return t ? t.textContent.replace(/^\s*Use\s+/i, '').trim() : ''; }).filter(Boolean);
+      btn.querySelector('.set-more-names').textContent = names.slice(0, 4).join(', ');
+      btn.querySelector('.set-more-count').textContent = '(' + fsRows.length + ')';
+      btn.title = title + ': ' + names.join(', ');
+      const body = document.createElement('div');
+      body.className = 'set-fs-body';
+      btn.addEventListener('click', () => {
+        const open = !body.hasAttribute('data-open');
+        if (open) body.setAttribute('data-open', ''); else body.removeAttribute('data-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      g.append(btn, body);
+      for (const r of fsRows) body.appendChild(r);
+      n++;
+    }
     // 1. hints
     const BLOCKS = 'div, p, ul, ol, table, button, select, input, textarea, label, h1, h2, h3, h4, .toggle';
     for (const el of g.querySelectorAll(SettingsOrganize.INFO_SELECTOR + ', span, div, p, small')) {
@@ -587,10 +614,11 @@ const SettingsPane = {
       let after = btn.nextElementSibling;
       while (after && after.matches('.set-info-folded, .set-info-btn')) after = after.nextElementSibling;
       if (after && after.matches('.setting-toggle-row, .setting-row') && !text(btn.previousElementSibling)) {
-        const lab = after.querySelector(':scope > :is(span, .setting-label-text, .setting-row-label, .setting-label, label:not(.toggle)):not(.set-redundant)');
-        if (lab) { inline(btn, lab); continue; }
-        const tg = after.querySelector(':scope > .toggle');
-        if (tg) tg.before(btn); else after.appendChild(btn);
+        // Like every other row: the (i) sits beside the switch, after the label.
+        const lab = after.querySelector(':scope > :is(span, .setting-label-text):first-child:not(.set-redundant)');
+        if (lab && after.matches('.setting-toggle-row')) lab.after(btn);
+        else if (after.querySelector(':scope > .toggle')) after.querySelector(':scope > .toggle').before(btn);
+        else after.appendChild(btn);
         btn.classList.remove('set-info-btn--line'); btn.classList.add('set-info-btn--row'); this._name(btn, after); n++;
         continue;
       }
@@ -618,7 +646,17 @@ const SettingsPane = {
         if (!t.textContent.trim() || !p || p.closest('.set-info-folded, button, select, option, script, style, .toggle') || !p.getClientRects().length) continue;
         near = p;
       }
-      if (near && !btn.contains(near)) inline(btn, near);
+      if (near && !btn.contains(near)) { inline(btn, near); continue; }
+      // Nothing above it (the explanation opens the section): the first text below it.
+      const down = document.createTreeWalker(g, NodeFilter.SHOW_TEXT);
+      let below = null;
+      for (let t = down.nextNode(); t && !below; t = down.nextNode()) {
+        if (!(btn.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+        const p = t.parentElement;
+        if (!t.textContent.trim() || !p || p.closest('.set-info-folded, button, select, option, script, style, .toggle') || !p.getClientRects().length) continue;
+        below = p;
+      }
+      if (below) inline(btn, below);
     }
     // 2b. the same for a section whose heading is off: its (i) goes to the end of its first row's label
     if (g.classList.contains('set-head-off') && !g.classList.contains('set-dense')) {
@@ -726,7 +764,7 @@ const SettingsPane = {
 };
 
 // In this page a hint is ONE line (about 90 characters): only a longer one folds behind its (i).
-if (typeof SettingsOrganize !== 'undefined') { SettingsOrganize.INFO_MIN = 90; SettingsOrganize.INLINE_MIN = 90; }
+if (typeof SettingsOrganize !== 'undefined') { SettingsOrganize.INFO_MIN = 90; SettingsOrganize.INLINE_MIN = 90; SettingsOrganize.MORE_AFTER = 7; SettingsOrganize.MORE_SHOWN = 0.4; }
 
 if (typeof window !== 'undefined') window.SettingsPane = SettingsPane;
 if (typeof module !== 'undefined' && module.exports) module.exports = { SettingsPane };
