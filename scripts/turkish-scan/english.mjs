@@ -30,6 +30,8 @@ const AMBIG = new Set("a on all as at it no ok in do new open page tab tabs size
 const TR_HINT = /[çğıöşüÇĞİÖŞÜ]|\b(ve|bir|için|ile|bu|şu|olarak|daha|veya|değil|yok|var|çok|kadar|gibi|ama|her|tüm|hiç|nasıl|nedir|Ayarlar|Sekme|Kapat|Aç)\b/;
 
 export function looksEnglish(raw) {
+  // TURKISH_SCAN_SHORT=1: also count a short capitalised ASCII phrase (World, Active, Templates) that has no entry; the callers drop the ones that are already Turkish
+  if (process.env.TURKISH_SCAN_SHORT && typeof raw === 'string' && /^[A-Z][a-z]{3,}( [a-zA-Z]+){0,2}$/.test(raw.trim()) && !TR_HINT.test(raw) && !NEUTRAL.has(raw.trim().toLowerCase())) return true;
   const t = raw.replace(/\s+/g, ' ').trim();
   if (t.length < 2) return false;
   if (/^(https?:|vex:|file:|www\.)/i.test(t) || /^[\w.-]+\.(com|org|net|io|js|json|exe|md|html|txt|png|zip)\b/i.test(t)) return false;
