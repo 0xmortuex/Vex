@@ -6316,6 +6316,26 @@ function _extIconValue(ext, value) {
   throw new Error('setIcon needs imageData or a path');
 }
 
+// The reading half of chrome.history / bookmarks / topSites (src/main/extension-browsing.js), from the saved lists. Not while Vex is locked.
+function _extBrowsingApi(op, args) {
+  if (_vexLocked) throw new Error('Vex is locked');
+  const B = require('./main/extension-browsing');
+  const saved = _persistLoad();
+  if (op === 'history.search') return B.historySearch(B.historyEntries(saved['vex.history']), args.query, Date.now());
+  if (op === 'history.getVisits') return B.historyVisits(B.historyEntries(saved['vex.history']), args.url);
+  if (op === 'topSites.get') return B.topSites(B.historyEntries(saved['vex.history']));
+  const nodes = B.bookmarkNodes(saved['vex.bookmarks']);
+  switch (op) {
+    case 'bookmarks.getTree': return B.bookmarksSubTree(nodes, '0');
+    case 'bookmarks.get': return B.bookmarksGet(nodes, args.ids);
+    case 'bookmarks.getChildren': return B.bookmarksChildren(nodes, args.id);
+    case 'bookmarks.getSubTree': return B.bookmarksSubTree(nodes, args.id);
+    case 'bookmarks.getRecent': return B.bookmarksRecent(nodes, args.count);
+    case 'bookmarks.search': return B.bookmarksSearch(nodes, args.query);
+    default: throw new Error('Vex has no ' + op);
+  }
+}
+
 // --- Asked by the extension (the stand-ins).
 async function _extApi(senderUrl, ses, request) {
   const m = /^chrome-extension:\/\/([a-p]{32})\//.exec(String(senderUrl || ''));
@@ -6382,6 +6402,11 @@ async function _extApi(senderUrl, ses, request) {
       if (r.op === 'native.disconnect') return _extNative.disconnect({ key, portId: String(args.portId) });
       return _extNative.sendOnce({ extId, folder, name: args.name, message: args.message });
     }
+    // chrome.history, chrome.bookmarks, chrome.topSites: read from Vex's saved lists, only for the permission the manifest names.
+    case 'history.search': case 'history.getVisits': case 'topSites.get':
+    case 'bookmarks.getTree': case 'bookmarks.get': case 'bookmarks.getChildren': case 'bookmarks.getSubTree': case 'bookmarks.getRecent': case 'bookmarks.search':
+      needPerm(r.op.split('.')[0]);
+      return _extBrowsingApi(r.op, args);
     case 'cookies.get': case 'cookies.getAll': case 'cookies.set': case 'cookies.remove': case 'cookies.getAllCookieStores':
       return _extCookies.cookiesApi(r.op, args, { manifest, cookies: ses.cookies, matchPattern: _extMenuModel.matchPattern });
     case 'windows.get': case 'windows.getCurrent': case 'windows.getLastFocused': case 'windows.getAll':

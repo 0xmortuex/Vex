@@ -1014,6 +1014,32 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       onOpened: noEvent(), onClosed: noEvent(),
     };
   }
+  // chrome.history, chrome.bookmarks and chrome.topSites: the reading half, from Vex's own saved lists (main/extension-browsing.js), for an
+  // extension that names the permission. Everything that would change them is refused in words; the change events never fire.
+  if (api && hasPerm('history') && !c.history) {
+    c.history = {
+      search: mainCall('history.search', function (q) { return { query: q || {} }; }),
+      getVisits: mainCall('history.getVisits', function (d) { return { url: d && d.url }; }),
+      addUrl: refuse('add to your history'), deleteUrl: refuse('delete from your history'),
+      deleteRange: refuse('delete from your history'), deleteAll: refuse('delete your history'),
+      onVisited: noEvent(), onVisitRemoved: noEvent(),
+    };
+  }
+  if (api && hasPerm('topSites') && !c.topSites) c.topSites = { get: mainCall('topSites.get', function () { return {}; }) };
+  if (api && hasPerm('bookmarks') && !c.bookmarks) {
+    c.bookmarks = {
+      getTree: mainCall('bookmarks.getTree', function () { return {}; }),
+      get: mainCall('bookmarks.get', function (ids) { return { ids: ids }; }),
+      getChildren: mainCall('bookmarks.getChildren', function (id) { return { id: id }; }),
+      getSubTree: mainCall('bookmarks.getSubTree', function (id) { return { id: id }; }),
+      getRecent: mainCall('bookmarks.getRecent', function (n) { return { count: n }; }),
+      search: mainCall('bookmarks.search', function (q) { return { query: q }; }),
+      create: refuse('add a bookmark'), update: refuse('change a bookmark'), move: refuse('move a bookmark'),
+      remove: refuse('remove a bookmark'), removeTree: refuse('remove a bookmark folder'),
+      onCreated: noEvent(), onRemoved: noEvent(), onChanged: noEvent(), onMoved: noEvent(), onChildrenReordered: noEvent(), onImportBegan: noEvent(), onImportEnded: noEvent(),
+      BOOKMARK_BAR_ID: '1', OTHER_BOOKMARKS_ID: '2', MANAGED_BOOKMARKS_ID: '4',
+    };
+  }
   if (!c.offscreen && hasPerm('offscreen')) {
     c.offscreen = {
       Reason: { TESTING: 'TESTING', AUDIO_PLAYBACK: 'AUDIO_PLAYBACK', IFRAME_SCRIPTING: 'IFRAME_SCRIPTING', DOM_SCRAPING: 'DOM_SCRAPING', BLOBS: 'BLOBS',
