@@ -45,13 +45,13 @@
 }
 .notes-section-tab:hover { background: var(--vex-hover-fill); color: var(--vex-text-primary); }
 .notes-section-tab.active {
-  background: var(--vex-accent-dim); color: var(--vex-accent);
+  background: var(--vex-accent-dim); color: color-mix(in srgb, var(--vex-text-accent, var(--vex-accent)) 70%, var(--vex-text-primary));
   border-color: var(--vex-border-accent);
 }
 .notes-count {
   font-family: var(--vex-font-mono, 'JetBrains Mono', monospace);
   font-size: 9.5px; padding: 1px 5px; border-radius: 20px;
-  background: var(--vex-glass-input); color: inherit; opacity: 0.85;
+  background: var(--vex-glass-input); color: inherit;
 }
 
 .notes-search {
@@ -108,7 +108,7 @@
   padding: 26px 16px; text-align: center;
   color: var(--vex-text-muted); font-size: 12.5px;
 }
-.notes-list-empty .hint { margin-top: 5px; font-size: 11px; opacity: 0.75; }
+.notes-list-empty .hint { margin-top: 5px; font-size: 11px; }
 
 .note-list-item {
   padding: 9px 11px;

@@ -8,6 +8,11 @@
    design picks (css/skins.css). Colours are only ever the theme's tokens, so every design is readable on every theme (4.5:1 is the theme's job).
    Web pages are never touched. */
 
+/* ---- Readability floor, for every theme and look --------------------------------------------------------------------------------------
+   The browser's own placeholder grey (#757575) was drawn on every theme's inputs: 1.9:1 on Nord, 3.1:1 on Mica Dark. A placeholder takes the
+   theme's muted text colour, which each theme already keeps at 4.5:1 on its surfaces (tests/renderer/themeTextContrast.test.js). */
+:is(input, textarea)::placeholder { color: var(--text-muted, var(--vex-text-muted)); opacity: 1; }
+
 /* ---- Density: the browser looks size their strips from --b-* variables; other looks keep their own heights ------------------------------ */
 html[data-pk-density="compact"] body[data-gui-family="browser"] { --b-tab-h: 28px; --b-tabbar-h: 30px; --b-toolbar-h: 34px; --b-btn-size: 28px; --b-url-h: 26px; }
 html[data-pk-density="roomy"] body[data-gui-family="browser"] { --b-tab-h: 40px; --b-tabbar-h: 42px; --b-toolbar-h: 50px; --b-btn-size: 40px; --b-url-h: 38px; }
