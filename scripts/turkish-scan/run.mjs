@@ -24,8 +24,8 @@ await sleep(15000);
 const run = JSON.parse(fs.readFileSync(path.join(OUT, 'run.json')));
 try {
   node('wizard.mjs', 'full');
-  for (const p of [1, 2, 3, 4, 5]) node(`surfaces${p}.mjs`);
-  node('merge.mjs', 'wizard-full.json', 'part1.json', 'part2.json', 'part3.json', 'part4.json', 'part5.json');
+  for (const p of [1, 2, 3, 4, 5, 6]) node(`surfaces${p}.mjs`);
+  node('merge.mjs', 'wizard-full.json', 'part1.json', 'part2.json', 'part3.json', 'part4.json', 'part5.json', 'part6.json');
 } finally {
   // stop only our own process: confirm its command line names our profile and port first
   const cmd = execFileSync('powershell', ['-NoProfile', '-Command', `(Get-CimInstance Win32_Process -Filter "ProcessId=${run.pid}").CommandLine`]).toString();
