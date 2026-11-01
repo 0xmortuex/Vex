@@ -65,7 +65,10 @@ function startUrlWithTheme(base) {
   // A theme of your own carries its colours too (js/theme-studio.js).
   let tc = '';
   try {
-    const colors = typeof ThemeStudio !== 'undefined' ? ThemeStudio.colorsOf(theme) : null;
+    // Match Vex to a wallpaper (js/wallpaper-sync.js) decides what a New Tab wears.
+    const synced = window.VexWallpaperSync ? window.VexWallpaperSync.newTabOverride(theme) : null;
+    if (synced) theme = synced.id;
+    const colors = synced ? synced.colors : (typeof ThemeStudio !== 'undefined' ? ThemeStudio.colorsOf(theme) : null);
     if (colors) tc = '&tc=' + CustomThemes.toQuery(colors);
   } catch (err) { console.error('[Tabs] own theme colours for the New Tab:', err && err.message); }
   return `${clean}?theme=${encodeURIComponent(theme)}${tc}`;
