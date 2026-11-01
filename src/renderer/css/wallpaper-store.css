@@ -45,6 +45,8 @@
   width: 320px; flex: none; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
   padding: 2px 4px 2px 2px;
 }
+/* The panel scrolls; its parts never shrink (the picture was squeezed to a thin strip when the panel was long). */
+.vws-panel > * { flex: none; }
 .vws-preview { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); }
 .vws-pv-pic, .vws-pv-scrim { position: absolute; inset: -12px; background-size: cover; background-position: center; }
 .vws-pv-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 8px; }
@@ -76,3 +78,11 @@
 .vws-match-text { display: flex; flex-direction: column; }
 .vws-match-label { font-size: 13px; color: var(--vex-text-primary); }
 .vws-match-hint { font-size: 11.5px; color: var(--vex-text-secondary); }
+.vws-match-list[hidden] { display: none; }
+/* In the store the section sits right under the picture: the big button first, the switches on demand. */
+.vws-match-compact { margin: 0; padding: 0; border: none; }
+.vws-match-compact .vws-actions { margin: 6px 0 0; }
+.vws-match-compact .vws-match-list { margin-top: 6px; padding: 6px 8px; border: 1px solid var(--vex-border-subtle); border-radius: var(--vex-radius-md, 8px); }
+.vws-match-all { width: 100%; justify-content: center; }
+.vws-actions .vws-match-all { width: auto; }
+.vws-status .btn-primary, .vws-status .btn-secondary { margin-left: 4px; }

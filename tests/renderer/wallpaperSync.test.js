@@ -44,13 +44,24 @@ function fakeThemes() {
   return { M, St };
 }
 
+// What the window really has on <body>: the tokens and a browser look's own colours, which Vex reads
+// once (before the first switch) so that a part left off keeps exactly these.
+function windowColours() {
+  const st = document.body.style;
+  st.cssText = '';
+  const v = { '--vex-bg-base': '#faf6ee', '--vex-bg-elevated': '#ffffff', '--vex-text-primary': '#1f1c18', '--vex-text-secondary': '#453f36', '--vex-accent': '#1e3a5f',
+    '--b-page': '#ffffff', '--b-toolbar': '#f9f9fb', '--b-text': '#15141a', '--b-text-dim': '#5b5b66', '--b-accent': '#0061e0', '--b-border': '#cfcfd8', '--b-frame': '#f0f0f4' };
+  for (const [k, x] of Object.entries(v)) st.setProperty(k, x);
+}
+
 let M, St, gui;
 beforeEach(() => {
   localStorage.clear();
+  windowColours();
   ({ M, St } = fakeThemes());
   window.ThemeManager = globalThis.ThemeManager = M;
   window.ThemeStudio = globalThis.ThemeStudio = St;
-  let colors = 'look';
+  let colors = 'theme';
   gui = window.VexGuiStyle = { isBrowserLook: () => true, getColors: () => colors, setColors: vi.fn((c) => { colors = c; }) };
   window.VexWallpapers = { get: (id) => all.find(d => d.id === id) || null };
 });
@@ -101,8 +112,8 @@ describe('apply and undo', () => {
     expect(rec.name).toBe('Synced: Borealis');
     expect(CustomThemes.list().map(r => r.id)).toEqual([S.THEME_ID]);
     expect(M.getCurrentTheme()).toBe(S.THEME_ID);
-    expect(gui.setColors).toHaveBeenCalledWith('theme');
-    expect(S.state()).toMatchObject({ prevTheme: 'firefox-dark', prevGuiColors: 'look', wallpaper: 'aurora-borealis' });
+    expect(gui.setColors).not.toHaveBeenCalled();   // the look's colour mode is never switched
+    expect(S.state()).toMatchObject({ prevTheme: 'firefox-dark', wallpaper: 'aurora-borealis', rooted: true, lookMode: false });
   });
 
   it('syncing again replaces the theme and keeps the FIRST theme for Undo', async () => {
@@ -120,7 +131,7 @@ describe('apply and undo', () => {
     await S.apply('aurora-borealis');
     expect(await S.undo()).toBe(true);
     expect(M.getCurrentTheme()).toBe('firefox-dark');
-    expect(gui.getColors()).toBe('look');
+    expect(gui.setColors).not.toHaveBeenCalled();
     expect(CustomThemes.list()).toEqual([]);
     expect(S.state()).toBeNull();
     expect(S.canUndo()).toBe(false);
@@ -166,7 +177,7 @@ describe('apply and undo', () => {
     window.VexGuiStyle = { isBrowserLook: () => false, getColors: () => 'theme', setColors: vi.fn() };
     await S.apply('aurora-borealis');
     expect(window.VexGuiStyle.setColors).not.toHaveBeenCalled();
-    expect(S.state().prevGuiColors).toBeNull();
+    expect(S.state()).toMatchObject({ browser: false, lookMode: false });
   });
 });
 

@@ -136,7 +136,7 @@ const VexFaqData = {
     { id: 'sidebar', cat: 'look', set: 'setting-sidebar', path: ['Settings', 'Sidebar Buttons'],
       kw: 'sidebar side bar hide show buttons panels groups icons rail kenar çubuğu gizle göster grup',
       q: 'How do I turn the sidebar on or off, and what are the groups?',
-      a: 'Settings under Sidebar Buttons has a Show the sidebar switch. Off hides it in every look, and the panels still open from Ctrl+K. Group the sidebar buttons is on by default and adds headings you can fold (turn it off there for one flat list), and you can rename, hide or reorder each button there too.' },
+      a: 'Settings under Sidebar Buttons has a Show the sidebar switch. Off hides it in every look, and the panels still open from Ctrl+K. Group the sidebar buttons is on by default and gives each group one folder button with its name under it: press it to open the folder, drag buttons between folders (or right-click a button and choose Move to group), and right-click a folder to rename it, describe it or make a new group. Turn the switch off there for one flat list, and you can rename, hide or reorder each button there too.' },
     { id: 'wallpapers', cat: 'look', cmd: 'Wallpapers',
       kw: 'wallpaper background picture new tab image photo duvar kağıdı arka plan resim',
       q: 'How do I change the wallpaper on my New Tab page?',

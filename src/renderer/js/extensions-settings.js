@@ -180,13 +180,14 @@ const ExtensionsSettings = (() => {
     if (!u) return '';
     const out = [];
     if (u.pending) {
-      out.push(`<div class="ext-pending"><strong>Update needs approval:</strong> version ${_esc(u.pending.version)} asks for more than this one:
+      out.push(`<div class="ext-pending"><strong>Update needs approval:</strong> Version ${_esc(u.pending.version)} asks for more than this one:
         <ul>${(u.pending.added || []).map(a => `<li>${_esc(a.says)}</li>`).join('')}</ul>
         <button class="ext-open-btn" data-update-approve="${_esc(e.folder)}" data-name="${_esc(e.name)}" data-version="${_esc(u.pending.version)}">Update</button></div>`);
     }
     if (u.last) {
       const when = new Date(u.last.at).toLocaleDateString();
-      out.push(`<div class="ext-source">Updated ${{ approved: 'with your approval ', auto: 'automatically ', check: 'by "Check now" ' }[u.last.how] || ''}from v${_esc(u.last.from)} to v${_esc(u.last.to)} on ${_esc(when)}.</div>`);
+      const upd = { approved: 'Updated with your approval from v{1} to v{2} on {3}.', auto: 'Updated automatically from v{1} to v{2} on {3}.', check: 'Updated by "Check now" from v{1} to v{2} on {3}.' }[u.last.how] || 'Updated from v{1} to v{2} on {3}.';
+      out.push(`<div class="ext-source">${upd.replace('{1}', () => _esc(u.last.from)).replace('{2}', () => _esc(u.last.to)).replace('{3}', () => _esc(when))}</div>`);
     }
     if (u.error) out.push(`<div class="ext-error">Last update check failed: ${_esc(u.error)}</div>`);
     return out.join('');
@@ -355,7 +356,8 @@ const ExtensionsSettings = (() => {
         <div class="ext-updates">
           <label class="ext-toggle" style="font-size:12px;color:var(--text,#e9e9ee)"><input type="checkbox" id="ext-auto-update"${updates && updates.ok && updates.auto ? ' checked' : ''}${updates && updates.ok ? '' : ' disabled'}> Update extensions automatically</label>
           <button class="ext-open-btn" id="btn-ext-check-updates"${updates && updates.checking ? ' disabled' : ''}>${VexIcons.svg('refresh', { size: 12 })} Check now</button>
-          <div class="ext-updates-status" id="ext-updates-status">${_esc(_updatesStatusText(updates))} Extensions from the Chrome Web Store or the list below are checked; a new version that asks for more waits for your approval. Not on a metered connection, and never from a private window.</div>
+          <div class="ext-updates-status" id="ext-updates-status">${_esc(_updatesStatusText(updates))}</div>
+          <div class="ext-updates-status">Extensions from the Chrome Web Store or the list below are checked; a new version that asks for more waits for your approval. Not on a metered connection, and never from a private window.</div>
         </div>
 
         <div class="ext-webstore">
@@ -662,6 +664,8 @@ const ExtensionsSettings = (() => {
           folder: btn.dataset.popup,
           x: Math.max(0, Math.round(window.screenX + rect.left)),
           y: Math.max(0, Math.round(window.screenY + rect.bottom)),
+          right: Math.max(0, Math.round(window.screenX + rect.right)),
+          top: Math.max(0, Math.round(window.screenY + rect.top)),
           tab: Number.isInteger(tab) && tab > 0 ? tab : null
         });
         if (!r.ok) _toast('Could not open popup: ' + (r.error || 'unknown'), 'error');

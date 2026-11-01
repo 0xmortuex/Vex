@@ -101,7 +101,8 @@
       const layout = VexSidebarGroups.pickerPlan(choices);
       for (const g of layout.groups) {
         const og = document.createElement('optgroup');
-        og.label = typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup ? (VexI18nUI.lookup(g.label) || g.label) : g.label;
+        // The built-in names come translated from the plan; a name somebody typed is shown as typed.
+        og.label = g.label;
         og.dataset.group = g.id;
         g.items.forEach(c => addOption(og, c));
         picker.appendChild(og);
@@ -330,6 +331,8 @@
       sync();
     });
     window.addEventListener('resize', () => applyWidth(savedWidth()));
+    // A group made, renamed, moved or deleted (js/sidebar-groups.js): the picker's headings follow.
+    window.addEventListener('vex:sidebar-groups', (e) => { if (e.detail && (e.detail.groups || 'enabled' in e.detail)) sync(); });
     sync();
   }
 
