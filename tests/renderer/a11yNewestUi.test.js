@@ -212,6 +212,22 @@ describe('Settings', () => {
     expect(g.contains(document.activeElement)).toBe(true);
   });
 
+  it('a result that Vex had hidden (an unused or switched-off feature) is shown when it is opened, and stays shown', () => {
+    const g = root.querySelector('.setting-group');
+    g.classList.add('vex-usage-hidden');
+    SettingsUI._openHit(g, null);
+    expect(g.classList.contains('vex-usage-hidden')).toBe(false);
+    expect(g.dataset.vexRevealed).toBe('1');
+    // The usage pass runs again on every Settings refresh: it must not hide the section the person just went to.
+    const src = readFileSync(join(ROOT, 'src/renderer/js/vex-usage.js'), 'utf8');
+    expect(src).toMatch(/toggle\('vex-usage-hidden', hide && g\.dataset\.vexRevealed !== '1'\)/);
+  });
+
+  it('the section a result opened has a highlight that the card rule does not cancel', () => {
+    const css = readFileSync(join(ROOT, 'src/renderer/css/settings-pane.css'), 'utf8');
+    expect(css).toMatch(/#panel-settings\[data-pane\] \.settings-content > \.setting-group\.set-hit \{[^}]*box-shadow: 0 0 0 2px var\(--primary\)/);
+  });
+
   it('the search has a status line a screen reader reads, and a "no match" note is one too', () => {
     const toolbar = document.createElement('div');
     toolbar.className = 'set-toolbar';

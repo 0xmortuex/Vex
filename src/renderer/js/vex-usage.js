@@ -328,7 +328,8 @@ const VexUsage = {
     scope.querySelectorAll('.setting-group').forEach(g => {
       const owners = this.featuresOfSection(g, byGroup);
       const hide = owners.length > 0 && owners.every(f => hidden.has(f.id));
-      g.classList.toggle('vex-usage-hidden', hide);
+      // A section a Settings search result opened stays shown (js/settings-ui.js _openHit) until Settings is built again.
+      g.classList.toggle('vex-usage-hidden', hide && g.dataset.vexRevealed !== '1');
     });
     for (const hook of this._groupHooks.slice()) {
       try { hook(scope); }

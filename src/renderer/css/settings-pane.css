@@ -61,6 +61,13 @@
 }
 #panel-settings[data-pane] .settings-content > .setting-group::before { content: none; }
 #panel-settings[data-pane] .settings-content > .setting-group:hover { transform: none; box-shadow: none; border-color: var(--border); }
+/* The section a search result opened: the rule above (box-shadow: none) beat the highlight, so nothing lit up. */
+#panel-settings[data-pane] .settings-content > .setting-group.set-hit {
+  box-shadow: 0 0 0 2px var(--primary), 0 0 0 7px color-mix(in srgb, var(--primary) 22%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  z-index: 1;
+  transition: box-shadow .25s ease, background-color .25s ease;
+}
 #panel-settings[data-pane] .settings-content > .setting-group.set-card-first { border-radius: 12px 12px 0 0; border-bottom: 0; }
 #panel-settings[data-pane] .settings-content > .setting-group.set-card-mid { border-bottom: 0; }
 #panel-settings[data-pane] .settings-content > .setting-group.set-card-last { border-radius: 0 0 12px 12px; margin-bottom: 14px; }
@@ -280,9 +287,9 @@ select.set-result-control { max-width: 220px; }
 .set-results-empty-hint { margin-top: 6px; font-size: 14px; color: var(--text-muted); }
 
 /* Highlight of the row a result opened. */
-#panel-settings .set-item-hit { animation: setPaneHit 1.6s ease-out 1; border-radius: 8px; }
+#panel-settings .set-item-hit { animation: setPaneHit 3.5s ease-out 1; border-radius: 8px; }
 @keyframes setPaneHit {
-  0%, 60% { background: color-mix(in srgb, var(--primary) 22%, transparent); outline: 2px solid var(--primary); outline-offset: 2px; }
+  0%, 80% { background: color-mix(in srgb, var(--primary) 22%, transparent); outline: 2px solid var(--primary); outline-offset: 2px; }
   100% { background: transparent; outline: 2px solid transparent; outline-offset: 2px; }
 }
 @media (prefers-reduced-motion: reduce) {

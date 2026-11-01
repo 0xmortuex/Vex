@@ -589,6 +589,9 @@ const SettingsUI = {
 
   // A result was picked: show its section, open whatever folds it, scroll to the setting and light it up for a moment.
   _openHit(g, el) {
+    // Search lists a section even when Vex hides it (a feature that is off, or one Simple mode keeps out of sight); a hidden
+    // section has no size, so opening it showed the top of the category and lit up nothing. Opening a result shows it.
+    if (g.classList.contains('vex-usage-hidden')) { g.dataset.vexRevealed = '1'; g.classList.remove('vex-usage-hidden'); }
     this.reveal(el || g);
     if (typeof SettingsPane !== 'undefined') {
       SettingsPane.unclamp(g);
@@ -608,7 +611,7 @@ const SettingsUI = {
     if (go && !go.disabled) go.focus({ preventScroll: true });
     const cls = el ? 'set-item-hit' : 'set-hit';
     target.classList.add(cls);
-    setTimeout(() => target.classList.remove(cls), 1600);
+    setTimeout(() => target.classList.remove(cls), 3500);
   },
 
   // The pickers that live in Settings but open as their own screens, because
