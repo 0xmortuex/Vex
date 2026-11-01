@@ -1,6 +1,6 @@
 # Changelog
 
-## v49.63.9 (2026-11-01) — A friendlier setup and Settings, theme packs and wallpapers, and updates that cannot fail silently
+## v49.87.2 (2026-11-01) — A friendlier setup and Settings, theme packs and wallpapers, and updates that cannot fail silently
 
 Vex looks and feels different on the first day now. Setup asks whether you want a sidebar and a game-friendly mode, Settings shows one short category at a time with a search that finds the exact setting, and you can dress the whole browser with a theme pack, an icon style and a wallpaper that Vex can recolour itself to match. It also warns you before a reported scam site opens, explains why a movie will not play, and a bad update can now undo itself.
 
