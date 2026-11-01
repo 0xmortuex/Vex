@@ -1165,8 +1165,8 @@ Themes, layout, per-site tweaks, extensions.
   - Open: Ctrl+K: "Open the extension store"; Settings > extensions-panel-content.
 - **Start Vex when Windows starts** (`login-start`): Opens Vex when you sign in to Windows, in front or minimised on the taskbar. Only in the installed app, and it shows what Windows really holds.
   - Open: Settings > setting-login-item.
-- **simple-mode** (`simple-mode`): A calm Vex: only the everyday buttons, panels and settings are on screen. Nothing is removed — All features in the toolbar shows the rest, any time.
-  - Open: Ctrl+K: "Simple mode"; Settings > setting-simple-mode.
+- **simple-mode** (`simple-mode`): Developer mode off is a calm Vex: only the critical settings and the everyday buttons and panels are on screen. Nothing is removed — All features in the toolbar, or Developer mode on, shows the rest, any time.
+  - Open: Ctrl+K: "Developer mode"; Settings > setting-developer-mode.
 - **tools-bar** (`tools-bar`): Pin any web app to the sidebar as a one-click button of your own.
   - Open: Ctrl+K: "Tools and products".
 
@@ -1312,7 +1312,7 @@ For building things, not just browsing them.
 - **DevTools** (`devtools`): The full Chromium developer tools, on the page you are looking at.
   - Open: Library > DevTools > How it works.
 - **dev-mode** (`dev-mode`): Two ways to use any theme: user mode is the browser, developer mode adds a dashboard button beside the Toolbox and a panel in the sidebar.
-  - Open: Ctrl+K: "Developer mode".
+  - Open: Ctrl+K: "Developer dashboard button".
 - **dev-dashboard** (`dev-dashboard`): Live counts of tabs, storage and what Vex has loaded, with the quick actions you want while working on it — reload the interface, open the profile folder, reset Vex.
   - Open: Ctrl+K: "Developer dashboard".
 

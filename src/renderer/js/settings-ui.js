@@ -98,7 +98,7 @@ const SettingsUI = {
     { name: 'Tab Groups',      icon: 'layers',   color: '#fb923c', match: ['tab grouping', 'tab tools', 'more tab tools', 'tabs and navigation', 'links and windows', 'tab comforts', 'tidy'] },
     { name: 'History',         icon: 'clock',    color: '#7dd3fc', match: ['history', 'time travel', 'find by time'] },
     { name: 'Play',            icon: 'puzzle',   color: '#f472b6', match: ['play: ', 'playfulness', 'fun and', 'living vex', 'profile and medals', 'little surprises', 'weekly page, offline'] },
-    { name: 'Vex health',      icon: 'info',     color: '#94a3b8', match: ['health check', 'minimal vex', 'feature usage', 'feature switches', 'release check', 'diagnostics', 'new for you', 'what each feature touches', 'search index', 'what i changed', 'usage counts'] },
+    { name: 'Vex health',      icon: 'info',     color: '#94a3b8', match: ['health check', 'minimal vex', 'feature usage', 'feature switches', 'release check', 'diagnostics', 'new for you', 'new for me','what each feature touches', 'search index', 'what i changed', 'usage counts'] },
     { name: 'Extras',          icon: 'cursor',   color: '#60a5fa', match: ['volume: ', 'browsing extras', 'gesture', 'page watcher', 'announcement desk', 'ai news', 'quiet hours', 'attention', 'why a tab is open', 'repeated searches', 'shopping comparison', 'why is this tab open', 'watcher alerts', 'inbox', 'community and chat', 'media control', 'shared from my phone', 'photo preparer', 'watch suggestions', 'slot watcher', 'watch templates'] },
     { name: 'Extensions',      icon: 'puzzle',   color: '#10b981', match: ['extension'] },
     { name: 'Permissions',     icon: 'lock',     color: '#eab308', match: ['permission', 'site settings'] },
@@ -134,7 +134,9 @@ const SettingsUI = {
   _orderGroups(root, groups) {
     const rankOf = (cat) => {
       const i = this.ORDER.indexOf(cat.name);
-      return i >= 0 ? i : this.ORDER.indexOf('Vex health') - 0.5;
+      const inside = i >= 0 ? i : this.ORDER.indexOf('Vex health') - 0.5;
+      const top = this.TOPS.findIndex(t => t.name === this.topOf(cat));
+      return (top >= 0 ? top : this.TOPS.length) * 1000 + inside;
     };
     const ordered = groups.map((g, i) => ({ g, i, r: rankOf(this._catOf(g)) })).sort((a, b) => a.r - b.r || a.i - b.i).map(x => x.g);
     if (ordered.every((g, i) => g === groups[i])) return false;
@@ -142,6 +144,43 @@ const SettingsUI = {
     ordered.forEach(g => root.insertBefore(g, after));
     groups.splice(0, groups.length, ...ordered);
     return true;
+  },
+
+  // The categories of the menu (2026-11-01): the 44 old ones (CATS, which still decide what a section is) fold into these few. The first
+  // nine are the ones a normal profile sees; the last four hold only advanced sections and show in Developer mode.
+  TOPS: [
+    { name: 'General',               icon: 'search',   color: '#6366f1' },
+    { name: 'Appearance',            icon: 'palette',  color: '#a855f7' },
+    { name: 'Privacy and security',  icon: 'shield',   color: '#22c55e' },
+    { name: 'Passwords and sign-in', icon: 'key',      color: '#34d399' },
+    { name: 'Sync and backup',       icon: 'refresh',  color: '#06b6d4' },
+    { name: 'Downloads and files',   icon: 'download', color: '#0284c7' },
+    { name: 'Tabs and performance',  icon: 'bolt',     color: '#f97316' },
+    { name: 'Sidebar and toolbar',   icon: 'panel',    color: '#818cf8' },
+    { name: 'AI',                    icon: 'spark',    color: '#d4a574' },
+    { name: 'Focus and study',       icon: 'target',   color: '#f43f5e' },
+    { name: 'Extras and fun',        icon: 'rocket',   color: '#f472b6' },
+    { name: 'Developer',             icon: 'gear',     color: '#38bdf8' },
+    { name: 'About and updates',     icon: 'info',     color: '#64748b' },
+  ],
+  // old category -> its top category (the AI group keeps its own chip and row of small chips)
+  TOP_OF: {
+    'General': 'General', 'Browser': 'General', 'Personalization': 'General', 'Location': 'General', 'Profiles': 'General', 'Workspaces': 'General',
+    'Appearance': 'Appearance', 'Reading': 'Appearance',
+    'Privacy': 'Privacy and security', 'Permissions': 'Privacy and security',
+    'Passwords': 'Passwords and sign-in', 'Passkeys': 'Passwords and sign-in', 'Autofill': 'Passwords and sign-in',
+    'Sync': 'Sync and backup', 'Cloud': 'Sync and backup', 'Data': 'Sync and backup',
+    'Downloads': 'Downloads and files', 'Library': 'Downloads and files',
+    'Performance': 'Tabs and performance', 'Sessions': 'Tabs and performance', 'Tab Groups': 'Tabs and performance', 'History': 'Tabs and performance', 'Recall': 'Tabs and performance',
+    'Layout': 'Sidebar and toolbar', 'Sidebar': 'Sidebar and toolbar', 'Shortcuts': 'Sidebar and toolbar',
+    'Focus OS': 'Focus and study', 'Focus': 'Focus and study', 'Knowledge': 'Focus and study',
+    'Boosts': 'Extras and fun', 'Chains': 'Extras and fun', 'Extensions': 'Extras and fun', 'Extras': 'Extras and fun', 'Play': 'Extras and fun',
+    'Developer': 'Developer', 'Vex health': 'Developer',
+    'About': 'About and updates',
+  },
+  topOf(cat) {
+    if (cat.group) return cat.group;
+    return this.TOP_OF[cat.name] || 'Extras and fun';
   },
 
   // How a group's one chip looks in the nav (see `group` in CATS).
@@ -166,13 +205,18 @@ const SettingsUI = {
       'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
   },
 
-  // The sections Simple mode (js/simple-mode.js) keeps in view, by the start
-  // of their heading. Every other section is "advanced": tucked behind Show
-  // advanced settings, and still found by the search.
+  // The CRITICAL sections: what Settings shows while Developer mode is off
+  // (js/simple-mode.js), by the start of their heading. Every other section is
+  // "advanced" (low, mid or high importance, js/settings-organize.js): it shows
+  // in Developer mode, and the search still finds it. The owner's list
+  // (2026-11-01): language, search engine, default browser, appearance and
+  // sidebar, privacy and tracking protection, passwords and sign-in, sync and
+  // backup, the downloads folder, updates, startup, reset.
   BASIC_SECTIONS: [
-    'general', 'default browser', 'sidebar buttons', 'privacy & security',
+    'general', 'default browser', 'sidebar buttons', 'privacy & security', 'privacy hardening',
+    'site settings', 'site permissions',
     'autofill', 'sessions', 'downloads', 'passwords', 'passkeys', 'payment cards', 'appearance', 'gui style', 'tab layout',
-    'reading & accessibility', 'personalization', 'data', 'about',
+    'wallpapers', 'reading & accessibility', 'vex sync', 'data', 'your data', 'about',
   ],
   tierOf(labelText) {
     const t = String(labelText || '').trim().toLowerCase();
@@ -184,6 +228,7 @@ const SettingsUI = {
   reveal(el) {
     const group = el && el.closest ? el.closest('.setting-group') : null;
     if (group && group.dataset.tier === 'advanced') group.classList.add('set-revealed');
+    if (el && typeof SettingsOrganize !== 'undefined') SettingsOrganize.open(el);
     return group;
   },
 
@@ -193,7 +238,7 @@ const SettingsUI = {
     if (btn) {
       btn.setAttribute('aria-expanded', on ? 'true' : 'false');
       const n = panel.querySelectorAll('.settings-content > .setting-group[data-tier="advanced"]').length;
-      btn.querySelector('.set-advanced-label').textContent = on ? 'Hide advanced settings' : 'Show advanced settings (' + n + ' more sections)';
+      btn.querySelector('.set-advanced-label').textContent = on ? 'Hide advanced settings' : 'Turn on Developer mode to see all settings';
     }
   },
 
@@ -279,6 +324,7 @@ const SettingsUI = {
     // While searching, Simple mode hides nothing: the advanced sections that
     // match are in the results (css/simple-mode.css marks them Advanced).
     (root.parentElement || root).classList.toggle('set-searching', !!q);
+    if (typeof SettingsOrganize !== 'undefined') SettingsOrganize.devNote(root, q ? groups.filter(g => g.style.display !== 'none' && g.dataset.tier === 'advanced').length : 0);
     // Results start at the top: the list kept wherever it had been scrolled
     // to, so the first matches were often above the view.
     if (q) root.scrollTop = 0;
@@ -620,6 +666,7 @@ const SettingsUI = {
     groups.forEach((g, i) => { g.dataset.ord = String(i); });
     const seen = new Set();
     const rows = {};   // group name -> { row, chip, names } for its row of sub-chips
+    const topChips = {};   // top category -> its chip
 
     groups.forEach((g, i) => {
       const labelEl = g.querySelector('.setting-label');
@@ -636,7 +683,7 @@ const SettingsUI = {
       g.style.setProperty('--cat-color', cat.color);
       if (!g.id) g.id = 'setcat-' + i;
       // Which entry of the category menu this section belongs to (_markCurrent).
-      g.dataset.navKey = cat.group || cat.name;
+      g.dataset.navKey = this.topOf(cat);
 
       if (labelEl && !labelEl.querySelector('.set-emoji')) {
         const chip = document.createElement('span');
@@ -674,10 +721,10 @@ const SettingsUI = {
         }
       }
 
-      const key = cat.group || cat.name;
+      const key = this.topOf(cat);
       if (!seen.has(key)) {
         seen.add(key);
-        const look = cat.group ? this.GROUPS[cat.group] : cat;
+        const look = cat.group ? this.GROUPS[cat.group] : (this.TOPS.find(t => t.name === key) || cat);
         // The group's chip lands on its row of sub-chips, which sits right
         // above the group's first section.
         const target = grp ? grp.row : g;
@@ -696,8 +743,11 @@ const SettingsUI = {
           SettingsUI._countChip(key, look.name);
         });
         nav.appendChild(navChip);
+        topChips[key] = navChip;
         if (grp) grp.chip = navChip;
       }
+      // A chip is critical as soon as one of its sections is.
+      if (tier === 'basic' && topChips[key]) topChips[key].dataset.tier = 'basic';
       // Simple mode hides a group's chip and row only when every section in
       // the group is tucked away.
       if (grp && tier === 'basic') {
@@ -715,17 +765,18 @@ const SettingsUI = {
       adv.className = 'set-advanced-toggle';
       adv.innerHTML = this._svg('layers', 15) + '<span class="set-advanced-label"></span>';
       adv.addEventListener('click', () => {
-        const on = !panel.classList.contains('set-show-advanced');
-        SettingsUI._setAdvancedShown(panel, on);
-        if (on) {
-          const first = root.querySelector(':scope > .setting-group[data-tier="advanced"]');
-          if (first) first.scrollIntoView({ block: 'start' });
-        }
+        // One switch (2026-11-01): the rest of Settings is what Developer mode shows.
+        if (typeof VexSimpleMode === 'undefined') throw new Error('[Settings] Developer mode is not loaded');
+        VexSimpleMode.set('full');
+        window.showToast?.('Developer mode is on. Settings › General › Developer mode turns it off again.', 'info', 6000);
       });
     }
     const lastGroup = groups[groups.length - 1];
     if (lastGroup.nextSibling !== adv) lastGroup.after(adv);
     this._setAdvancedShown(panel, panel.classList.contains('set-show-advanced'));
+
+    // Short sections: info folded behind a ?, More options, dropdowns (js/settings-organize.js).
+    if (typeof SettingsOrganize !== 'undefined') SettingsOrganize.apply(root);
 
     // Settings › Appearance › Settings layout, and the saved choices.
     this._fillLayoutSetting(document.getElementById('settings-layout-setting'));

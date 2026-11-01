@@ -588,9 +588,9 @@ const VexFeatures = {
       what: 'A hand-picked shelf of popular extensions (YouTube, privacy, dark mode, developer tools and more), each tested in Vex and marked Works fully, Works partly or Does not work, with the reason. Add installs it from its real source (the Chrome Web Store with its signatures checked, or the publisher’s own GitHub); Vex hosts no copies. Paste a Web Store link into its search to add any other extension.' },
     { id: 'login-start', phrases: 'start with windows launch at login startup boot open when computer starts run at startup minimised', cat: 'look', name: 'Start Vex when Windows starts', setting: { id: 'setting-login-item' },
       what: 'Opens Vex when you sign in to Windows, in front or minimised on the taskbar. Only in the installed app, and it shows what Windows really holds.' },
-    { id: 'simple-mode', cat: 'look', cmd: 'simple-mode', setting: { id: 'setting-simple-mode' },
-      phrases: 'simple mode too many buttons cluttered calm basic beginner fewer options hide advanced all features',
-      what: 'A calm Vex: only the everyday buttons, panels and settings are on screen. Nothing is removed — All features in the toolbar shows the rest, any time.' },
+    { id: 'simple-mode', cat: 'look', cmd: 'simple-mode', setting: { id: 'setting-developer-mode' },
+      phrases: 'developer mode simple mode too many buttons cluttered calm basic beginner fewer options hide advanced all features critical settings only',
+      what: 'Developer mode off is a calm Vex: only the critical settings and the everyday buttons and panels are on screen. Nothing is removed — All features in the toolbar, or Developer mode on, shows the rest, any time.' },
     { id: 'tools-bar', cat: 'look', cmd: 'tools', sel: '#tools-bar',
       what: 'Pin any web app to the sidebar as a one-click button of your own.' },
 
