@@ -154,6 +154,8 @@ const VexFeatureSheet = {
     // role="dialog" (the UI check requires aria-modal on those, which would hide the page behind it).
     card.setAttribute('role', 'region');
     card.setAttribute('aria-label', 'About ' + m.title);
+    // The toast stack sits on top of this corner card instead of over it (app.js placeToasts, the same rule as the download cards).
+    card.setAttribute('data-avoid-toasts', 'above');
     card.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9000;width:min(380px,92vw);background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 40px var(--vex-shadow-color,rgba(0,0,0,.35));padding:12px 14px';
     const head = document.createElement('div');
     head.style.cssText = 'font-size:13px;font-weight:650;margin-bottom:6px';
