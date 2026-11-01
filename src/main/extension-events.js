@@ -12,7 +12,8 @@
 
 const EVENTS = new Set([
   'tabs.onUpdated', 'tabs.onActivated', 'tabs.onCreated', 'tabs.onRemoved',
-  'webRequest.onCompleted',
+  'webRequest.onCompleted', 'webRequest.onBeforeRequest', 'webRequest.onBeforeSendHeaders', 'webRequest.onSendHeaders',
+  'webRequest.onHeadersReceived', 'webRequest.onResponseStarted', 'webRequest.onBeforeRedirect', 'webRequest.onErrorOccurred',
   'webNavigation.onBeforeNavigate', 'webNavigation.onCommitted', 'webNavigation.onDOMContentLoaded', 'webNavigation.onCompleted',
   'webNavigation.onErrorOccurred', 'webNavigation.onHistoryStateUpdated', 'webNavigation.onReferenceFragmentUpdated',
   'cookies.onChanged',
@@ -31,15 +32,21 @@ const RESOURCE_TYPES = {
 
 function createExtensionEvents() {
   const byKey = new Map();   // '<partition>|<extension id>' -> Map(type -> filter | null)
+  const specs = new Map();   // '<key>|<type>' -> the extraInfoSpec a webRequest listener was added with
+  const counts = new Map();  // base event -> how many listeners, so a request nobody listens to costs one lookup
 
-  function listen(key, type, filter) {
+  function listen(key, type, filter, spec) {
     type = String(type || '');
     if (!EVENTS.has(baseOf(type)) || (type !== baseOf(type) && !/^(webRequest|webNavigation)\./.test(type))) throw new Error(`Vex cannot tell an extension about ${type}`);
     let types = byKey.get(key);
     if (!types) { types = new Map(); byKey.set(key, types); }
     if (!types.has(type) && types.size >= MAX_TYPES) throw new Error('Too many listeners');
+    if (!types.has(type)) counts.set(baseOf(type), (counts.get(baseOf(type)) || 0) + 1);
     types.set(type, filter && typeof filter === 'object' ? filter : null);
+    if (Array.isArray(spec)) specs.set(key + '|' + type, spec.filter(x => typeof x === 'string').slice(0, 8));
   }
+
+  function anyone(base) { return (counts.get(base) || 0) > 0; }
 
   // [{ extId, type, filter }] listening in that session to `base` (or one of
   // its numbered webRequest listeners).
@@ -49,14 +56,18 @@ function createExtensionEvents() {
     for (const [key, types] of byKey) {
       if (!key.startsWith(prefix)) continue;
       const extId = key.slice(prefix.length);
-      for (const [type, filter] of types) if (baseOf(type) === base) out.push({ extId, type, filter });
+      for (const [type, filter] of types) if (baseOf(type) === base) out.push({ extId, type, filter, spec: specs.get(key + '|' + type) });
     }
     return out;
   }
 
-  function forget(key) { byKey.delete(key); }
+  function forget(key) {
+    const types = byKey.get(key);
+    if (types) for (const type of types.keys()) { counts.set(baseOf(type), Math.max(0, (counts.get(baseOf(type)) || 0) - 1)); specs.delete(key + '|' + type); }
+    byKey.delete(key);
+  }
 
-  return { listen, listeners, forget };
+  return { listen, listeners, forget, anyone };
 }
 
 // Whether a webRequest listener's filter takes this request (Chrome's
@@ -70,8 +81,23 @@ function filterTakes(filter, details, matchPattern) {
   return f.urls.some(p => { try { return matchPattern(p, details.url); } catch { return false; } });
 }
 
-// What a webRequest listener hears, as Chrome describes a request.
-function requestDetails(details) {
+// Headers as Chrome gives them to an extension: [{ name, value }], one entry
+// per value. Cookie and Set-Cookie go only to a listener that asked for
+// 'extraHeaders', as in Chrome.
+function headerList(headers, withCookies) {
+  const out = [];
+  for (const [name, value] of Object.entries(headers || {})) {
+    if (!withCookies && /^(set-)?cookie$/i.test(name)) continue;
+    for (const v of (Array.isArray(value) ? value : [value])) out.push({ name, value: String(v) });
+  }
+  return out;
+}
+
+// What a webRequest listener hears, as Chrome describes a request. `spec` is
+// the extraInfoSpec it was added with: headers only when it asked for them.
+// Observing only: whatever the listener returns is ignored (Vex's own blocker
+// and the declarativeNetRequest rules decide what happens to a request).
+function requestDetails(details, spec) {
   const out = {
     requestId: String(details.id), url: details.url, method: details.method, frameId: details.resourceType === 'mainFrame' ? 0 : -1,
     parentFrameId: -1, tabId: details.webContentsId || -1, type: RESOURCE_TYPES[details.resourceType] || 'other',
@@ -81,6 +107,11 @@ function requestDetails(details) {
   if (details.statusLine !== undefined) out.statusLine = details.statusLine;
   if (details.ip !== undefined) out.ip = details.ip;
   if (details.error !== undefined) out.error = details.error;
+  const want = Array.isArray(spec) ? spec : [];
+  const extra = want.includes('extraHeaders');
+  if (want.includes('requestHeaders') && details.requestHeaders) out.requestHeaders = headerList(details.requestHeaders, extra);
+  if (want.includes('responseHeaders') && details.responseHeaders) out.responseHeaders = headerList(details.responseHeaders, extra);
+  if (details.redirectURL) out.redirectUrl = details.redirectURL;
   if (details.referrer) out.initiator = (() => { try { return new URL(details.referrer).origin; } catch { return undefined; } })();
   return out;
 }
@@ -169,4 +200,4 @@ function cookieChange(cookie, cause, removed, toChrome) {
 }
 
 module.exports = { createExtensionEvents, filterTakes, requestDetails, urlFilterTakes, navigableUrl, isPrivateSession, frameIds, navigationDetails,
-  cookieChange, EVENTS, RESOURCE_TYPES, NAV_EVENTS };
+  cookieChange, headerList, EVENTS, RESOURCE_TYPES, NAV_EVENTS };

@@ -32,9 +32,12 @@ describe('extension catalogue', () => {
 
   it('lists the limits a user would otherwise blame on themselves', () => {
     const text = VexExtensionCatalog.UNSUPPORTED.join(' ').toLowerCase();
-    for (const missing of ['storage.sync', 'cookies', 'tor', 'global shortcuts', 'seticon']) {
+    for (const missing of ['storage.sync', 'cookies', 'tor', 'global shortcuts']) {
       expect(text, missing).toContain(missing);
     }
+    // action.setIcon and setPopup work (src/main.js, 'action.set'); history and bookmarks can be read (src/main/extension-browsing.js).
+    expect(text).not.toContain('seticon');
+    expect(text).toMatch(/can read them/);
   });
 
   // Right-click menu items, shortcuts and badges work since 2026-10-08
