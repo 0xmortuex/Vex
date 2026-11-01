@@ -15,7 +15,7 @@ function parseList(raw, what) {
   if (raw === undefined || raw === null || raw === '') return [];
   let parsed;
   try { parsed = typeof raw === 'string' ? JSON.parse(raw) : raw; }
-  catch (err) { throw new Error(`Vex could not read your ${what}: ${err.message}`); }
+  catch (err) { throw new Error(`Vex could not read your ${what}: ${err.message}`, { cause: err }); }
   const list = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.entries) ? parsed.entries : null);
   if (!list) throw new Error(`Vex could not read your ${what}: it is not a list`);
   return list;

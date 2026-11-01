@@ -118,12 +118,12 @@ const VexExtensionCatalog = {
   // What Electron simply does not give an extension, so the manager can say so
   // rather than leaving someone guessing why their extension is quiet.
   UNSUPPORTED: [
-    'Blocking requests from code (blocking webRequest). declarativeNetRequest rules do work, behind Vex’s own blocker',
-    'Changing the toolbar icon or popup from code (action.setIcon, setPopup) and global shortcuts that work outside Vex',
+    'Blocking requests from code (blocking webRequest): an extension is told about requests but can only watch them. declarativeNetRequest rules do work, behind Vex’s own blocker',
+    'Global shortcuts that work outside Vex (an extension’s shortcuts work only while Vex is in front)',
     'Syncing settings between machines (storage.sync works, but stays on this machine)',
     'Cookies and navigation events in private, burner and Tor tabs (cookies, webNavigation), and webNavigation\u2019s new-window and replaced-tab events',
-    'History, bookmarks, tab groups, sessions, top sites and text-to-speech (history, bookmarks, tabGroups, sessions, topSites, tts)',
-    'User scripts (userScripts), driving other tabs with the debugger (debugger) and offscreen pages (offscreen). A side panel (sidePanel) opens as a tab of its own',
+    'Changing the history or bookmarks (an extension can read them), and recently closed tabs, privacy and proxy settings, clearing browsing data and text-to-speech (sessions, privacy, proxy, browsingData, tts)',
+    'User scripts (userScripts) and offscreen pages (offscreen). Driving other tabs with the debugger and talking to programs on this computer each need a switch on the extension’s card; a side panel (sidePanel) opens beside the tab',
     'Any extension in Private, Off-the-Record or Tor tabs',
   ],
 
