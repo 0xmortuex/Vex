@@ -137,6 +137,7 @@ const SettingsPane = {
     'Clear search': 'Aramayı temizle',
     'More options': 'Daha fazla seçenek',
     'Show all': 'Tümünü göster',
+    'Advanced': 'Gelişmiş',
   },
 
   // ---- which card a section belongs to --------------------------------------------------------
@@ -218,6 +219,7 @@ const SettingsPane = {
     };
     const shown = this._sections(root).filter(g => this._inCategory(g, key) && this._shown(g, panel));
     shown.forEach(g => this.densify(g, key));
+    shown.forEach(g => this.tidy(g));
     this._sections(root).forEach(g => { if (!shown.includes(g)) mark(g, '', ''); });
     // The runs of sections of one card.
     const runs = [];
@@ -241,6 +243,17 @@ const SettingsPane = {
       });
       wanted.set(run[0], this._t(run[0].dataset.card || ''));
     }
+    // The page's title: the category on screen.
+    let pt = root.querySelector(':scope > .set-page-title');
+    if (!pt) {
+      pt = document.createElement('div');
+      pt.className = 'set-page-title';
+      pt.setAttribute('role', 'heading');
+      pt.setAttribute('aria-level', '1');
+      const results = root.querySelector(':scope > .set-results');
+      if (results) results.after(pt); else root.prepend(pt);
+    }
+    if (pt.dataset.key !== key) { pt.dataset.key = key; pt.textContent = this._t(key); }
     // The card's title is a line of its own above its first section.
     for (const t of Array.from(root.querySelectorAll(':scope > .set-card-title'))) {
       const next = t.nextElementSibling;
@@ -254,9 +267,10 @@ const SettingsPane = {
       t.setAttribute('role', 'heading');
       t.setAttribute('aria-level', '2');
       t.textContent = text;
+      if (typeof VexI18nUI !== 'undefined' && VexI18nUI.locale() === 'tr') t.lang = 'tr';
       first.before(t);
     }
-    this._clamp(shown, root);
+    this._clamp(shown);
     return runs.length;
   },
 
@@ -373,34 +387,140 @@ const SettingsPane = {
     else if (kind === 'plain') g.classList.add('set-head-off', 'set-plain');
     // A heading that repeats the category's name says nothing.
     if (head && topKey && this._words(headText).join(' ') === this._words(topKey).join(' ')) g.classList.add('set-head-off');
+    // A heading that repeats the title of its card says nothing either ("Reading & Accessibility" in the card "Reading").
+    if (head && g.dataset.card && this._redundant(headText, g.dataset.card)) g.classList.add('set-head-off');
     return kind;
   },
 
-  // A section taller than CLAMP_AT shows its first CLAMP_TO px and a "Show all" over the rest; the rest is in the page, and
-  // a focus, a link or a search result inside it opens it.
-  CLAMP_AT: 520,
-  CLAMP_TO: 300,
-  _clamp(shown, root) {
-    if (!root.clientWidth) return;
+  // ---- one look for every row -----------------------------------------------------------------
+  // A hint is ONE line: the small grey text under a label is cut with an ellipsis (its full text is the tooltip), and when it is
+  // long (60 characters or more) it moves behind the (i) of its row. The (i) sits at the end of its row's label, never on a line
+  // of its own. A button nobody styled gets the one button look (a danger one in the danger colour). Only classes, tooltips and the
+  // place of a (i) change; every control keeps its id and listeners. Safe to run again: it marks what it did.
+  _LIVE: /err|warn|status|result|state|progress|msg|toast|live|count|empty/i,
+  _DANGER: /\b(forget|delete|erase|wipe|remove all|clear all|clear everything|reset|disconnect|sign out|log out|revoke|uninstall|destroy)\b/i,
+  _SKIP_BTN: '.btn-primary, .btn-secondary, .btn-danger, .btn-ghost, .btn-link, .set-info-btn, .set-more-btn, .set-chevron, .set-clamp-btn, .set-nav-chip, .set-advanced-toggle, .shortcut-key, [aria-pressed], [aria-selected], [role="tab"], [role="radio"], [role="switch"], [role="menuitem"], [aria-haspopup]',
+  _mutedColor() {
+    if (typeof document === 'undefined' || !document.body) return '';
+    let p = this._probe;
+    if (!p || !p.isConnected) {
+      p = this._probe = document.createElement('span');
+      p.style.cssText = 'position:absolute;visibility:hidden;color:var(--text-muted)';
+      document.body.appendChild(p);
+    }
+    return getComputedStyle(p).color;
+  },
+  _isLive(el) {
+    return !!el.closest('[role="alert"], [role="status"], [aria-live]') || this._LIVE.test(el.className && typeof el.className === 'string' ? el.className : '');
+  },
+  _smallGrey(el, muted) {
+    const cs = getComputedStyle(el);
+    return parseFloat(cs.fontSize) <= 12.9 && parseFloat(cs.fontWeight) < 600 && !!muted && cs.color === muted;
+  },
+  // A moved (i) is named by the label it now ends.
+  _name(btn, host) {
+    if (btn.hasAttribute('aria-labelledby')) return;
+    const t = (host.textContent || '').trim();
+    if (!t || t.length > 90) return;
+    if (!host.id) host.id = 'set-info-for-' + (++this._nameSeq);
+    if (!btn.id) btn.id = 'set-info-btn-m' + this._nameSeq;
+    btn.setAttribute('aria-labelledby', btn.id + ' ' + host.id);
+  },
+  _nameSeq: 0,
+  tidy(g) {
+    if (!g || typeof SettingsOrganize === 'undefined') return 0;
+    let n = 0;
+    const muted = this._mutedColor();
+    // 1. hints
+    const BLOCKS = 'div, p, ul, ol, table, button, select, input, textarea, label, h1, h2, h3, h4, .toggle';
+    for (const el of g.querySelectorAll(SettingsOrganize.INFO_SELECTOR + ', span, div, p, small')) {
+      if (el.dataset.hintDone) continue;
+      if (el.closest('.setting-label, button, .toggle, .set-info-btn, .set-nav, select, code, pre') || el.querySelector(BLOCKS)) continue;
+      const len = (el.textContent || '').trim().length;
+      if (len < 12) continue;
+      if (!el.matches(SettingsOrganize.INFO_SELECTOR) && !this._smallGrey(el, muted)) continue;
+      el.dataset.hintDone = '1';
+      if (this._isLive(el)) continue;
+      if (SettingsOrganize._foldEl(el, { allowId: true })) { n++; continue; }
+      el.classList.add('set-hint-line');
+      el.addEventListener('mouseenter', () => { el.title = (el.textContent || '').replace(/\s+/g, ' ').trim(); });
+      n++;
+    }
+    // 2. a (i) alone on its own line goes to the end of the label beside it
+    for (const btn of g.querySelectorAll('.set-info-btn--line')) {
+      const text = (e) => !!e && e.nodeType === 1 && !e.matches('button, .set-info-btn, .set-info-folded, hr') && !e.querySelector('input, select, textarea') && (e.textContent || '').trim().length > 0 && (e.textContent || '').trim().length <= 70 && !e.matches('.set-info-folded, [hidden]');
+      const anyText = (e) => !!e && e.nodeType === 1 && !e.matches('button, .set-info-btn, .set-info-folded, hr, [hidden]') && !e.querySelector('input, select, textarea') && (e.textContent || '').trim().length > 0;
+      let host = btn.previousElementSibling;
+      while (host && !anyText(host) && host.previousElementSibling) host = host.previousElementSibling;
+      if (!text(host)) {
+        host = btn.nextElementSibling;
+        while (host && host.matches('.set-info-folded, .set-info-btn')) host = host.nextElementSibling;
+      }
+      if (!text(host)) host = btn.previousElementSibling && anyText(btn.previousElementSibling) ? btn.previousElementSibling : host;
+      if (host && (text(host) || anyText(host))) { host.appendChild(btn); this._name(btn, host); btn.classList.remove('set-info-btn--line'); btn.classList.add('set-info-btn--inline'); n++; }
+    }
+    // 2b. the same for a section whose heading is off: its (i) goes to the end of its first row's label
+    if (g.classList.contains('set-head-off') && !g.classList.contains('set-dense')) {
+      const corner = g.querySelector(':scope > .set-info-btn--corner');
+      const first = g.querySelector('.setting-toggle-row > span:first-child, .setting-row > label, .setting-row > .setting-label');
+      if (corner && first) { first.appendChild(corner); this._name(corner, first); corner.classList.remove('set-info-btn--corner'); corner.classList.add('set-info-btn--inline'); n++; }
+    }
+    // 2c. a menu that sits straight in a block container (label, menu, label, menu): the container lays them out in rows
+    for (const sel of g.querySelectorAll('select')) {
+      const p = sel.parentElement;
+      if (!p || p.classList.contains('set-flexrows') || p.matches('.setting-toggle-row, .setting-row, label, .set-plain, .set-dense, .set-layout-field')) continue;
+      if (getComputedStyle(p).display === 'block') { p.classList.add('set-flexrows'); n++; }
+    }
+    // 3. one button look
+    for (const b of g.querySelectorAll('button')) {
+      if (b.dataset.btnDone || b.matches(this._SKIP_BTN)) continue;
+      const label = (b.textContent || '').trim();
+      if (!label) continue;
+      b.dataset.btnDone = '1';
+      b.classList.add(/primary/.test(b.className) ? 'btn-primary' : 'btn-secondary');
+      if (this._DANGER.test(label) || /danger/i.test(b.className)) b.classList.add('set-btn-danger');
+      n++;
+    }
+    return n;
+  },
+
+  // A long list (ten or more items: the extension catalogue, the shortcut keys) shows its first CLAMP_SHOW items and an inline
+  // "Show all N" row under them; the rest is in the page, and a focus, a link or a search result inside it opens it.
+  CLAMP_ITEMS: 10,
+  CLAMP_SHOW: 6,
+  _clamp(shown) {
     for (const g of shown) {
-      if (g.classList.contains('set-unclamped') || g.classList.contains('set-clamped')) continue;
-      if (g.offsetHeight <= this.CLAMP_AT) continue;
-      g.classList.add('set-clamped');
+      // A list its module drew again has no hidden items left: the row under it goes.
+      for (const old of Array.from(g.querySelectorAll('.set-clamp-btn'))) {
+        if (!old._list || !old._list.isConnected || !old._list.querySelector(':scope > .set-clamp-hidden')) { if (old._list) old._list.classList.remove('set-clamped-list'); old.remove(); delete g.dataset.clampDone; }
+      }
+      if (g.dataset.clampDone) continue;
+      let best = null;
+      for (const c of g.querySelectorAll('div, ul, ol')) {
+        if (c.closest('.set-info-folded') || c.classList.contains('set-more-body')) continue;
+        const kids = Array.from(c.children).filter(k => !k.matches('script, style, [hidden], .set-info-btn, .set-clamp-btn') && k.getClientRects().length);
+        if (kids.length >= this.CLAMP_ITEMS && (!best || kids.length > best.kids.length)) best = { c, kids };
+      }
+      if (!best) continue;
+      g.dataset.clampDone = '1';
+      best.c.classList.add('set-clamped-list');
+      best.kids.slice(this.CLAMP_SHOW).forEach(k => k.classList.add('set-clamp-hidden'));
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'set-clamp-btn';
-      btn.textContent = this._t('Show all');
+      btn.textContent = this._t('Show all') + ' ' + best.kids.length;
+      btn._list = best.c;
       btn.addEventListener('click', () => this.unclamp(g));
-      g.appendChild(btn);
+      best.c.after(btn);
       g.addEventListener('focusin', () => this.unclamp(g), { once: true });
     }
   },
   unclamp(g) {
-    if (!g || !g.classList.contains('set-clamped')) return;
-    g.classList.remove('set-clamped');
-    g.classList.add('set-unclamped');
-    const b = g.querySelector(':scope > .set-clamp-btn');
-    if (b) b.remove();
+    if (!g) return;
+    g.querySelectorAll('.set-clamp-hidden').forEach(k => k.classList.remove('set-clamp-hidden'));
+    g.querySelectorAll('.set-clamp-btn').forEach(b => b.remove());
+    g.querySelectorAll('.set-clamped-list').forEach(c => c.classList.remove('set-clamped-list'));
+    if (g.dataset.clampDone) g.dataset.clampDone = 'open';
   },
 
   // The category a section is in (for a result or a link).
@@ -409,6 +529,9 @@ const SettingsPane = {
     return g ? g.dataset.navKey || null : null;
   },
 };
+
+// In this page a hint is ONE line (about 90 characters): only a longer one folds behind its (i).
+if (typeof SettingsOrganize !== 'undefined') { SettingsOrganize.INFO_MIN = 90; SettingsOrganize.INLINE_MIN = 90; }
 
 if (typeof window !== 'undefined') window.SettingsPane = SettingsPane;
 if (typeof module !== 'undefined' && module.exports) module.exports = { SettingsPane };

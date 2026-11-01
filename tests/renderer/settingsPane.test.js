@@ -161,7 +161,7 @@ describe('one category at a time', () => {
     const originals = [...root.querySelectorAll('input, select, textarea, button')];
     const bag = () => {
       const copy = root.cloneNode(true);
-      copy.querySelectorAll('.set-more-btn, .set-dev-note, .set-radio-select, .set-info-btn, .set-nav, .set-emoji, .set-results, .set-advanced-toggle, .set-subnav, .set-card-title, .set-clamp-btn, .set-chevron, #settings-layout-setting').forEach(e => e.remove());
+      copy.querySelectorAll('.set-more-btn, .set-dev-note, .set-radio-select, .set-info-btn, .set-nav, .set-emoji, .set-results, .set-advanced-toggle, .set-subnav, .set-card-title, .set-page-title, .set-clamp-btn, .set-chevron, #settings-layout-setting').forEach(e => e.remove());
       // One section at a time: the cards put them in a new order, and two sections' text must not run together.
       return [...copy.children].map(c => c.textContent).join(' ').split(/\s+/).filter(Boolean).sort().join(' ');
     };
