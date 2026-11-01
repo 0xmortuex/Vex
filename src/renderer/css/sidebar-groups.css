@@ -52,7 +52,7 @@
 
 /* The name under the tile: 11px, in the UI sans (not the theme's serif, which squeezed to 8.5px was unreadable), cut with an ellipsis. */
 #icon-sidebar .sb-folder-label {
-  display: block; box-sizing: border-box; width: 100%; max-width: 100%; margin-top: 3px; padding: 0 3px; overflow: hidden; cursor: pointer;
+  display: block; box-sizing: border-box; width: 100%; max-width: 100%; margin-top: 3px; padding: 0 1px; overflow: hidden; cursor: pointer;
   text-overflow: ellipsis; white-space: nowrap; text-align: center; color: var(--sbf-fg);
   font-size: 11px; font-weight: 500; line-height: 13px; letter-spacing: 0;
 }
