@@ -10619,6 +10619,7 @@ const VexI18nUI = {
       'Bypass check': 'Aşma denetimi',
       'Why isn\'t this playing?':'Bu neden oynatılmıyor?',
       'Video and music playback (DRM)': 'Video ve müzik oynatma (DRM)',
+      'Setup progress': 'Kurulum ilerlemesi',
       'Unblock centre': 'Engel kaldırma merkezi',
       'Sites your network blocks, and the way that opens each one': 'Ağınızın engellediği siteler ve her birini açan yöntem',
       'Sites your network blocks, the way that opens each one, and a test for each': 'Ağınızın engellediği siteler, her birini açan yöntem ve her biri için bir sınama',
