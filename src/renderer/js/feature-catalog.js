@@ -578,7 +578,7 @@ const VexFeatures = {
       what: 'Describe a look — "declutter", "match my dark theme" — and the AI writes the CSS, saved as a per-site Boost.' },
     { id: 'setupgallery', cat: 'look', cmd: 'setupgallery',
       what: 'Save your whole setup as a code you can paste on another machine, or hand to someone else.' },
-    { id: 'startpage', phrases: 'new tab page home page start page', cat: 'look', cmd: 'start',
+    { id: 'startpage', phrases: 'new tab page home page homepage change the homepage start page', cat: 'look', cmd: 'start',
       what: 'A start page with your name, the weather, your GitHub activity, a daily verse or quote, and your own shortcuts.' },
     { id: 'shortcuts', phrases: 'keyboard shortcuts hotkeys keys', cat: 'look', cmd: 'shortcuts',
       what: 'Rebind any keyboard shortcut to whatever you actually press — and give a key to anything that has none, from the whole command list.' },
