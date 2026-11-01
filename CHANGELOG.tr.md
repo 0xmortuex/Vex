@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v49.88.2 (2026-11-02) — Daha rahat bir kurulum ve Ayarlar, tema paketleri ve duvar kağıtları, sessizce başarısız olamayan güncellemeler
+## v49.89.2 (2026-11-02) — Daha rahat bir kurulum ve Ayarlar, tema paketleri ve duvar kağıtları, sessizce başarısız olamayan güncellemeler
 
 Vex artık ilk günden farklı görünüyor ve hissettiriyor. Kurulum kenar çubuğu isteyip istemediğinizi ve oyun dostu bir mod isteyip istemediğinizi soruyor; Ayarlar her seferinde tek bir kısa kategori gösteriyor ve araması tam aradığınız ayarı buluyor; tüm tarayıcıyı bir tema paketi, bir simge stili ve Vex'in kendi renklerini uyduracağı bir duvar kağıdıyla giydirebiliyorsunuz. Ayrıca bildirilmiş bir sahtekâr siteyi açmadan önce uyarıyor, bir filmin neden oynamadığını anlatıyor ve kötü giden bir güncelleme artık kendini geri alabiliyor.
 
@@ -49,6 +49,7 @@ Vex artık ilk günden farklı görünüyor ve hissettiriyor. Kurulum kenar çub
 - **Ayarlar araması** tam ayarı buluyor ("tema paketleri" ilgisiz bölümleri değil Tema paketleri'ni bulur) ve Ayarlar bölümleri son notlarını artık kesmiyor.
 - **Bildirimler artık ilk kullanım kartının üstüne binmiyor.**
 - **Tema paketleri:** gizli pencere, geldiği pencerenin tasarımını koruyor; seçici bir hatadan sonra artık "uygulandı" demiyor.
+- **Durdur düğmesi, az önce açılmış bir sekmede artık hata vermiyor.** Henüz hazır olmayan bir sayfada durduracak bir şey yoktur; başka her hata yine gösterilir.
 - **Uzantı açılır pencereleri artık ekrandan taşmıyor.** Sağ uçtaki uzantılar menüsünden açılan Dark Reader ve benzerlerinin büyük kısmı ekran kenarının dışında kalıyordu. Açılır pencere artık bastığınız düğmenin altında açılıyor, Vex penceresinin ve ekranın içinde kalıyor (altta yer yoksa düğmenin üstünde); Stylus'un açılır penceresi de ekranın ortasında değil, düğmesinin altında açılıyor.
 - **GitHub geçiş anahtarı kaydı** artık anahtar kaydedildikten sonra "Passkey registration failed" ile bitmiyor.
 - **Discord'un mikrofon çubuğu** sessizken artık açık kalmıyor (Vex'te discord.com'da parmak izi gürültüsü atlanır; Tor sayfaları her zaman gürültüyü korur).
