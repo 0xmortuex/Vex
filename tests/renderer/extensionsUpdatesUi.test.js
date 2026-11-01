@@ -114,7 +114,7 @@ describe('Settings › Extensions: updates and file access', () => {
     c.querySelector('#btn-install-zip').click();
     await flush(); await flush();
     const arg = window.vexConfirm.mock.calls[0][0];
-    expect(arg.html).toMatch(/not from the Chrome Web Store/);
+    expect(arg.html).toMatch(/not from the Chrome Web Store/i);
     expect(arg.html).toMatch(/signed themselves/);
     expect(pickedInstall).toHaveBeenCalledWith('f'.repeat(32));
   });

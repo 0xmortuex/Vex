@@ -308,7 +308,7 @@ const VexExtDiff = {
       cb.setAttribute('aria-label', 'Pause ' + e.name);
       boxes.push({ cb, folder: e.folder });
       const snap = this.snapshotOf(e);
-      lab.append(cb, this._el('span', '', ' ' + e.name + ' (' + (this.LEVEL_WORDS[snap.level] || snap.level) + ')'));
+      lab.append(cb, this._el('span', '', ' ' + e.name), this._el('span', '', ' (' + (this.LEVEL_WORDS[snap.level] || snap.level) + ')'));
       body.appendChild(lab);
     }
     const rule = this._rules()[h];

@@ -1,11 +1,11 @@
 // Settings in Turkish, second sweep (2026-11-01): the rules and the strings that were still English in the live scan
-// (scripts/turkish-scan/). The late data file js/settings-tr2.js holds most of them; the rest are in the marked block at the end of the
+// (scripts/turkish-scan/). The late data file js/settings-sweep2-tr.js holds most of them; the rest are in the marked block at the end of the
 // Turkish table in js/i18n-ui.js. Two tables with one key would let the later one win without a word, so none may be in both.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 const { VexI18nUI } = require('../../src/renderer/js/i18n-ui.js');
-const { VexSettingsTr2 } = require('../../src/renderer/js/settings-tr2.js');
+const { VexSettingsTr2 } = require('../../src/renderer/js/settings-sweep2-tr.js');
 
 const ROOT = path.join(__dirname, '..', '..');
 const tr = (s) => VexI18nUI.lookup(s, 'tr');
@@ -16,7 +16,7 @@ VexI18nUI.resetTemplates();
 
 describe('Settings Turkish: the late file', () => {
   it('is loaded late, and none of its keys is also in the main table', () => {
-    expect(fs.readFileSync(path.join(ROOT, 'src/renderer/js/lazy-boot.js'), 'utf8')).toContain("{ src: 'js/settings-tr2.js', usage: [] }");
+    expect(fs.readFileSync(path.join(ROOT, 'src/renderer/js/lazy-boot.js'), 'utf8')).toContain("{ src: 'js/settings-sweep2-tr.js', usage: [] }");
     expect(keysInBoth, 'Keep each key in one place: ' + keysInBoth.join(' | ')).toEqual([]);
   });
   it('every entry has Turkish text, and a template keeps the holes of its English', () => {

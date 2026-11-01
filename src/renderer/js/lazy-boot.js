@@ -37,7 +37,7 @@ const VexBoot = {
     { src: 'js/maker-repos.js', usage: [] },
     { src: 'js/faq-ui.js', usage: [] },
     { src: 'js/drm-help-tr.js', usage: [] },
-    { src: 'js/settings-tr2.js', usage: [] },
+    { src: 'js/settings-sweep2-tr.js', usage: [] },
     { src: 'js/drm-help.js', usage: [] },
     { src: 'js/unblock-centre.js', usage: ['unblock-centre'] },
     { src: 'js/page-recorder.js', usage: [] },

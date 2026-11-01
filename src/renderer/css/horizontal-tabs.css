@@ -145,28 +145,24 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   opacity: 1;
 }
 
-/* Narrow: hide title, keep close only on hover */
-.top-tab.narrow {
-  justify-content: center;
-  padding: 0 8px;
-  gap: 4px;
-}
-.top-tab.narrow .tab-title { display: none; }
+/* A tab never gets narrower than 72px: its icon and the first letters of its
+   title stay readable. The crowded strip scrolls sideways instead (it keeps the
+   tab in front in view, and the list-all-tabs button reaches the rest). It used
+   to squeeze to 28px and hide the title, and at 90-100px the close button's
+   reserved room left one letter of title and pushed the sleeping moon out of
+   sight (owner, 2026-11-01). */
+.top-tab:not(.pinned) { min-width: 72px; }
 
-/* Very narrow: hide close too, icon only. Keeps flex-grow (no fixed 40px
-   lock): the tabs must always fill the bar's full width — the old
-   `flex: 0 0 40px` left a growing empty gap at the right edge and fed the
-   JS measurement loop its own forced width, ratcheting the strip smaller
-   on every re-render. */
-.top-tab.very-narrow {
-  /* 28px = favicon + borders. Letting the minimum drop this far means a
-     crowded strip squeezes like Chrome's (every tab stays visible) instead
-     of overflowing tabs past the bar's clipped right edge. */
-  min-width: 28px;
-  padding: 0;
-  justify-content: center;
+/* Crowded (the JS adds .narrow when each tab would get under 120px): the title
+   stays, and the close cross stops taking room of its own. It lies over the end
+   of the title, shown on the tab in front and on the one under the pointer
+   (the invisible cross used to keep 26px, which left 15px of title). */
+.top-tab.narrow { gap: 6px; }
+.top-tab.narrow .tab-close {
+  position: absolute; right: 3px; top: 50%; margin-top: -9px;
+  background: var(--b-tab-hover, var(--vex-glass-tab-inactive, var(--vex-bg-secondary)));
 }
-.top-tab.very-narrow .tab-close { display: none; }
+.top-tab.narrow.active .tab-close { background: var(--b-tab-active, var(--vex-glass-tab-active, var(--vex-bg-secondary))); }
 
 /* Pinned: always compact icon square */
 .top-tab.pinned {
@@ -209,6 +205,31 @@ body[data-tab-layout="vertical"].fullscreen   #main-layout { height: 100% !impor
   margin-left: 4px;
   color: var(--vex-text-primary, var(--text));
 }
+/* A tab that has not been opened since the session was restored is not running
+   either: the same moon, drawn as an outline. */
+:is(.top-tab, .tab-item) .sleep-indicator.not-loaded svg { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linejoin: round; }
+/* On the strip the moon is a badge on the icon's corner, not a part of the row:
+   a part of the row was the first thing to go when the tab got narrow. */
+.top-tab .sleep-indicator {
+  position: absolute; left: 19px; top: calc(50% + 1px);
+  width: 11px; height: 11px; margin: 0;
+  border-radius: 50%;
+  background: var(--b-tab, var(--vex-glass-tab-inactive, var(--vex-bg-secondary)));
+  color: var(--b-text, var(--vex-text-primary, var(--text)));
+  pointer-events: none;
+  z-index: 1;
+}
+.top-tab .sleep-indicator svg { width: 9px; height: 9px; }
+.top-tab.active .sleep-indicator { background: var(--b-tab-active, var(--vex-glass-tab-active, var(--vex-bg-secondary))); }
+.top-tab.pinned .sleep-indicator { left: 22px; }
+
+/* On a folded group's chip: how many of the tabs hidden in it are asleep. */
+.top-group-label .top-group-asleep {
+  display: inline-flex; align-items: center; gap: 3px;
+  margin-left: 8px; font-size: 11px; font-weight: 600;
+  opacity: 0.9;
+}
+.top-group-label .top-group-asleep svg { flex-shrink: 0; }
 
 /* Group membership — 3 px colored strip along top */
 .top-tab.in-group::before {

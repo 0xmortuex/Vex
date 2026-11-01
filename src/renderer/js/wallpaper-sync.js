@@ -14,12 +14,17 @@
 //   * Tabs, Toolbar and Side bar are painted on top of that, each as its own set of tokens on its
 //     own part of the window (a <style> of ours), so the text of an area is always computed
 //     against the background that area really has;
+//   * the theme itself (the synced theme) is worn only while "Everything else" is on, in a look
+//     that takes its colours from the theme. A browser look in its OWN colours (Firefox grey,
+//     Chrome white...) is never switched to the theme's colours: "Everything else" and "Accent
+//     colour" are painted by our <style> on <body> instead; and in every look an area that is off keeps the look's
+//     own colours (the real value of every token, captured once before the first switch), so a switch changes only what it says;
 //   * the New Tab page gets its colours from ThemeManager / tabs.js through newTabOverride();
 //   * before the first switch Vex remembers the theme you wore (its nine colours and, in a
 //     browser look, whether the window used the look's own colours); Undo puts exactly that back
 //     and removes the synced theme and our <style>.
-// A browser look wearing its own colours is switched to the theme's colours while an area is
-// matched (the same as the old single "Sync" button): only then are the contrast numbers known.
+// In a browser look wearing its own colours the contrast numbers are worked out against the
+// look's real colours (read from <body> once), not against the theme that happens to be picked.
 //
 // Where a wallpaper's palette comes from:
 //   * a wallpaper drawn by Vex: its own five colours, run through the same palette maker
@@ -52,12 +57,14 @@
 
   // The parts of the window that can wear the wallpaper on their own. `selector` is where an area
   // lives in the real window; newtab, accent and rest have none (the page, the accent in every
-  // area, and the theme itself).
+  // area, and the theme itself). `fill`: a part of the area that has no background of its own (the
+  // panels are drawn over the window's), so it gets the area's background, else its text would sit
+  // on the colour of the window around it.
   const AREAS = [
     { id: 'newtab', label: 'New Tab page', hint: 'The page you see in a new tab' },
     { id: 'tabs', label: 'Tabs', hint: 'The tab strip and the tab list', selector: '#top-tab-bar, #tabs-sidebar' },
     { id: 'toolbar', label: 'Toolbar and search bar', hint: 'The address and search bar and the buttons around it', selector: '#top-bar, #gui-shortcuts-bar' },
-    { id: 'sidebar', label: 'Side bar and panels', hint: 'The icon rail and the panels, Settings included', selector: '#icon-sidebar, #panels-container, #ai-panel' },
+    { id: 'sidebar', label: 'Side bar and panels', hint: 'The icon rail and the panels, Settings included', selector: '#icon-sidebar, #panels-container, #ai-panel', fill: '#panels-container' },
     { id: 'accent', label: 'Accent colour', hint: 'Buttons, links and switches' },
     { id: 'rest', label: 'Everything else', hint: 'The window behind, menus and dialogs' },
   ];
@@ -66,6 +73,11 @@
   // Browser looks that bring their own colours-from-the-theme block (css/gui-browser.css, section 6):
   // the generic one is not repeated for them, so their own shapes of it keep working.
   const OWN_THEME_BLOCK = ['safari', 'xp', 'win98', 'fluent', 'fluent-dark', 'glossy', 'neobrutal', 'terminal'];
+  // What the accent is made of, on its own (the theme's tokens that carry the accent colour).
+  const ACCENT_KEYS = ['--vex-accent', '--vex-accent-dim', '--vex-accent-glow', '--vex-border-accent', '--vex-border-accent-strong', '--vex-text-accent', '--primary', '--primary-hover', '--accent', '--on-primary'];
+  const BROWSER_ACCENT = ['--b-accent: var(--vex-accent)', '--b-accent-ring: var(--vex-accent)', '--b-url-focus-border: var(--vex-accent)'];
+  // A value read back from the window (a look's colour) is only ever written if it is plain colour text.
+  const SAFE_VALUE = /^[#a-zA-Z0-9(),.%\s/+-]+$/;
 
   const ct = () => {
     if (!root.CustomThemes) throw new Error('CustomThemes (js/theme-custom.js) is not loaded');
@@ -142,6 +154,7 @@
   //   areas   tabs / toolbar / sidebar: the wallpaper's own set, but with YOUR accent when
   //           "accent" is off (so an area never has a half-and-half background and text)
   //   newtab  the New Tab page, same rule as an area; yours when "newtab" is off
+//   keep    what an area that is OFF still wears while "rest" is on: yours
   // `own` and `wallpaper` are colour sets; `areas` a list of area ids. Pure.
   function compose(own, wallpaper, areas) {
     const C = ct();
@@ -149,7 +162,7 @@
     const mine = C.complete(own), wp = C.complete(wallpaper);
     const accent = on.has('accent') ? wp.primary : mine.primary;
     const wearing = (base) => (accent === base.primary ? base : withAccent(base, accent));
-    const out = { root: wearing(on.has('rest') ? wp : mine), areas: {}, newtab: on.has('newtab') ? wearing(wp) : mine };
+    const out = { root: wearing(on.has('rest') ? wp : mine), areas: {}, newtab: on.has('newtab') ? wearing(wp) : mine, keep: wearing(mine) };
     for (const a of SCOPED) if (on.has(a.id)) out.areas[a.id] = wearing(wp);
     return out;
   }
@@ -188,6 +201,63 @@
     return p ? cleanAreas(p) : [];
   }
 
+  // The theme the window wears while this state is on: the synced theme only when "Everything else"
+  // is on in a look that takes its colours from the theme; otherwise the theme you wore all along.
+  function expectedTheme(s) { return s.rooted === false ? s.prevTheme : THEME_ID; }
+
+  // What an area that is OFF keeps while the window around it is matched: the real value of every
+  // token a match can move (and, in a browser look, every --b-* it draws from), read from <body> once,
+  // before the first switch. Written back on the area as plain values, so it looks exactly as it did
+  // whatever skin it has (a hand-made theme, Glass, a browser look's own colours).
+  const SAMPLE = { background: '#101010', surface: '#202020', text: '#f0f0f0', primary: '#4080ff' };
+  function keepNames() {
+    const names = Object.keys(ct().derive(SAMPLE).chrome).concat(['--vex-hover-fill', '--vex-shadow-color', '--vex-accent-fg']);
+    return Array.from(new Set(names));
+  }
+  function captureKeep(browser, lookMode) {
+    const body = root.document.body;
+    const cs = root.getComputedStyle(body);
+    const out = {};
+    for (const n of keepNames().concat(browser ? LOOK_VARS : [], browser ? LOOK_EXTRA : [])) {
+      const v = cs.getPropertyValue(n).trim();
+      if (!v) continue;
+      if (!SAFE_VALUE.test(v)) {
+        // A look's own decoration written with quotes or urls cannot be kept: it stays as the window's, never half-written.
+        if (LOOK_EXTRA.includes(n)) continue;
+        throw new Error('Refusing the value of ' + n + ' to keep it: ' + v);
+      }
+      out[n] = v;
+    }
+    for (const n of ['--vex-bg-base', '--vex-text-primary', '--vex-accent'].concat(lookMode ? LOOK_REQUIRED : [])) {
+      if (!out[n]) throw new Error('The window does not define ' + n + ', so the parts left off cannot keep their colours');
+    }
+    return out;
+  }
+  // The colour behind the panels now (the first background above them), kept for the same reason.
+  function captureFill() {
+    const a = SCOPED.find(x => x.fill);
+    const el = a && root.document.querySelector(a.fill);
+    if (!el) return null;
+    for (let e = el; e; e = e.parentElement) {
+      const c = root.getComputedStyle(e).backgroundColor;
+      if (c && c !== 'transparent' && !/,\s*0\)$/.test(c)) {
+        if (!SAFE_VALUE.test(c)) throw new Error('Refusing the colour behind the panels to keep it: ' + c);
+        return c;
+      }
+    }
+    return null;
+  }
+  // The look's real colours as a theme's nine, so every contrast number is against what is on screen.
+  function lookColours(keep) {
+    const C = ct();
+    const pick = (n) => {
+      const v = C.normHex(keep[n]);
+      if (!v) throw new Error('The look\'s ' + n + ' is not a plain colour: ' + keep[n]);
+      return v;
+    };
+    return C.complete({ background: pick('--b-page'), surface: pick('--b-toolbar'), text: pick('--b-text'), muted: pick('--b-text-dim'), primary: pick('--b-accent'), border: pick('--b-border') });
+  }
+
   function guiLook() {
     const G = root.VexGuiStyle;
     return G && typeof G.isBrowserLook === 'function' && G.isBrowserLook() ? G : null;
@@ -197,7 +267,7 @@
 
   // The same mapping css/gui-browser.css (section 6) makes on <body> in "colours from the theme"
   // mode, repeated on an area so a browser look's own shapes read the area's tokens.
-  const BROWSER_BLOCK = [
+  const BROWSER_LINES = [
     '--b-frame: var(--vex-bg-deep, var(--vex-bg-base))', '--b-frame-solid: var(--vex-bg-deep, var(--vex-bg-base))',
     '--b-strip-fg: var(--vex-text-secondary)', '--b-strip-hover: color-mix(in srgb, var(--vex-text-primary) 12%, transparent)',
     '--b-tab: transparent', '--b-tab-hover: color-mix(in srgb, var(--vex-text-primary) 9%, transparent)',
@@ -211,42 +281,114 @@
     '--b-accent: var(--vex-accent)', '--b-accent-ring: var(--vex-accent)',
     '--b-text: var(--vex-text-primary)', '--b-text-dim: var(--vex-text-secondary)',
     '--b-border: var(--vex-border-medium)', '--b-menu: var(--vex-bg-elevated)', '--b-page: var(--vex-bg-base)',
-  ].map(x => '  ' + x + ';').join('\n');
+  ];
+  const BROWSER_BLOCK = BROWSER_LINES.map(x => '  ' + x + ';').join('\n');
 
-  // The CSS of one area: every token of its colours (written only from checked values, like a theme's).
-  function areaCss(selector, colors) {
+  // The --b-* variables of a browser look: read with the rest of what an area keeps (captureKeep).
+  const LOOK_VARS = BROWSER_LINES.map(x => x.slice(0, x.indexOf(':'))).concat(['--b-surface-deep', '--b-on-accent']);
+  // Colours only some looks draw on (the rail's chosen icon, caption buttons, XP's band, 98's bevels...).
+  const LOOK_EXTRA = ['--b-rail-active', '--b-close-bg', '--b-close-hover', '--b-close-hover-fg', '--b-caption-bg', '--b-caption-fg', '--b-caption-hover', '--b-caption-border',
+    '--b-url-shadow', '--b-url-underline', '--b-tab-shadow', '--b-tab-rest-shadow', '--b-gloss', '--b-sheen', '--b-xp-band', '--b-glossy-band', '--b-98-face',
+    '--b-bevel-hi', '--b-bevel-hi2', '--b-bevel-lo', '--b-bevel-lo2', '--b-nb-ink', '--b-nb-fill', '--b-nb-shadow', '--b-nb-on-accent', '--b-t-line', '--b-t-bright'];
+  const LOOK_REQUIRED = ['--b-page', '--b-toolbar', '--b-text', '--b-text-dim', '--b-accent', '--b-border'];
+
+  // Every token of a set of colours, written only from checked values, like a theme's.
+  function chromeLines(colors, only) {
     const C = ct();
     const chrome = { ...C.derive(colors).chrome };
     if (!chrome['--vex-hover-fill']) {
       chrome['--vex-hover-fill'] = 'rgba(255, 255, 255, 0.06)';
       chrome['--vex-shadow-color'] = 'rgba(0, 0, 0, 0.5)';
     }
-    const body = Object.entries(chrome).map(([k, v]) => {
+    return Object.entries(chrome).filter(([k]) => !only || only.includes(k)).map(([k, v]) => {
       if (!/^--[a-z0-9-]+$/.test(k)) throw new Error('Refusing a theme token: ' + k);
       return '  ' + k + ': ' + C._cssValue(v) + ';';
     });
+  }
+  const OWN = OWN_THEME_BLOCK.map(x => ':not([data-gui-style="' + x + '"])').join('');
+  const BROWSER_BODY = 'html body[data-gui-family="browser"][data-gui-style]';
+  const split = (selector) => selector.split(',').map(x => x.trim());
+
+  // The CSS of one area: every token of its colours, and the colour of its own text (an area that
+  // is matched must not borrow the text colour of the window around it).
+  function areaCss(selector, colors, fill) {
+    const body = chromeLines(colors);
     body.push('  --vex-accent-fg: color-mix(in oklab, var(--vex-accent) 65%, var(--vex-text-primary));');
-    const sel = selector.split(',').map(x => 'html body ' + x.trim());
-    const own = OWN_THEME_BLOCK.map(x => ':not([data-gui-style="' + x + '"])').join('');
-    const browser = selector.split(',').map(x => 'html body[data-gui-family="browser"][data-gui-colors="theme"]' + own + ' ' + x.trim());
-    return sel.join(',\n') + ' {\n' + body.join('\n') + '\n}\n' + browser.join(',\n') + ' {\n' + BROWSER_BLOCK + '\n}';
+    body.push('  color: var(--vex-text-primary);');
+    const sels = split(selector);
+    const browser = sels.map(x => 'html body[data-gui-family="browser"]' + OWN + ' ' + x);
+    // The chosen icon of the rail is a tint of the accent, worked out on <body> (css/gui-browser.css,
+    // css/gui-glass.css): on an area with its own accent it has to be worked out again.
+    const rail = (look, pct) => sels.map(x => 'html body[data-gui-style="' + look + '"] ' + x).join(',\n') + ' {\n  --b-rail-active: color-mix(in srgb, var(--vex-accent) ' + pct + '%, transparent);\n}';
+    return sels.map(x => 'html body ' + x).join(',\n') + ' {\n' + body.join('\n') + '\n}\n' + browser.join(',\n') + ' {\n' + BROWSER_BLOCK + '\n}\n'
+      + rail('firefox', 16) + '\n' + rail('firefox-dark', 16) + '\n' + rail('glass', 22)
+      + (fill ? '\nhtml body ' + fill + ' {\n  background: var(--vex-bg-base);\n}' : '');
+  }
+
+  // An area that is off while "Everything else" is on: its own colours, as captured. `accent` is the
+  // lines of the matched accent when "Accent colour" is on (it is one colour for the whole window).
+  function keepCss(selector, keep, browser, accent, fill, fillBg) {
+    const vals = { ...keep };
+    // A variable this look does not define must not inherit the matched window's value either.
+    if (browser) for (const n of LOOK_VARS.concat(LOOK_EXTRA)) if (!(n in vals)) vals[n] = 'initial';
+    const lines = Object.entries(vals).map(([k, v]) => '  ' + k + ': ' + v + ';').concat(accent || [], ['  color: var(--vex-text-primary);']);
+    return split(selector).map(x => 'html body ' + x).join(',\n') + ' {\n' + lines.join('\n') + '\n}'
+      + (fill && fillBg ? '\nhtml body ' + fill + ' {\n  background: ' + fillBg + ';\n}' : '');
+  }
+
+  // The window itself (<body>) in a look that keeps its own colours: all of the matched colours when
+  // "Everything else" is on, or only the accent. On <body> the look's own bridge (--vex-*: var(--b-*))
+  // must be out-ranked, so these rules are one step more specific than it is.
+  function bodyCss(colors, full) {
+    const C = ct();
+    const tokens = chromeLines(colors, full ? null : ACCENT_KEYS);
+    tokens.push('  --vex-accent-fg: color-mix(in oklab, var(--vex-accent) 65%, var(--vex-text-primary));');
+    const onAccent = C.derive(colors).chrome['--on-primary'];
+    const accentLines = BROWSER_ACCENT.concat(['--b-on-accent: ' + C._cssValue(onAccent)]).map(x => '  ' + x + ';');
+    const out = [
+      'html body:not([data-gui-family="browser"]) {\n' + tokens.join('\n') + '\n}',
+      BROWSER_BODY + ' {\n' + tokens.concat(accentLines).join('\n') + '\n}',
+    ];
+    if (full) out.push(BROWSER_BODY + OWN + ' {\n' + BROWSER_BLOCK + '\n}');
+    return out.join('\n');
   }
 
   function composed(s) {
-    return compose(s.own, s.palette, s.areas);
+    return compose(s.lookMode ? lookColours(s.keep) : s.own, s.palette, s.areas);
   }
 
-  // Write (or remove) our <style> from the saved state. Only while the synced theme is the one worn.
+  // The whole sheet for a saved state.
+  function sheetCss(s) {
+    const c = composed(s);
+    const on = new Set(s.areas);
+    const parts = [];
+    if (s.rooted === false) {
+      if (on.has('rest')) parts.push(bodyCss(c.root, true));
+      else if (on.has('accent')) parts.push(bodyCss(c.root, false));
+    }
+    if (on.has('rest')) {
+      let accent = null;
+      if (on.has('accent')) {
+        const C = ct();
+        accent = chromeLines(c.root, ACCENT_KEYS);
+        if (s.browser) accent = accent.concat(['--b-accent', '--b-accent-ring', '--b-url-focus-border'].map(n => '  ' + n + ': ' + C._cssValue(c.root.primary) + ';'), ['  --b-on-accent: ' + C._cssValue(C.derive(c.root).chrome['--on-primary']) + ';']);
+      }
+      for (const a of SCOPED) if (!on.has(a.id)) parts.push(keepCss(a.selector, s.keep, s.browser, accent, a.fill, s.fillBg));
+    }
+    for (const a of SCOPED) if (on.has(a.id)) parts.push(areaCss(a.selector, c.areas[a.id], a.fill));
+    return parts.join('\n');
+  }
+
+  // Write (or remove) our <style> from the saved state. Only while the theme that goes with it is worn.
   function render() {
     const doc = root.document;
     if (!doc) return;
     let style = doc.getElementById(STYLE_ID);
     const s = state();
     const M = mgr();
-    const wearing = s && s.own && s.palette && M && M.getCurrentTheme() === THEME_ID;
+    const wearing = s && s.own && s.palette && M && M.getCurrentTheme() === expectedTheme(s);
     if (!wearing) { if (style) style.remove(); return; }
-    const c = composed(s);
-    const css = SCOPED.filter(a => c.areas[a.id]).map(a => areaCss(a.selector, c.areas[a.id])).join('\n');
+    const css = sheetCss(s);
     if (!css) { if (style) style.remove(); return; }
     if (!style) {
       style = doc.createElement('style');
@@ -260,11 +402,16 @@
   // nothing is synced. `theme` is the theme the window wears; any other means no override.
   // New Tab on -> the wallpaper's colours as the synced theme; off -> the theme you wore before.
   function newTabOverride(theme) {
-    if (theme !== THEME_ID) return null;
     const s = state();
-    if (!s || !s.own || !s.palette) return null;
+    if (!s || !s.own || !s.palette || theme !== expectedTheme(s)) return null;
     if (s.areas.includes('newtab')) return { id: THEME_ID, colors: composed(s).newtab };
-    return { id: s.prevTheme, colors: ownColorsOf(s) };
+    // The synced theme is worn but this page is not matched: it keeps the theme worn before.
+    return s.rooted === false ? null : { id: s.prevTheme, colors: ownColorsOf(s) };
+  }
+  // True while the New Tab page wears the wallpaper: a browser look must not paint its own palette over it.
+  function newTabWorn() {
+    const s = state(), M = mgr();
+    return !!(s && s.areas.includes('newtab') && M && M.getCurrentTheme() === expectedTheme(s));
   }
   // The colours of the theme worn before: for a theme of your own the New Tab carries them as ?tc=.
   function ownColorsOf(s) {
@@ -275,6 +422,8 @@
   function repaintNewTabs() {
     const M = mgr();
     if (M && typeof M.paintStartPages === 'function') M.paintStartPages(M.getCurrentTheme());
+    // A browser look in its own colours paints its palette on the page; that follows our switch.
+    if (root.VexGuiStyle && typeof root.VexGuiStyle.paintStartPages === 'function') root.VexGuiStyle.paintStartPages();
   }
 
   async function apply(id, areas) {
@@ -285,7 +434,9 @@
     if (!set.length) throw new Error('Turn on at least one area, or use Undo');
     const d = store().get(id);
     if (!d) throw new Error('There is no wallpaper called "' + id + '"');
-    const pal = await paletteFor(id);
+    // Glass draws its own dark glass whatever the colours are: it is matched with the wallpaper's dark side.
+    const darkOnly = !!root.document && !!root.document.body && root.document.body.dataset.guiStyle === 'glass';
+    const pal = await paletteFor(id, darkOnly ? false : undefined);
     if (pal.unresolved.length) throw new Error('The colours for "' + d.title + '" cannot all be made readable: ' + pal.unresolved.map(x => x.label).join(', '));
 
     // What Undo restores: taken once, at the first switch (a later one keeps the first's), unless
@@ -293,22 +444,29 @@
     const had = state();
     const G = guiLook();
     const cur = M.getCurrentTheme();
-    const reuse = had && cur === THEME_ID;
-    const keep = reuse ? had : { prevTheme: cur, prevGuiColors: G ? G.getColors() : null };
-    const own = reuse && had.own ? had.own : C.complete(S.colorsFromTheme(cur === THEME_ID ? keep.prevTheme : cur));
+    const reuse = !!had && cur === expectedTheme(had);
+    const prevTheme = reuse ? had.prevTheme : cur;
+    // A browser look in its own colours stays as it is: its colours are read once and the areas
+    // that are off keep them. Only a look that takes the theme's colours wears the synced theme.
+    const lookMode = !!G && G.getColors() === 'look';
+    const browser = !!G;
+    const keep = reuse && had.keep ? had.keep : captureKeep(browser, lookMode);
+    const fillBg = reuse && had.keep ? had.fillBg : captureFill();
+    const theme = reuse && had.own ? had.own : C.complete(S.colorsFromTheme(cur === THEME_ID ? prevTheme : cur));
+    const own = lookMode ? lookColours(keep) : theme;
     const mix = compose(own, pal.colors, set);
+    const rooted = set.includes('rest') && !lookMode;
 
     const name = ('Synced: ' + d.title).slice(0, C.NAME_MAX).trim();
     const rec = C.validateRecord({ id: THEME_ID, name, colors: C.complete(mix.root), updated: Date.now() });
     const list = S.records().filter(r => r.id !== THEME_ID);
-    list.push(rec);
+    if (rooted) list.push(rec);
     C.saveList(list);
-    saveState({ prevTheme: keep.prevTheme, prevGuiColors: keep.prevGuiColors, wallpaper: d.id, title: d.title, at: Date.now(), areas: set, own, palette: C.complete(pal.colors) });
+    saveState({ prevTheme, wallpaper: d.id, title: d.title, at: Date.now(), areas: set, own: theme, palette: C.complete(pal.colors), rooted, lookMode, browser, keep, fillBg });
     savePref(d.id, set);
     S._changed();
-    // In a browser look the window only wears a theme's colours when the look is set to them.
-    if (G && G.getColors() === 'look') G.setColors('theme');
-    M.applyTheme(THEME_ID);
+    if (rooted) M.applyTheme(THEME_ID);
+    else if (cur === THEME_ID) M.applyTheme(prevTheme, { auto: true });   // "Everything else" went off: the theme worn before comes back
     render();
     repaintNewTabs();
     return rec;
@@ -332,12 +490,11 @@
     if (!M || !S) throw new Error('Themes are not loaded');
     const s = state();
     if (!s) return false;
-    const wearing = M.getCurrentTheme() === THEME_ID;
+    // Only the synced theme has to be taken off; a look's own colours were never touched.
+    const wearing = s.rooted !== false && M.getCurrentTheme() === THEME_ID;
     if (wearing) {
       const back = M.availableThemes.includes(s.prevTheme) ? s.prevTheme : M.DEFAULT_THEME;
       M.applyTheme(back, { auto: true });
-      const G = guiLook();
-      if (G && s.prevGuiColors === 'look') G.setColors('look');
     }
     C.saveList(S.records().filter(r => r.id !== THEME_ID));
     root.localStorage.removeItem(KEY);
@@ -345,10 +502,11 @@
     const style = root.document && root.document.getElementById(STYLE_ID);
     if (style) style.remove();
     S._changed();
+    repaintNewTabs();
     return true;
   }
 
-  const api = { KEY, PREFS_KEY, THEME_ID, STYLE_ID, AREAS, AREA_IDS, paletteForGenerated, paletteFor, compose, areaCss, apply, setAreas, areasFor, undo, state, canUndo: () => !!state(), clustersOf, render, newTabOverride };
+  const api = { KEY, PREFS_KEY, THEME_ID, STYLE_ID, AREAS, AREA_IDS, ACCENT_KEYS, keepNames, LOOK_VARS, LOOK_EXTRA, BROWSER_LINES, paletteForGenerated, paletteFor, compose, areaCss, apply, setAreas, areasFor, undo, state, canUndo: () => !!state(), clustersOf, render, newTabOverride, newTabWorn };
   root.VexWallpaperSync = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = { VexWallpaperSync: api };
 
