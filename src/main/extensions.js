@@ -21,7 +21,8 @@ function readMessages(extPath, defaultLocale) {
   for (const locale of locales) {
     const file = path.join(extPath, '_locales', locale, 'messages.json');
     if (!fs.existsSync(file)) continue;
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    // A BOM-prefixed messages.json is valid to Chrome (Awesome Screenshot, Steam Inventory Helper); JSON.parse rejects it.
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8').replace(/^\uFEFF/, ''));
     const messages = Object.create(null);
     for (const [key, value] of Object.entries(parsed)) {
       if (value && typeof value.message === 'string') messages[key] = value.message;

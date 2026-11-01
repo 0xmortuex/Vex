@@ -4053,7 +4053,7 @@ function _extEntriesOnDisk() {
       if (!fs.existsSync(manifestPath)) return null;
       let manifest;
       try {
-        manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8').replace(/^\uFEFF/, ''));
       } catch (err) {
         // Keep it listed WITH the reason. Dropping it here used to make a
         // corrupt extension vanish from the manager, leaving the user no way
@@ -4159,7 +4159,7 @@ function _migrateFileAccess() {
 // 'everywhere'.
 function _sessionsFor(extPath, manifest) {
   let m = manifest;
-  if (!m) { try { m = JSON.parse(fs.readFileSync(path.join(extPath, 'manifest.json'), 'utf-8')); } catch { m = null; } }
+  if (!m) { try { m = JSON.parse(fs.readFileSync(path.join(extPath, 'manifest.json'), 'utf-8').replace(/^\uFEFF/, '')); } catch { m = null; } }
   const { partitions } = extHelpers.partitionsFor(m || {}, _readScopes()[path.basename(extPath)]);
   return [session.defaultSession, ...partitions.map(p => secureSessions.fromPartition(p))];
 }
@@ -4418,7 +4418,7 @@ async function _replaceInPlace(previous, staged) {
     await reloadOld();
     return { ok: false, error: `Could not put the new version in place: ${err.message}` };
   }
-  const manifest = JSON.parse(fs.readFileSync(path.join(previous.path, 'manifest.json'), 'utf-8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(previous.path, 'manifest.json'), 'utf-8').replace(/^\uFEFF/, ''));
   const name = extHelpers.localize(manifest.name, extHelpers.readMessages(previous.path, manifest.default_locale));
   if (wasDisabled) {
     // Switched off, it stays off: the new files wait for the user to switch it on.
@@ -4471,7 +4471,7 @@ async function _activateInstalledFolder(destFolder, copyToUpdate, match = {}) {
   if (previous) return _replaceInPlace(previous, destFolder);
   if (_boot.safeMode) {
     // Placed but not loaded in safe mode, like an update (_replaceInPlace).
-    const manifest = JSON.parse(fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8'));
+    const manifest = JSON.parse(fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8').replace(/^\uFEFF/, ''));
     const name = extHelpers.localize(manifest.name, extHelpers.readMessages(destFolder, manifest.default_locale));
     return { ok: true, id: null, name: name || path.basename(destFolder), version: manifest.version, afterRestart: true, folder: path.basename(destFolder) };
   }
@@ -4816,7 +4816,7 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
     if (cands.length) { manifestEntry = cands[0]; rootPath = manifestEntry.entryName.replace(/manifest\.json$/, ''); }
   }
   if (!manifestEntry) return { ok: false, error: 'No manifest.json in archive' };
-  const manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
+  const manifest = JSON.parse(manifestEntry.getData().toString('utf-8').replace(/^\uFEFF/, ''));
   let slug = forceSlug;
   if (!slug) {
     // The archive's own _locales name the folder, as in extensions:install-zip.
@@ -4831,17 +4831,23 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
   }
   const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
   fs.mkdirSync(destFolder, { recursive: true });
-  for (const entry of entries) {
-    if (entry.isDirectory) continue;
-    const name = entry.entryName;
-    if (rootPath && !name.startsWith(rootPath)) continue;
-    const rel = rootPath ? name.slice(rootPath.length) : name;
-    if (!rel) continue;
-    if (skipPrefixes.some(p => rel.startsWith(p))) continue;
-    let outPath;
-    try { outPath = safeJoin(destFolder, rel); } catch { continue; }
-    fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, entry.getData());
+  try {
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      const name = entry.entryName;
+      if (rootPath && !name.startsWith(rootPath)) continue;
+      const rel = rootPath ? name.slice(rootPath.length) : name;
+      if (!rel) continue;
+      if (skipPrefixes.some(p => rel.startsWith(p))) continue;
+      let outPath;
+      try { outPath = safeJoin(destFolder, rel); } catch { continue; }
+      fs.mkdirSync(path.dirname(outPath), { recursive: true });
+      fs.writeFileSync(outPath, entry.getData());
+    }
+  } catch (err) {
+    // A half-written folder would be listed (and fail) on every start.
+    fs.rmSync(destFolder, { recursive: true, force: true });
+    throw err;
   }
   const placedManifest = path.join(destFolder, 'manifest.json');
   if (!fs.existsSync(placedManifest)) {

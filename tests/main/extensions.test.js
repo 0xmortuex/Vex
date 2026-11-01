@@ -43,6 +43,13 @@ describe('manifest localization', () => {
     expect(ext.localize('Plain Name', {})).toBe('Plain Name');
   });
 
+  it('reads a messages.json that starts with a byte-order mark', () => {
+    const target = path.join(dir, '_locales', 'en');
+    fs.mkdirSync(target, { recursive: true });
+    fs.writeFileSync(path.join(target, 'messages.json'), '﻿' + JSON.stringify({ extName: { message: 'Awesome Screenshot' } }));
+    expect(ext.localize('__MSG_extName__', ext.readMessages(dir, 'en'))).toBe('Awesome Screenshot');
+  });
+
   it('raises rather than hiding a corrupt messages.json', () => {
     fs.mkdirSync(path.join(dir, '_locales', 'en'), { recursive: true });
     fs.writeFileSync(path.join(dir, '_locales', 'en', 'messages.json'), '{ not json');
@@ -183,5 +190,16 @@ describe('where an extension is loaded', () => {
     expect(ext.readScopes(dir)).toEqual({ 'ublock-1': 'everywhere' });
     fs.writeFileSync(path.join(dir, ext.SCOPE_FILE), '[1,2]');
     expect(() => ext.readScopes(dir)).toThrow(/corrupt/);
+  });
+});
+
+describe('main.js manifest reads (source check)', () => {
+  const src = fs.readFileSync(path.join(import.meta.dirname, '../../src/main.js'), 'utf-8');
+  it('strips a byte-order mark on every manifest.json parse', () => {
+    const bad = src.split(/\r?\n/).filter(l => /JSON\.parse\(.*(manifest\.json|manifestEntry\.getData)/.test(l) && !/uFEFF/.test(l));
+    expect(bad).toEqual([]);
+  });
+  it('removes the half-written folder when extracting an archive fails', () => {
+    expect(src).toMatch(/A half-written folder would be listed/);
   });
 });
