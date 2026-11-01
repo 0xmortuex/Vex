@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 import { targets, Session, sleep } from './cdp.mjs';
 import { looksEnglish } from './english.mjs';
 
-export const TL = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));   // this folder
+export const TL = path.dirname(decodeURIComponent(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'));   // this folder
 export const OUT = process.env.TURKISH_SCAN_OUT || path.join(os.tmpdir(), 'vex-turkish-scan');   // run.json, results, screenshots
 fs.mkdirSync(OUT, { recursive: true });
 export const WT = path.resolve(TL, '..', '..');   // the repo this was started from
@@ -17,6 +17,7 @@ const require = createRequire(import.meta.url);
 const { VexI18nUI } = require(WT + '/src/renderer/js/i18n-ui.js');
 export const TABLE = VexI18nUI.TABLE.tr;
 export const lookupTr = (t) => VexI18nUI.lookup(t, 'tr');
+export const trValues = new Set(Object.values(TABLE));   // text that is already Turkish (a word like Notlar is plain ASCII)
 const SCAN = fs.readFileSync(path.join(TL, 'scan-inpage.js'), 'utf8');
 
 export const run = (fs.existsSync(path.join(OUT, 'run.json')) ? JSON.parse(fs.readFileSync(path.join(OUT, 'run.json'))) : null);
@@ -38,7 +39,7 @@ export const results = [];     // {surface, k, t, sc, w, c, cls}
 const seenGlobal = new Set();
 // cls: 'table-not-applied' (entry exists but shown English) | 'no-entry'
 export function classify(it) {
-  if (!looksEnglish(it.t)) return null;
+  if (!looksEnglish(it.t) || trValues.has(it.t)) return null;
   const tr = lookupTr(it.t);
   if (tr != null && tr !== it.t) return 'table-not-applied';
   return 'no-entry';

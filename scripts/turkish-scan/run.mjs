@@ -13,7 +13,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+const here = path.dirname(decodeURIComponent(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'));
 const OUT = process.env.TURKISH_SCAN_OUT || path.join(os.tmpdir(), 'vex-turkish-scan');
 const port = process.argv[2] || '10040';
 const node = (f, ...a) => { const r = spawnSync(process.execPath, [path.join(here, f), ...a], { stdio: 'inherit', env: process.env }); if (r.status) console.log(f, 'exited', r.status); };
