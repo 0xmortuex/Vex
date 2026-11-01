@@ -296,7 +296,7 @@ const FeatureDetails = {
   sync: 'Tabs, bookmarks, history and settings on every machine you use, encrypted on your device before it leaves. You point it at a server you control; there is no Vex account.',
   export: 'Everything Vex has stored about you as one JSON file you can read. The file is yours, and importing it elsewhere puts it back.',
   whatsnew: 'What changed in this version and every version before it, in the app rather than on a website.',
-  updates: 'Vex updates itself and tells you what it changed. A new version keeps a copy of your settings as they were, in case something goes wrong.',
+  updates: 'Vex updates itself and tells you what it changed. A new version keeps a copy of your settings as they were, in case something goes wrong. A downloaded update waits for a restart and says so, an install that did not happen is reported with a log of every step (Settings > About > Update log), and a version that cannot start twice in a row is replaced by the one before it. A copy run from a folder instead of installed is told to use Vex-Setup.exe.',
 
   // ---- Only in Vex ---------------------------------------------------------
   receipts2: 'Your week in tracking as a report rather than a number: who followed you, from where, and how often. It names the sites you trust, which is the uncomfortable and useful part.',

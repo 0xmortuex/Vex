@@ -1372,7 +1372,7 @@ Where your data lives and how it moves between machines.
   - Open: Ctrl+K: "Export All Data".
 - **whatsnew** (`whatsnew`): What changed in this version, and every version before it.
   - Open: Ctrl+K: "What's New".
-- **Automatic updates** (`updates`): Vex updates itself and tells you what it changed.
+- **Automatic updates** (`updates`): Vex updates itself and tells you what it changed. If an update does not install, you are told why, and a new version that cannot start is replaced by the one before it.
   - Open: Settings > setting-update-on-start.
 
 ## Only in Vex

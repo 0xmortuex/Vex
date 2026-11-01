@@ -1801,7 +1801,14 @@ ipcMain.handle('clips-inbox:stamp', (_e, id, meta) => {
 });
 ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok: true }; });
 
-ipcMain.on('app:started', () => _bootGuard.started());
+ipcMain.on('app:started', () => {
+  _bootGuard.started();
+  // The interface is up: a version that just replaced another has passed its trial.
+  try {
+    const ready = _updateRollback.markReady();
+    if (ready.kind === 'ready') _updateLog.add(`${ready.to} started fine after the update from ${ready.from}`);
+  } catch (err) { console.error('[Updates] could not end the update trial:', err.message); _updateLog.add('PROBLEM: could not end the update trial: ' + err.message); }
+});
 // Feature isolation (main/safe-mode.js): the interface says which feature it is
 // starting and when it has started, so a launch that dies in between is blamed
 // on that feature alone. The features left out of this launch are read once,
@@ -10792,17 +10799,53 @@ ipcMain.handle('open-guest-window', (_e, look, uiMode) => openPrivateWindow({ lo
 // MSVC runtime, and publisherName in package.json made it refuse every update
 // of the unsigned installer. Download, checksum and install are Vex's own.
 // net.fetch follows GitHub's redirect to its file storage.
+// What the updater remembers between runs (src/main/update-state.js): its log, a
+// downloaded installer waiting to run, the "installing / on trial / rolled back"
+// marker, and whether this copy is an installed Vex at all.
+const _updState = require('./main/update-state');
+const _updatesDir = path.join(app.getPath('userData'), 'updates');
+const _updateLog = _updState.createUpdateLog({ fs, dir: _updatesDir, warn: m => console.warn(m) });
+const _updateRollback = _updState.createRollback({ fs, dir: _updatesDir, currentVersion: app.getVersion(), hashFile: _updState.hashFileWith(fs) });
+let _updateCopy = null;
+try { _updateCopy = _updState.installKind({ execPath: process.execPath, isPackaged: app.isPackaged, fs }); }
+catch (err) { console.error('[Updates]', err.message); _updateLog.add('PROBLEM: ' + err.message); }
 const _updater = require('./main/updates').createUpdater({
   fetch: (url, init) => _egress.wrap((u, i) => net.fetch(u, i), { feature: 'Vex updates', kind: 'update' })(url, init),
-  fs, dir: path.join(app.getPath('userData'), 'updates'), currentVersion: app.getVersion(),
+  fs, dir: _updatesDir, currentVersion: app.getVersion(),
   spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList, addTurkishNotes: _mainHelpers.addTurkishNotes,
+  journal: _updateLog, staged: _updState.createStagedStore({ fs, dir: _updatesDir }), copy: _updateCopy, keepFiles: () => _updateRollback.keepFiles(),
 });
+_updateLog.add(`Vex ${app.getVersion()} started (${_updateCopy ? _updateCopy.kind : 'unknown copy'}${_updateCopy ? ', ' + _updateCopy.folder : ''})`);
+// A downloaded update from an earlier run is still there to install.
+try { _updater.restoreStaged(); } catch (err) { console.error('[Updates] could not look for a downloaded update:', err.message); _updateLog.add('PROBLEM: ' + err.message); }
+// What happened to the last install (src/main/update-state.js, createRollback):
+// the new version is on trial, the installer did not install, or Vex went back.
+let _updateNotice = null;
+try {
+  const startState = _updateRollback.onStart();
+  if (startState.kind !== 'none') _updateLog.add(`update state at start: ${startState.kind} (${startState.from || '?'} to ${startState.to || '?'})`);
+  if (startState.kind === 'not-installed') _updateNotice = startState;
+} catch (err) {
+  console.error('[Updates] could not read the install marker:', err.message);
+  _updateLog.add('PROBLEM: could not read the install marker: ' + err.message);
+  _updateNotice = { kind: 'marker-unreadable', error: err.message };
+}
 // Only Vex's own main window may download or install an update: not a private
 // window, not a page, not another window of Vex's.
 function _updatesFromMainWindow(event) {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can update Vex');
 }
 let _pendingInstall = null;
+// The verified installer, plus the marker the next start reads to learn what
+// happened (src/main/update-state.js). The kept installer of the running version
+// is what a rollback would run; if there is none, that is logged, and the update
+// still goes ahead (a rollback is a safety net, not a condition).
+async function _armInstall(version) {
+  const plan = await _updater.prepareInstall(version);
+  const armed = await _updateRollback.arm({ from: app.getVersion(), to: version, baseFile: _updater.baseInstallerFile() });
+  _updateLog.add(`installing ${version} over ${app.getVersion()}` + (armed.canGoBack ? '; the older installer is kept for a way back' : '; no way back: ' + armed.note));
+  return plan;
+}
 // Vex has closed its windows (tabs saved) and is quitting: start the installer
 // now, detached, so it outlives Vex. With --updated it waits for Vex to exit.
 app.on('quit', () => {
@@ -10812,9 +10855,51 @@ app.on('quit', () => {
   try {
     _updater.launch(plan);
     console.log('[Updates] installer started:', plan.file, plan.args.join(' '));
-  } catch (err) { console.error('[Updates] the installer could not be started:', err.message); }
+  } catch (err) {
+    console.error('[Updates] the installer could not be started:', err.message);
+    _updateLog.add('PROBLEM: the installer could not be started: ' + err.message);
+  }
+});
+// A downloaded update that was never installed (Vex was closed some other way,
+// or restarted) is installed when Vex next quits normally, the way
+// electron-updater's autoInstallOnAppQuit does. Not when Windows is shutting
+// down, and only in the default profile (the others close for it).
+let _stagedQuitHandled = false;
+app.on('will-quit', (event) => {
+  if (_stagedQuitHandled || _pendingInstall) return;
+  const staged = _updater.stagedUpdate();
+  if (!staged || _profile.id !== require('./main/profiles').DEFAULT_ID) return;
+  _stagedQuitHandled = true;
+  const why = _exitWatch.ending();
+  if (why && /^closing because Windows/.test(why.why)) { _updateLog.add(`not installing ${staged.version} now: Windows is ending the session`); return; }
+  event.preventDefault();
+  _armInstall(staged.version)
+    .then(plan => { _pendingInstall = plan; _updateLog.add(`installing the downloaded ${staged.version} as Vex quits`); })
+    .catch(err => { console.error('[Updates] the downloaded update was not installed at quit:', err.message); _updateLog.add('PROBLEM: the downloaded update was not installed at quit: ' + err.message); })
+    .finally(() => app.quit());
 });
 ipcMain.handle('check-for-updates', () => _updater.check());
+// What the interface shows without being asked: a downloaded update waiting, what
+// happened to the last install, whether this copy can update itself at all, and
+// the update log (the last 200 lines).
+ipcMain.handle('updates:status', (event) => {
+  _updatesFromMainWindow(event);
+  try {
+    return { ok: true, current: app.getVersion(), copy: _updateCopy, staged: _updater.stagedUpdate(), notice: _updateNotice,
+      blocked: _updateRollback.blockedVersion(), log: _updateLog.tail(200) };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('updates:log', (event) => {
+  _updatesFromMainWindow(event);
+  try { return { ok: true, lines: _updateLog.tail(200) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+// The person has read what happened to the last install.
+ipcMain.handle('updates:ack', (event) => {
+  _updatesFromMainWindow(event);
+  try { _updateRollback.acknowledge(); _updateNotice = null; return { ok: true }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('updates:upcoming-notes', async (_e, version) => {
   try { return { ok: true, ...(await _updater.notes(version)) }; }
   catch (err) { return { ok: false, error: err.message }; }
@@ -10828,7 +10913,7 @@ ipcMain.handle('updates:cancel', (event) => { _updatesFromMainWindow(event); ret
 ipcMain.handle('updates:install', async (event, version) => {
   _updatesFromMainWindow(event);
   let plan;
-  try { plan = await _updater.prepareInstall(version); }
+  try { plan = await _armInstall(version); }
   catch (err) { return { ok: false, error: err.message }; }
   // Close the main window the way its X does, which saves the tabs first
   // (session-security.js), then quit; the installer starts on 'quit' above.
@@ -10844,6 +10929,8 @@ ipcMain.handle('updates:install', async (event, version) => {
     if (win.isDestroyed()) return;
     win.removeListener('closed', quit);
     _pendingInstall = null;
+    try { _updateRollback.disarm(); } catch (err) { console.error('[Updates] could not clear the install marker:', err.message); }
+    _updateLog.add('PROBLEM: Vex could not save your tabs, so it did not close to install the update');
     win.webContents.send('updates:install-failed', { error: 'Vex could not save your tabs, so it did not close to install the update. Try again once the problem it reported is fixed.' });
   }, 9000);
   win.close();

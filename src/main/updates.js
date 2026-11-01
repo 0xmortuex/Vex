@@ -33,6 +33,7 @@
 const crypto = require('crypto');
 const nodePath = require('path');
 const { parseBlockMap, planDownload } = require('./differential');
+const { notInstalledMessage, STATE_FILES } = require('./update-state');
 
 const REPO = 'https://github.com/0xmortuex/Vex';
 // electron-builder's NSIS installer (app-builder-lib/templates/nsis):
@@ -163,11 +164,20 @@ function pickInstaller(yml, { allowScript = false } = {}) {
   return { url: file.url, sha512: file.sha512, size };
 }
 
-function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spawn, log = console, now = () => Date.now(), parseChangelogList, addTurkishNotes = (list) => list, platform = process.platform }) {
+// `journal` ({ add(line) }), `staged` (createStagedStore), `copy` (installKind's
+// answer) and `keepFiles` (installers a rollback still needs) are optional: the
+// updater works without them, but then nothing is remembered between runs.
+function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spawn, log = console, now = () => Date.now(), parseChangelogList, addTurkishNotes = (list) => list, platform = process.platform, journal = null, staged = null, copy = null, keepFiles = () => [] }) {
   if (typeof fetch !== 'function') throw new Error('createUpdater needs fetch');
   let release = null;       // { version, releasedAt, file, notes } from the last good check
   let active = null;        // { version, controller } while downloading
   let verified = null;      // { version, file, sha512, size } after a verified download
+  // Every step goes to the console and to update-log.txt, which the cover shows.
+  const step = message => { log.log('[Updates] ' + message); if (journal) journal.add(message); };
+  const problem = message => { log.warn('[Updates] ' + message); if (journal) journal.add('PROBLEM: ' + message); };
+  // Only an installed Vex can be updated by the installer (see update-state.js).
+  // The test feed (a .cmd stand-in) is allowed from any copy.
+  const copyProblem = () => (copy && copy.kind !== 'installed' && !resolveFeed(env).test ? notInstalledMessage(copy, currentVersion) : null);
 
   const feed = () => resolveFeed(env);
 
@@ -199,7 +209,9 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     const current = currentVersion;
     let f;
     try { f = feed(); } catch (err) { return { ok: false, current, error: err.message, url: REPO + '/releases' }; }
-    const base = { current, url: REPO + '/releases', downloadUrl: REPO + '/releases/latest/download/Vex-Setup.exe' };
+    const cannot = copyProblem();
+    const base = { current, url: REPO + '/releases', downloadUrl: REPO + '/releases/latest/download/Vex-Setup.exe',
+      copy: copy ? { kind: copy.kind, folder: copy.folder } : null, canSelfUpdate: !cannot, cannotUpdateReason: cannot };
     state.lastCheckAt = now();
     try {
       const { status, text } = await readText(f.latestYml, { maxBytes: 256 * 1024, timeoutMs: 20000 });
@@ -213,11 +225,13 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
       try { file = pickInstaller(yml, { allowScript: f.test }); } catch (err) { fileError = err.message; }
       release = { version: latest, releasedAt, file, fileError, notes: typeof yml.releaseNotes === 'string' ? yml.releaseNotes : '' };
       state.result = hasUpdate ? 'update-available' : 'up-to-date'; state.version = latest; state.error = null;
+      step(`checked: running ${current}, newest ${latest}` + (hasUpdate ? ' (an update is available)' : ' (up to date)') + (hasUpdate && cannot ? ' - this copy cannot install it: ' + copy.kind : ''));
       return { ...base, ok: true, latest, releasedAt, hasUpdate, size: file ? file.size : null, releaseUrl: f.page(latest),
         downloadUrl: file && !f.test ? f.installer(latest, file.url) : base.downloadUrl };
     } catch (err) {
       const e = err instanceof UpdateError ? err : plainNetworkError(err);
       state.result = 'error'; state.error = e.message;
+      problem('the update check failed: ' + e.message);
       return { ...base, ok: false, error: e.message };
     }
   }
@@ -263,11 +277,13 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
   function cleanup({ keep } = {}) {
     let names;
     try { names = fs.readdirSync(dir); } catch (err) { if (err.code === 'ENOENT') return []; throw err; }
-    const base = new Set([`Vex-Setup-${currentVersion}.exe`, `Vex-Setup-${currentVersion}.cmd`]);
+    const base = new Set([`Vex-Setup-${currentVersion}.exe`, `Vex-Setup-${currentVersion}.cmd`, ...STATE_FILES]);
+    // The installer of the version a trial is still on (rollback needs it).
+    const needed = new Set(keepFiles());
     const removed = [];
     for (const name of names) {
       const file = nodePath.join(dir, name);
-      if ((keep && file === keep) || base.has(name) || (verified && file === verified.file)) continue;
+      if ((keep && file === keep) || base.has(name) || needed.has(file) || (verified && file === verified.file)) continue;
       try { fs.rmSync(file, { force: true, recursive: true }); removed.push(name); }
       catch (err) { log.warn('[Updates] could not delete', name + ':', err.message); }
     }
@@ -460,6 +476,13 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     if (!release || release.version !== version) throw new UpdateError('stale', 'Check for updates again: this is not the version Vex last found.');
     if (cmpVersion(version, currentVersion) <= 0) throw new UpdateError('stale', 'Vex ' + currentVersion + ' is already this version or newer.');
     if (!release.file) throw new UpdateError('feed', release.fileError || 'This release has no installer Vex can use.');
+    // An installer would update the installed Vex, not this copy: said, not done.
+    const cannot = copyProblem();
+    if (cannot) {
+      state.result = 'error'; state.error = cannot;
+      problem('refused to download ' + version + ': ' + cannot);
+      return { ok: false, code: 'not-installed', error: cannot };
+    }
     const f = feed();
     const file = release.file;
     const url = f.installer(version, file.url);
@@ -467,6 +490,9 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     const controller = new AbortController();
     active = { version, controller };
     verified = null;
+    // A download left from an older release is not this one: forget it first.
+    if (staged) { try { staged.clear(); } catch (err) { problem('could not forget the earlier downloaded update: ' + err.message); } }
+    step(`downloading ${version} (${mb(file.size)})`);
     let stallTimer = null;
     const job = {
       signal: controller.signal,
@@ -500,6 +526,12 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
       fs.renameSync(part, final);
       verified = { version, file: final, sha512: file.sha512, size: file.size };
       state.result = 'downloaded'; state.version = version; state.error = null;
+      // Remembered on disk, so a Vex closed any other way still has it next start.
+      if (staged) {
+        try { staged.save({ ...verified, at: now() }); }
+        catch (err) { problem('the downloaded update could not be remembered for the next start: ' + err.message); }
+      }
+      step(`downloaded and verified ${version}; waiting to be installed`);
       return { ok: true, version, size: file.size };
     } catch (err) {
       clearTimeout(stallTimer);
@@ -513,7 +545,8 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
       const e = err instanceof UpdateError ? err
         : (err && err.name === 'AbortError') ? new UpdateError('cancelled', 'Download cancelled.')
         : plainNetworkError(err);
-      if (e.code !== 'cancelled') { state.result = 'error'; state.error = e.message; }
+      if (e.code !== 'cancelled') { state.result = 'error'; state.error = e.message; problem(`downloading ${version} failed (${e.code}): ${e.message}`); }
+      else step(`downloading ${version} was cancelled`);
       return { ok: false, code: e.code, error: e.message };
     } finally {
       active = null;
@@ -531,35 +564,82 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
   async function prepareInstall(version) {
     if (!verified || verified.version !== version) throw new UpdateError('stale', 'Download the update first.');
     if (/\.part$/i.test(verified.file)) throw new UpdateError('stale', 'Download the update first.');
+    const cannot = copyProblem();
+    if (cannot) { problem('refused to install ' + version + ': ' + cannot); throw new UpdateError('not-installed', cannot); }
     let got;
     try { got = await hashFile(verified.file); }
-    catch (err) { verified = null; throw new UpdateError('disk', 'The downloaded update is gone (' + err.code + '). Download it again.'); }
+    catch (err) { forgetStaged(); problem('the downloaded update is gone (' + err.code + ')'); throw new UpdateError('disk', 'The downloaded update is gone (' + err.code + '). Download it again.'); }
     if (got.size !== verified.size || got.sha512 !== verified.sha512) {
       const file = verified.file;
-      verified = null;
+      forgetStaged();
       try { fs.rmSync(file, { force: true }); } catch (err) { log.warn('[Updates] could not delete', file + ':', err.message); }
+      problem('the downloaded update changed on disk after it was checked, so it was deleted');
       throw new UpdateError('checksum', 'The downloaded update changed on disk after it was checked, so Vex deleted it. Download it again.');
     }
     const script = /\.cmd$/i.test(verified.file);
     if (script && !feed().test) throw new UpdateError('feed', 'Vex only runs a real installer.');
     if (!script && platform !== 'win32') throw new UpdateError('feed', 'Updating from inside Vex works on Windows only.');
+    step(`checked the downloaded ${version} again before installing: it is exactly the release's installer`);
     return { file: verified.file, args: [...INSTALLER_ARGS], script };
+  }
+
+  function forgetStaged() {
+    verified = null;
+    if (staged) { try { staged.clear(); } catch (err) { problem('could not forget the downloaded update: ' + err.message); } }
   }
 
   // Start the installer on its own, so it outlives Vex. Called while Vex is
   // quitting (main.js). A .cmd stand-in (VEX_UPDATE_FEED tests only) is not
-  // an executable, so it goes through cmd.exe.
+  // an executable, so it goes through cmd.exe. A process that did not start
+  // (no pid) is an error here, not a line nobody reads after Vex has gone.
   function launch(plan) {
     const options = { detached: true, stdio: 'ignore', cwd: dir, windowsHide: !!plan.script };
     const child = plan.script
       ? spawn(env.ComSpec || 'cmd.exe', ['/d', '/c', plan.file, ...plan.args], options)
       : spawn(plan.file, plan.args, options);
-    child.on('error', err => log.error('[Updates] the installer did not start:', err.message));
+    child.on('error', err => { log.error('[Updates] the installer did not start:', err.message); if (journal) journal.add('PROBLEM: the installer did not start: ' + err.message); });
     child.unref();
+    if ('pid' in child && !child.pid) throw new UpdateError('launch', 'Windows did not start the installer (' + nodePath.basename(plan.file) + ').');
+    step(`installer started (${nodePath.basename(plan.file)} ${plan.args.join(' ')})` + (child.pid ? ', pid ' + child.pid : ''));
     return child;
   }
 
-  return { check, notes, download, cancel, prepareInstall, launch, cleanup,
+  // A download from an earlier run, still on disk. Read once at start: it is the
+  // staged update if it is for a newer version and the file is there; if the
+  // running version is that version or newer, the update already happened.
+  function restoreStaged() {
+    if (!staged) return null;
+    let rec;
+    try { rec = staged.read(); }
+    catch (err) { problem('the record of a downloaded update is unreadable and was dropped: ' + err.message); try { staged.clear(); } catch (e2) { problem('and could not be removed: ' + e2.message); } return null; }
+    if (!rec) return null;
+    if (cmpVersion(rec.version, currentVersion) <= 0) {
+      step(`the downloaded update ${rec.version} is installed (running ${currentVersion})`);
+      staged.clear();
+      return null;
+    }
+    if (rec.file !== paths(rec.version, rec.file).final || !fs.existsSync(rec.file)) {
+      problem(`the downloaded update ${rec.version} is no longer on disk, so it will be downloaded again`);
+      staged.clear();
+      return null;
+    }
+    verified = { version: rec.version, file: rec.file, sha512: rec.sha512, size: rec.size };
+    state.result = 'downloaded'; state.version = rec.version;
+    step(`found a downloaded update from an earlier run: ${rec.version}, ready to install`);
+    return { version: rec.version, size: rec.size };
+  }
+  // The version waiting to be installed, if any.
+  const stagedUpdate = () => (verified ? { version: verified.version, size: verified.size } : null);
+  // The kept installer of the running version (what a rollback runs).
+  const baseInstallerFile = () => {
+    for (const ext of ['.exe', '.cmd']) {
+      const f = nodePath.join(dir, `Vex-Setup-${currentVersion}${ext}`);
+      if (fs.existsSync(f)) return f;
+    }
+    return null;
+  };
+
+  return { check, notes, download, cancel, prepareInstall, launch, cleanup, restoreStaged, stagedUpdate, baseInstallerFile,
     get downloading() { return active ? active.version : null; } };
 }
 
