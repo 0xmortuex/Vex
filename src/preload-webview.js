@@ -2962,8 +2962,23 @@ let _vexStartPageOwn = null;
     if (ac === "username" || ac === "email") return true;
     return /e-?mail|user-?name|userid|user[_-]?login|sign-?in|(^| )login( |$)|phone number|account name/.test(meta(el));
   }
+  // A box that asks for a one-time code (an authenticator or SMS code, usually six boxes of one digit) is never
+  // a user name, whatever else is on the page: a visible password field somewhere made every code box a "login
+  // field" and the saved-account chooser opened over the Authenticator code (Riot account page, found 2026-11-01).
+  function isCodeField(el) {
+    try {
+      const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+      if (ac.indexOf("one-time-code") !== -1) return true;
+      const im = (el.getAttribute("inputmode") || "").toLowerCase();
+      const max = Number(el.getAttribute("maxlength") || 0);
+      if ((im === "numeric" || im === "decimal") && max > 0 && max <= 8) return true;
+      return /otp|one-?time|totp|2fa|mfa|verif(?:y|ication)|security.?code|auth(?:entication|enticator)?.?code|passcode|pin|code|token|digit/.test(meta(el));
+    } catch { return false; }
+  }
+
   function looksLikeUser(el) {
     if (!visible(el)) return false;
+    if (isCodeField(el)) return false;
     const t = (el.type || "").toLowerCase();
     if (!(t === "" || t === "text" || t === "email" || t === "tel")) return false;
     return !isSearchy(el);
@@ -3012,10 +3027,20 @@ let _vexStartPageOwn = null;
   function sameOriginForm(el) {
     try { return !el.form || new URL(el.form.action || location.href, location.href).origin === location.origin; } catch { return false; }
   }
+  // A password field in the SAME form or dialog as this box (not anywhere on the page): an account page can show
+  // a password field in one place and a code dialog in another.
+  function passwordNear(el) {
+    try {
+      const root = el.closest("form,dialog,[role=dialog],[aria-modal=true]");
+      if (!root) return !!loginPassword();
+      return deepAll(root, "input[type=password]").some((p) => visible(p) && !isNewPw(p));
+    } catch { return false; }
+  }
+
   function isLoginField(el) {
     if (!el || el.tagName !== "INPUT" || el.disabled || el.readOnly || !visible(el) || !sameOriginForm(el)) return false;
     if ((el.type || "").toLowerCase() === "password") return !isNewPw(el);
-    return looksLikeUser(el) && (loginSignal(el) || !!loginPassword());
+    return looksLikeUser(el) && (loginSignal(el) || passwordNear(el));
   }
   // The native setter, so React/Vue controlled inputs register the change.
   // No el.focus(): it moved the cursor mid-sign-in (found 2026-09-29).
