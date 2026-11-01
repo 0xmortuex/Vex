@@ -177,6 +177,9 @@
     // Theme packs (js/theme-packs.js, js/icon-packs.js, js/theme-pack-ui.js): a theme as a design, a set of icons and colours. Part of how the window looks, not an extra.
     { id: 'theme-packs', title: 'Theme packs', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.themePack', 'vex.iconPack'],
       permissions: { reads: ['the theme, font and skin you use now, so Reset can give them back'], writes: ['the pack, design and icon style you chose, and the theme, font and skin the pack sets'], sends: [] } },
+    // Share my look (js/share-look.js, js/share-look-ui.js): the look as a small .vexlook file or vex://look link, and the review before wearing one. Part of how the window looks.
+    { id: 'share-look', title: 'Share my look', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.shareLook.undo'], commands: ['share-look', 'open-shared-look', 'undo-shared-look'],
+      permissions: { reads: ['the theme, pack, design, icons, look, skin, fonts and wallpaper choice you use now, and the file or link you open'], writes: ['the look you put on, and the look you had before so Undo can give it back'], sends: [] } },
     // Dark mode for websites (js/dark-mode.js, src/dark-mode-preload.js, main/dark-mode.js): a choice in Settings > Appearance whose "Off" is its own
     // switch, not an extra to hold back. It owns the per-site list the page menu always kept (vex.forceDarkHosts) and the old everywhere flag.
     { id: 'dark-mode-websites', title: 'Dark mode for websites', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.darkMode.', 'vex.forceDarkHosts', 'vex.forceDarkSites'],
