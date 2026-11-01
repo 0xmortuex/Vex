@@ -706,7 +706,7 @@ const SettingsUI = {
       clear.hidden = true;
       clear.title = 'Clear search';
       clear.setAttribute('aria-label', 'Clear search');
-      clear.innerHTML = VexIcons.svg('x', { size: 14 });
+      if (typeof VexIcons !== 'undefined') clear.innerHTML = VexIcons.svg('x', { size: 14 });   // the app loads VexIcons first; never a text glyph
       searchRow.appendChild(clear);
       this._buildLayoutButton(searchRow);
       inner.appendChild(searchRow);
