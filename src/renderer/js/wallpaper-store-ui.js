@@ -525,7 +525,7 @@
     const stat = el('div', 'vws-stat');
     body.append(stat);
     V.stats().then((s) => {
-      stat.textContent = L('Kept on this computer: ') + (s.cacheBytes / 1048576).toFixed(1) + ' MB ' + L('of downloaded photos') + ' (' + L('at most') + ' ' + Math.round(s.cacheMax / 1048576) + ' MB), ' + s.mineFiles + ' ' + L('of your own pictures') + '.';
+      stat.textContent = L('Kept on this computer:') + ' ' + (s.cacheBytes / 1048576).toFixed(1) + ' MB ' + L('of downloaded photos') + ' (' + L('at most') + ' ' + Math.round(s.cacheMax / 1048576) + ' MB), ' + s.mineFiles + ' ' + L('of your own pictures') + '.';
       if (s.cacheFiles || s.catalogue) stat.append(doc.createTextNode(' '), button(L('Clear downloaded photos'), () => V.clearCache().then(again).catch(fail)));
     }).catch((err) => { stat.textContent = err.message; });
   }

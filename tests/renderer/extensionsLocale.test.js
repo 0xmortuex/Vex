@@ -13,6 +13,8 @@ const ROOT = path.join(__dirname, '..', '..');
 const JS = path.join(ROOT, 'src', 'renderer', 'js');
 const { VexI18nUI } = require('../../src/renderer/js/i18n-ui.js');
 const tr = VexI18nUI.TABLE.tr;
+// The Settings sweep's late file joins the table as it loads in the app; here it is joined by hand, so its whole-sentence keys count as entries.
+Object.assign(tr, require('../../src/renderer/js/settings-sweep2-tr.js').VexSettingsTr2);
 const keys = Object.keys(tr);
 const hasTurkish = (s) => VexI18nUI.lookup(s, 'tr') != null;
 

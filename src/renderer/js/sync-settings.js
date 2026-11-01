@@ -87,7 +87,7 @@ const SyncSettings = (() => {
     });
     container.querySelector('#btn-sync-forget-old')?.addEventListener('click', async () => {
       try { await SyncEngine.signOut(false); toast('Forgot the old sign-in on this device', 'success'); }
-      catch (err) { toast('Could not forget it: ' + human(err && err.message), 'error'); }
+      catch (err) { toast(window.vexTr('Could not forget it:') + ' ' + human(err && err.message), 'error'); }
       await renderSyncPanel(container);
     });
   }
@@ -344,7 +344,7 @@ const SyncSettings = (() => {
         btn.disabled = true;
         try {
           const r = await SyncEngine.resolveConflict(c.key, Number(btn.dataset.version));
-          if (!r.ok) toast('Put back on this device. It reaches your other devices on the next sync: ' + human(r.reason), 'error');
+          if (!r.ok) toast(window.vexTr('Put back on this device. It reaches your other devices on the next sync:') + ' ' + human(r.reason), 'error');
         } catch (err) { toast(human(err && err.message), 'error'); }
         draw();
       }));
@@ -499,7 +499,7 @@ const SyncSettings = (() => {
       if (!ok) {
         const why = [!pullR.ok ? `download: ${human(pullR.reason)}` : '', !pushR.ok ? `upload: ${human(pushR.reason)}` : '']
           .filter(Boolean).join(' \u00b7 ');
-        toast('Sync failed \u2014 ' + why, 'error');
+        toast(window.vexTr('Sync failed —') + ' ' + why, 'error');
       }
       setTimeout(async () => {
         await renderSyncPanel(document.getElementById('sync-panel-content'));
@@ -523,10 +523,10 @@ const SyncSettings = (() => {
           const r = await SyncEngine.setTypeSynced(box.dataset.syncType, box.checked);
           // The PIN or the confirmation was not given: it stays off.
           if (r.canceled) box.checked = false;
-          else if (!r.ok) toast('Saved. It will sync once Vex can reach the sync server: ' + human(r.reason), 'error');
+          else if (!r.ok) toast(window.vexTr('Saved. It will sync once Vex can reach the sync server:') + ' ' + human(r.reason), 'error');
         } catch (err) {
           box.checked = !box.checked;
-          toast('Could not change it: ' + human(err && err.message), 'error');
+          toast(window.vexTr('Could not change it:') + ' ' + human(err && err.message), 'error');
         } finally { box.disabled = false; }
       });
     });
@@ -566,7 +566,7 @@ const SyncSettings = (() => {
       const res = await SyncEngine.wipeAllCloudData();
       await renderSyncPanel(document.getElementById('sync-panel-content'));
       if (res && res.ok) toast('Cloud data wiped — this device is signed out of sync', 'success');
-      else toast('Wipe failed — ' + ((res && res.reason) || 'unknown error'), 'error');
+      else toast(window.vexTr('Wipe failed —') + ' ' + ((res && res.reason) || 'unknown error'), 'error');
     });
 
     container.querySelectorAll('[data-device-id]').forEach(btn => {

@@ -14,6 +14,7 @@ require('../../src/renderer/js/vex-icons.js');
 globalThis.VexIcons = window.VexIcons;
 
 require('../../src/renderer/js/vex-utils.js');
+require('../../src/renderer/js/i18n-ui.js');   // backup.js translates its confirm text and list error through window.vexTr
 const { VexBackup } = require('../../src/renderer/js/backup.js');
 globalThis.VexBackup = VexBackup;
 

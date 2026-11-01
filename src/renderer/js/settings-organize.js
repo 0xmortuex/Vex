@@ -167,7 +167,7 @@ const SettingsOrganize = {
     const el = own || node;
     let t = '';
     for (const c of el.childNodes) { if (c.nodeType === 3 && c.textContent.trim()) { t = c.textContent; break; } if (c.nodeType === 1 && !c.matches('.set-info-btn, svg, .muted, small, [style*="text-muted"]') && c.textContent.trim()) { t = c.textContent; break; } }
-    return t.replace(/\s+/g, ' ').split(/ [—–·] |: /)[0].trim().slice(0, 32);
+    return t.replace(/\s+/g, ' ').split(/ [—–·] |: /)[0].trim();   // whole: the button clips it with an ellipsis, and a name cut in the middle of a word cannot be translated
   },
   _makeMore(count, nodes) {
     const btn = document.createElement('button');
@@ -176,7 +176,9 @@ const SettingsOrganize = {
     btn.setAttribute('aria-expanded', 'false');
     btn.innerHTML = VexIcons.svg('chevron-down', { size: 14 }) + '<span class="set-more-label">Advanced</span><span class="set-more-names"></span><span class="set-more-count"></span>';
     btn.querySelector('.set-more-count').textContent = '(' + count + ')';
-    const names = Array.from(new Set((nodes || []).map(n => this._rowName(n)).filter(Boolean))).slice(0, 4);
+    // A row's name is read from the page, where the translator may not have reached it yet: look each one up, so a Turkish Vex lists Turkish names.
+    const ui = typeof VexI18nUI !== 'undefined' && VexI18nUI.locale() !== 'en' ? VexI18nUI : null;
+    const names = Array.from(new Set((nodes || []).map(n => this._rowName(n)).filter(Boolean).map(name => (ui && ui.lookup(name)) || name))).slice(0, 4);
     if (names.length) {
       btn.querySelector('.set-more-names').textContent = names.join(', ');
       btn.title = 'Advanced: ' + names.join(', ');
@@ -236,7 +238,9 @@ const SettingsOrganize = {
       const sel = document.createElement('select');
       sel.className = 'set-radio-select';
       const heading = labels[0].parentElement.querySelector(':scope > .setting-row-label, :scope > .setting-label');
-      sel.setAttribute('aria-label', (heading && heading.textContent.trim()) || name);
+      const section = labels[0].closest('.setting-group');   // no heading of its own: the section's name, not the radio's code name ("loc-mode")
+      const sectionName = section && section.querySelector('.setting-label');
+      sel.setAttribute('aria-label', (heading && heading.textContent.trim()) || (sectionName && sectionName.textContent.trim()) || name);
       list.forEach((r, i) => {
         const o = document.createElement('option');
         o.value = r.value;
