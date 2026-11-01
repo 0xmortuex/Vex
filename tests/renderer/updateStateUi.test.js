@@ -10,7 +10,7 @@ require('../../src/renderer/js/vex-utils.js');
 require('../../src/renderer/js/vex-icons.js');
 const { UpdateNotifier } = require('../../src/renderer/js/update-notifier.js');
 
-const REASON = 'This copy of Vex 2.34.5 runs from a folder (C:\\vex\\dist\\win-unpacked) and is not installed, so it cannot update itself.';
+const REASON = 'This copy of Vex 2.34.5 is running from source code, so it cannot update itself. Install Vex with Vex-Setup.exe to get automatic updates.';
 const folderInfo = { ok: true, hasUpdate: true, latest: '2.35.0', current: '2.34.5', size: 250 * 1024 * 1024, canSelfUpdate: false, cannotUpdateReason: REASON,
   downloadUrl: 'https://github.com/0xmortuex/Vex/releases/download/v2.35.0/Vex-Setup.exe', releaseUrl: 'https://github.com/0xmortuex/Vex/releases/tag/v2.35.0' };
 const cover = () => document.getElementById('update-cover');
@@ -44,7 +44,28 @@ beforeEach(() => {
 });
 afterEach(() => { UpdateNotifier.close(); });
 
-describe('a copy that is not installed (dist\\win-unpacked, npm start)', () => {
+describe('a folder copy (dist\\win-unpacked) is updated in place', () => {
+  const inPlace = { ...folderInfo, canSelfUpdate: true, cannotUpdateReason: null, inPlaceFolder: 'C:\\Claude code free\\vex\\dist\\win-unpacked' };
+  it('keeps Update now and says once where the update goes', async () => {
+    UpdateNotifier.showCover(inPlace);
+    await flush();
+    expect(labels()).toEqual(['Update now', 'Later', 'Skip this version']);
+    expect(cover().querySelector('.update-cover-status-text').textContent).toBe('This copy will be updated in place in C:\\Claude code free\\vex\\dist\\win-unpacked');
+  });
+  it('an installed copy has no such line', async () => {
+    UpdateNotifier.showCover({ ...inPlace, inPlaceFolder: null });
+    await flush();
+    expect(cover().querySelector('.update-cover-status-text').textContent).toBe('');
+  });
+  it('a waiting download in a folder copy says it too', async () => {
+    status.copy = { kind: 'folder', folder: 'C:\\vex\\dist\\win-unpacked' };
+    status.staged = { version: '2.35.0', size: 1000 };
+    await UpdateNotifier.checkState();
+    expect(cover().querySelector('.update-cover-status-text').textContent).toBe('This copy will be updated in place in C:\\vex\\dist\\win-unpacked');
+  });
+});
+
+describe('source run (npm start): not updatable', () => {
   it('has no "Update now": it says why and offers the installer', async () => {
     UpdateNotifier.showCover(folderInfo);
     await flush();

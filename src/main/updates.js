@@ -33,7 +33,7 @@
 const crypto = require('crypto');
 const nodePath = require('path');
 const { parseBlockMap, planDownload } = require('./differential');
-const { notInstalledMessage, STATE_FILES } = require('./update-state');
+const { notInstalledMessage, installerArgs, checkWritable, STATE_FILES } = require('./update-state');
 
 const REPO = 'https://github.com/0xmortuex/Vex';
 // electron-builder's NSIS installer (app-builder-lib/templates/nsis):
@@ -177,7 +177,7 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
   const problem = message => { log.warn('[Updates] ' + message); if (journal) journal.add('PROBLEM: ' + message); };
   // Only an installed Vex can be updated by the installer (see update-state.js).
   // The test feed (a .cmd stand-in) is allowed from any copy.
-  const copyProblem = () => (copy && copy.kind !== 'installed' && !resolveFeed(env).test ? notInstalledMessage(copy, currentVersion) : null);
+  const copyProblem = () => (copy && copy.kind === 'dev' && !resolveFeed(env).test ? notInstalledMessage(copy, currentVersion) : null);
 
   const feed = () => resolveFeed(env);
 
@@ -211,7 +211,9 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     try { f = feed(); } catch (err) { return { ok: false, current, error: err.message, url: REPO + '/releases' }; }
     const cannot = copyProblem();
     const base = { current, url: REPO + '/releases', downloadUrl: REPO + '/releases/latest/download/Vex-Setup.exe',
-      copy: copy ? { kind: copy.kind, folder: copy.folder } : null, canSelfUpdate: !cannot, cannotUpdateReason: cannot };
+      copy: copy ? { kind: copy.kind, folder: copy.folder } : null, canSelfUpdate: !cannot, cannotUpdateReason: cannot,
+      // A folder copy is updated where it is: the cover says so.
+      inPlaceFolder: copy && copy.kind === 'folder' ? copy.folder : null };
     state.lastCheckAt = now();
     try {
       const { status, text } = await readText(f.latestYml, { maxBytes: 256 * 1024, timeoutMs: 20000 });
@@ -566,6 +568,12 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     if (/\.part$/i.test(verified.file)) throw new UpdateError('stale', 'Download the update first.');
     const cannot = copyProblem();
     if (cannot) { problem('refused to install ' + version + ': ' + cannot); throw new UpdateError('not-installed', cannot); }
+    // A folder copy: the installer is told to install into this copy's own folder, so the folder must take a write.
+    const target = copy && copy.kind === 'folder' ? copy.folder : null;
+    if (target) {
+      try { checkWritable(fs, target, env); }
+      catch (err) { problem('refused to install ' + version + ' into ' + target + ': ' + err.message); throw new UpdateError('not-writable', err.message); }
+    }
     let got;
     try { got = await hashFile(verified.file); }
     catch (err) { forgetStaged(); problem('the downloaded update is gone (' + err.code + ')'); throw new UpdateError('disk', 'The downloaded update is gone (' + err.code + '). Download it again.'); }
@@ -580,7 +588,8 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     if (script && !feed().test) throw new UpdateError('feed', 'Vex only runs a real installer.');
     if (!script && platform !== 'win32') throw new UpdateError('feed', 'Updating from inside Vex works on Windows only.');
     step(`checked the downloaded ${version} again before installing: it is exactly the release's installer`);
-    return { file: verified.file, args: [...INSTALLER_ARGS], script };
+    if (target) step(`this copy is not installed: the update goes into its own folder, ${target}`);
+    return { file: verified.file, args: installerArgs(INSTALLER_ARGS, target), script, ...(target ? { target } : {}) };
   }
 
   function forgetStaged() {
@@ -594,9 +603,14 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
   // (no pid) is an error here, not a line nobody reads after Vex has gone.
   function launch(plan) {
     const options = { detached: true, stdio: 'ignore', cwd: dir, windowsHide: !!plan.script };
-    const child = plan.script
-      ? spawn(env.ComSpec || 'cmd.exe', ['/d', '/c', plan.file, ...plan.args], options)
-      : spawn(plan.file, plan.args, options);
+    // NSIS reads /D=<folder> from the raw command line, last and unquoted even with spaces in the path,
+    // so a folder install is started with the command line written out by hand instead of quoted by Node.
+    const inPlace = plan.args.some(a => /^\/D=/.test(a));
+    let child;
+    if (plan.script && inPlace) child = spawn(env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `""${plan.file}" ${plan.args.join(' ')}"`], { ...options, windowsVerbatimArguments: true });
+    else if (plan.script) child = spawn(env.ComSpec || 'cmd.exe', ['/d', '/c', plan.file, ...plan.args], options);
+    else if (inPlace) child = spawn(plan.file, plan.args, { ...options, windowsVerbatimArguments: true, argv0: `"${plan.file}"` });
+    else child = spawn(plan.file, plan.args, options);
     child.on('error', err => { log.error('[Updates] the installer did not start:', err.message); if (journal) journal.add('PROBLEM: the installer did not start: ' + err.message); });
     child.unref();
     if ('pid' in child && !child.pid) throw new UpdateError('launch', 'Windows did not start the installer (' + nodePath.basename(plan.file) + ').');
@@ -639,7 +653,10 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     return null;
   };
 
-  return { check, notes, download, cancel, prepareInstall, launch, cleanup, restoreStaged, stagedUpdate, baseInstallerFile,
+  // The command for an installer file (also the kept older one a rollback runs), for the same target.
+  const planFor = (file, target) => ({ file, args: installerArgs(INSTALLER_ARGS, target), script: /\.cmd$/i.test(file), target: target || null });
+
+  return { check, notes, download, cancel, prepareInstall, launch, planFor, cleanup, restoreStaged, stagedUpdate, baseInstallerFile,
     get downloading() { return active ? active.version : null; } };
 }
 

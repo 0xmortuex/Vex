@@ -126,46 +126,121 @@ describe('hypothesis (e): an installer staged for an older version does not bloc
   });
 });
 
-describe('hypothesis (d): a copy run from a folder (dist\\win-unpacked) or from source', () => {
-  const folder = { kind: 'folder', folder: 'C:\\Claude code free\\vex\\dist\\win-unpacked' };
-
-  it('is told at the check, with the reason, not offered an "Update now" that installs elsewhere', async () => {
-    const r = await newUpdater({ copy: folder }).check();
-    expect(r).toMatchObject({ ok: true, hasUpdate: true, canSelfUpdate: false, copy: { kind: 'folder' } });
-    expect(r.cannotUpdateReason).toMatch(/runs from a folder .*win-unpacked.* not installed/);
-    expect(r.cannotUpdateReason).toMatch(/Install Vex with Vex-Setup\.exe/);
-    expect(r.downloadUrl).toBe(exeUrl('2.35.0'));
+describe('a copy run from a folder (dist\\win-unpacked) is updated in place; source is not updatable', () => {
+  let appDir, folder;
+  beforeEach(() => {
+    // Spaces in the path, like C:\Claude code free\vex\dist\win-unpacked; outside the updates folder, which the tidy-up empties.
+    appDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'vex-app-')), 'win unpacked dir');
+    fs.mkdirSync(appDir);
+    folder = { kind: 'folder', folder: appDir };
   });
-
-  it('download is refused with a code and a reason, and nothing is fetched or written', async () => {
-    const u = newUpdater({ copy: folder }); await u.check();
-    fetch.mockClear();
-    const r = await u.download('2.35.0');
-    expect(r).toMatchObject({ ok: false, code: 'not-installed' });
-    expect(r.error).toMatch(/not installed/);
-    expect(fetch).not.toHaveBeenCalled();
-    expect(fs.readdirSync(dir)).toEqual([S.LOG_FILE]);
-    expect(journal.tail().join('\n')).toMatch(/PROBLEM: refused to download 2\.35\.0/);
-  });
-
-  it('even an old staged download is not run from a copy that cannot take it', async () => {
-    const first = newUpdater(); await first.check(); await first.download('2.35.0');
-    const second = newUpdater({ copy: folder }); second.restoreStaged();
-    await expect(second.prepareInstall('2.35.0')).rejects.toThrow(/not installed/);
-  });
-
-  it('source (npm start) is told the same way', async () => {
-    const r = await newUpdater({ copy: { kind: 'dev', folder: 'C:\\src' } }).check();
-    expect(r.canSelfUpdate).toBe(false);
-    expect(r.cannotUpdateReason).toMatch(/running from source code/);
-  });
-
-  it('the test feed (VEX_UPDATE_FEED stand-in) is the one exception, so it can be tested from any copy', async () => {
+  afterEach(() => { fs.rmSync(path.dirname(appDir), { recursive: true, force: true }); });
+  const standInFeed = (feed = 'http://127.0.0.1:17100/') => {
     const standIn = Buffer.from('@echo off\r\n');
-    const feed = 'http://127.0.0.1:17100/';
     routes.set(feed + 'latest.yml', () => respond(yml({ body: standIn, url: 'stand-in.cmd' })));
     routes.set(feed + 'stand-in.cmd', () => respond(standIn, { length: standIn.length }));
-    const u = newUpdater({ copy: folder, env: { VEX_UPDATE_FEED: feed } });
+    return { VEX_UPDATE_FEED: feed, ComSpec: 'C:\\Windows\\System32\\cmd.exe' };
+  };
+
+  it('is updatable and says where: the check carries the folder the update goes into', async () => {
+    const r = await newUpdater({ copy: folder }).check();
+    expect(r).toMatchObject({ ok: true, hasUpdate: true, canSelfUpdate: true, inPlaceFolder: appDir, copy: { kind: 'folder' } });
+  });
+
+  it('an installed copy has no in-place folder and keeps today\'s exact arguments (no /D)', async () => {
+    const spawn = vi.fn(() => ({ on: vi.fn(), unref: vi.fn(), pid: 1 }));
+    const u = newUpdater({ spawn }); expect((await u.check()).inPlaceFolder).toBe(null);
+    await u.download('2.35.0');
+    const plan = await u.prepareInstall('2.35.0');
+    expect(plan.args).toEqual(['--updated', '/S', '--force-run']);
+    expect(plan.target).toBeUndefined();
+    u.launch(plan);
+    expect(spawn).toHaveBeenCalledWith(plan.file, ['--updated', '/S', '--force-run'], expect.not.objectContaining({ windowsVerbatimArguments: true }));
+  });
+
+  it('a folder copy passes /D=<its folder> LAST, unquoted, and the command line is written by hand so spaces survive', async () => {
+    const spawn = vi.fn(() => ({ on: vi.fn(), unref: vi.fn(), pid: 7 }));
+    const u = newUpdater({ copy: folder, spawn }); await u.check(); await u.download('2.35.0');
+    const plan = await u.prepareInstall('2.35.0');
+    expect(plan.args).toEqual(['--updated', '/S', '--force-run', '/D=' + appDir]);
+    expect(plan.args[plan.args.length - 1]).toMatch(/^\/D=.*win unpacked dir$/);
+    expect(plan.target).toBe(appDir);
+    u.launch(plan);
+    expect(spawn).toHaveBeenCalledWith(plan.file, plan.args, expect.objectContaining({ detached: true, windowsVerbatimArguments: true, argv0: `"${plan.file}"` }));
+    expect(journal.tail().join('\n')).toContain(`the update goes into its own folder, ${appDir}`);
+    expect(journal.tail().join('\n')).toContain('/D=' + appDir);
+  });
+
+  it('a trailing backslash is dropped, and a folder that is not an absolute drive path is refused', () => {
+    expect(S.installerArgs(['/S'], 'C:\\Vex Dir\\')).toEqual(['/S', '/D=C:\\Vex Dir']);
+    expect(() => S.installerArgs(['/S'], 'relative\\dir')).toThrow(/will not update into this folder/);
+    expect(() => S.installerArgs(['/S'], 'C:\\a"b')).toThrow(/will not update into this folder/);
+  });
+
+  it('the .cmd stand-in under the test feed gets the same arguments, recorded exactly through cmd.exe', async () => {
+    const spawn = vi.fn(() => ({ on: vi.fn(), unref: vi.fn(), pid: 7 }));
+    const u = newUpdater({ copy: folder, spawn, env: standInFeed() });
+    expect((await u.check()).canSelfUpdate).toBe(true);
+    await u.download('2.35.0');
+    const plan = await u.prepareInstall('2.35.0');
+    u.launch(plan);
+    const call = spawn.mock.calls[0];
+    expect(call[0]).toBe('C:\\Windows\\System32\\cmd.exe');
+    expect(call[1]).toEqual(['/d', '/s', '/c', `""${plan.file}" --updated /S --force-run /D=${appDir}"`]);
+    expect(call[2]).toMatchObject({ windowsVerbatimArguments: true });
+  });
+
+  it('a folder that cannot be written (Program Files without admin) is a visible error before anything runs', async () => {
+    const first = newUpdater({ copy: folder }); await first.check(); await first.download('2.35.0');
+    const noWrite = { ...fs, writeFileSync: (f, ...a) => { if (String(f).includes('.vex-update-write-test')) throw Object.assign(new Error('denied'), { code: 'EPERM' }); return fs.writeFileSync(f, ...a); } };
+    const u = newUpdater({ copy: { kind: 'folder', folder: appDir }, fs: noWrite, env: { ProgramFiles: path.dirname(appDir) } });
+    await u.check(); await u.download('2.35.0');
+    const err = await u.prepareInstall('2.35.0').catch(e => e);
+    expect(err.code).toBe('not-writable');
+    expect(err.message).toMatch(/cannot write to its own folder .*EPERM/);
+    expect(err.message).toMatch(/inside Program Files/);
+    expect(journal.tail().join('\n')).toMatch(/PROBLEM: refused to install 2\.35\.0 into /);
+  });
+
+  it('the not-installed notice and the rollback use the same /D target', async () => {
+    const hashFile = S.hashFileWith(fs);
+    const base = path.join(dir, 'Vex-Setup-2.34.5.exe'); fs.writeFileSync(base, 'old');
+    const m = v => S.createRollback({ fs, dir, currentVersion: v, hashFile });
+    await m('2.34.5').arm({ from: '2.34.5', to: '2.35.0', baseFile: base, target: appDir });
+    expect(m('2.34.5').onStart()).toMatchObject({ kind: 'not-installed', target: appDir });
+    m('2.34.5').acknowledge();
+    await m('2.34.5').arm({ from: '2.34.5', to: '2.35.0', baseFile: base, target: appDir });
+    for (let i = 0; i < 2; i++) m('2.35.0').onStart();
+    const decision = m('2.35.0').onStart();
+    expect(decision).toMatchObject({ kind: 'rollback', target: appDir });
+    const u = newUpdater({ copy: folder });
+    const plan = u.planFor(await m('2.35.0').checkedBase(decision.base), decision.target);
+    expect(plan.args).toEqual(['--updated', '/S', '--force-run', '/D=' + appDir]);
+    expect(u.planFor(base, null).args).toEqual(['--updated', '/S', '--force-run']);
+  });
+
+  it('a staged download is also installed in place after a restart', async () => {
+    const first = newUpdater({ copy: folder }); await first.check(); await first.download('2.35.0');
+    const second = newUpdater({ copy: folder }); second.restoreStaged();
+    expect((await second.prepareInstall('2.35.0')).target).toBe(appDir);
+  });
+
+  it('source (npm start) is not updatable, and says why; download and install are refused', async () => {
+    const dev = { kind: 'dev', folder: 'C:\\src' };
+    const u = newUpdater({ copy: dev });
+    const r = await u.check();
+    expect(r.canSelfUpdate).toBe(false);
+    expect(r.cannotUpdateReason).toMatch(/running from source code/);
+    fetch.mockClear();
+    expect(await u.download('2.35.0')).toMatchObject({ ok: false, code: 'not-installed' });
+    expect(fetch).not.toHaveBeenCalled();
+    const first = newUpdater(); await first.check(); await first.download('2.35.0');
+    const second = newUpdater({ copy: dev }); second.restoreStaged();
+    await expect(second.prepareInstall('2.35.0')).rejects.toThrow(/source code/);
+  });
+
+  it('the test feed lets source act as an updatable copy for the stand-in', async () => {
+    const u = newUpdater({ copy: { kind: 'dev', folder: 'C:\\src' }, env: standInFeed() });
     expect((await u.check()).canSelfUpdate).toBe(true);
     expect((await u.download('2.35.0')).ok).toBe(true);
   });
@@ -230,13 +305,12 @@ describe('hypotheses (c), (f), (g), (h): a failure is in the log and the install
     expect(journal.tail().join('\n')).toMatch(/PROBLEM: the installer did not start: spawn UNKNOWN/);
   });
 
-  it('the log keeps the last 200 lines, oldest first, and never a Windows path', () => {
+  it('the log keeps the last 200 lines, oldest first, and keeps a folder path whole (spaces included)', () => {
     const j = S.createUpdateLog({ fs, dir, warn: () => {} });
-    for (let i = 0; i < 700; i++) j.add('line ' + i + ' C:\\Users\\someone\\secret.txt');
+    for (let i = 0; i < 700; i++) j.add('line ' + i + ' C:\\Claude code free\\vex\\dist\\win-unpacked');
     const lines = j.tail(500);
     expect(lines.length).toBeLessThanOrEqual(200);
-    expect(lines[lines.length - 1]).toMatch(/line 699 \(path\)$/);
-    expect(lines.join('\n')).not.toMatch(/someone/);
+    expect(lines[lines.length - 1]).toMatch(/line 699 C:\\Claude code free\\vex\\dist\\win-unpacked$/);
   });
 
   it('a log that cannot be written says so through warn instead of failing the update', () => {

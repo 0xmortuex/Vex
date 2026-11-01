@@ -10809,6 +10809,8 @@ const _updateRollback = _updState.createRollback({ fs, dir: _updatesDir, current
 let _updateCopy = null;
 try { _updateCopy = _updState.installKind({ execPath: process.execPath, isPackaged: app.isPackaged, fs }); }
 catch (err) { console.error('[Updates]', err.message); _updateLog.add('PROBLEM: ' + err.message); }
+// TEST ONLY (with the VEX_UPDATE_FEED stand-in): act as a folder copy living in the named folder, so the in-place path can be tried from source.
+if (process.env.VEX_UPDATE_FEED && process.env.VEX_UPDATE_FAKE_FOLDER) _updateCopy = { kind: 'folder', folder: process.env.VEX_UPDATE_FAKE_FOLDER };
 const _updater = require('./main/updates').createUpdater({
   fetch: (url, init) => _egress.wrap((u, i) => net.fetch(u, i), { feature: 'Vex updates', kind: 'update' })(url, init),
   fs, dir: _updatesDir, currentVersion: app.getVersion(),
@@ -10840,7 +10842,7 @@ app.whenReady().then(async () => {
   try {
     const file = await _updateRollback.checkedBase(d.base);
     _updateLog.add(`${d.to} did not finish starting ${d.failed} times in a row: going back to ${d.from}`);
-    _updater.launch({ file, args: [...require('./main/updates').INSTALLER_ARGS], script: /\.cmd$/i.test(file) });
+    _updater.launch(_updater.planFor(file, d.target));
     app.exit(0);
   } catch (err) {
     console.error('[Updates] could not go back to the older version:', err.message);
@@ -10860,8 +10862,8 @@ let _pendingInstall = null;
 // still goes ahead (a rollback is a safety net, not a condition).
 async function _armInstall(version) {
   const plan = await _updater.prepareInstall(version);
-  const armed = await _updateRollback.arm({ from: app.getVersion(), to: version, baseFile: _updater.baseInstallerFile() });
-  _updateLog.add(`installing ${version} over ${app.getVersion()}` + (armed.canGoBack ? '; the older installer is kept for a way back' : '; no way back: ' + armed.note));
+  const armed = await _updateRollback.arm({ from: app.getVersion(), to: version, baseFile: _updater.baseInstallerFile(), target: plan.target });
+  _updateLog.add(`installing ${version} over ${app.getVersion()}` + (plan.target ? ` in place, into ${plan.target}` : '') + (armed.canGoBack ? '; the older installer is kept for a way back' : '; no way back: ' + armed.note));
   return plan;
 }
 // Vex has closed its windows (tabs saved) and is quitting: start the installer

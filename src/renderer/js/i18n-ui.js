@@ -2253,6 +2253,8 @@ const VexI18nUI = {
       'Couldn\'t check for updates: {1}': 'Güncellemeler denetlenemedi: {1}',
       'Vex {1} will not be offered again. Settings › About › Check for Updates still finds it.': 'Vex {1} bir daha sunulmayacak. Ayarlar › Hakkında › Güncellemeleri denetle onu yine de bulur.',
       'Update failed: {1}': 'Güncelleme başarısız: {1}',
+      'This copy will be updated in place in {1}': 'Bu kopya {1} klasöründe yerinde güncellenecek',
+      'This copy of Vex {1} is running from source code, so it cannot update itself. Install Vex with Vex-Setup.exe to get automatic updates.': 'Vex {1} kopyası kaynak kodundan çalışıyor, bu yüzden kendini güncelleyemez. Otomatik güncelleme için Vex\'i Vex-Setup.exe ile kurun.',
       'Update log': 'Güncelleme günlüğü',
       'Show the update log': 'Güncelleme günlüğünü göster',
       'Download Vex-Setup.exe': 'Vex-Setup.exe dosyasını indir',

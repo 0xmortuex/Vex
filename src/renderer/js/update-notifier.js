@@ -141,7 +141,8 @@ const UpdateNotifier = {
     if (s.notice) { await this.showNotice(s.notice); return s; }
     if (s.staged && !this._el) {
       this.showCover({ ok: true, hasUpdate: true, staged: true, current: s.current, latest: s.staged.version, size: s.staged.size,
-        releaseUrl: 'https://github.com/0xmortuex/Vex/releases/tag/v' + s.staged.version, canSelfUpdate: true });
+        releaseUrl: 'https://github.com/0xmortuex/Vex/releases/tag/v' + s.staged.version, canSelfUpdate: true,
+        inPlaceFolder: s.copy && s.copy.kind === 'folder' ? s.copy.folder : null });
     }
     return s;
   },
@@ -322,7 +323,9 @@ const UpdateNotifier = {
     document.body.classList.add('update-cover-open');
     // A copy that is not installed cannot be updated from inside: said at once,
     // with the way to get the installer, never an "Update now" that does nothing.
-    this._setPhase('choose', info.canSelfUpdate === false ? (info.cannotUpdateReason || 'This copy of Vex cannot update itself.') : '');
+    // A copy run from a folder is updated in place: said once, here.
+    this._setPhase('choose', info.canSelfUpdate === false ? (info.cannotUpdateReason || 'This copy of Vex cannot update itself.')
+      : (info.inPlaceFolder ? `This copy will be updated in place in ${info.inPlaceFolder}` : ''));
     this._loadNotes(info);
     // Tells the version review (js/version-review.js) that the cover is up. Fire
     // and forget: nothing here waits for it or reads an answer, so the update

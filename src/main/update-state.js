@@ -58,7 +58,8 @@ function writeJson(fs, dir, file, value) {
 function createUpdateLog({ fs, dir, now = () => Date.now(), warn = () => {}, maxLines = LOG_LINES }) {
   const file = nodePath.join(dir, LOG_FILE);
   let writes = 0;
-  const one = s => String(s == null ? '' : s).replace(/[A-Za-z]:\\[^\s"',]+/g, '(path)').replace(/[\r\n]+/g, ' ').slice(0, 400);
+  // Kept on this computer only; the target folder of an in-place update has to be readable in it.
+  const one = s => String(s == null ? '' : s).replace(/[\r\n]+/g, ' ').slice(0, 400);
   function lines() {
     try { return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean); }
     catch (err) { if (err.code === 'ENOENT') return []; throw err; }
@@ -115,8 +116,29 @@ function installKind({ execPath, isPackaged, platform = process.platform, fs }) 
 
 // What a person is told when this copy cannot be updated from inside.
 function notInstalledMessage(copy, current) {
-  const where = copy.kind === 'dev' ? 'is running from source code' : 'runs from a folder (' + copy.folder + ') and is not installed';
-  return `This copy of Vex ${current} ${where}, so it cannot update itself: the installer would update the installed Vex, or put a second copy elsewhere, and this one would stay on ${current}. Install Vex with Vex-Setup.exe to get automatic updates.`;
+  return `This copy of Vex ${current} is running from source code, so it cannot update itself. Install Vex with Vex-Setup.exe to get automatic updates.`;
+}
+
+// A folder copy is updated in place: the installer is told to install into the
+// copy's own folder with /D=<folder>. NSIS reads /D only as the LAST argument,
+// unquoted even when the path has spaces, with no trailing backslash.
+function installTarget(folder) {
+  const dir = String(folder || '').replace(/[\\/]+$/, '');
+  if (!/^[A-Za-z]:\\/.test(dir) || /["\r\n]/.test(dir)) throw new Error('Vex will not update into this folder: ' + String(folder).slice(0, 120));
+  return dir;
+}
+// The installer command: the fixed flags, then /D= last for a folder copy.
+function installerArgs(baseArgs, target) { return target ? [...baseArgs, '/D=' + installTarget(target)] : [...baseArgs]; }
+
+// Can the installer write into the copy's own folder? A real write, because
+// Program Files without admin rights refuses it. A visible error, not a no-op.
+function checkWritable(fs, folder, env = process.env) {
+  const probe = nodePath.join(folder, '.vex-update-write-test-' + process.pid);
+  try { fs.writeFileSync(probe, 'x'); fs.rmSync(probe, { force: true }); }
+  catch (err) {
+    const pf = [env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramW6432].filter(Boolean).some(p => folder.toLowerCase().startsWith(String(p).toLowerCase()));
+    throw new Error(`Vex cannot write to its own folder (${folder}): ${err.code || err.message}.` + (pf ? ' It is inside Program Files, which needs administrator rights; move the folder or install Vex with Vex-Setup.exe.' : ' Move the folder somewhere you can write, or install Vex with Vex-Setup.exe.'), { cause: err });
+  }
 }
 
 // ---- the rollback state machine ---------------------------------------------
@@ -137,7 +159,7 @@ function createRollback({ fs, dir, currentVersion, now = () => Date.now(), hashF
 
   // Before the installer runs. `baseFile` is the installer of the version being
   // left (null if none was kept): hashed now so the rollback can be checked later.
-  async function arm({ from, to, baseFile }) {
+  async function arm({ from, to, baseFile, target = null }) {
     let base = null, baseNote = '';
     if (baseFile) {
       try {
@@ -145,7 +167,7 @@ function createRollback({ fs, dir, currentVersion, now = () => Date.now(), hashF
         base = { file: baseFile, sha512: h.sha512, size: h.size };
       } catch (err) { baseNote = 'the installer of ' + from + ' could not be read (' + (err.code || err.message) + ')'; }
     } else baseNote = 'no installer of ' + from + ' was kept';
-    write({ state: 'installing', from, to, base, starts: 0, at: now() });
+    write({ state: 'installing', from, to, base, target, starts: 0, at: now() });
     return { armed: true, canGoBack: !!base, note: baseNote };
   }
 
@@ -154,7 +176,7 @@ function createRollback({ fs, dir, currentVersion, now = () => Date.now(), hashF
     const m = read();
     if (!m) return { kind: 'none' };
     const { from, to } = m;
-    const out = (kind, extra = {}) => ({ kind, from, to, ...extra });
+    const out = (kind, extra = {}) => ({ kind, from, to, target: m.target || null, ...extra });
     const update = (patch) => { Object.assign(m, patch, { at: now() }); write(m); };
     const terminal = new Set(['rolled-back', 'rollback-failed', 'not-installed', 'broken-no-backup']);
     if (terminal.has(m.state)) return out(m.state, { stale: true });
@@ -231,4 +253,4 @@ function hashFileWith(fs) {
   });
 }
 
-module.exports = { createUpdateLog, createStagedStore, createRollback, installKind, notInstalledMessage, hashFileWith, STATE_FILES, LOG_FILE, STAGED_FILE, PENDING_FILE, LOG_LINES, FAILED_STARTS_BEFORE_ROLLBACK };
+module.exports = { createUpdateLog, createStagedStore, createRollback, installKind, notInstalledMessage, installTarget, installerArgs, checkWritable, hashFileWith, STATE_FILES, LOG_FILE, STAGED_FILE, PENDING_FILE, LOG_LINES, FAILED_STARTS_BEFORE_ROLLBACK };
