@@ -2797,6 +2797,24 @@ let _vexStartPageOwn = null;
     return e.target;
   }
 
+  // A box that takes a one-time code (an authenticator, SMS or e-mail code) is never a password to save, even when
+  // the site masks it as type=password or the six boxes are plain inputs: the save/update card used to offer the
+  // code as the new password (found 2026-11-01). Narrower than the chooser rule in "Saved-login fill": a real PIN
+  // login (autocomplete current-password / a name that says password) is still saved.
+  function isCodeBox(el) {
+    try {
+      const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+      if (ac.indexOf("one-time-code") !== -1) return true;
+      if (/current-password|new-password/.test(ac)) return false;
+      const m = ((el.name || "") + " " + (el.id || "") + " " + (el.getAttribute("aria-label") || "") + " " + (el.placeholder || "")).toLowerCase();
+      if (/\botp\b|one-?time|\btotp\b|\b2fa\b|\bmfa\b|verif(?:y|ication)|security.?code|auth(?:entication|enticator)?.?code|authenticator|\bcode\b|digit/.test(m)) return true;
+      const im = (el.getAttribute("inputmode") || "").toLowerCase();
+      const max = Number(el.getAttribute("maxlength") || 0);
+      if ((im === "numeric" || im === "decimal") && max > 0 && max <= 8 && !/pass|pwd/.test(m)) return true;
+      return /^\d{4,8}$/.test(String(el.value || "")) && !/pass|pwd/.test(m);
+    } catch { return false; }
+  }
+
   let lastUser = "";
   // The password field the person last typed in. Its "show password" eye
   // turns it into a text field, which no input[type=password] search finds:
@@ -2807,7 +2825,7 @@ let _vexStartPageOwn = null;
       const el = realTarget(e);
       if (!el || el.tagName !== "INPUT") return;
       const t = (el.type || "text").toLowerCase();
-      if (t === "password") { lastPwField = el; return; }
+      if (t === "password") { if (!isCodeBox(el)) lastPwField = el; return; }
       if (el === lastPwField) return;
       if (t === "email" || t === "text" || t === "tel" || t === "") {
         const v = String(el.value || "").trim();
@@ -2831,9 +2849,9 @@ let _vexStartPageOwn = null;
       // On a change-password form the first field is the OLD password, so the
       // new one was never offered for saving (found 2026-09-29). Take the one
       // marked new-password, else the last one filled in.
-      const filled = deepAll("input[type=password]").filter((p) => !!p.value);
+      const filled = deepAll("input[type=password]").filter((p) => !!p.value && !isCodeBox(p));
       // Shown by its eye button: now type=text, but still the password.
-      if (lastPwField && lastPwField.isConnected && lastPwField.value && !filled.includes(lastPwField)
+      if (lastPwField && lastPwField.isConnected && lastPwField.value && !isCodeBox(lastPwField) && !filled.includes(lastPwField)
         && ["text", ""].includes((lastPwField.type || "").toLowerCase())) filled.push(lastPwField);
       const pw = filled.find((p) => /new-password/i.test(p.getAttribute("autocomplete") || "")) || filled[filled.length - 1];
       if (!pw) return;
@@ -2972,7 +2990,7 @@ let _vexStartPageOwn = null;
       const im = (el.getAttribute("inputmode") || "").toLowerCase();
       const max = Number(el.getAttribute("maxlength") || 0);
       if ((im === "numeric" || im === "decimal") && max > 0 && max <= 8) return true;
-      return /otp|one-?time|totp|2fa|mfa|verif(?:y|ication)|security.?code|auth(?:entication|enticator)?.?code|passcode|pin|code|token|digit/.test(meta(el));
+      return /\botp\b|one-?time|\btotp\b|\b2fa\b|\bmfa\b|verif(?:y|ication)|security.?code|auth(?:entication|enticator)?.?code|passcode|\bpin\b|\bcode\b|\btoken\b|digit/.test(meta(el));
     } catch { return false; }
   }
 
