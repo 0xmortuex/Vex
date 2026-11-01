@@ -207,7 +207,7 @@ describe('adding it', () => {
     const dialog = window.vexConfirm.mock.calls[0][0];
     expect(dialog.html).not.toContain('<img src=x');
     expect(dialog.html).toContain('&lt;img src=x onerror=alert(1)&gt;');
-    expect(dialog.html).toMatch(/not from the Chrome Web Store/);
+    expect(dialog.html).toMatch(/not from the Chrome Web Store/i);
     expect(dialog.title.length).toBeLessThanOrEqual('Add the theme “”?'.length + 40);
   });
   it('a theme that is also an extension is offered as an extension; one with hidden code is refused', async () => {
