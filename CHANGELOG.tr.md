@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v49.87.2 (2026-11-01) — Daha rahat bir kurulum ve Ayarlar, tema paketleri ve duvar kağıtları, sessizce başarısız olamayan güncellemeler
+## v49.88.2 (2026-11-02) — Daha rahat bir kurulum ve Ayarlar, tema paketleri ve duvar kağıtları, sessizce başarısız olamayan güncellemeler
 
 Vex artık ilk günden farklı görünüyor ve hissettiriyor. Kurulum kenar çubuğu isteyip istemediğinizi ve oyun dostu bir mod isteyip istemediğinizi soruyor; Ayarlar her seferinde tek bir kısa kategori gösteriyor ve araması tam aradığınız ayarı buluyor; tüm tarayıcıyı bir tema paketi, bir simge stili ve Vex'in kendi renklerini uyduracağı bir duvar kağıdıyla giydirebiliyorsunuz. Ayrıca bildirilmiş bir sahtekâr siteyi açmadan önce uyarıyor, bir filmin neden oynamadığını anlatıyor ve kötü giden bir güncelleme artık kendini geri alabiliyor.
 
