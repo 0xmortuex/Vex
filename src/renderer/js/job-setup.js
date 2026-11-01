@@ -12,8 +12,12 @@ const JobSetup = {
     const m = document.createElement('div');
     m.id = 'vex-jobsetup';
     m.style.cssText = 'position:fixed;inset:0;z-index:100061;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
+    // A dialog by role, so the translation observer reads it (its class carries no "overlay"; it stayed English in a Turkish Vex).
+    m.setAttribute('role', 'dialog');
+    m.setAttribute('aria-modal', 'true');
+    m.setAttribute('aria-label', this._L('A Vex built for your work'));
     m.innerHTML = `<div style="width:560px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,0.55);overflow:hidden">
-      <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px"><span style="font-size:16px;font-weight:800;color:var(--text);flex:1">A Vex built for your work</span><button id="jsx-close" aria-label="Close" title="Close" style="display:inline-flex;padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer">${VexIcons.svg('x', { size: 13 })}</button></div>
+      <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px"><span style="font-size:16px;font-weight:800;color:var(--text);flex:1">${this._L('A Vex built for your work')}</span><button id="jsx-close" aria-label="${this._L('Close')}" title="${this._L('Close')}" style="display:inline-flex;padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div id="jsx-body" style="padding:6px 20px 20px;overflow:auto;flex:1"></div>
     </div>`;
     document.body.appendChild(m);
@@ -32,7 +36,51 @@ const JobSetup = {
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelector('#jsx-close').addEventListener('click', close);
     this._sel = null; this._tools = null; this._toolQuery = '';
-    this._renderPick(m);
+    if (!this.needsTr()) { this._renderPick(m); return; }
+    // A Turkish Vex reads the professions and tools from js/job-picker-tr.js, loaded now; the list is drawn once it is here.
+    this.ensureTr().then(() => { if (m.isConnected) this._renderPick(m); }).catch((err) => {
+      window.showToast?.('The job list could not be translated: ' + ((err && err.message) || err), 'error');
+      if (m.isConnected) this._renderPick(m);
+    });
+  },
+
+  // Turkish for the professions, categories, tools and the picker's sentences is a late file (js/job-picker-tr.js), only for a Turkish Vex.
+  needsTr() {
+    return typeof VexI18nUI !== 'undefined' && VexI18nUI.locale() === 'tr' && typeof VexJobPickerTr === 'undefined';
+  },
+  async ensureTr() {
+    if (!this.needsTr()) return;
+    if (typeof VexLazy === 'undefined') throw new Error('The lazy loader is not available (js/lazy.js)');
+    await VexLazy.ensure('js/job-picker-tr.js');
+    // What already drew in English (the Toolbox strip, an open panel) is read again now that the table has the words.
+    if (typeof VexI18nUI !== 'undefined') VexI18nUI.apply();
+  },
+
+  // The text in the language on screen: the shared table for sentences and tools, {1} filled from the arguments.
+  _L(s, ...args) {
+    const hit = typeof VexI18nUI !== 'undefined' && typeof VexI18nUI.lookup === 'function' && VexI18nUI.locale() === 'tr' ? VexI18nUI.lookup(s) : null;
+    return args.length ? (hit || s).replace(/\{(\d+)\}/g, (_, i) => args[i - 1]) : (hit || s);
+  },
+  // A profession or category name in the language on screen. They have their own maps, not the shared table, because "Editor" is a job here
+  // and a code editor there. English until the Turkish file has loaded.
+  nameOf(job) { return this._own('jobs', job.name); },
+  catOf(cat) { return this._own('cats', cat); },
+  _own(kind, en) {
+    if (typeof VexI18nUI === 'undefined' || VexI18nUI.locale() !== 'tr' || typeof VexJobPickerTr === 'undefined') return en;
+    return VexJobPickerTr[kind][en] || en;
+  },
+  // Search in both languages: "software" and "yazilim" both find "Yazılım Geliştirici" (accents, I/İ/ı and case folded).
+  _fold(s) { return (globalThis.VexTr || require('./vex-tr.js').VexTr).fold(s); },
+  _jobMatches(j, q) {
+    const words = this._fold(q).split(/\s+/).filter(Boolean);
+    if (!words.length) return true;
+    const hay = this._fold([j.name, j.cat, this.nameOf(j), this.catOf(j.cat)].join(' '));
+    return words.every(w => hay.includes(w));
+  },
+  _toolMatches(t, q) {
+    if (Toolbox._matches(t, q)) return true;
+    const hay = this._fold([this._L(t.name), this._L(t.desc || '')].join(' '));
+    return this._fold(q).split(/\s+/).filter(Boolean).every(w => hay.includes(w));
   },
 
   _esc(s) { return window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || ''); },
@@ -40,17 +88,17 @@ const JobSetup = {
   // View 1 — search + category-grouped job grid.
   _renderPick(m, filter) {
     const body = m.querySelector('#jsx-body');
-    const jobs = JobProfiles.list().filter(j => !filter || j.name.toLowerCase().includes(filter) || j.cat.toLowerCase().includes(filter));
+    const jobs = JobProfiles.list().filter(j => !filter || this._jobMatches(j, filter));
     const cats = JobProfiles.CATEGORIES.filter(c => jobs.some(j => j.cat === c));
     body.innerHTML = `
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Pick your profession and Vex applies a fitting theme + the tools you use daily. You choose exactly which tools.</div>
-      <input id="jsx-search" placeholder="Search jobs…" value="${this._esc(filter || '')}" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;margin-bottom:12px;font-family:'Outfit',sans-serif">
-      ${cats.map(c => `<div style="margin:12px 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);font-weight:700">${c}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">${this._L('Pick your profession and Vex applies a fitting theme + the tools you use daily. You choose exactly which tools.')}</div>
+      <input id="jsx-search" placeholder="${this._L('Search jobs…')}" value="${this._esc(filter || '')}" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;margin-bottom:12px;font-family:'Outfit',sans-serif">
+      ${cats.map(c => `<div style="margin:12px 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);font-weight:700">${this._esc(this.catOf(c))}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          ${jobs.filter(j => j.cat === c).map(j => `<button class="jsx-job" data-id="${j.id}" style="text-align:left;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-size:13px;color:var(--text);font-family:'Outfit',sans-serif">${this._esc(j.name)}</button>`).join('')}
-        </div>`).join('') || '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No matching jobs.</div>'}`;
+          ${jobs.filter(j => j.cat === c).map(j => `<button class="jsx-job" data-id="${j.id}" style="text-align:left;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-size:13px;color:var(--text);font-family:'Outfit',sans-serif">${this._esc(this.nameOf(j))}</button>`).join('')}
+        </div>`).join('') || `<div style="color:var(--text-muted);font-size:13px;padding:12px 0">${this._L('No matching jobs.')}</div>`}`;
     const search = body.querySelector('#jsx-search');
-    search.addEventListener('input', () => this._renderPick(m, search.value.trim().toLowerCase()));
+    search.addEventListener('input', () => this._renderPick(m, search.value.trim()));
     // keep focus + caret at end after re-render
     search.focus(); search.setSelectionRange(search.value.length, search.value.length);
     body.querySelectorAll('.jsx-job').forEach(b => b.addEventListener('click', () => { this._sel = b.dataset.id; this._toolQuery = ''; this._renderConfig(m); }));
@@ -73,19 +121,19 @@ const JobSetup = {
     const allTools = window.Toolbox ? Toolbox.all() : [];
     const themeMeta = (typeof ThemeManager !== 'undefined' && ThemeManager.getThemeMeta) ? ThemeManager.getThemeMeta(job.theme) : { label: job.theme, accent: '#6366f1' };
     body.innerHTML = `
-      <button id="jsx-back" style="background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;padding:0;margin-bottom:10px;font-family:'Outfit',sans-serif">← All jobs</button>
-      <div style="font-size:18px;font-weight:800;color:var(--text)">${this._esc(job.name)}</div>
+      <button id="jsx-back" style="background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;padding:0;margin-bottom:10px;font-family:'Outfit',sans-serif">${this._L('← All jobs')}</button>
+      <div style="font-size:18px;font-weight:800;color:var(--text)">${this._esc(this.nameOf(job))}</div>
       <div style="display:flex;align-items:center;gap:8px;margin:10px 0 4px;font-size:13px;color:var(--text)">
         <span style="width:16px;height:16px;border-radius:5px;background:${this._esc(themeMeta.accent || '#6366f1')};display:inline-block;border:1px solid var(--border)"></span>
-        Theme: <b>${this._esc(themeMeta.label || job.theme)}</b>
+        ${this._L('Theme:')} <b>${this._esc(this._L(themeMeta.label || job.theme))}</b>
       </div>
-      <div style="font-size:12px;color:var(--text-muted);margin:12px 0 6px">Tools — ${this._toolsFrom === 'usage' ? 'the ones you use most are on' : 'recommended for ' + this._esc(job.name) + ' are on'}. Click one to turn it off, or search below to add more:</div>
+      <div style="font-size:12px;color:var(--text-muted);margin:12px 0 6px">${this._toolsFrom === 'usage' ? this._L('Tools — the ones you use most are on. Click one to turn it off, or search below to add more:') : this._esc(this._L('Tools — recommended for {1} are on. Click one to turn it off, or search below to add more:', this.nameOf(job)))}</div>
       <div id="jsx-tools" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
-      <input id="jsx-tool-search" placeholder="Add tools — search ${allTools.length} tools…" value="${this._esc(this._toolQuery || '')}" style="width:100%;box-sizing:border-box;margin-top:10px;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:12.5px;font-family:'Outfit',sans-serif">
+      <input id="jsx-tool-search" placeholder="${this._esc(this._L('Add tools — search {1} tools…', allTools.length))}" value="${this._esc(this._toolQuery || '')}" style="width:100%;box-sizing:border-box;margin-top:10px;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:12.5px;font-family:'Outfit',sans-serif">
       <div id="jsx-tool-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"></div>
       <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
-        <span style="flex:1;font-size:11px;color:var(--text-muted)">Applies the theme + adds a Toolbox button and quick tools by the Tor button.</span>
-        <button id="jsx-apply" style="padding:10px 20px;background:var(--primary,var(--accent));color:var(--on-primary,#fff);border:none;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">Apply</button>
+        <span style="flex:1;font-size:11px;color:var(--text-muted)">${this._L('Applies the theme + adds a Toolbox button and quick tools by the Tor button.')}</span>
+        <button id="jsx-apply" style="padding:10px 20px;background:var(--primary,var(--accent));color:var(--on-primary,#fff);border:none;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">${this._L('Apply')}</button>
       </div>`;
     const toolCard = (t) => {
       const on = this._tools.has(t.id);
@@ -94,7 +142,7 @@ const JobSetup = {
       el.className = 'jsx-tool';
       el.dataset.id = t.id;
       el.style.cssText = `text-align:left;padding:9px 11px;border-radius:9px;cursor:pointer;font-family:'Outfit',sans-serif;border:1px solid ${on ? 'var(--primary,var(--accent))' : 'var(--border)'};background:${on ? 'color-mix(in srgb, var(--primary,var(--accent)) 12%, var(--bg))' : 'var(--bg)'}`;
-      el.innerHTML = `<div style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex">${VexIcons.svg(on ? 'check' : 'plus', { size: 13 })}</span><span style="font-size:12.5px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;gap:5px">${Toolbox.iconMarkup(t, 14)} ${this._esc(t.name)}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${this._esc(t.desc)}${rec ? ' · recommended' : ''}</div>`;
+      el.innerHTML = `<div style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex">${VexIcons.svg(on ? 'check' : 'plus', { size: 13 })}</span><span style="font-size:12.5px;font-weight:600;color:var(--text);display:inline-flex;align-items:center;gap:5px">${Toolbox.iconMarkup(t, 14)} ${this._esc(this._L(t.name))}</span></div><div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${this._esc(this._L(t.desc))}${rec ? ' · ' + this._L('recommended') : ''}</div>`;
       el.addEventListener('click', () => {
         if (this._tools.has(t.id)) this._tools.delete(t.id); else this._tools.add(t.id);
         this._renderConfig(m); // simplest: re-render to reflect state (keeps _tools)
@@ -109,8 +157,8 @@ const JobSetup = {
       this._toolQuery = search.value.trim();
       results.replaceChildren();
       if (!this._toolQuery) return;
-      const hits = allTools.filter(t => !this._tools.has(t.id) && Toolbox._matches(t, this._toolQuery)).slice(0, 24);
-      if (!hits.length) { results.textContent = 'No tools match.'; results.style.color = 'var(--text-muted)'; return; }
+      const hits = allTools.filter(t => !this._tools.has(t.id) && this._toolMatches(t, this._toolQuery)).slice(0, 24);
+      if (!hits.length) { results.textContent = this._L('No tools match.');results.style.color = 'var(--text-muted)'; return; }
       results.append(...hits.map(toolCard));
     };
     search.addEventListener('input', paintResults);
@@ -119,7 +167,7 @@ const JobSetup = {
     body.querySelector('#jsx-back').addEventListener('click', () => this._renderPick(m));
     body.querySelector('#jsx-apply').addEventListener('click', () => {
       JobProfiles.apply(job.id, [...this._tools]);
-      window.showToast?.(`Vex personalized for ${job.name}`, 'success', 3000);
+      window.showToast?.(this._L('Vex personalized for {1}', this.nameOf(job)), 'success', 3000);
       m.remove();
     });
   },
