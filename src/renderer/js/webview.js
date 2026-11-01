@@ -1088,6 +1088,8 @@ const WebviewManager = {
       // are looking at the page, so a thrown error was invisible until you
       // went looking. Only yours: a badge on every site would be noise.
       if (typeof VexBugBundle !== 'undefined') VexBugBundle.note(tab.id, e, webview);
+      // A streaming site that reports a protected-playback problem gets the "Why isn't this playing?" note (js/drm-help.js, loads after start-up).
+      if (typeof VexDrmHelp !== 'undefined') VexDrmHelp.note(tab, e);
       if (e.level >= 3 && TabManager.isLocalPage?.(tab.url)) {
         tab.consoleErrors = (tab.consoleErrors || 0) + 1;
         tab.lastConsoleError = String(e.message || '').slice(0, 300);

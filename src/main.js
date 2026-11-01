@@ -269,6 +269,10 @@ const _peekChromeByWc = new Map();
 // Widevine/DRM (castLabs) status, surfaced in Settings → About so users can tell
 // whether protected playback (Spotify/Netflix) is actually enabled.
 let _widevineStatus = 'unknown';
+// The same facts as a plain answer with repairs (Settings > Video and music playback, src/main/drm-health.js).
+const _drmHealth = require('./main/drm-health').createDrmHealth({
+  app, electron: require('electron'), versions: process.versions, execPath: process.execPath, platform: process.platform, fs, path,
+});
 
 // Both guest-page preloads. site-tweaks.js is a separate preload (not required
 // from preload-webview.js) because webview preloads run sandboxed, where
@@ -347,10 +351,12 @@ async function initWidevine(attempts = 2) {
       _widevineStatus = app.isPackaged
         ? widevineStatusText(st, components.WIDEVINE_CDM_ID)
         : 'dev mode — protected playback needs the installed build';
+      _drmHealth.noteInit(true);
       return;
     } catch (e) {
       const msg = (e && e.message) || 'unknown error';
       _widevineStatus = 'failed: ' + msg;
+      if (i === attempts) _drmHealth.noteInit(false, msg);
       console.warn(`[Widevine] component init failed (attempt ${i}/${attempts}):`, msg);
       if (i < attempts) await new Promise(r => setTimeout(r, 3000));
     }
@@ -11160,6 +11166,17 @@ require('./main/wallpaper').registerWallpaper({
 // The Wallpaper Store's files (userData/wallpapers) and its one optional list fetch (src/main/wallpaper-store.js).
 require('./main/wallpaper-store').registerWallpaperStore({ ipcMain, dir: path.join(app.getPath('userData'), 'wallpapers'), fs, path, fetch: boundedPublicFetch });
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
+// Settings > Video and music playback (DRM), and the "Why isn't this playing?" banner (src/main/drm-health.js): the
+// diagnosis, the two repairs that need no restart, and clearing one tab's site. A failed repair throws to the caller.
+ipcMain.handle('drm:status', (_e, reported) => _drmHealth.check(reported));
+ipcMain.handle('drm:repair', async (_e, id, reported) => {
+  const result = id === 'enable-updates' ? await _drmHealth.enableUpdates(reported) : await _drmHealth.recheck(reported);
+  const ws = result.facts.widevine;
+  if (app.isPackaged && ws && ws.version) _widevineStatus = `Widevine ready (version ${ws.version})`;
+  return result;
+});
+// The page is one of the asking window's own (ipc-policy.js, TARGET_CHANNELS).
+ipcMain.handle('drm:clear-site', (_e, id) => require('./main/drm-health').clearSiteForPlayback(webContents.fromId(id)));
 // Retry DRM setup: CLEAR the cached Widevine component, then relaunch so the
 // castLabs component install runs from scratch. A plain relaunch isn't enough
 // when the first download left a partial/corrupted component on disk — the

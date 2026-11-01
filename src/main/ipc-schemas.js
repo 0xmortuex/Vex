@@ -644,6 +644,10 @@ define('devdesk:set-config', [shape({ enabled: optional(boolean), editor: option
 define('devdesk:revoke-root devdesk:open-terminal devdesk:branch', [string(500)]);
 define('devdesk:open-file', [shape({ path: string(500), line: optional(integer), col: optional(integer) })]);
 define('castlabs:behind', [optional(boolean)]);
+// Settings > Video and music playback (DRM) and the playback banner (main/drm-health.js): what a page said, a repair, one tab's site.
+define('drm:status', [optional(shape({ host: optional(string(100)), message: string(300) }))]);
+define('drm:repair', [oneOf(['recheck', 'enable-updates']), optional(shape({ host: optional(string(100)), message: string(300) }))]);
+define('drm:clear-site', [integer]);
 define('devdesk:ports', [value => Array.isArray(value) && value.length <= 12 && value.every(p => Number.isInteger(p) && p >= 1024 && p <= 65535)]);
 // The sources list (main/doi-resolve.js): the DOI is checked again in main; this only bounds it.
 define('sources:resolve-doi', [string(300)]);

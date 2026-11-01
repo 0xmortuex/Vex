@@ -29,7 +29,7 @@ const GUEST_CHANNELS = new Set(['extensions:external-ids', 'extensions:external-
   // Vex's own viewer for office documents and e-books (vex-office://view/, main/office-viewer.js): downloading the original, opening it with Windows,
   // printing. Each handler checks that the asking frame is that page.
   'officeview:download', 'officeview:open-external', 'officeview:print']);
-const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
+const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'drm:clear-site', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
   // window's page keeps its answers in memory, so these stay allowed there.
@@ -100,7 +100,7 @@ const UI_ONLY_CHANNELS = new Set([
   'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping', 'devfeeds:notes', 'fx:tcmb', 'status:check',
   // Developer desk, plugin dev loop and the Electron ticker: Vex's own window only.
   'devdesk:config', 'devdesk:set-config', 'devdesk:grant-root', 'devdesk:revoke-root', 'devdesk:open-file', 'devdesk:open-terminal', 'devdesk:branch', 'devdesk:ports',
-  'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind',
+  'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind', 'drm:status', 'drm:repair', 'drm:clear-site',
   'devext:vencord-pick', 'devext:vencord-status', 'devext:vencord-reload', 'devext:vencord-restore', 'devext:console-start', 'devext:console-stop', 'devext:console-clear', 'devext:console-list',
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
   // Whether Vex's own text viewer is on (main/text-viewer.js): the interface tells main, never a page.
