@@ -74,6 +74,7 @@ const VexBoot = {
     { src: 'js/wallpaper-data.js', usage: [] },
     { src: 'js/wallpaper-paint.js', usage: [] },
     { src: 'js/wallpaper-store.js', usage: ['wallpaper-store'] },
+    { src: 'js/wallpaper-sync.js', usage: [] },
     { src: 'js/wallpaper-store-ui.js', usage: [] },
     { src: 'js/update-tour.js', usage: ['whats-new-me'] },
     { src: 'js/media-control.js', usage: ['media-control'] },

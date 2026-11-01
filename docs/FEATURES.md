@@ -1105,7 +1105,7 @@ Themes, layout, per-site tweaks, extensions.
 - **Click effect** (`click-effect`): A short animation where you click: fireflies, ripples, confetti or a shockwave, or Surprise me, which picks a different one each click. It shows in Vex's own screens and on the New Tab page, not on websites, and it stays still when Reduce motion is on. It starts off; turn it on in Settings > Click effect.
   - Open: Settings > Click effect.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Wallpapers** (`wallpaper-store`): A store of wallpapers for your New Tab page: 74 drawn by Vex in twelve groups, free photos from a list you point Vex at, and your own pictures. Search, favourites, a preview with a readability check, and Dim and Blur sliders that keep the text readable. Open it from Ctrl+K, Wallpapers, or Settings > Wallpapers.
+- **Wallpapers** (`wallpaper-store`): A store of wallpapers for your New Tab page: 74 drawn by Vex in twelve groups, free photos from a list you point Vex at, and your own pictures. Search, favourites, a preview with a readability check, and Dim and Blur sliders that keep the text readable. Sync Vex to this wallpaper recolours the whole window to match it, with Undo sync to put your theme back. Open it from Ctrl+K, Wallpapers, or Settings > Wallpapers.
   - Open: Ctrl+K: "Wallpapers"; Settings > Wallpapers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Connect ahead to links** (`preconnect`): When you rest the pointer on a link, Vex opens the network connection to that site ahead of the click so the page starts faster. On an existing profile it starts off; turn it on in Settings > Links and windows.
