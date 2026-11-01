@@ -104,7 +104,7 @@ const SettingsUI = {
     { name: 'Permissions',     icon: 'lock',     color: '#eab308', match: ['permission', 'site settings'] },
     { name: 'Cloud',           icon: 'cloud',    color: '#67e8f9', match: ['cloud'] },
     { name: 'Data',            icon: 'box',      color: '#ec4899', match: ['data', 'reset', 'export', 'storage'] },
-    { name: 'About',           icon: 'info',     color: '#64748b', match: ['about', 'version', 'update'] },
+    { name: 'About',           icon: 'info',     color: '#64748b', match: ['about', 'version', 'update', 'help and faq'] },
   ],
 
   // The order the sections come in, by category name (see CATS): what most people look for first, and the rest by how related they are -
@@ -172,7 +172,7 @@ const SettingsUI = {
   BASIC_SECTIONS: [
     'general', 'default browser', 'sidebar buttons', 'privacy & security',
     'autofill', 'sessions', 'downloads', 'passwords', 'passkeys', 'payment cards', 'appearance', 'gui style', 'tab layout',
-    'reading & accessibility', 'personalization', 'data', 'about',
+    'reading & accessibility', 'personalization', 'data', 'about', 'help and faq',
   ],
   tierOf(labelText) {
     const t = String(labelText || '').trim().toLowerCase();
