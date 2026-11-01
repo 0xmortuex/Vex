@@ -112,6 +112,24 @@ describe('what happened to the last install', () => {
     expect(window.vexConfirm).toHaveBeenCalledTimes(2);
     expect(window.vexConfirm.mock.calls[1][0].html).toMatch(/checked: running 2\.34\.5/);
   });
+  it('a rollback is told, and the version it left is not offered again', async () => {
+    status.notice = { kind: 'rolled-back', from: '2.34.5', to: '2.35.0' };
+    status.blocked = '2.35.0';
+    await UpdateNotifier.checkState();
+    expect(window.vexConfirm.mock.calls[0][0].title).toBe('Vex went back to 2.34.5');
+    expect(UpdateNotifier.skippedVersion()).toBe('2.35.0');
+    expect(UpdateNotifier.shouldAnnounce({ ok: true, hasUpdate: true, latest: '2.35.0', current: '2.34.5' })).toBe(false);
+    expect(UpdateNotifier.shouldAnnounce({ ok: true, hasUpdate: true, latest: '2.35.1', current: '2.34.5' })).toBe(true);
+  });
+  it('a failed rollback and a missing old installer both say what to do', async () => {
+    status.notice = { kind: 'rollback-failed', from: '2.34.5', to: '2.35.0', error: 'The kept installer changed on disk.' };
+    await UpdateNotifier.checkState();
+    expect(window.vexConfirm.mock.calls[0][0].message).toMatch(/Install 2\.34\.5 yourself/);
+    window.vexConfirm.mockClear();
+    status.notice = { kind: 'broken-no-backup', from: '2.34.5', to: '2.35.0' };
+    await UpdateNotifier.checkState();
+    expect(window.vexConfirm.mock.calls[0][0].message).toMatch(/no installer of 2\.34\.5 was kept/);
+  });
   it('a state that cannot be read is a problem entry, not nothing', async () => {
     window.vex.updates.status = vi.fn(async () => ({ ok: false, error: 'boom' }));
     expect(await UpdateNotifier.checkState()).toBe(null);

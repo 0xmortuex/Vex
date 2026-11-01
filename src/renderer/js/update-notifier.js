@@ -136,6 +136,8 @@ const UpdateNotifier = {
     catch (err) { VexProblems?.note('Updates', 'Could not read the update state', err); return null; }
     if (!s?.ok) { VexProblems?.note('Updates', 'Could not read the update state', new Error(s?.error || 'unknown error')); return null; }
     this._status = s;
+    // A version Vex went back from is not offered again.
+    if (s.blocked && this.cmpVersion(s.blocked, this.skippedVersion() || '0.0.0') > 0) this._remember(this.SKIP_KEY, s.blocked);
     if (s.notice) { await this.showNotice(s.notice); return s; }
     if (s.staged && !this._el) {
       this.showCover({ ok: true, hasUpdate: true, staged: true, current: s.current, latest: s.staged.version, size: s.staged.size,
@@ -148,6 +150,18 @@ const UpdateNotifier = {
     'not-installed': (n) => ({
       title: `Vex ${n.to} was not installed`,
       message: `Vex tried to update from ${n.from} to ${n.to}, but ${n.from} is still the version that started. The installer may have been blocked (antivirus or SmartScreen) or did not finish. Nothing was changed, and your tabs and settings are as they were. The update log lists every step; the release page has the installer.`,
+    }),
+    'rolled-back': (n) => ({
+      title: `Vex went back to ${n.from}`,
+      message: `Vex ${n.to} did not finish starting two times in a row, so Vex put ${n.from} back. Your tabs and settings were kept. ${n.to} will not be offered again; Skip this version stays until a newer one comes out.`,
+    }),
+    'rollback-failed': (n) => ({
+      title: `Vex could not go back to ${n.from}`,
+      message: `Vex ${n.to} did not finish starting two times in a row, and putting ${n.from} back did not work${n.error ? ' (' + String(n.error).replace(/\.$/, '') + ')' : ''}. Install ${n.from} yourself from the release page; your tabs and settings are kept.`,
+    }),
+    'broken-no-backup': (n) => ({
+      title: `Vex ${n.to} keeps failing to start`,
+      message: `Vex ${n.to} did not finish starting two times in a row, and no installer of ${n.from} was kept to go back to. Install ${n.from} yourself from the release page; your tabs and settings are kept.`,
     }),
     'marker-unreadable': (n) => ({
       title: 'Vex could not read what happened to the last update',

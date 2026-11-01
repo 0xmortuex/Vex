@@ -10821,15 +10821,33 @@ try { _updater.restoreStaged(); } catch (err) { console.error('[Updates] could n
 // What happened to the last install (src/main/update-state.js, createRollback):
 // the new version is on trial, the installer did not install, or Vex went back.
 let _updateNotice = null;
+let _updateRollbackDecision = null;
 try {
   const startState = _updateRollback.onStart();
   if (startState.kind !== 'none') _updateLog.add(`update state at start: ${startState.kind} (${startState.from || '?'} to ${startState.to || '?'})`);
-  if (startState.kind === 'not-installed') _updateNotice = startState;
+  if (startState.kind === 'rollback') _updateRollbackDecision = startState;
+  else if (['not-installed', 'rolled-back', 'rollback-failed', 'broken-no-backup'].includes(startState.kind)) _updateNotice = startState;
 } catch (err) {
   console.error('[Updates] could not read the install marker:', err.message);
   _updateLog.add('PROBLEM: could not read the install marker: ' + err.message);
   _updateNotice = { kind: 'marker-unreadable', error: err.message };
 }
+// The new version failed to start twice: put the old one back, once. The
+// installer is the kept one of the version being left, hashed again first.
+app.whenReady().then(async () => {
+  const d = _updateRollbackDecision;
+  if (!d) return;
+  try {
+    const file = await _updateRollback.checkedBase(d.base);
+    _updateLog.add(`${d.to} did not finish starting ${d.failed} times in a row: going back to ${d.from}`);
+    _updater.launch({ file, args: [...require('./main/updates').INSTALLER_ARGS], script: /\.cmd$/i.test(file) });
+    app.exit(0);
+  } catch (err) {
+    console.error('[Updates] could not go back to the older version:', err.message);
+    _updateLog.add('PROBLEM: could not go back to ' + d.from + ': ' + err.message);
+    _updateNotice = { kind: 'rollback-failed', from: d.from, to: d.to, error: err.message };
+  }
+});
 // Only Vex's own main window may download or install an update: not a private
 // window, not a page, not another window of Vex's.
 function _updatesFromMainWindow(event) {
