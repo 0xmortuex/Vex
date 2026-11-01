@@ -8026,6 +8026,8 @@ ipcMain.handle('sources:resolve-doi', async (_event, doi) => {
 // The bank's daily rates for TL equivalent (main/fx-rates.js): one fixed address, only when the person presses Fetch.
 const _fxRates = require('./main/fx-rates').createFxRates({ fetch: boundedNetFetch });
 ipcMain.handle('fx:tcmb', () => _fxRates.tcmb());
+// More from the creator (main/maker-repos.js): the public repositories list, fetched only when the person presses Refresh; the refreshed copy is kept in the profile folder.
+require('./main/maker-repos').registerMakerRepos({ ipcMain, dir: path.join(app.getPath('userData'), 'maker-repos'), fs, path, publicFetch: boundedPublicFetch, userAgent: 'Vex/' + app.getVersion() + ' (+https://github.com/0xmortuex/Vex)' });
 // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook, sealed by the OS
 // in comms-webhook.enc and never handed back, and the folder of the Vencord bridge file, read-only.
 const _commsTools = require('./main/comms-tools').createCommsTools({

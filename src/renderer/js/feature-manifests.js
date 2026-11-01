@@ -502,6 +502,8 @@
       permissions: { reads: ['the feature descriptions; the stored data a feature owns, when you reset it'], writes: ['deletes the data of one feature, only after you confirm, with Undo'], sends: [] } },
     { id: 'your-data', title: 'Your data (export and import)', group: 'Your data', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['your-data'],
       permissions: { reads: ['everything Vex stores except saved logins, authenticator codes and tokens'], writes: ['a file you save; or what you bring back from a file, with Undo; Markdown files in a folder you pick'], sends: [] } },
+    { id: 'maker-repos', title: 'More from the creator', group: 'More from the creator', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['maker-repos'],
+      permissions: { reads: ['the list of projects that ships with Vex, and the refreshed copy in your profile folder'], writes: ['the refreshed copy of the list in your profile folder, only when you press Refresh from GitHub'], sends: ['One request to api.github.com for the public projects of 0xmortuex, only when you press Refresh from GitHub; nothing about you is in it'] } },
     { id: 'help-faq', title: 'Help and FAQ', group: 'Help and FAQ', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['help-faq'],
       permissions: { reads: ['its own list of questions and answers'], writes: [], sends: [] } },
     { id: 'drm-help', title: 'Protected playback help (DRM)', group: 'Video and music playback (DRM)', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.drmHelp.offer'], commands: ['drm-help'],

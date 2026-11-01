@@ -483,6 +483,9 @@ contextBridge.exposeInMainWorld('vex', {
   drmClearSite: (id) => ipcRenderer.invoke('drm:clear-site', id),
   // Today's TCMB rates, fetched only when asked (main/fx-rates.js).
   fxTcmb: () => ipcRenderer.invoke('fx:tcmb'),
+  // More from the creator (main/maker-repos.js): the refreshed list kept on disk, and the one fetch, only when Refresh is pressed.
+  makerReposStored: () => ipcRenderer.invoke('makerepos:stored'),
+  makerReposRefresh: () => ipcRenderer.invoke('makerepos:refresh'),
   // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook (the address goes in once and
   // never comes back) and the Vencord bridge file (a folder the owner picked, read-only).
   commsWebhookStatus: () => ipcRenderer.invoke('comms:webhook-status'),

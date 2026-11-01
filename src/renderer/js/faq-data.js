@@ -229,6 +229,10 @@ const VexFaqData = {
       kw: 'report problem bug issue contact support feedback crash broken help github sorun hata bildir iletişim destek',
       q: 'How do I report a problem or contact the maker?',
       a: 'Press Report a problem in Settings under About, or press Ctrl+K and choose Report a Problem. It opens a GitHub issue with your versions and Vex’s recent problems already filled in, and you can read and edit all of it before anything is sent. You can also open an issue yourself at github.com/0xmortuex/Vex/issues.' },
+    { id: 'maker-repos', cat: 'help', cmd: 'More from the creator',
+      kw: 'creator maker author developer github projects repositories repos stars other works yapımcı geliştirici projeler depo yıldız',
+      q: "Where can I see the other projects of the person who makes Vex?",
+      a: "Press Ctrl+K and choose More from the creator, or open it from the top of Everything Vex Can Do. It lists the public projects of the maker with their stars and languages, and has filters to search and sort them. The list ships with Vex, so nothing is contacted until you press Refresh from GitHub, and that button does nothing in a private window." },
   ],
 };
 
