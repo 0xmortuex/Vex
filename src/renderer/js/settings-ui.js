@@ -207,9 +207,9 @@ const SettingsUI = {
     'userscripts': 'userscript greasemonkey tampermonkey violentmonkey user.js gm script install per-site script kullanıcı betiği',
     'general': 'search engine default search google duckduckgo bing language dil türkçe turkish english simple mode suggestions arama motoru',
     'default browser': 'default app open links make default varsayılan tarayıcı',
-    'sidebar buttons': 'sidebar icons panels reorder hide buttons kenar çubuğu',
+    'sidebar buttons': 'sidebar icons panels reorder hide buttons show the sidebar hide the sidebar sidebar on off group the sidebar buttons headings fold kenar çubuğu',
     'privacy & security': 'lock pin lock screen tracking cookies do not track https security gizlilik güvenlik kilit',
-    'privacy hardening': 'fingerprint webrtc third-party cookies trackers streamer mode gaming game mode discord hotkeys',
+    'privacy hardening': 'fingerprint webrtc third-party cookies trackers streamer mode gaming game mode game performance preset discord hotkeys',
     'autofill': 'email codes one-time codes 2fa verification codes otp sign-in codes otomatik doldurma',
     'sessions': 'startup on startup start up restore tabs reopen tabs session restore autosave continue where you left off oturum açılış',
     'downloads': 'download folder download location downloads folder save files save to ask where to save indirme klasörü indirilenler',
@@ -220,7 +220,7 @@ const SettingsUI = {
     'vex sync': 'sync devices account eşitleme',
     'ai backend': 'ai claude ollama local model llm assistant yapay zeka yapay zekâ',
     'gui style': 'look skin firefox chrome safari classic glass interface style görünüm',
-    'appearance': 'dark mode light mode dark theme night mode colours colors theme font font size text size ui scale bigger text zoom skin karanlık mod koyu tema yazı tipi yazı boyutu settings layout columns compact density category menu side list sütun düzen yoğunluk',
+    'appearance': 'theme packs wallpapers wallpaper dark mode light mode dark theme night mode colours colors theme font font size text size ui scale bigger text zoom skin karanlık mod koyu tema yazı tipi yazı boyutu settings layout columns compact density category menu side list sütun düzen yoğunluk',
     'route all of vex': 'proxy tor vpn socks route yönlendirme',
     'tab layout': 'vertical tabs horizontal tabs tabs on the side dikey sekmeler',
     'layout': 'toolbar buttons customize toolbar hide buttons araç çubuğu',
@@ -235,7 +235,7 @@ const SettingsUI = {
     'browsing extras': 'mouse gestures clipboard cookie banners consent copy right-click',
     'page watcher': 'watch page changes monitor price drop restock version update diff notify tell me when it changes watched pages sayfa izleyici değişiklik izle',
     'ai news': 'ai news model release openai anthropic google meta notify notification toast badge breaking digest quiet hours follow mute topic company feed haber yapay zeka bildirim sessiz saatler',
-    'personalization': 'name greeting homepage home page start page new tab page weather github başlangıç sayfası ana sayfa',
+    'personalization': 'name greeting homepage home page start page new tab page weather location weather place city github theme packs choose a theme başlangıç sayfası ana sayfa',
     'workflow': 'resume workday end of day focus profile work study gaming ask across tabs weekly note clip release radar whats new chain timer meeting prep calendar card tab cleanup evening archive idle tabs routine morning routine search mail subjects universal search iş akışı toplantı hazırlığı sekme temizliği rutin',
     'morning brief': 'morning brief briefing new tab page sections evening wind down spoken digest streaks goals one new thing news actions mail summary sabah özeti bölümler',
     'brief actions': 'snooze mail triage draft reply pull requests github desk interests day layout next action lost tab finder ertele özet eylemleri',
@@ -304,7 +304,9 @@ const SettingsUI = {
   // The short texts of a section: its labels, buttons and the choices of its menus.
   LABEL_SELECTOR: '.setting-label, .setting-toggle-row > span, label, summary, legend, h3, h4, button, option',
   _searchIndex: new WeakMap(),
-  // What a search reads of one section, in the order of importance (names, keywords, labels, the rest), kept while the section stays as it is.
+  // What a search reads of one section: its name and keywords (the section), and each setting on its own (the rows), kept while the section stays as it is.
+  // The long text of the section is NOT read word by word any more: with it, "theme packs" found every section that held "pack" somewhere and a
+  // synonym of "theme" somewhere else (2026-11-01). Only the whole phrase is looked for there (_rankGroups).
   _indexOf(g, S) {
     const sig = (g.textContent || '').length;
     let idx = this._searchIndex.get(g);
@@ -313,37 +315,94 @@ const SettingsUI = {
     const english = labelEl && typeof VexI18nUI !== 'undefined' ? VexI18nUI.english(labelEl) : '';
     const shown = labelEl ? labelEl.textContent : '';
     const head = [...S.cachedWords(english), ...S.cachedWords(shown)];
-    const labels = new Set();
+    const items = [];
+    const seen = new Set();
     g.querySelectorAll(this.LABEL_SELECTOR).forEach((el) => {
-      const t = (el.textContent || '').trim();
-      if (!t || t.length > 110) return;
-      for (const w of S.cachedWords(t)) labels.add(w);
+      if (el.closest('.setting-group') !== g || el === labelEl) return;
+      // A choice of a menu is found as the menu.
+      const target = el.tagName === 'OPTION' ? el.closest('select') : el;
+      if (!target) return;
+      // The title of a row is what is written before its grey explanation, which is searched too but counts less.
+      const clone = el.cloneNode(true);
+      const notes = [];
+      clone.querySelectorAll('span, small').forEach((n) => { notes.push(n.textContent || ''); n.remove(); });
+      const title = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+      const note = (notes.join(' ') + ' ' + (el.getAttribute('title') || '')).replace(/\s+/g, ' ').trim();
+      if (!title || title.length > 90) return;
+      const key = S.fold(title);
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push({ el: target, title, fold: key, fields: [
+        { words: S.cachedWords(title), weight: 1 },
+        { words: note ? S.words(note.slice(0, 400)) : [], weight: 0.45 },
+      ] });
     });
-    idx = { sig, kw: g.dataset.keywords, fields: [
+    idx = { sig, kw: g.dataset.keywords, headFold: S.fold(english || shown).trim(), items, fields: [
       { words: head, weight: 1 },
       { words: S.words(g.dataset.keywords || ''), weight: 0.85 },
-      { words: Array.from(labels), weight: 0.6 },
-      { words: S.words((g.textContent || '').slice(0, 20000)), weight: 0.25 },
     ] };
     this._searchIndex.set(g, idx);
     return idx;
   },
-  // section -> how well it fits the query (0: not at all). Without js/smart-search.js, or for what it does not understand (an address, a number),
-  // the old test stands: the query appears somewhere in the section's text.
+  // The query as a whole phrase in a name, as whole words: the best kind of hit ("theme packs" for "Theme packs…"), above all-words-somewhere.
+  _phraseBonus(S, parsed, fold) {
+    // "pack" and "packs" are the same word here.
+    const norm = (t) => ' ' + t.replace(/[^a-z0-9]+/g, ' ').trim().split(' ').map(w => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)).join(' ') + ' ';
+    const text = norm(fold);
+    const phrase = norm(parsed.query);
+    if (!phrase.trim()) return 0;
+    if (text === phrase) return 30;
+    return text.includes(phrase) ? 15 : 0;
+  },
+  // Every hit: { g, el (the setting, or null for the section itself), title, rank }, best first. A hit has to hold EVERY word of the query in its name,
+  // title or keywords; first with whole words and word starts only, and only when that gives fewer than three hits also with slips of the keys.
+  _hitsFor(groups, S, parsed, noFuzzy) {
+    const hits = [];
+    groups.forEach((g, gi) => {
+      const idx = this._indexOf(g, S);
+      const label = g.querySelector('.setting-label');
+      const secTitle = ((label && label.textContent) || '').trim() || 'Settings';
+      const sec = S.scoreFields(parsed, idx.fields, { noFuzzy });
+      if (sec) hits.push({ g, el: null, title: secTitle, section: secTitle, rank: sec + this._phraseBonus(S, parsed, idx.headFold), gi });
+      for (const it of idx.items) {
+        const sc = S.scoreFields(parsed, it.fields, { noFuzzy });
+        if (!sc) continue;
+        // The name of the section again is the section.
+        if (it.fold === idx.headFold) continue;
+        hits.push({ g, el: it.el, title: it.title, section: secTitle, rank: sc + this._phraseBonus(S, parsed, it.fold) - 0.5, gi });
+      }
+    });
+    return hits;
+  },
+  // section -> how well it fits the query (0: not at all); the Map also holds .hits, the single settings found, best first. Without js/smart-search.js,
+  // or for what it does not understand (an address, a number), the old test stands: the query appears somewhere in the section's text.
   _rankGroups(groups, query) {
     const out = new Map();
     const S = typeof VexSmartSearch !== 'undefined' ? VexSmartSearch : null;
     const parsed = S ? S.parse(query) : null;
     const q = String(query || '').trim().toLowerCase();
-    for (const g of groups) {
-      let score = 0;
-      if (parsed) {
-        try { score = S.scoreFields(parsed, this._indexOf(g, S).fields); }
-        catch (err) { console.warn('[Settings] a section could not be ranked:', err && err.message); }
-      }
-      if (!score && ((g.textContent || '') + ' ' + (g.dataset.keywords || '')).toLowerCase().includes(q)) score = 5;
-      out.set(g, score);
+    let hits = [];
+    if (parsed) {
+      try {
+        hits = this._hitsFor(groups, S, parsed, true);
+        if (hits.length < 3) {
+          const more = this._hitsFor(groups, S, parsed, false);
+          const have = new Set(hits.map(h => h.gi + "|" + h.title));
+          for (const h of more) { if (!have.has(h.gi + "|" + h.title)) hits.push(h); }
+        }
+      } catch (err) { console.warn('[Settings] the settings could not be ranked:', err && err.message); hits = []; }
     }
+    for (const g of groups) out.set(g, 0);
+    for (const h of hits) out.set(h.g, Math.max(out.get(h.g) || 0, h.rank));
+    for (const g of groups) {
+      if (!out.get(g) && ((g.textContent || '') + ' ' + (g.dataset.keywords || '')).toLowerCase().includes(q)) out.set(g, 5);
+    }
+    // A section inside a section is shown with it.
+    for (const g of groups) {
+      for (const h of groups) if (h !== g && g.contains(h)) out.set(g, Math.max(out.get(g), out.get(h)));
+    }
+    hits.sort((a, b) => (b.rank - a.rank) || (a.gi - b.gi));
+    out.hits = hits;
     return out;
   },
   // The sections in the order `cmp` says, each in a place a section already was: whatever sits between them (the rows of small chips, the
@@ -377,25 +436,51 @@ const SettingsUI = {
     nav.dataset.results = '1';
     nav.setAttribute('aria-label', 'Search results');
     const byOrder = (a, b) => Number(a.dataset.ord) - Number(b.dataset.ord);
-    const hits = groups.filter(g => ranked.get(g) > 0).sort((a, b) => (ranked.get(b) - ranked.get(a)) || byOrder(a, b)).slice(0, 14);
-    const chips = hits.map((g) => {
-      const labelEl = g.querySelector('.setting-label');
+    // The single settings found come first, best first; a section with no setting of its own to show (its name or a word in its text matched) is a result too.
+    const entries = (ranked.hits || []).slice(0, 14);
+    const shownGroups = new Set(entries.map(h => h.g));
+    if (entries.length < 14) {
+      groups.filter(g => ranked.get(g) > 0 && !shownGroups.has(g)).sort((a, b) => (ranked.get(b) - ranked.get(a)) || byOrder(a, b))
+        .slice(0, 14 - entries.length).forEach((g) => {
+          const labelEl = g.querySelector('.setting-label');
+          const t = ((labelEl && labelEl.textContent) || '').trim() || 'Settings';
+          entries.push({ g, el: null, title: t, section: t });
+        });
+    }
+    const chips = entries.map((h) => {
+      const g = h.g;
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'set-nav-chip set-result-chip';
       b.style.setProperty('--chip-color', g.style.getPropertyValue('--cat-color') || 'var(--primary)');
       const span = document.createElement('span');
-      span.textContent = ((labelEl && labelEl.textContent) || '').trim() || 'Settings';
+      span.textContent = h.title;
       b.appendChild(span);
-      b.addEventListener('click', () => {
-        g.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        g.classList.add('set-hit');
-        setTimeout(() => g.classList.remove('set-hit'), 1600);
-      });
+      if (h.el) {
+        const sub = document.createElement('small');
+        sub.className = 'set-result-sub';
+        sub.textContent = h.section;
+        b.appendChild(sub);
+      }
+      b.addEventListener('click', () => this._openHit(g, h.el));
       return b;
     });
     nav.replaceChildren(...chips);
     nav.style.display = chips.length ? '' : 'none';
+  },
+
+  // A result was picked: show its section, open whatever folds it, scroll to the setting and light it up for a moment.
+  _openHit(g, el) {
+    this.reveal(g);
+    let target = g;
+    if (el && el.isConnected) {
+      target = el.closest('.setting-toggle-row, .setting-row') || el;
+      for (let d = el.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: el ? 'center' : 'start' });
+    const cls = el ? 'set-item-hit' : 'set-hit';
+    target.classList.add(cls);
+    setTimeout(() => target.classList.remove(cls), 1600);
   },
 
   // The pickers that live in Settings but open as their own screens, because
@@ -545,7 +630,9 @@ const SettingsUI = {
       g.dataset.tier = tier;
       // The English heading goes in too, so an English word still finds a
       // section whose heading is shown in Turkish.
-      if (labelEl) g.dataset.keywords = text.trim().split('\n')[0] + ' ' + this.keywordsFor(text);
+      // A section that brings its own keywords (js/vex-settings-groups.js) keeps them.
+      if (g.dataset.kwOwn === undefined) g.dataset.kwOwn = g.dataset.keywords || '';
+      if (labelEl) g.dataset.keywords = (text.trim().split('\n')[0] + ' ' + this.keywordsFor(text) + ' ' + g.dataset.kwOwn).trim();
       g.style.setProperty('--cat-color', cat.color);
       if (!g.id) g.id = 'setcat-' + i;
       // Which entry of the category menu this section belongs to (_markCurrent).

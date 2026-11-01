@@ -233,7 +233,8 @@ const VexSmartSearch = {
     return la > lb ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);         // one extra / one missing
   },
   // How well one form of a query word fits one word of a text: 0..1.
-  fit(v, w) {
+  // noFuzzy: only a whole word, a plural, a word start or a word with an ending (the Settings search tries this first).
+  fit(v, w, noFuzzy) {
     if (v === w) return 1;
     const lv = v.length, lw = w.length;
     // "sound" for "sounds", "tab" for "tabs": a plural is as good as the word.
@@ -241,12 +242,14 @@ const VexSmartSearch = {
     if (lv >= 2 && w.startsWith(v)) return lv >= 3 || lw <= 3 ? 0.85 : 0.6;
     // "updates" for "update": the query is the word with an ending.
     if (lw >= 4 && v.startsWith(w) && lv - lw <= 3) return 0.75;
+    if (noFuzzy) return 0;
     if (lv >= 4 && w.includes(v)) return 0.5;
     if (lv >= 5 && lw >= 4 && this._oneSlip(v, w)) return 0.45;
     return 0;
   },
   // fields: [{ words: [folded words], weight: 0..1 }]. 0 when a word of the query is found nowhere, else 1..100.
-  scoreFields(parsed, fields) {
+  scoreFields(parsed, fields, opts) {
+    const noFuzzy = !!(opts && opts.noFuzzy);
     if (!parsed || !parsed.tokens.length) return 0;
     let total = 0;
     let inFirst = 0;
@@ -260,7 +263,7 @@ const VexSmartSearch = {
           for (let j = 0; j < token.variants.length; j++) {
             const v = token.variants[j];
             // A synonym is a little less than the word itself.
-            const q = this.fit(v, w) * (j === 0 ? 1 : 0.9) * f.weight;
+            const q = this.fit(v, w, noFuzzy) * (j === 0 ? 1 : 0.9) * f.weight;
             if (q > best) { best = q; bestField = i; }
           }
         }
