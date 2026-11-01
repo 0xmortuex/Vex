@@ -61,6 +61,19 @@ const HorizontalTabs = (() => {
         e.preventDefault();
         TabManager.showGroupContextMenu?.(e, group.id);
       });
+      // A folded group hides its tabs, and with them their moons: the chip
+      // says how many of them are asleep or not loaded yet.
+      if (group.collapsed) {
+        const asleep = groupTabs.filter(t => t.sleeping || t._lazy).length;
+        if (asleep) {
+          const mark = document.createElement('span');
+          mark.className = 'top-group-asleep' + (asleep === groupTabs.length ? ' all' : '');
+          mark.title = asleep === groupTabs.length ? 'All of its tabs are asleep' : asleep + ' of its tabs are asleep';
+          mark.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>' + asleep;
+          label.appendChild(mark);
+          label.title += ' \u00b7 ' + asleep + ' asleep';
+        }
+      }
       container.appendChild(label);
 
       if (group.collapsed) continue; // Hide member tabs when collapsed
@@ -140,6 +153,7 @@ const HorizontalTabs = (() => {
     if (tab.id === activeId) el.classList.add('active');
     if (tab.loading) el.classList.add('loading');
     if (tab.sleeping) el.classList.add('sleeping');
+    if (tab._lazy && !tab.sleeping) el.classList.add('not-loaded');
     // "Prevent from sleeping" — mirror the vertical sidebar so the badge
     // shows on the horizontal/Glass strip too, and survives a restart.
     if (window.Tabs && window.Tabs._isKeptAwake && window.Tabs._isKeptAwake(tab)) el.classList.add('kept-awake');
@@ -166,9 +180,7 @@ const HorizontalTabs = (() => {
     const audio = tab.audible && !tab.muted ? '<span class="audio-indicator" title="Playing audio — click to mute" aria-label="Mute tab" role="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.6 3.8a5.8 5.8 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
                 : tab.muted              ? '<span class="audio-indicator muted" title="Muted — click to unmute" aria-label="Unmute tab" role="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.8 6.2l3.4 3.6M14.2 6.2l-3.4 3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>'
                 : '';
-    const sleep = tab.sleeping
-      ? '<span class="sleep-indicator" title="Sleeping"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>'
-      : '';
+    const sleep = TabManager.sleepBadge(tab);
 
     const priv = (tab.partition && !String(tab.partition).startsWith('persist:'))
       ? (String(tab.partition).startsWith('tor-')
@@ -362,8 +374,8 @@ const HorizontalTabs = (() => {
 
     const avg = (total - fixed) / tabs.length;
 
-    const narrow     = avg < 80;   // below ~6 chars — hide title
-    const veryNarrow = avg < 56;   // too tight for close button
+    const narrow     = avg < 120;  // the close cross lies over the title instead of taking room
+    const veryNarrow = avg < 56;   // (js/tab-hold.js reads this class too)
 
     for (const tab of tabs) {
       tab.classList.toggle('narrow', narrow);
