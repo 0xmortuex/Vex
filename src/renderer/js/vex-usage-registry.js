@@ -344,6 +344,7 @@ const VexUsageRegistry = {
       LinkRouting: () => (typeof LinkRouting !== 'undefined' ? LinkRouting : null),
       RefreshOnDeploy: () => (typeof RefreshOnDeploy !== 'undefined' ? RefreshOnDeploy : null),
       BypassDoctor: () => (typeof BypassDoctor !== 'undefined' ? BypassDoctor : null),
+      VexUnblock: () => (typeof VexUnblock !== 'undefined' ? VexUnblock : null),
       WatchAlerts: () => (typeof WatchAlerts !== 'undefined' ? WatchAlerts : null),
       VexTabsNav: () => (typeof VexTabsNav !== 'undefined' ? VexTabsNav : null),
       DevDesk: () => (typeof DevDesk !== 'undefined' ? DevDesk : null),
@@ -656,6 +657,7 @@ const VexUsageRegistry = {
       ['link-routing', A.api(G.LinkRouting, 'enabled', 'setEnabled')],
       ['refresh-on-deploy', A.api(G.RefreshOnDeploy, 'enabled', 'setEnabled')],
       ['bypass-doctor', A.api(G.BypassDoctor, 'enabled', 'setEnabled')],
+      ['unblock-centre', A.api(G.VexUnblock, 'enabled', 'setEnabled')],
       ['watch-alerts', A.api(G.WatchAlerts, 'enabled', 'setEnabled')],
       // Tabs and navigation extras (js/tabs-nav.js): find options, clean copy, typed-count completion, Keep on top, activity dots.
       ['tabs-nav', A.api(G.VexTabsNav, 'enabled', 'setEnabled')],

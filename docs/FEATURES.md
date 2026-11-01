@@ -301,6 +301,9 @@ Blocking, isolation, Tor, and the things that follow you.
 - **Site down or my bypass?** (`bypass-doctor`): Tries a page directly and through the bypass you run and says which side is broken; it changes nothing. On an existing profile it starts off; turn it on in Settings > Bypass check.
   - Open: Ctrl+K: "Site down or my bypass?"; Settings > Bypass check.
   - Default: New: starts off on an existing profile until you switch it on.
+- **Unblock centre** (`unblock-centre`): When a site fails to load in a way that looks like a block, a bar offers to open just that site by encrypted DNS, a split handshake or the ByeDPI helper, none of which needs administrator rights, and remembers which worked. The Unblock centre lists the sites, with a switch, Test now and Forget for each, and one switch for all of it.
+  - Open: Ctrl+K: "Unblock centre"; Settings > Unblock centre.
+  - Default: New: starts off on an existing profile until you switch it on.
 - **Cheat tools and fake updates** (`download-guard`): Holds a download whose name looks like a cheat or exploit tool or a fake update, and asks you before it is kept.
   - Open: Settings > Web safety.
   - Default: always on, no switch.

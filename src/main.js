@@ -8581,6 +8581,7 @@ function createWindow() {
   // not just the Discord sidebar panel. A PAC script sends ONLY discord.* through
   // ByeDPI (everything else stays direct). TCP only — voice UDP still needs Zapret.
   const _BROWSING_SESSIONS = BROWSING_SESSIONS;
+  let _unblock = null;   // the Unblock centre (src/main/unblock-main.js), wired further down
   function _routeBrowsingDiscord(port) {
     let cfg = { mode: 'direct' };
     if (port) {
@@ -8591,6 +8592,8 @@ function createWindow() {
         + "shExpMatch(h,'*.discordapp.net'))return 'SOCKS5 127.0.0.1:" + port + "';return 'DIRECT';}";
       cfg = { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
     }
+    // The sites the Unblock centre has switched on join the Discord rules in one PAC.
+    if (typeof _unblock !== 'undefined' && _unblock) cfg = _unblock.browsingConfig(port) || cfg;
     // What a covered session set back to direct gets (applyRouting).
     _discordBrowsingProxy = cfg;
     // A session with a saved route (a container through Tor or a proxy, or
@@ -8855,6 +8858,23 @@ function createWindow() {
       },
     });
     ipcMain.handle('bypass:probe', (_e, url) => _bypassProbe.probe(url));
+    // The Unblock centre: a failed load that looks like a block, the ways Vex can open that site
+    // without administrator rights, and the list of sites it remembers (main/unblock-main.js).
+    _unblock = require('./main/unblock-main').wireUnblock({
+      ipcMain, net, secureSessions,
+      userData: app.getPath('userData'),
+      byedpi: _byedpi, share: _share,
+      dohResolve: require('./main-dpi-bypass.js').dohResolve,
+      lightPort: () => _dpiBypassPort,
+      downloadBuffer: _downloadBuffer,
+      reapplyBrowsing: () => {
+        const m = _lastDiscordRules && /socks5?:\/\/127\.0\.0\.1:(\d+)/.exec(String(_lastDiscordRules));
+        _routeBrowsingDiscord(m ? parseInt(m[1], 10) : 0);
+      },
+      isRouted: (partition) => { const saved = readRouting(); return !!(saved[_ALL_ROUTE_KEY] || saved[partition || 'default']); },
+      log: (message) => console.warn(message),
+    });
+    app.on('before-quit', () => { try { _unblock.shutdown(); } catch (err) { console.error('[Unblock] could not stop its helpers:', err); } });
     ipcMain.handle('roblox:set-bypass', (_e, on) => _applyRobloxBypass(!!on));
     ipcMain.handle('gui-style:set', async (_e, style) => {
       await dataStore.write('gui-style', style === 'glass' ? 'glass' : 'classic');

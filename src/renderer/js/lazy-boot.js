@@ -35,6 +35,7 @@ const VexBoot = {
     { src: 'js/faq-ui.js', usage: [] },
     { src: 'js/drm-help-tr.js', usage: [] },
     { src: 'js/drm-help.js', usage: [] },
+    { src: 'js/unblock-centre.js', usage: ['unblock-centre'] },
     { src: 'js/page-recorder.js', usage: [] },
     { src: 'js/agent-task-panel.js', usage: [] },
     { src: 'js/shopping-clip.js', usage: [] },
