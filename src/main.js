@@ -4075,6 +4075,7 @@ const EXT_PARTITIONS = [
   'persist:container-work', 'persist:container-personal', 'persist:container-shopping'
 ];
 const extHelpers = require('./main/extensions');
+const { placePopup, popupArea } = require('./main/popup-placement');
 
 // folder -> why its last load attempt failed, surfaced by extensions:list so a
 // broken extension explains itself in the manager instead of looking installed.
@@ -6833,6 +6834,22 @@ function _setPopupContentSize(win, w, h, x, y) {
   win.setContentSize(w, h);
   win.setResizable(false);
 }
+// Puts the popup under its button and inside the Vex window and the screen
+// (main/popup-placement.js); a popup that is bigger than that gets less room
+// and its page scrolls. The window's real outer size (Windows adds a border)
+// is read back and the position corrected, so no edge is ever past the area.
+function _placePopupWindow(win, anchor, w, h) {
+  const { screen } = require('electron');
+  const host = anchor.host && !anchor.host.isDestroyed() ? anchor.host : null;
+  const display = screen.getDisplayNearestPoint({ x: Math.round((anchor.left + anchor.right) / 2), y: Math.round(anchor.bottom) });
+  const area = popupArea(host ? host.getContentBounds() : null, display.workArea);
+  const p = placePopup({ anchor, size: { w, h }, area });
+  _setPopupContentSize(win, p.w, p.h, p.x, p.y);
+  const b = win.getBounds();
+  const fixed = placePopup({ anchor, size: { w: b.width, h: b.height }, area });
+  if (fixed.x !== b.x || fixed.y !== b.y) win.setPosition(fixed.x, fixed.y);
+  return p;
+}
 ipcMain.handle('extensions:open-popup', async (_e, request) => {
   try {
     const folderName = request && request.folder;
@@ -6875,6 +6892,16 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false, enablePreferredSizeMode: true }
     });
     _extPopupWindow = win;
+    // The button it opened from, in screen pixels (a shortcut or a look with no
+    // button sends the middle of the window's top).
+    const left = Number.isInteger(request.x) ? request.x : 0;
+    const bottom = Number.isInteger(request.y) ? request.y : 0;
+    const anchor = {
+      left, bottom,
+      right: Number.isInteger(request.right) ? request.right : left,
+      top: Number.isInteger(request.top) ? request.top : bottom,
+      host: BrowserWindow.fromWebContents(_e.sender),
+    };
     // A popup's content can change size after it loads: Dark Reader's is a
     // "Loading, please wait" line until its data arrives, then 580px tall, and
     // it showed in a 500px window with scroll bars (2026-09-28). Chrome resizes
@@ -6898,9 +6925,8 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       if (preferred) {
         const [w, h] = extHelpers.clampPopupSize(preferred.width, preferred.height);
         if (w !== cw || h !== ch) {
-          const [x, y] = win.getPosition();
-          _setPopupContentSize(win, w, h, Math.max(0, x + Math.round((cw - w) / 2)), y);
-          [cw, ch] = [w, h];
+          const placed = _placePopupWindow(win, anchor, w, h);
+          [cw, ch] = [placed.w, placed.h];
         }
       }
       const size = await measurePopup(cw, ch)
@@ -6909,8 +6935,7 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       if (size.w <= size.iw && size.h <= size.ih) return;
       const [w, h] = extHelpers.clampPopupSize(Math.max(size.w, size.iw), Math.max(size.h, size.ih));
       if (w === size.iw && h === size.ih) return;
-      const [x, y] = win.getPosition();
-      _setPopupContentSize(win, w, h, Math.max(0, x + Math.round((size.iw - w) / 2)), y);
+      _placePopupWindow(win, anchor, w, h);
     };
     win.webContents.on('preferred-size-changed', (_event, size) => {
       preferred = size;
@@ -6950,10 +6975,7 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     ).catch(err => { console.error('[Extensions] popup measure failed:', err.message); return null; });
     if (first && !(Number.isFinite(first.w) && Number.isFinite(first.h))) first = null;
     const [w, h] = first ? extHelpers.clampPopupSize(first.w, first.h) : win.getContentSize();
-    const [x, y] = Number.isInteger(request.x) && Number.isInteger(request.y)
-      ? [Math.max(0, request.x - Math.round(w / 2)), Math.max(0, request.y)]
-      : win.getPosition();
-    _setPopupContentSize(win, w, h, x, y);
+    _placePopupWindow(win, anchor, w, h);
     win.show();
     win.focus();
     // Not every growth raises preferred-size-changed: Return YouTube Dislike's

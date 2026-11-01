@@ -194,7 +194,7 @@ define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])])
 define('downloads:retry', [web, optional(string(160))]);
 define('downloads:ask-where downloads:mine', [string(4 * 1024 * 1024 + 64)]);
 define('image:copy', [string(4 * 1024 * 1024 + 64), string(200)]);
-define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), tab: optional(integer) })]);
+define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), right: optional(coordinate), top: optional(coordinate), tab: optional(integer) })]);
 define('extensions:popup-tab', []);
 // An extension's tabs.query/get: which page is the tab in front (main.js, _activeTabsFor).
 define('extensions:active-tabs', []);

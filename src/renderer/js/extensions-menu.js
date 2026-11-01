@@ -367,6 +367,8 @@ const ExtensionsMenu = {
           folder: ext.folder,
           x: Math.max(0, Math.round(window.screenX + rect.left)),
           y: Math.max(0, Math.round(window.screenY + rect.bottom)),
+          right: Math.max(0, Math.round(window.screenX + (rect.right ?? rect.left))),
+          top: Math.max(0, Math.round(window.screenY + (rect.top ?? rect.bottom))),
           tab: Number.isInteger(tab) && tab > 0 ? tab : null
         });
         if (!res || !res.ok) window.showToast?.('Could not open popup: ' + ((res && res.error) || 'unknown'));
