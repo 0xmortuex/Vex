@@ -39,7 +39,7 @@ const VexI18nUI = {
     // there are dozens of classes. Only a text that is, whole, one of the dictionary's phrases is ever replaced.
     '#panels-container', '.vex-tour', '#toast-container', '#vex-linkbar', '.whatsnew-tip', '.vexroute-backdrop',
     // The tab strip's two buttons (not its tabs, whose titles are pages) and the two update dialogs, whose classes carry no 'overlay'.
-    '#btn-new-tab-top', '#btn-list-all-tabs', '.whatsnew-ov', '#vex-welcome-back', '#vex-onboarding', '.vexsr-ov',
+    '#btn-new-tab-top', '#btn-list-all-tabs', '.whatsnew-ov', '#vex-welcome-back', '#vex-onboarding', '.vexsr-ov', '.vex-firstuse',
     '[role="dialog"]', '[role="menu"]', '[class*="overlay"]', '[class*="backdrop"]', '[class*="modal"]',
   ],
 
@@ -10927,6 +10927,16 @@ const VexI18nUI = {
       'Typewriter': 'Daktilo',
       'What Vex ships with': 'Vex’in birlikte geldiği',
       // --- end font step descriptions ---
+      // --- look step and first-use card (agent) ---
+      'Wear another browser': 'Başka bir tarayıcıyı giyin',
+      'Or a style': 'Ya da bir stil',
+      'Its own colours': 'Kendi renkleri',
+      'My Vex theme\u2019s colours': 'Vex temamın renkleri',
+      'My Vex theme\'s colours': 'Vex temamın renkleri',
+      '{1} is new. Here is what it touches.': '{1} yeni. Dokunduğu yerler şunlar.',
+      'About {1}': '{1} hakkında',
+      'Turn this off': 'Bunu kapat',
+      // --- end look step and first-use card ---
     },
   },
 

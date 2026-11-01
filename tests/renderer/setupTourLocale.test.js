@@ -186,3 +186,23 @@ describe('Turkish for the full tour and the feature switches (catalogue and mani
     expect(src).not.toMatch(/\.join\(row\.title\)/);
   });
 });
+
+describe('Turkish for the look step and the first-use card', () => {
+  it('the look step colour buttons and headings have Turkish (the scan misses text inside a style string)', () => {
+    for (const s of ['Its own colours', 'My Vex theme\u2019s colours', 'Colours for that look', 'Wear another browser', 'Or a style', 'Where your tabs go', 'Down the side', 'Along the top']) {
+      expect(hasTurkish(s), s).toBe(true);
+    }
+  });
+
+  it('the first-use card (js/feature-sheet.js) is inside the translation scope and its pieces have Turkish', () => {
+    expect(VexI18nUI.SCOPES).toContain('.vex-firstuse');
+    for (const s of ['Got it', 'Turn this off', 'About Text snippets']) expect(hasTurkish(s), s).toBe(true);
+    expect(VexI18nUI.lookup('Text snippets is new. Here is what it touches.', 'tr')).toMatch(/yeni\. Dokunduğu yerler şunlar\.$/);
+    expect(VexI18nUI.lookup('Search by what you want is new. Here is what it touches.', 'tr')).toContain('İstediğinize göre ara');
+  });
+
+  it('every literal showCard draws has a Turkish entry', () => {
+    const { gaps } = missingIn('feature-sheet.js');
+    expect(gaps.filter((g) => /is new\. Here|Got it|Turn this off|About /.test(g))).toEqual([]);
+  });
+});
