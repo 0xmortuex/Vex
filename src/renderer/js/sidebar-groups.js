@@ -151,6 +151,7 @@
     el.querySelectorAll('.sidebar-group-head').forEach(h => h.remove());
     el.querySelectorAll('.sb-grp-folded').forEach(b => b.classList.remove('sb-grp-folded'));
     delete el.dataset.sbGrouped;
+    el.style.removeProperty('--sgh-min');
   }
 
   function makeHead(g) {
@@ -162,7 +163,7 @@
     // privacy) is the hover text and the description.
     const short = (groupInfo(g.id) || {}).railLabel;
     h.title = short ? g.label : 'Show or hide the buttons in this group';
-    h.innerHTML = '<span class="sgh-chev" aria-hidden="true">' + VexIcons.svg('chevron-down', { size: 9 }) + '</span>'
+    h.innerHTML = '<span class="sgh-chev" aria-hidden="true">' + VexIcons.svg('chevron-down', { size: 14 }) + '</span>'
       + '<span class="sgh-label"></span>';
     const label = h.querySelector('.sgh-label');
     label.textContent = short || g.label;
@@ -226,6 +227,14 @@
       h.setAttribute('aria-expanded', String(isOpen));
       members.forEach(b => b.classList.toggle('sb-grp-folded', !isOpen));
     }
+    fitWidth(rail);
+  }
+
+  // The rail is wide enough for its longest heading word in the language on show (Turkish 'Uygulamalar' is wider than 'Knowledge'),
+  // so no heading is ever cut or wrapped. The CSS takes the larger of its own width and this one (--sgh-min).
+  function fitWidth(rail) {
+    const need = Math.max(0, ...[...rail.querySelectorAll('.sidebar-group-head:not([hidden]) .sgh-label')].map(l => l.getBoundingClientRect().width));
+    if (need > 0) rail.style.setProperty('--sgh-min', Math.ceil(need) + 2 + (rail.offsetWidth - rail.clientWidth) + 'px'); else rail.style.removeProperty('--sgh-min');
   }
 
   // The panel picker of the docked looks: [{ panel, label }] -> a list of headed sections plus the essentials.
@@ -249,6 +258,8 @@
       });
     }
   }
+  // A web font that arrives late changes the words' width.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => refresh());
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 

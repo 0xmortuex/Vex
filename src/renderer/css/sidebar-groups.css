@@ -1,23 +1,42 @@
 /* === Sidebar groups (js/sidebar-groups.js) ===================================
    A heading with a fold toggle above each group of rail buttons, and the same headings in Settings > Sidebar.
-   The rail is 44 to 54px wide in every look: the heading is a stacked chevron + one short word and is never wider than the
-   rail's own button column, so the rail does not grow. */
+   The heading is one real button the width of the rail: a hairline above it, a 14px chevron, then the short group word at 11px in
+   the UI sans (not the theme's serif, which squeezed to 8.5px was unreadable). The text takes the rail's own text colour, so its
+   contrast is the look's text on its rail. A rail that shows groups is a little wider than one that does not (60px in the Firefox
+   look and Glass, 64px in Classic) so the longest word ("Knowledge", "Uygulamalar") is never cut. */
 #icon-sidebar .sidebar-group-head {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  align-self: stretch; box-sizing: border-box; min-width: 0; min-height: 24px; margin: 2px 0 0; padding: 3px 0 2px;
-  background: transparent; border: 0; border-top: 1px solid var(--b-toolbar-border, var(--vex-border-medium));
+  --sgh-fg: var(--b-text, var(--vex-text-primary));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  align-self: stretch; box-sizing: border-box; min-width: 0; min-height: 30px; margin: 2px 0 0; padding: 4px 0 2px;
+  background: transparent; border: 0; border-top: 1px solid color-mix(in srgb, var(--sgh-fg) 24%, transparent);
   border-radius: 0; cursor: pointer; flex-shrink: 0;
-  color: var(--b-text, var(--vex-text-primary));
-  font-family: inherit; font-size: 8.5px; font-weight: 600; line-height: 1.1; letter-spacing: 0;
+  color: var(--sgh-fg);
+  font-size: 11px; font-weight: 500; line-height: 13px; letter-spacing: 0;
+}
+/* The UI sans, whatever font Vex wears: the font switch (fonts.css) sets every span, so the label is named as well. */
+#icon-sidebar .sidebar-group-head, #icon-sidebar .sidebar-group-head .sgh-label {
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif !important;
 }
 #icon-sidebar .sidebar-group-head[hidden] { display: none; }
-#icon-sidebar .sidebar-group-head .sgh-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#icon-sidebar .sidebar-group-head .sgh-chev { display: grid; place-items: center; line-height: 0; transition: transform 0.15s ease; }
-#icon-sidebar .sidebar-group-head .sgh-chev svg { width: 9px; height: 9px; }
+#icon-sidebar .sidebar-group-head .sgh-label { max-width: none; overflow: visible; white-space: nowrap; }
+#icon-sidebar .sidebar-group-head .sgh-chev { display: grid; place-items: center; width: 14px; height: 14px; line-height: 0; transition: transform 0.15s ease; }
+#icon-sidebar .sidebar-group-head .sgh-chev svg { width: 14px; height: 14px; }
 #icon-sidebar .sidebar-group-head[aria-expanded="false"] .sgh-chev { transform: rotate(-90deg); }
 #icon-sidebar .sidebar-group-head:hover { background: var(--b-btn-hover, var(--vex-hover-fill)); }
 #icon-sidebar .sidebar-group-head:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: -2px; }
 @media (prefers-reduced-motion: reduce) { #icon-sidebar .sidebar-group-head .sgh-chev { transition: none; } }
+
+/* A rail with groups is a little wider, and its buttons keep their size when the window is short (the rail scrolls instead of
+   shrinking the icons below 20px). Classic and Glass first, the rail looks (Firefox, Netscape) below. */
+body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(64px, var(--sgh-min, 0px)); min-width: max(64px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
+body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: 38px; height: 38px; }
+body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 20px; height: 20px; }
+body[data-gui-style="glass"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] {
+  width: max(60px, var(--sgh-min, 0px)) !important; min-width: max(60px, var(--sgh-min, 0px)) !important; padding-left: 0 !important; padding-right: 0 !important;
+}
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(60px, var(--sgh-min, 0px)); min-width: max(60px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: var(--b-rail-btn, 36px); height: var(--b-rail-btn, 36px); }
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 20px; height: 20px; }
 
 /* A folded group shows its heading only, except the button of the panel that is open: the rail still says where you are. */
 #icon-sidebar .sidebar-icon.sb-grp-folded:not(.active) { display: none !important; }
