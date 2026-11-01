@@ -801,6 +801,9 @@
     // before it, or with a saved sidebar order, gets it off, written once.
     { id: 'sidebar-groups', title: 'Sidebar groups', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.sidebarGroups', 'vex.sidebarGroups.folded'], usesKeys: ['vex.sidebarOrder', 'vex.panelOverrides'],
       permissions: { reads: ['which panels the sidebar has and in what order'], writes: ['whether the sidebar is grouped and which groups are folded'], sends: [] } },
+    // A layout choice (at most four icons on the toolbar's right, the rest in the "more" menu): no switch, it only folds.
+    { id: 'toolbar-limit', title: 'Four toolbar icons', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.toolbarShown'], usesKeys: ['vex.layout'],
+      permissions: { reads: ['which toolbar buttons you rearranged or hid'], writes: ['which toolbar buttons you keep in the toolbar'], sends: [] } },
     { id: 'feature-registry', title: 'Feature records', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.featureUsage', 'vex.usage.prior.', 'vex.minimalMode', 'vex.registry'],
       permissions: { reads: ['which features exist'], writes: ['which features you use, and which are staged'], sends: [] } },
