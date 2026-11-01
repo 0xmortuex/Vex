@@ -42,14 +42,16 @@ beforeEach(() => {
 });
 
 describe('the default four', () => {
-  it('keeps Downloads, Inbox and Settings in the toolbar; everything else is folded', () => {
+  it('keeps Downloads, Profiles, Inbox and Settings in the toolbar; everything else is folded', () => {
     const L = loadLimit();
-    expect(L.DEFAULT_SHOWN).toEqual(['btn-downloads-top', 'btn-attention', 'btn-settings-top']);
+    expect(L.DEFAULT_SHOWN).toEqual(['btn-downloads-top', 'btn-profile', 'btn-attention', 'btn-settings-top']);
+    expect(L.foldedIds()).not.toContain('btn-profile');
     expect(L.foldedIds().sort()).toEqual(ids.filter(i => !L.DEFAULT_SHOWN.includes(i)).sort());
   });
-  it('never shows more than four buttons: three kept plus the more button', () => {
+  it('never shows more than four in normal use: the bell and the gear are conditional extras', () => {
     const L = loadLimit();
-    expect(L.DEFAULT_SHOWN.length + 1).toBeLessThanOrEqual(4);
+    const always = L.DEFAULT_SHOWN.filter(id => id !== 'btn-attention' && id !== 'btn-settings-top');
+    expect(always.length + 1).toBeLessThanOrEqual(4);   // plus the more button
   });
   it('the folded buttons land in the more menu, which is shown; the kept ones stay', () => {
     loadLimit();
@@ -58,7 +60,7 @@ describe('the default four', () => {
     const more = document.getElementById('btn-toolbar-overflow');
     expect(more.hidden).toBe(false);
     const gone = O.moved().map(e => e.id).sort();
-    expect(gone).toEqual(['btn-command', 'btn-extensions', 'btn-incognito', 'btn-notes-top', 'btn-profile', 'btn-split', 'btn-toggle-ai', 'btn-tor']);
+    expect(gone).toEqual(['btn-command', 'btn-extensions', 'btn-incognito', 'btn-notes-top', 'btn-split', 'btn-toggle-ai', 'btn-tor']);
     expect(document.getElementById('btn-downloads-top').classList.contains('tb-overflowed')).toBe(false);
     // Hidden-by-themselves buttons (Inbox, Developer dashboard) are not in the menu.
     expect(gone).not.toContain('btn-attention');
@@ -70,7 +72,7 @@ describe('the default four', () => {
     O.relayout();
     document.getElementById('btn-toolbar-overflow').click();
     const rows = [...document.querySelectorAll('#toolbar-overflow-menu button[role="menuitem"]')];
-    expect(rows).toHaveLength(8 + 1);
+    expect(rows).toHaveLength(7 + 1);
     expect(rows[rows.length - 1].textContent).toContain('Customize toolbar');
   });
   it('Customize toolbar opens the Layout section of Settings', () => {
@@ -137,7 +139,7 @@ describe('existing profiles', () => {
     const L = loadLimit();
     L.init();
     expect(localStorage.getItem('vex.toolbarShown')).toBeNull();
-    expect(L.foldedIds().length).toBe(ids.length - 3);
+    expect(L.foldedIds().length).toBe(ids.length - 4);
   });
   it('a choice already saved is never overwritten by the migration', () => {
     localStorage.setItem('vex.layout', JSON.stringify({ hidden: { 'btn-tor': true } }));

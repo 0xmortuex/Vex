@@ -1,8 +1,10 @@
 // === Toolbar limit — at most four icons on the right of the toolbar ===
 // The right side of the address toolbar had grown to six or seven icon
-// buttons. By default only these stay in sight: Downloads, the Inbox (it shows
-// itself only while it holds something), the Settings gear (it shows itself
-// only while the sidebar is off) and the "more" button that holds the rest.
+// buttons. THE RULE: in normal use at most four icons are in sight by default:
+// Downloads, Profiles, the "more" button that holds the rest, and the Inbox
+// bell or the Settings gear. The bell and the gear are conditional extras that
+// appear only when they have something to show (the bell while the Inbox holds
+// something, the gear while the sidebar is off), so they do not crowd the bar.
 // Every other button is folded into that "more" menu (js/toolbar-overflow.js):
 // still one click and one arrow key away, and still on Ctrl+K and its own
 // shortcut. "Show in toolbar" (Settings > Layout) puts any of them back.
@@ -36,7 +38,7 @@
     { id: 'btn-profile', label: 'Profiles' },
   ];
   const IDS = ITEMS.map(i => i.id);
-  const DEFAULT_SHOWN = ['btn-downloads-top', 'btn-attention', 'btn-settings-top'];
+  const DEFAULT_SHOWN = ['btn-downloads-top', 'btn-profile', 'btn-attention', 'btn-settings-top'];
 
   function readStored() {
     const raw = localStorage.getItem(KEY);

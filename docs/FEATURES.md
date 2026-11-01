@@ -1129,7 +1129,7 @@ Themes, layout, per-site tweaks, extensions.
 - **Group the sidebar buttons** (`sidebar-groups`): Sorts the sidebar into Knowledge, Browsing, Security and privacy, Tools and Apps, each with a heading you can fold. Panels, shortcuts and your own order are untouched; turn it off and the rail goes back exactly as it was.
   - Open: Settings > Group the sidebar buttons.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Four toolbar icons** (`toolbar-limit`): Keeps the right side of the toolbar to four icons at most (Downloads, the Inbox bell, Settings when the sidebar is off, and a more menu) and folds the rest into the more menu. Choose which buttons stay in Settings > Layout > Toolbar buttons.
+- **Four toolbar icons** (`toolbar-limit`): Keeps the right side of the toolbar to four icons at most (Downloads, Profiles and a more menu, plus the Inbox bell and the Settings gear only when they have something to show) and folds the rest into the more menu. Choose which buttons stay in Settings > Layout > Toolbar buttons.
   - Open: Settings > Toolbar buttons.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Hidden until needed** (`quiet-defaults`): Rarely used parts such as the stopwatch, Bookmarks, Annotations and Feeds can stay out of sight until you need them. Bring them back with the Show buttons in its Settings section.
