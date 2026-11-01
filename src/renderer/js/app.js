@@ -1955,6 +1955,8 @@ function vexOwnTextFocused(doc) {
       } catch (err) { window.VexProblems?.note('Widevine', 'Could not read the Widevine status', err); }
     });
   })();
+  // The updater's own log: every check, download, install and failure.
+  document.getElementById('btn-update-log')?.addEventListener('click', () => UpdateNotifier.showLog());
   // Check-updates button
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
     const status = document.getElementById('update-check-status');
@@ -1964,7 +1966,7 @@ function vexOwnTextFocused(doc) {
     localStorage.setItem('vex.lastUpdateCheck', Date.now().toString());
     if (!status || !r) { if (status) status.textContent = ''; return; }
     if (r.ok && r.hasUpdate) {
-      status.textContent = `Vex ${r.latest} is available`;
+      status.textContent = `Vex ${r.latest} is available` + (r.canSelfUpdate === false ? ' — this copy cannot update itself: install Vex-Setup.exe' : '');
     } else if (r.ok) {
       status.textContent = `Up to date (v${r.current}) \u2014 checked just now`;
     } else {

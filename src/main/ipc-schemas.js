@@ -58,6 +58,8 @@ define('extensions:debug-state', []);
 const version = value => typeof value === 'string' && /^\d{1,5}\.\d{1,5}\.\d{1,5}[0-9A-Za-z.+-]{0,40}$/.test(value);
 define('updates:upcoming-notes updates:download updates:install', [version]);
 define('updates:cancel', []);
+// The update state and log (src/main/update-state.js): read, and acknowledge a notice.
+define('updates:status updates:log updates:ack', []);
 // The backup made before an update (src/main/update-backups.js): the version
 // it is named after and the backup file's text; then listed and read back by name.
 define('updates:backup-save', [version, string(10 * 1024 * 1024)]);

@@ -620,7 +620,7 @@ const VexFeatures = {
     { id: 'whatsnew', cat: 'data', cmd: 'whatsnew',
       what: 'What changed in this version, and every version before it.' },
     { id: 'updates', phrases: 'update new version upgrade', cat: 'data', name: 'Automatic updates', setting: { section: 'setting-update-on-start' },
-      what: 'Vex updates itself and tells you what it changed.' },
+      what: 'Vex updates itself and tells you what it changed. If an update does not install, you are told why, and a new version that cannot start is replaced by the one before it.' },
 
     // --- Only in Vex ------------------------------------------------------
     { id: 'burner', cat: 'unique', cmd: 'burner',
