@@ -388,6 +388,14 @@ const Onboarding = {
     return box;
   },
 
+  // Skip applies nothing. A card clicked on the sidebar step is therefore dropped, or the look step would be steered by an answer that was never saved.
+  _skip(key, overlay) {
+    this._stash(key, overlay);
+    if (key === 'sidebar') delete this._session.sidebar;
+    this.step++;
+    this._render();
+  },
+
   _render() {
     const steps = this.activeSteps || this.STEPS();
     const s = this.STEPS().find(item => item.key === steps[this.step]?.key);
@@ -452,7 +460,7 @@ const Onboarding = {
     else overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
     if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
     overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
-    overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step++; this._render(); });
+    overlay.querySelector('#ob-skip')?.addEventListener('click', () => this._skip(s.key, overlay));
     overlay.querySelector('#ob-next').addEventListener('click', () => this._commitAndNext(s.key, overlay));
     // Escape closes what is open first (a drop-down, an opened list), and
     // only then asks whether to skip the rest of setup. It used to finish the

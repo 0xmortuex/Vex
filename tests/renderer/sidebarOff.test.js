@@ -250,6 +250,21 @@ describe('the sidebar step itself', () => {
     expect(document.body.dataset.sidebar).toBe('off');
   });
 
+  it('Skip drops a card that was clicked but never saved, so the look step follows what is really applied', async () => {
+    const V = await loadVisibility();
+    const { overlay, body } = draw();
+    body.querySelector('[data-sb-answer="no"]').click();
+    expect(Onboarding._session.sidebar).toBe(false);
+    const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
+    Onboarding.step = 4;
+    Onboarding._skip('sidebar', overlay);
+    render.mockRestore();
+    expect(Onboarding.step).toBe(5);
+    expect(Onboarding._session.sidebar).toBeUndefined();
+    expect(V.enabled()).toBe(true);
+    expect(Onboarding._wantsSidebar()).toBe(true);
+  });
+
   it('says so, and stays on the step, when the answer cannot be saved', async () => {
     const overlay = document.createElement('div'); overlay.innerHTML = '<div id="ob-body"></div>'; document.body.appendChild(overlay);
     Onboarding._pendingSidebar = false;
