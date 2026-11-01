@@ -131,6 +131,7 @@
       row.setAttribute('role', 'menuitem');
       const ico = document.createElement('span');
       ico.className = 'tb-overflow-ico';
+      ico.setAttribute('aria-hidden', 'true');
       const svg = el.querySelector('svg');
       if (svg) ico.appendChild(svg.cloneNode(true));
       const label = document.createElement('span');
@@ -148,6 +149,7 @@
     cust.setAttribute('role', 'menuitem');
     const cico = document.createElement('span');
     cico.className = 'tb-overflow-ico';
+    cico.setAttribute('aria-hidden', 'true');
     cico.innerHTML = VexIcons.svg('sliders', { size: 16 });
     const clabel = document.createElement('span');
     clabel.className = 'tb-overflow-label';
@@ -155,6 +157,7 @@
     cust.append(cico, clabel);
     cust.addEventListener('click', () => {
       closeMenu();
+      more.focus({ preventScroll: true });
       if (typeof SettingsUI !== 'undefined') SettingsUI.openSection('setcat-layout');
     });
     menu.appendChild(cust);
@@ -164,6 +167,8 @@
   // menu it opens under itself (Downloads, Extensions, Profiles) opens there.
   function invoke(el) {
     closeMenu();
+    // Focus goes back to the button first: what the item opens (a menu, a dialog) then returns to it, not to nothing.
+    more.focus({ preventScroll: true });
     clearProxy();
     const r = more.getBoundingClientRect();
     el.style.setProperty('--tb-proxy-left', r.left + 'px');
@@ -184,6 +189,15 @@
   function onKey(e) {
     if (!menu) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(); more.focus(); return; }
+    // Tab leaves the menu: it closes and the focus is on its button, so Tab goes on from there.
+    if (e.key === 'Tab') { closeMenu(); more.focus({ preventScroll: true }); return; }
+    if (e.key === 'Home' || e.key === 'End') {
+      const all = [...menu.querySelectorAll('.tb-overflow-item')];
+      if (!all.length) return;
+      e.preventDefault();
+      all[e.key === 'Home' ? 0 : all.length - 1].focus();
+      return;
+    }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       const items = [...menu.querySelectorAll('.tb-overflow-item')];
       if (!items.length) return;
@@ -245,6 +259,8 @@
     more.hidden = true;
     more.innerHTML = VexIcons.svg('more', { size: 16 });
     more.addEventListener('click', (e) => { e.stopPropagation(); openMenu(); });
+    // A button that opens a menu opens it with the arrow key too.
+    more.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown' && !menu) { e.preventDefault(); openMenu(); } });
     right.appendChild(more);
 
     const ro = new ResizeObserver(schedule);

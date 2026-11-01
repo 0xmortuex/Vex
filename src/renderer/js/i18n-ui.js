@@ -9769,6 +9769,7 @@ const VexI18nUI = {
       'Show or hide the developer dashboard button and its shortcuts': 'Geliştirici panosu düğmesini ve kısayollarını göster veya gizle',
       'About this setting': 'Bu ayar hakkında',
       'More options': 'Daha fazla seçenek',
+      '1 result': '1 sonuç', '{1} results': '{1} sonuç',
       'Turn on Developer mode': 'Geliştirici modunu aç',
       'Turn on Developer mode to see all settings': 'Tüm ayarları görmek için Geliştirici modunu açın',
       'Some results are in Developer mode (advanced settings). They are shown here; turn Developer mode on to keep them in Settings.': 'Bazı sonuçlar Geliştirici modunda (gelişmiş ayarlar). Burada gösteriliyor; Ayarlar’da kalmaları için Geliştirici modunu açın.',

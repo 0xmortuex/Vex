@@ -62,7 +62,7 @@
       top.append(search, addBtn, settingsBtn);
 
       const cats = el('div', 'vws-cats');
-      cats.setAttribute('role', 'tablist');
+      cats.setAttribute('role', 'group');
       cats.setAttribute('aria-label', L('Wallpaper categories'));
       const status = el('div', 'vws-status');
       status.setAttribute('role', 'status');
@@ -90,9 +90,16 @@
         for (const [id, label] of chips) {
           const b = el('button', 'vws-chip', label);
           b.type = 'button';
-          b.setAttribute('role', 'tab');
-          b.setAttribute('aria-selected', String(ui.cat === id));
-          b.addEventListener('click', () => { ui.cat = id; ui.limit = PAGE; renderCats(); renderGrid(); });
+          // A filter button, not a tab: nothing here is a panel of its own, and tabs would promise arrow keys.
+          b.dataset.cat = id;
+          b.setAttribute('aria-pressed', String(ui.cat === id));
+          b.addEventListener('click', () => {
+            ui.cat = id; ui.limit = PAGE; renderCats();
+            // The row is drawn again: the keyboard stays on the chip that was pressed.
+            const again = Array.from(cats.children).find(n => n.dataset.cat === id);
+            if (again) again.focus({ preventScroll: true });
+            renderGrid();
+          });
           cats.append(b);
         }
       }
@@ -100,9 +107,10 @@
       // --- the grid; a card's picture exists only while the card is near the screen
       function releaseThumbs() { if (ui.io) { ui.io.disconnect(); ui.io = null; } }
       function renderGrid() {
-        const hadFocus = grid.contains(doc.activeElement) || doc.activeElement === doc.body;
+        const hadFocus = gridWrap.contains(doc.activeElement) || doc.activeElement === doc.body;
         releaseThumbs();
         grid.textContent = '';
+        gridWrap.querySelectorAll('.vws-empty, .vws-more').forEach(n => n.remove());
         const list = items();
         if (!list.length) {
           const empty = el('div', 'vws-empty', ui.cat === 'fav' ? L('No favourites yet. Press the heart on a wallpaper to keep it here.')
@@ -110,7 +118,7 @@
               : ui.cat === 'mine' ? L('You have not added a picture of your own yet.')
                 : ui.cat === 'photos' ? L('No photo list is set. Settings > Wallpapers can point Vex at a list of free photos.')
                   : L('No wallpaper matches that.'));
-          grid.append(empty);
+          gridWrap.append(empty);
           renderPanel();
           return;
         }
@@ -157,7 +165,7 @@
         if (list.length > shown.length) {
           const more = button(L('Show more') + ' (' + (list.length - shown.length) + ')', () => { ui.limit += PAGE; renderGrid(); });
           more.classList.add('vws-more');
-          grid.append(more);
+          gridWrap.append(more);
         }
         if (!ui.sel || !list.some(i => i.id === ui.sel)) ui.sel = list[0].id;
         // A redraw (after Apply, a favourite) must not drop the keyboard: focus goes back to the chosen card.

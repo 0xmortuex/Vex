@@ -298,13 +298,18 @@ const VexGeo = {
     list.id = uid;
     list.setAttribute('role', 'listbox');
     list.hidden = true;
-    doc.body.appendChild(list);
+    // Inside a modal dialog the list must be part of that dialog: a screen reader hides everything outside an aria-modal dialog, and the
+    // arrow keys name the rows through aria-activedescendant. The list is fixed-position, so it is not clipped by the dialog.
+    const host = input.closest('[aria-modal="true"]') || doc.body;
+    const labelled = (input.labels && input.labels[0] && input.labels[0].textContent.trim()) || input.getAttribute('aria-label') || '';
+    if (labelled) list.setAttribute('aria-label', labelled);
+    host.appendChild(list);
     // Tells a screen reader how many places the list holds, once per answer (arrow keys read the rows themselves).
     const live = doc.createElement('div');
     live.className = 'vex-geo-live';
     live.setAttribute('role', 'status');
     live.setAttribute('aria-live', 'polite');
-    doc.body.appendChild(live);
+    host.appendChild(live);
     input.setAttribute('role', 'combobox');
     input.setAttribute('aria-autocomplete', 'list');
     input.setAttribute('aria-expanded', 'false');

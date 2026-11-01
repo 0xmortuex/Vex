@@ -158,12 +158,15 @@
     h.type = 'button';
     h.className = 'sidebar-group-head';
     h.dataset.group = g.id;
-    h.title = 'Show or hide the buttons in this group';
+    // The plan carries no railLabel: the short word on show is looked up here. The name read out is that word; the long name (Security and
+    // privacy) is the hover text and the description.
+    const short = (groupInfo(g.id) || {}).railLabel;
+    h.title = short ? g.label : 'Show or hide the buttons in this group';
     h.innerHTML = '<span class="sgh-chev" aria-hidden="true">' + VexIcons.svg('chevron-down', { size: 9 }) + '</span>'
       + '<span class="sgh-label"></span>';
     const label = h.querySelector('.sgh-label');
-    label.textContent = g.railLabel || g.label;
-    h.setAttribute('aria-label', g.label);
+    label.textContent = short || g.label;
+    h.setAttribute('aria-label', short || g.label);
     if (typeof VexI18nUI !== 'undefined') {
       VexI18nUI.translateEl(h);
       VexI18nUI.translateEl(label);

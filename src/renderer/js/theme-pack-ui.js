@@ -27,7 +27,7 @@ const ThemePackUI = {
         <div class="vpk-body"></div>
         <div class="vpk-foot">
           <button type="button" data-reset>Back to Vex’s own design</button>
-          <span class="vpk-now"></span>
+          <span class="vpk-now" role="status"></span>
         </div>
       </div>`;
     document.body.appendChild(el);
@@ -120,7 +120,7 @@ const ThemePackUI = {
     const check = VexIcons.svg('check', { size: 14 });
 
     const packCards = P.PACKS.map((p) => `
-      <button type="button" class="vpk-card${cur.pack === p.id ? ' on' : ''}" data-pack="${esc(p.id)}">
+      <button type="button" class="vpk-card${cur.pack === p.id ? ' on' : ''}" data-pack="${esc(p.id)}" aria-pressed="${cur.pack === p.id}">
         <span class="vpk-prev">${this._preview(p.colours, p.design, p.icons)}</span>
         <span class="vpk-label">
           <span class="vpk-name">${esc(p.name)}<span class="vpk-check" aria-hidden="true">${check}</span></span>
@@ -130,15 +130,22 @@ const ThemePackUI = {
       </button>`).join('');
 
     const designChips = P.DESIGNS.map((d) => `
-      <button type="button" class="vpk-chip${cur.design === d.id ? ' on' : ''}" data-design="${esc(d.id)}" title="${esc(d.note)}">${esc(d.name)}</button>`).join('');
+      <button type="button" class="vpk-chip${cur.design === d.id ? ' on' : ''}" data-design="${esc(d.id)}" aria-pressed="${cur.design === d.id}" title="${esc(d.note)}">${esc(d.name)}</button>`).join('');
 
     const iconChips = window.VexIconPacks.PACKS.map((ip) => `
-      <button type="button" class="vpk-chip${cur.icons === ip.id ? ' on' : ''}" data-icons="${esc(ip.id)}" title="${esc(ip.note)}">
+      <button type="button" class="vpk-chip${cur.icons === ip.id ? ' on' : ''}" data-icons="${esc(ip.id)}" aria-pressed="${cur.icons === ip.id}" title="${esc(ip.note)}">
         <span class="vpk-icons">${this.SAMPLE_ICONS.slice(0, 3).map((n) => window.VexIconPacks.preview(n, ip.id, 18)).join('')}</span>${esc(ip.name)}
       </button>`).join('');
 
     const themeOptions = ThemeManager.THEMES.map((t) => `<option value="${esc(t.id)}"${cur.colours === t.id ? ' selected' : ''}>${esc(t.label)}</option>`).join('');
 
+    // The body is drawn again after every choice: the keyboard stays on the control that was used (it would be lost with the old one).
+    const used = document.activeElement;
+    let again = null;
+    if (used && body.contains(used)) {
+      for (const a of ['data-pack', 'data-design', 'data-icons']) if (used.hasAttribute(a)) again = [a, used.getAttribute(a)];
+      if (used.classList.contains('vpk-select')) again = ['class', 'vpk-select'];
+    }
     body.innerHTML = `
       <div class="vpk-kind">Packs<span>Colours, shape, icons and type together. Pick one, then change any part below.</span></div>
       <div class="vpk-grid">${packCards}</div>
@@ -161,6 +168,11 @@ const ThemePackUI = {
     body.querySelectorAll('[data-icons]').forEach((b) => b.addEventListener('click', () => this._do(() => P.setIcons(b.dataset.icons))));
     body.querySelector('.vpk-select').addEventListener('change', (e) => this._do(() => P.setColours(e.target.value)));
 
+    if (again) {
+      const back = [...body.querySelectorAll('[data-pack], [data-design], [data-icons], .vpk-select')]
+        .find(n => (again[0] === 'class' ? n.classList.contains(again[1]) : n.getAttribute(again[0]) === again[1]));
+      if (back) back.focus({ preventScroll: true });
+    }
     const plain = cur.design === 'default' && cur.icons === window.VexIconPacks.DEFAULT;
     const name = cur.pack ? P.pack(cur.pack).name : (plain ? 'Vex’s own design' : 'Custom');
     el.querySelector('.vpk-now').textContent = `Now: ${name} (design ${P.design(cur.design).name}, icons ${window.VexIconPacks.current().name}).`;
