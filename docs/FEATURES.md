@@ -1129,7 +1129,7 @@ Themes, layout, per-site tweaks, extensions.
 - **Sidebar on or off** (`sidebar-visibility`): Hides the whole sidebar rail for a plain browser window, or brings it back. Choose it in setup or in Settings; when it is off, a Settings button appears in the toolbar.
   - Open: Settings > Show the sidebar.
   - Default: always on, no switch.
-- **Group the sidebar buttons** (`sidebar-groups`): Sorts the sidebar into Knowledge, Browsing, Security and privacy, Tools and Apps, each with a heading you can fold. Panels, shortcuts and your own order are untouched; turn it off and the rail goes back exactly as it was.
+- **Group the sidebar buttons** (`sidebar-groups`): Sorts the sidebar into Knowledge, Browsing, Security and privacy, Tools and Apps: one folder button each, with its name under it, that opens downward like a Discord folder. Drag buttons between folders, drag folders to reorder, make groups of your own with a name, description, icon and theme colour. Panels, shortcuts and your own order are untouched; turn it off and the rail goes back exactly as it was.
   - Open: Settings > Group the sidebar buttons.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Four toolbar icons** (`toolbar-limit`): Keeps the right side of the toolbar to four icons at most (Downloads, Profiles and a more menu, plus the Inbox bell and the Settings gear only when they have something to show) and folds the rest into the more menu. Choose which buttons stay in Settings > Layout > Toolbar buttons.

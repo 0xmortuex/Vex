@@ -817,8 +817,8 @@
       permissions: { reads: ['whether you want the sidebar'], writes: ['whether you want the sidebar'], sends: [] } },
     // A layout choice with its own switch in Settings > Sidebar (not a feature to stage): on for every profile unless it saved 'off';
     // the .v2 marker lets an 'off' written by the first version (not a choice) flip to on once.
-    { id: 'sidebar-groups', title: 'Sidebar groups', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded'], usesKeys: ['vex.sidebarOrder', 'vex.panelOverrides'],
-      permissions: { reads: ['which panels the sidebar has and in what order'], writes: ['whether the sidebar is grouped and which groups are folded'], sends: [] } },
+    { id: 'sidebar-groups', title: 'Sidebar groups', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded', 'vex.sidebarGroups.open', 'vex.sidebarGroupDefs'], usesKeys: ['vex.sidebarOrder', 'vex.panelOverrides'],
+      permissions: { reads: ['which panels the sidebar has and in what order'], writes: ['whether the sidebar is grouped, your groups (names, descriptions, icons, colours, which buttons are in them) and which folders are open'], sends: [] } },
     // A layout choice (at most four icons on the toolbar's right, the rest in the "more" menu): no switch, it only folds.
     { id: 'toolbar-limit', title: 'Four toolbar icons', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.toolbarShown'], usesKeys: ['vex.layout'],
       permissions: { reads: ['which toolbar buttons you rearranged or hid'], writes: ['which toolbar buttons you keep in the toolbar'], sends: [] } },
