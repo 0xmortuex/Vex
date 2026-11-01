@@ -478,7 +478,8 @@ function _httpsUpgradeURL(details) {
 // containers' sessions asked before; private windows, off-the-record and
 // burner tabs, New Identity and Tor tabs loaded http as it came (SE3).
 function _httpsAnswer(details) {
-  if (_threatGuard(details) || _lookalikeGuard(details)) return { cancel: true };
+  if (_lookalikeGuard(details)) return { cancel: true };
+  if (_threatGuard(details)) return { cancel: true };
   const upgraded = _httpsUpgradeURL(details);
   return upgraded ? { redirectURL: upgraded } : { cancel: false };
 }

@@ -28,7 +28,7 @@ const VexThreatListUI = {
 
   openSettings() {
     if (typeof SettingsUI === 'undefined' || typeof SettingsUI.openSection !== 'function') throw new Error('Settings is not ready yet');
-    SettingsUI.openSection('setting-' + this.ID);
+    SettingsUI.openSection('setting-threat-list');
   },
 
   _size(bytes) {
@@ -118,7 +118,7 @@ const VexThreatListUI = {
     this._started = true;
     if (!window.VexSettingsGroups) throw new Error('VexSettingsGroups is not loaded');
     VexSettingsGroups.register({
-      id: this.ID, title: this.TITLE, before: 'about',
+      id: 'threat-list', title: this.TITLE, before: 'about',
       keywords: 'dangerous sites phishing malware safe browsing blocklist reported warning scam fake site list update test',
       render: (body) => this.render(body),
     });
