@@ -46,7 +46,11 @@
     { id: 'browsing', label: 'Browsing', icon: 'compass', desc: 'History, bookmarks and downloads', panels: ['history', 'bookmarks', 'downloads', 'feeds', 'queue'] },
     { id: 'security', label: 'Security and privacy', railLabel: 'Security', icon: 'shield', desc: 'Codes, passwords and privacy', panels: ['authenticator', 'privacy'] },
     { id: 'tools', label: 'Tools', icon: 'toolbox', desc: 'Clock, developer tools and shortcuts', panels: ['clock', 'devtools-dash', 'shortcuts'] },
-    { id: 'apps', label: 'Apps', icon: 'grid', desc: 'Discord, Spotify and your pinned sites', panels: ['discord', 'whatsapp', 'spotify', 'netflix', 'claude', 'github', 'roblox'] },
+    { id: 'chat', label: 'Chat', icon: 'heart', desc: 'Discord and WhatsApp', panels: ['discord', 'whatsapp'] },
+    { id: 'media', label: 'Media and games', railLabel: 'Media', icon: 'gamepad', desc: 'Spotify, Netflix and Roblox', panels: ['spotify', 'netflix', 'roblox'] },
+    { id: 'aicode', label: 'AI and code', railLabel: 'AI', icon: 'bulb', desc: 'Claude and GitHub', panels: ['claude', 'github'] },
+    // The home of every other site you pin: it is left out of the rail until something is in it.
+    { id: 'apps', label: 'Apps', icon: 'grid', desc: 'Your pinned sites and other apps', panels: [] },
   ];
   // Always on show, no folder.
   const ESSENTIALS = ['start', 'settings'];

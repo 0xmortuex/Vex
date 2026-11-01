@@ -323,6 +323,8 @@
         const d = V.get(ui.sel);
         if (!d) throw new Error('Choose a wallpaper first');
         say(L('Applying…'));
+        // Pressing Apply means "show me this": a New Tab with wallpapers switched off would keep the picture saved and unseen.
+        if (!V.enabled()) V.setEnabled(true);
         await V.apply(d.id, ui.draft);
         renderGrid();
         await report(d);

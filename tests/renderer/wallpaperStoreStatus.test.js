@@ -70,18 +70,13 @@ describe('the store after Apply', () => {
     expect(s.textContent).toMatch(/^Applied: Polar veil\. Open a New Tab to see it\./);
     expect(s.querySelector('button')).toBeNull();
   });
-  it('does not claim success while the master switch is off, and one click turns it on', async () => {
+  it('pressing Apply while the master switch is off turns it on, so the picture is not saved and unseen', async () => {
     state.enabled = false;
     const s = await applyInStore();
-    expect(s.textContent).toMatch(/switched off/);
-    expect(s.textContent).not.toMatch(/^Applied/);
-    const turnOn = [...s.querySelectorAll('button')].find(b => /Turn on/.test(b.textContent));
-    expect(turnOn).toBeTruthy();
-    turnOn.click();
-    await flush(20);
     expect(V.setEnabled).toHaveBeenCalledWith(true);
-    expect(V.paintStartPages).toHaveBeenCalled();
-    expect(document.querySelector('.vws-status').textContent).toMatch(/^Applied: Polar veil/);
+    expect(state.enabled).toBe(true);
+    expect(s.textContent).toMatch(/^Applied: Polar veil/);
+    expect(s.textContent).not.toMatch(/switched off/);
   });
   it('says how little shows when the readable shade hides most of it, and "Show more of it" turns the shade down', async () => {
     state.shade = { alpha: 0.98, shows: 0.02, textOk: true };

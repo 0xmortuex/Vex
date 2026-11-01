@@ -13,6 +13,10 @@
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 #icon-sidebar .sb-folder[hidden] { display: none; }
+/* The closed folders share the rail's free height evenly, with room between them, instead of sitting packed at the top over an empty
+   rail. Each slot is capped so a tall window does not make huge gaps; an open folder keeps its own height. The bottom buttons stay put. */
+#icon-sidebar .sb-folder:not(.open) { flex: 1 0 auto; max-height: 116px; justify-content: center; }
+#icon-sidebar:has(> .sb-folder) > .sidebar-spacer { flex-grow: 0.001; }
 #icon-sidebar .sb-folder[data-color="accent"] { --sbf-tint: var(--vex-accent); }
 #icon-sidebar .sb-folder[data-color="accent2"] { --sbf-tint: color-mix(in srgb, var(--vex-accent) 55%, var(--b-text, var(--vex-text-primary))); }
 #icon-sidebar .sb-folder[data-color="success"] { --sbf-tint: var(--vex-success, var(--success)); }
