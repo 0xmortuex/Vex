@@ -244,6 +244,66 @@ describe('the New Tab is handed the wallpaper', () => {
     expect(r).toMatchObject({ ok: false, error: 'page gone' });
     expect(err).toHaveBeenCalled();
   });
+  it('apply raises when an open New Tab refuses the picture, instead of reporting success', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const bad = { getURL: () => 'file:///C:/vex/src/renderer/start.html', executeJavaScript: vi.fn(async () => { throw new Error('page gone'); }) };
+    window._isTrustedStartPage = (u) => u.startsWith('file:///C:/vex/');
+    WebviewManager.webviews.set(1, bad);
+    await expect(V.apply('grad-ocean')).rejects.toThrow(/could not show the wallpaper: page gone/);
+    expect(V.current().id).toBe('grad-ocean');          // the choice is kept; the person is told it did not show
+    expect(err).toHaveBeenCalled();
+  });
+  it('a painted New Tab whose text is hard to read (paint says ok:false, no error) is not a refusal', async () => {
+    const page = { getURL: () => 'file:///C:/vex/src/renderer/start.html', executeJavaScript: vi.fn(async () => ({ ok: false, alpha: 0.4, required: 0.9, readable: true })) };
+    window._isTrustedStartPage = (u) => u.startsWith('file:///C:/vex/');
+    WebviewManager.webviews.set(1, page);
+    await expect(V.apply('grad-ocean')).resolves.toMatchObject({ id: 'grad-ocean' });
+    expect(await V.shade()).toMatchObject({ alpha: 0.4, shows: 0.6, textOk: false, fromPage: true });
+  });
+});
+
+describe('how much of the picture shows (shade)', () => {
+  it('is null with nothing chosen and while the switch is off', async () => {
+    expect(await V.shade()).toBeNull();
+    await V.apply('grad-ocean');
+    V.setEnabled(false);
+    expect(await V.shade()).toBeNull();
+  });
+  it('is what the New Tab itself measured when it has just painted', async () => {
+    const page = { getURL: () => 'file:///C:/vex/src/renderer/start.html', executeJavaScript: vi.fn(async () => ({ ok: true, alpha: 0.98, required: 0.98, readable: true })) };
+    window._isTrustedStartPage = (u) => u.startsWith('file:///C:/vex/');
+    WebviewManager.webviews.set(1, page);
+    await V.apply('aurora-polar');
+    const s = await V.shade();
+    expect(s.alpha).toBe(0.98);
+    expect(s.shows).toBeCloseTo(0.02, 5);
+    expect(s.fromPage).toBe(true);
+  });
+  it('is worked out here when no New Tab is open, with dark text over a dark and bright picture needing a heavy shade', async () => {
+    const P = window.WallpaperPaint, real = P.pageColours;
+    P.pageColours = () => ({ scrim: [245, 241, 232], inks: [[26, 26, 26], [74, 74, 74], [106, 106, 106], [30, 58, 95]] });
+    try {
+      await V.apply('aurora-polar');          // the fake picture: lightest 250, darkest 5
+      const s = await V.shade();
+      expect(s.fromPage).toBe(false);
+      expect(s.alpha).toBeGreaterThan(0.6);
+      expect(s.shows).toBeLessThan(0.4);
+    } finally { P.pageColours = real; }
+  });
+  it('apply forgets an older measurement so a stale one is never reported', async () => {
+    const page = { getURL: () => 'file:///C:/vex/src/renderer/start.html', executeJavaScript: vi.fn(async () => ({ ok: true, alpha: 0.5, required: 0.5, readable: true })) };
+    window._isTrustedStartPage = (u) => u.startsWith('file:///C:/vex/');
+    WebviewManager.webviews.set(1, page);
+    await V.apply('grad-ocean');
+    expect((await V.shade()).alpha).toBe(0.5);
+    WebviewManager.webviews.clear();
+    const P = window.WallpaperPaint, real = P.pageColours;
+    P.pageColours = () => ({ scrim: [245, 241, 232], inks: [[26, 26, 26]] });
+    try {
+      await V.apply('grad-rose');
+      expect((await V.shade()).fromPage).toBe(false);
+    } finally { P.pageColours = real; }
+  });
 });
 
 describe('the photo list address', () => {
