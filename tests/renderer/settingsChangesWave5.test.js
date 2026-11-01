@@ -51,7 +51,8 @@ describe('the sections you open most', () => {
   });
   it('the settings chips call noteSection', () => {
     const src = require('fs').readFileSync(require('path').resolve(__dirname, '../../src/renderer/js/settings-ui.js'), 'utf8');
-    expect(src.match(/SettingsUI\._countChip\(/g).length).toBe(2);
+    // three call sites: the sub-section chips, the category pane pick (settings-pane) and the chip press
+    expect(src.match(/SettingsUI\._countChip\(/g).length).toBe(3);
     expect(src).toMatch(/VexChanges\.noteSection\(key, name\)/);
   });
 });

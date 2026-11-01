@@ -84,6 +84,8 @@
     const watch = new MutationObserver(() => {
       if (modal.isConnected) return;
       watch.disconnect();
+      // The page can already be gone when this fires (a window closing, a test's page torn down): nothing to give focus back to.
+      if (typeof document === 'undefined') return;
       const lost = !document.activeElement || document.activeElement === document.body;
       if (lost && opener && opener !== document.body && opener.isConnected) opener.focus({ preventScroll: true });
     });
