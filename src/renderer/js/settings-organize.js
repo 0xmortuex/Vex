@@ -27,6 +27,8 @@ const SettingsOrganize = {
   MORE_AFTER: 8,
   // …but only when at least this many rows would be folded away.
   MORE_MIN: 3,
+  // …and never fewer than this share of a section stays on the page (the rest is "Advanced").
+  MORE_SHOWN: 0.6,
 
   INFO_SELECTOR: '.setting-info, .setting-hint, .vex-platform-note, .set-layout-hint, [style*="text-muted"]',
 
@@ -158,13 +160,27 @@ const SettingsOrganize = {
   _isRow(el) {
     return el.nodeType === 1 && !el.matches('label.setting-label, .set-info-btn, .set-more-btn, .set-more-body, .set-subnav');
   },
-  _makeMore(count) {
+  // The short name of one row, for the fold's own label ("Advanced: tab sleeping, ...").
+  _rowName(node) {
+    if (!node || node.nodeType !== 1) return '';
+    const own = node.matches('.setting-toggle-row, .setting-row') ? node.querySelector(':scope > span:first-child, :scope > label:not(.toggle), :scope > .setting-label') : node.querySelector('.setting-row-label, .setting-label, label:not(.toggle), strong, h4');
+    const el = own || node;
+    let t = '';
+    for (const c of el.childNodes) { if (c.nodeType === 3 && c.textContent.trim()) { t = c.textContent; break; } if (c.nodeType === 1 && !c.matches('.set-info-btn, svg, .muted, small, [style*="text-muted"]') && c.textContent.trim()) { t = c.textContent; break; } }
+    return t.replace(/\s+/g, ' ').split(/ [—–·] |: /)[0].trim().slice(0, 32);
+  },
+  _makeMore(count, nodes) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'set-more-btn';
     btn.setAttribute('aria-expanded', 'false');
-    btn.innerHTML = VexIcons.svg('chevron-down', { size: 14 }) + '<span class="set-more-label">Advanced</span><span class="set-more-count"></span>';
+    btn.innerHTML = VexIcons.svg('chevron-down', { size: 14 }) + '<span class="set-more-label">Advanced</span><span class="set-more-names"></span><span class="set-more-count"></span>';
     btn.querySelector('.set-more-count').textContent = '(' + count + ')';
+    const names = Array.from(new Set((nodes || []).map(n => this._rowName(n)).filter(Boolean))).slice(0, 4);
+    if (names.length) {
+      btn.querySelector('.set-more-names').textContent = names.join(', ');
+      btn.title = 'Advanced: ' + names.join(', ');
+    }
     const body = document.createElement('div');
     body.className = 'set-more-body';
     btn.addEventListener('click', () => {
@@ -184,18 +200,18 @@ const SettingsOrganize = {
       if (only.length === 1 && only[0].matches('[data-group-body], .vex-module-group-body')) box = only[0];
       // A section inside a section (Game mode in Privacy hardening) is "more" by nature.
       for (const nested of Array.from(box.children).filter(c => c.matches('.setting-group'))) {
-        const { btn, body } = this._makeMore(1);
+        const { btn, body } = this._makeMore(1, [nested]);
         nested.before(btn, body);
         body.appendChild(nested);
         n++;
       }
       const rows = Array.from(box.children).filter(c => this._isRow(c));
-      if (rows.length - Math.max(this.MORE_AFTER, Math.ceil(rows.length * 0.6)) < this.MORE_MIN) continue;
+      if (rows.length - Math.max(this.MORE_AFTER, Math.ceil(rows.length * this.MORE_SHOWN)) < this.MORE_MIN) continue;
       // Never more than 40% of a section is folded: "Advanced" holds the rare rows, the common ones are on the page.
-      const cut = rows[Math.max(this.MORE_AFTER, Math.ceil(rows.length * 0.6))];
+      const cut = rows[Math.max(this.MORE_AFTER, Math.ceil(rows.length * this.MORE_SHOWN))];
       const tail = [];
       for (let node = cut; node; node = node.nextSibling) tail.push(node);
-      const { btn, body } = this._makeMore(rows.length - rows.indexOf(cut));
+      const { btn, body } = this._makeMore(rows.length - rows.indexOf(cut), rows.slice(rows.indexOf(cut)));
       cut.before(btn, body);
       for (const node of tail) body.appendChild(node);
       n++;
@@ -275,7 +291,7 @@ const SettingsOrganize = {
   // Open whatever hides `el`: a closed More options, a folded explanation.
   open(el) {
     if (!el || !el.closest) return;
-    for (let body = el.closest('.set-more-body'); body; body = body.parentElement && body.parentElement.closest('.set-more-body')) {
+    for (let body = el.closest('.set-more-body, .set-fs-body'); body; body = body.parentElement && body.parentElement.closest('.set-more-body, .set-fs-body')) {
       body.setAttribute('data-open', '');
       const btn = body.previousElementSibling;
       if (btn && btn.classList.contains('set-more-btn')) btn.setAttribute('aria-expanded', 'true');

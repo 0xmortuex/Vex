@@ -85,6 +85,22 @@ const SettingsPane = {
     ],
   },
 
+  // Developer mode would otherwise list every advanced section of a long category one under the other (Extras and fun was 14 screens).
+  // For these categories it shows the COMMON advanced sections (by the start of their English heading; "=" means the whole heading)
+  // and gathers the rest behind ONE named fold at the end of the category, "Rarely used: A, B, C". Nothing is removed: the sections
+  // stay in the page, a search or a deep link opens the fold, and the fold opens in place.
+  COMMON: {
+    'General': ['=profiles', 'search by what you want', '=location', '=personalization', '=workspaces', 'idle workspaces'],
+    'Appearance': ['vex packs', 'new tab layout', 'mouse cursor', 'click effect', 'sounds'],
+    'Sidebar and toolbar': ['links and panels', 'panels and messages', '=layout', 'reader layouts'],
+    'Privacy and security': ['privacy report card', 'safer web', 'web safety', 'route all of vex', 'secure lock options', 'encrypted profile lock', 'permission hygiene'],
+    'Tabs and performance': ['session recovery', 'guest session', '=performance', 'on battery', 'smart tab grouping', 'tab comforts', 'recall', 'time travel', 'find by time'],
+    'AI': ['ai backend', 'where ai runs', 'ai spend cap', 'ai personas', 'ai memory', 'ai skills', 'on-device', 'mcp servers', 'ai history', 'long documents'],
+    'Focus and study': ['=focus', 'co-op focus timer', 'distraction budget', 'focus os', 'breaks', 'study block', 'focus block length', 'ask before distracting', 'knowledge base', 'flashmind', 'listen to articles', 'explain this page', 'research board', 'meeting copilot'],
+    'Extras and fun': ['chrome extensions', 'extension audit', 'extension changes', '=boosts', 'userscripts', 'page actions', 'page recorder', 'command chains', 'page watcher', 'media control', 'volume: ', 'mouse gesture editor', 'profile and medals'],
+    'Developer': ['developer desk', 'minimal vex', 'health check', 'diagnostics', 'feature switches', 'feature usage', 'search index', 'usage counts', 'new for you', 'what i changed', 'what’s new for me', 'what\'s new for me'],
+  },
+
   // Turkish for what this file and js/settings-find.js write (the English text is the key, as in js/i18n-ui.js).
   TR: {
     'Basics': 'Temel ayarlar',
@@ -138,6 +154,8 @@ const SettingsPane = {
     'More options': 'Daha fazla seçenek',
     'Show all': 'Tümünü göster',
     'Advanced': 'Gelişmiş',
+    'Rarely used': 'Nadiren kullanılan',
+    'Feature switches': 'Özellik anahtarları',
   },
 
   // ---- which card a section belongs to --------------------------------------------------------
@@ -155,8 +173,16 @@ const SettingsPane = {
     if (hit < 0) hit = 0;
     return { top, title: list[hit] ? list[hit][0] : top, index: hit };
   },
-  // Sort key inside a category: the card, so the sections of a card sit together.
-  cardRank(g, cat, top) { return this.cardOf(g, cat, top).index; },
+  // Is this an advanced section that Developer mode keeps behind the category's "Rarely used" fold?
+  isRare(g, top) {
+    const list = this.COMMON[top];
+    if (!list) return false;
+    const head = this._english(g);
+    if (typeof SettingsUI !== 'undefined' && SettingsUI.tierOf(head) === 'basic') return false;
+    return !list.some(p => (p[0] === '=' ? head === p.slice(1) : head.startsWith(p)));
+  },
+  // Sort key inside a category: the card, so the sections of a card sit together; the rare ones come after all the common cards.
+  cardRank(g, cat, top) { return this.cardOf(g, cat, top).index + (this.isRare(g, top) ? 6 : 0); },
 
   _t(text) {
     if (typeof VexI18nUI === 'undefined' || VexI18nUI.locale() !== 'tr') return text;
@@ -182,8 +208,61 @@ const SettingsPane = {
   // Developer mode, a reveal or the "show advanced" switch: the same test as css/simple-mode.css.
   _shown(g, panel) {
     if (g.hidden || g.style.display === 'none') return false;
+    return this._tierShown(g, panel) && !(g.dataset.rare && !g.classList.contains('set-rare-open'));
+  },
+  _tierShown(g, panel) {
     if (g.dataset.tier !== 'advanced') return true;
     return document.body.dataset.uiMode !== 'simple' || g.classList.contains('set-revealed') || panel.classList.contains('set-show-advanced');
+  },
+
+  // ---- the "Rarely used" fold at the end of a long category (Developer mode) ----------------------
+  _rareOpen: new Set(),
+  _setRare(root, key, on) {
+    if (on) this._rareOpen.add(key); else this._rareOpen.delete(key);
+    this._applyRare(root, key, on);
+  },
+  _applyRare(root, key, on) {
+    for (const g of this._sections(root)) {
+      if (g.dataset.rare && g.dataset.navKey === key && g.classList.contains('set-rare-open') !== on) g.classList.toggle('set-rare-open', on);
+    }
+  },
+  // A search result or a deep link inside a folded section opens the fold.
+  revealRare(g) {
+    if (!g || !g.dataset || !g.dataset.rare || g.classList.contains('set-rare-open')) return;
+    const root = g.parentElement;
+    this._setRare(root, g.dataset.navKey, true);
+    this.refresh(root);
+  },
+  _rareBar(root, key, panel) {
+    let bar = root.querySelector(':scope > .set-rare-bar');
+    const rare = this._sections(root).filter(g => g.dataset.rare && this._inCategory(g, key) && !g.hidden && g.style.display !== 'none' && this._tierShown(g, panel));
+    if (!rare.length || !this._sections(root).some(g => this._inCategory(g, key) && !g.dataset.rare && !g.hidden && g.style.display !== 'none' && this._tierShown(g, panel))) { if (bar && !bar.hidden) bar.hidden = true; return; }
+    const open = rare.some(g => g.classList.contains('set-rare-open'));
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'set-rare-bar';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'set-rare-btn';
+      btn.innerHTML = (typeof VexIcons !== 'undefined' ? VexIcons.svg('chevron-down', { size: 14 }) : '') + '<span class="set-rare-title"></span><span class="set-rare-names"></span><span class="set-rare-count"></span>';
+      btn.addEventListener('click', () => { const k = bar.dataset.navKey; this._setRare(root, k, !this._rareOpen.has(k)); this.refresh(root); });
+      bar.appendChild(btn);
+    }
+    const names = rare.map(g => { const l = g.querySelector('.setting-label'); return l ? l.textContent.replace(/\s+/g, ' ').trim() : ''; }).filter(Boolean);
+    const btn = bar.firstChild;
+    const title = this._t('Rarely used');
+    if (btn.querySelector('.set-rare-title').textContent !== title) btn.querySelector('.set-rare-title').textContent = title;
+    const list = names.join(', ');
+    if (btn.querySelector('.set-rare-names').textContent !== list) { btn.querySelector('.set-rare-names').textContent = list; btn.title = title + ': ' + list; }
+    const count = '(' + rare.length + ')';
+    if (btn.querySelector('.set-rare-count').textContent !== count) btn.querySelector('.set-rare-count').textContent = count;
+    if (btn.getAttribute('aria-expanded') !== String(open)) btn.setAttribute('aria-expanded', String(open));
+    if (bar.dataset.navKey !== key) bar.dataset.navKey = key;
+    if (bar.classList.contains('set-pane-off')) bar.classList.remove('set-pane-off');
+    if (bar.hidden) bar.hidden = false;
+    const prev = rare[0].previousElementSibling;
+    const anchor = prev && prev.classList.contains('set-card-title') ? prev : rare[0];
+    if (bar.nextElementSibling !== anchor) anchor.before(bar);
   },
 
   // Is this section's category the one on screen?
@@ -217,6 +296,9 @@ const SettingsPane = {
       for (const c of ['set-card-first', 'set-card-mid', 'set-card-last', 'set-card-only']) if (c !== cls && g.classList.contains(c)) g.classList.remove(c);
       if (cls && !g.classList.contains(cls)) g.classList.add(cls);
     };
+    // A category with nothing but rarely used sections has nothing to fold them under: they are all shown.
+    const mine = this._sections(root).filter(g => this._inCategory(g, key) && !g.hidden && g.style.display !== 'none' && this._tierShown(g, panel));
+    this._applyRare(root, key, this._rareOpen.has(key) || !mine.some(g => !g.dataset.rare));
     const shown = this._sections(root).filter(g => this._inCategory(g, key) && this._shown(g, panel));
     shown.forEach(g => this.densify(g, key));
     shown.forEach(g => this.tidy(g));
@@ -225,7 +307,7 @@ const SettingsPane = {
     const runs = [];
     for (const g of shown) {
       const last = runs[runs.length - 1];
-      if (last && last[0].dataset.card === g.dataset.card) last.push(g); else runs.push([g]);
+      if (last && last[0].dataset.card === g.dataset.card && !last[0].dataset.rare === !g.dataset.rare) last.push(g); else runs.push([g]);
     }
     // A card that would hold a single switch or button is not a card: its section joins the card before it (the first one, the card
     // after it). That is the "Options" of a category.
@@ -270,6 +352,7 @@ const SettingsPane = {
       if (typeof VexI18nUI !== 'undefined' && VexI18nUI.locale() === 'tr') t.lang = 'tr';
       first.before(t);
     }
+    this._rareBar(root, key, panel);
     this._clamp(shown);
     return runs.length;
   },
@@ -292,6 +375,7 @@ const SettingsPane = {
       const cat = SettingsUI._catOf(g);
       const card = this.cardOf(g, cat, SettingsUI.topOf(cat));
       g.dataset.card = card.title;
+      if (this.isRare(g, SettingsUI.topOf(cat))) g.dataset.rare = '1'; else delete g.dataset.rare;
     }
     const wanted = panel.dataset.paneCat;
     const available = !!wanted && Array.from(root.children).some(el => el.dataset && el.dataset.navKey === wanted);
@@ -431,11 +515,37 @@ const SettingsPane = {
     if (!g || typeof SettingsOrganize === 'undefined') return 0;
     let n = 0;
     const muted = this._mutedColor();
+    // 0. "Use X" feature switches (js/feature-switches.js) sit above the section's real settings and repeat its heading ("Use Slim
+    // scrollbars" over "Slim scrollbars"). A section with other rows keeps them in ONE closed fold at its end.
+    const fsRows = Array.from(g.querySelectorAll(':scope > .vex-feature-switch'));
+    if (fsRows.length && Array.from(g.children).some(c => !c.matches('.vex-feature-switch, .setting-label, .set-info-btn, .set-info-folded, .set-more-btn, .set-more-body, .set-fs-fold, .set-chevron, .set-clamp-btn, script, style') && c.querySelector('input:not([type="hidden"]), select, textarea, button:not(.set-info-btn)'))) {
+      const title = this._t('Feature switches');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'set-more-btn set-fs-fold';
+      btn.setAttribute('aria-expanded', 'false');
+      btn.innerHTML = (typeof VexIcons !== 'undefined' ? VexIcons.svg('chevron-down', { size: 14 }) : '') + '<span class="set-more-label"></span><span class="set-more-names"></span><span class="set-more-count"></span>';
+      btn.querySelector('.set-more-label').textContent = title;
+      const names = fsRows.map(r => { const t = r.querySelector('.setting-label-text'); return t ? t.textContent.replace(/^\s*Use\s+/i, '').trim() : ''; }).filter(Boolean);
+      btn.querySelector('.set-more-names').textContent = names.slice(0, 4).join(', ');
+      btn.querySelector('.set-more-count').textContent = '(' + fsRows.length + ')';
+      btn.title = title + ': ' + names.join(', ');
+      const body = document.createElement('div');
+      body.className = 'set-fs-body';
+      btn.addEventListener('click', () => {
+        const open = !body.hasAttribute('data-open');
+        if (open) body.setAttribute('data-open', ''); else body.removeAttribute('data-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      g.append(btn, body);
+      for (const r of fsRows) body.appendChild(r);
+      n++;
+    }
     // 1. hints
     const BLOCKS = 'div, p, ul, ol, table, button, select, input, textarea, label, h1, h2, h3, h4, .toggle';
     for (const el of g.querySelectorAll(SettingsOrganize.INFO_SELECTOR + ', span, div, p, small')) {
       if (el.dataset.hintDone) continue;
-      if (el.closest('.setting-label, button, .toggle, .set-info-btn, .set-nav, select, code, pre') || el.querySelector(BLOCKS)) continue;
+      if ((el.closest('.setting-label, button, .toggle, .set-info-btn, .set-nav, select, code, pre') && !el.matches('div.setting-label > :is(.setting-hint, .setting-info)')) || el.querySelector(BLOCKS)) continue;
       const len = (el.textContent || '').trim().length;
       if (len < 12) continue;
       if (!el.matches(SettingsOrganize.INFO_SELECTOR) && !this._smallGrey(el, muted)) continue;
@@ -446,10 +556,79 @@ const SettingsPane = {
       el.addEventListener('mouseenter', () => { el.title = (el.textContent || '').replace(/\s+/g, ' ').trim(); });
       n++;
     }
+    // 1b. "Title — explanation" or "Title · explanation" written inside one label: the explanation is the hint line under the title.
+    const DASH = /^\s*[—–·•]\s*/;
+    for (const el of g.querySelectorAll('.setting-toggle-row > span > :is(span, small), .setting-row-label > :is(span, small), .setting-label > :is(span, small)')) {
+      const first = el.firstChild;
+      if (el.dataset.dashDone || !first || first.nodeType !== 3 || !DASH.test(first.textContent) || el.querySelector(BLOCKS) || el.closest('button, .toggle, .set-info-btn, .set-nav') || this._isLive(el)) continue;
+      el.dataset.dashDone = '1';
+      el.dataset.hintDone = '1';
+      first.textContent = first.textContent.replace(DASH, '');
+      el.classList.add('set-sub-hint');
+      if (!SettingsOrganize._foldEl(el, { allowId: true })) el.addEventListener('mouseenter', () => { el.title = (el.textContent || '').replace(/\s+/g, ' ').trim(); });
+      n++;
+    }
+    // 1c. a label (with its hint) and, under it, a line of one to three menus or buttons: the controls go to the right of the label.
+    const HINTS = '.setting-info, .setting-hint, .set-hint-line, .set-info-btn, .set-info-folded, p.muted';
+    for (const d of g.querySelectorAll('div')) {
+      if (d.dataset.splitDone || d.closest('.set-split-row, .set-dense, .set-plain, .set-nav') || d.matches('.set-split-row, .set-split-text, [hidden]')) continue;
+      const kids = Array.from(d.children);
+      if (kids.length < 1 || kids.length > 3 || !kids.every(c => c.matches('select, button:not(.set-info-btn)')) || !kids.some(c => c.matches('select'))) continue;
+      let label = d.previousElementSibling;
+      const between = [];
+      while (label && label.matches(HINTS)) { between.unshift(label); label = label.previousElementSibling; }
+      if (!label || label.parentElement !== d.parentElement || label.matches('select, button, input, textarea') || label.querySelector('input, select, textarea, button:not(.set-info-btn)')) continue;
+      if (label.matches('label.setting-label') && label.parentElement === g) continue;
+      const t = (label.textContent || '').trim();
+      if (t.length < 2 || t.length > 200) continue;
+      d.dataset.splitDone = '1';
+      const row = document.createElement('div');
+      row.className = 'set-split-row';
+      const words = document.createElement('div');
+      words.className = 'set-split-text';
+      label.before(row);
+      row.append(words);
+      words.append(label, ...between);
+      d.classList.add('set-split-ctl');
+      row.append(d);
+      n++;
+    }
     // 2. a (i) alone on its own line goes to the end of the label beside it
+    const text = (e) => !!e && e.nodeType === 1 && !e.matches('button, .set-info-btn, .set-info-folded, hr') && !e.querySelector('input, select, textarea') && (e.textContent || '').trim().length > 0 && (e.textContent || '').trim().length <= 70 && !e.matches('.set-info-folded, [hidden]');
+    const anyText = (e) => !!e && e.nodeType === 1 && !e.matches('button, .set-info-btn, .set-info-folded, hr, [hidden]') && !e.querySelector('input, select, textarea') && (e.textContent || '').trim().length > 0;
+    const inline = (btn, host) => {
+      // A list laid out as a column (rows drawn at run time): the (i) ends its last row of text, it is not a row of its own.
+      const cs = getComputedStyle(host);
+      if (/flex/.test(cs.display) && cs.flexDirection === 'column') {
+        const last = Array.from(host.children).reverse().find(k => anyText(k) && !k.matches('input, select, textarea'));
+        if (last) host = last;
+      }
+      // A label with its own hint line: the (i) ends the title, above the hint.
+      const subHint = host.querySelector(':scope > .set-sub-hint');
+      if (subHint) subHint.before(btn); else host.appendChild(btn);
+      this._name(btn, host); btn.classList.remove('set-info-btn--line'); btn.classList.add('set-info-btn--inline'); n++; };
     for (const btn of g.querySelectorAll('.set-info-btn--line')) {
-      const text = (e) => !!e && e.nodeType === 1 && !e.matches('button, .set-info-btn, .set-info-folded, hr') && !e.querySelector('input, select, textarea') && (e.textContent || '').trim().length > 0 && (e.textContent || '').trim().length <= 70 && !e.matches('.set-info-folded, [hidden]');
-      const anyText = (e) => !!e && e.nodeType === 1 && !e.matches('button, .set-info-btn, .set-info-folded, hr, [hidden]') && !e.querySelector('input, select, textarea') && (e.textContent || '').trim().length > 0;
+      // Inside a label already: it ends that label.
+      if (btn.parentElement && btn.parentElement.matches('.setting-row-label, .setting-label, .setting-toggle-row > span')) { inline(btn, btn.parentElement); continue; }
+      // The explanation stands before its row: the (i) joins that row.
+      let after = btn.nextElementSibling;
+      while (after && after.matches('.set-info-folded, .set-info-btn')) after = after.nextElementSibling;
+      if (after && after.matches('.setting-toggle-row, .setting-row') && !text(btn.previousElementSibling)) {
+        // Like every other row: the (i) sits beside the switch, after the label.
+        const lab = after.querySelector(':scope > :is(span, .setting-label-text):first-child:not(.set-redundant)');
+        if (lab && after.matches('.setting-toggle-row')) lab.after(btn);
+        else if (after.querySelector(':scope > .toggle')) after.querySelector(':scope > .toggle').before(btn);
+        else after.appendChild(btn);
+        btn.classList.remove('set-info-btn--line'); btn.classList.add('set-info-btn--row'); this._name(btn, after); n++;
+        continue;
+      }
+      // An explanation a few lines under a label-and-menu row (its list of sites in between) explains that row.
+      let split = btn.previousElementSibling;
+      for (let i = 0; i < 3 && split && !split.matches('.set-split-row'); i++) split = split.previousElementSibling;
+      if (split && split.matches('.set-split-row')) {
+        const lab = split.querySelector('.set-split-text > :first-child');
+        if (lab) { inline(btn, lab); continue; }
+      }
       let host = btn.previousElementSibling;
       while (host && !anyText(host) && host.previousElementSibling) host = host.previousElementSibling;
       if (!text(host)) {
@@ -457,7 +636,27 @@ const SettingsPane = {
         while (host && host.matches('.set-info-folded, .set-info-btn')) host = host.nextElementSibling;
       }
       if (!text(host)) host = btn.previousElementSibling && anyText(btn.previousElementSibling) ? btn.previousElementSibling : host;
-      if (host && (text(host) || anyText(host))) { host.appendChild(btn); this._name(btn, host); btn.classList.remove('set-info-btn--line'); btn.classList.add('set-info-btn--inline'); n++; }
+      if (host && (text(host) || anyText(host))) { inline(btn, host); continue; }
+      // Last resort: the nearest text above it, in any element of the section.
+      const walker = document.createTreeWalker(g, NodeFilter.SHOW_TEXT);
+      let near = null;
+      for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+        if (btn.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING) break;
+        const p = t.parentElement;
+        if (!t.textContent.trim() || !p || p.closest('.set-info-folded, button, select, option, script, style, .toggle') || !p.getClientRects().length) continue;
+        near = p;
+      }
+      if (near && !btn.contains(near)) { inline(btn, near); continue; }
+      // Nothing above it (the explanation opens the section): the first text below it.
+      const down = document.createTreeWalker(g, NodeFilter.SHOW_TEXT);
+      let below = null;
+      for (let t = down.nextNode(); t && !below; t = down.nextNode()) {
+        if (!(btn.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+        const p = t.parentElement;
+        if (!t.textContent.trim() || !p || p.closest('.set-info-folded, button, select, option, script, style, .toggle') || !p.getClientRects().length) continue;
+        below = p;
+      }
+      if (below) inline(btn, below);
     }
     // 2b. the same for a section whose heading is off: its (i) goes to the end of its first row's label
     if (g.classList.contains('set-head-off') && !g.classList.contains('set-dense')) {
@@ -473,8 +672,24 @@ const SettingsPane = {
     }
     // 3. one button look
     for (const b of g.querySelectorAll('button')) {
-      if (b.dataset.btnDone || b.matches(this._SKIP_BTN)) continue;
+      if (b.dataset.btnDone) continue;
+      // Buttons that are one choice among several (Characters / Words): one segmented look.
+      if (b.matches('[aria-pressed], [aria-selected], [role="radio"], [role="tab"]') && !b.closest('.set-nav') && b.parentElement.querySelectorAll(':scope > button').length >= 2 && !b.matches('[class*="btn-"], .shortcut-key')) {
+        b.dataset.btnDone = '1';
+        b.classList.add('btn-seg');
+        n++;
+        continue;
+      }
+      if (b.matches(this._SKIP_BTN)) continue;
       const label = (b.textContent || '').trim();
+      // A button with only a picture: one icon-button look (28px square), named by its title when it has no name.
+      if (!label && b.querySelector('svg, img') && !b.matches('[class*="btn-"], .set-search-clear, .set-nav-chip')) {
+        b.dataset.btnDone = '1';
+        b.classList.add('btn-icon');
+        if (!b.hasAttribute('aria-label') && !b.hasAttribute('aria-labelledby') && b.title) b.setAttribute('aria-label', b.title);
+        n++;
+        continue;
+      }
       if (!label) continue;
       b.dataset.btnDone = '1';
       b.classList.add(/primary/.test(b.className) ? 'btn-primary' : 'btn-secondary');
@@ -492,35 +707,53 @@ const SettingsPane = {
     for (const g of shown) {
       // A list its module drew again has no hidden items left: the row under it goes.
       for (const old of Array.from(g.querySelectorAll('.set-clamp-btn'))) {
-        if (!old._list || !old._list.isConnected || !old._list.querySelector(':scope > .set-clamp-hidden')) { if (old._list) old._list.classList.remove('set-clamped-list'); old.remove(); delete g.dataset.clampDone; }
+        if (!old._list || !old._list.isConnected || !old._list.querySelector(':scope > .set-clamp-hidden')) { if (old._list) { old._list.classList.remove('set-clamped-list'); delete old._list.dataset.clamped; } old.remove(); }
       }
-      if (g.dataset.clampDone) continue;
-      let best = null;
+      // A module that drew its whole section again took the row with it: the marks are stale.
+      for (const l of Array.from(g.querySelectorAll('[data-clamped]'))) if (!Array.from(g.querySelectorAll('.set-clamp-btn')).some(b => b._list === l)) { l.classList.remove('set-clamped-list'); delete l.dataset.clamped; }
+      if (g.dataset.clampDone === 'open') continue;
+      // Every leaf list of ten or more items (a list that holds no other long list) is clamped.
+      const found = [];
       for (const c of g.querySelectorAll('div, ul, ol')) {
-        if (c.closest('.set-info-folded') || c.classList.contains('set-more-body')) continue;
+        if (c.dataset.clamped || c.closest('.set-info-folded') || c.classList.contains('set-more-body')) continue;
         const kids = Array.from(c.children).filter(k => !k.matches('script, style, [hidden], .set-info-btn, .set-clamp-btn') && k.getClientRects().length);
-        if (kids.length >= this.CLAMP_ITEMS && (!best || kids.length > best.kids.length)) best = { c, kids };
+        if (kids.length < this.CLAMP_ITEMS) continue;
+        // Only a list of like items (one kind of row) is a list; a section's own mixed rows are not.
+        const kinds = new Map();
+        for (const k of kids) { const sig = k.tagName + '.' + (k.classList[0] || ''); kinds.set(sig, (kinds.get(sig) || 0) + 1); }
+        const [top, count] = Array.from(kinds).sort((a, b) => b[1] - a[1])[0];
+        // The rows of a section's own settings are settings, not items of a list: the Advanced fold handles those.
+        if (count / kids.length >= 0.7 && !/\.(setting-toggle-row|setting-row|setting-group|setting-label|setting-row-label)$/.test(top)) found.push({ c, kids });
       }
-      if (!best) continue;
-      g.dataset.clampDone = '1';
-      best.c.classList.add('set-clamped-list');
-      best.kids.slice(this.CLAMP_SHOW).forEach(k => k.classList.add('set-clamp-hidden'));
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'set-clamp-btn';
-      btn.textContent = this._t('Show all') + ' ' + best.kids.length;
-      btn._list = best.c;
-      btn.addEventListener('click', () => this.unclamp(g));
-      best.c.after(btn);
+      const lists = found.filter(x => !found.some(y => y !== x && x.c.contains(y.c)));
+      if (!lists.length) continue;
+      const box = g.querySelector(':scope > [data-group-body], :scope > .vex-module-group-body') || g;
+      for (const best of lists) {
+        best.c.dataset.clamped = '1';
+        best.c.classList.add('set-clamped-list');
+        best.kids.slice(this.CLAMP_SHOW).forEach(k => k.classList.add('set-clamp-hidden'));
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'set-clamp-btn';
+        btn.textContent = this._t('Show all') + ' ' + best.kids.length;
+        btn._list = best.c;
+        btn.addEventListener('click', () => this.unclamp(g));
+        // One list in the group: its row is the LAST row of the group (rows under it stay under the list's rows, not under "Show all").
+        if (lists.length === 1 && box !== best.c && box.contains(best.c)) {
+          const tail = Array.from(box.children).find(k => k.matches('.set-more-btn'));
+          if (tail) tail.before(btn); else box.appendChild(btn);
+        } else best.c.after(btn);
+      }
       g.addEventListener('focusin', () => this.unclamp(g), { once: true });
     }
   },
   unclamp(g) {
     if (!g) return;
+    const had = !!g.querySelector('.set-clamp-btn, .set-clamp-hidden');
     g.querySelectorAll('.set-clamp-hidden').forEach(k => k.classList.remove('set-clamp-hidden'));
     g.querySelectorAll('.set-clamp-btn').forEach(b => b.remove());
-    g.querySelectorAll('.set-clamped-list').forEach(c => c.classList.remove('set-clamped-list'));
-    if (g.dataset.clampDone) g.dataset.clampDone = 'open';
+    g.querySelectorAll('.set-clamped-list').forEach(c => { c.classList.remove('set-clamped-list'); delete c.dataset.clamped; });
+    if (had) g.dataset.clampDone = 'open';
   },
 
   // The category a section is in (for a result or a link).
@@ -531,7 +764,7 @@ const SettingsPane = {
 };
 
 // In this page a hint is ONE line (about 90 characters): only a longer one folds behind its (i).
-if (typeof SettingsOrganize !== 'undefined') { SettingsOrganize.INFO_MIN = 90; SettingsOrganize.INLINE_MIN = 90; }
+if (typeof SettingsOrganize !== 'undefined') { SettingsOrganize.INFO_MIN = 90; SettingsOrganize.INLINE_MIN = 90; SettingsOrganize.MORE_AFTER = 7; SettingsOrganize.MORE_SHOWN = 0.4; }
 
 if (typeof window !== 'undefined') window.SettingsPane = SettingsPane;
 if (typeof module !== 'undefined' && module.exports) module.exports = { SettingsPane };

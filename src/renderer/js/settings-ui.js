@@ -104,7 +104,7 @@ const SettingsUI = {
     { name: 'Permissions',     icon: 'lock',     color: '#eab308', match: ['permission', 'site settings'] },
     { name: 'Cloud',           icon: 'cloud',    color: '#67e8f9', match: ['cloud'] },
     { name: 'Data',            icon: 'box',      color: '#ec4899', match: ['data', 'reset', 'export', 'storage'] },
-    { name: 'About',           icon: 'info',     color: '#64748b', match: ['about', 'version', 'update', 'help and faq'] },
+    { name: 'About',           icon: 'info',     color: '#64748b', match: ['about', 'version', 'update', 'help and faq', 'more from the creator'] },
   ],
 
   // The order the sections come in, by category name (see CATS): what most people look for first, and the rest by how related they are -
@@ -230,6 +230,7 @@ const SettingsUI = {
   reveal(el) {
     const group = el && el.closest ? el.closest('.setting-group') : null;
     if (group && group.dataset.tier === 'advanced') group.classList.add('set-revealed');
+    if (group && typeof SettingsPane !== 'undefined') SettingsPane.revealRare(group);
     if (el && typeof SettingsOrganize !== 'undefined') SettingsOrganize.open(el);
     return group;
   },
