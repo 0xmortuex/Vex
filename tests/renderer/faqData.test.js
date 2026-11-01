@@ -12,6 +12,8 @@ const JS = path.join(ROOT, 'src', 'renderer', 'js');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const { VexFaqData } = require('../../src/renderer/js/faq-data.js');
 const { VexI18nUI } = require('../../src/renderer/js/i18n-ui.js');
+globalThis.VexI18nUI = VexI18nUI;
+require('../../src/renderer/js/faq-tr.js');   // the Turkish of the questions and answers joins the table as the file loads
 const { VexFaq } = require('../../src/renderer/js/faq-ui.js');
 const { VexSettingsGroups } = require('../../src/renderer/js/vex-settings-groups.js');
 const tr = VexI18nUI.TABLE.tr;
@@ -198,11 +200,11 @@ describe('the screen', () => {
     expect(SettingsUI.opened).toEqual(['setting-language']);
     expect(document.getElementById('vex-faq')).toBeNull();
 
-    await VexFaq.open({ id: 'developer-mode' });
-    document.querySelector('#faq-a-developer-mode').closest('.faq-item').querySelector('.faq-go').click();
+    await VexFaq.open({ id: 'import-bookmarks' });
+    document.querySelector('#faq-a-import-bookmarks').closest('.faq-item').querySelector('.faq-go').click();
     expect(CommandBar.opened).toBe(1);
-    expect(document.getElementById('command-input').value).toBe('Developer mode');
-    expect(CommandBar.searched).toEqual(['Developer mode']);
+    expect(document.getElementById('command-input').value).toBe('Import from Another Browser');
+    expect(CommandBar.searched).toEqual(['Import from Another Browser']);
   });
 
   it('from the setup there are no buttons, only the where line', async () => {
@@ -232,6 +234,9 @@ describe('where it is wired in', () => {
   it('loads late, with its own sheet before a11y.css, and no new blocking script tag', () => {
     expect(read('src/renderer/js/lazy-boot.js')).toContain("{ src: 'js/faq-ui.js', usage: [] }");
     expect(html).not.toMatch(/<script[^>]+faq-/);
+    // The 45 KB of Turkish answers is read only when Help and FAQ opens, not at start-up (the start-up byte budget).
+    expect(read('src/renderer/js/faq-ui.js')).toContain("VexLazy.ensure('js/faq-tr.js')");
+    expect(read('src/renderer/js/i18n-ui.js')).not.toContain('Ayarlar’da Varsayılan tarayıcı yap düğmesine');
     const faq = html.indexOf('css/faq.css');
     expect(faq).toBeGreaterThan(-1);
     expect(faq).toBeLessThan(html.indexOf('css/a11y.css'));

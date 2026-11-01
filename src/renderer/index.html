@@ -95,6 +95,7 @@
   <link rel="stylesheet" href="css/profiles.css">
   <link rel="stylesheet" href="css/play-room.css">
   <link rel="stylesheet" href="css/simple-mode.css">
+  <link rel="stylesheet" href="css/settings-organize.css">
   <link rel="stylesheet" href="css/site-panel.css">
   <link rel="stylesheet" href="css/legal.css">
   <link rel="stylesheet" href="css/passkeys.css">
@@ -459,8 +460,8 @@
               <div id="setting-search-keywords"></div>
               <button id="setting-search-keyword-add" class="btn-secondary" type="button" style="margin-top:6px">Add a keyword…</button>
               <div class="setting-toggle-row" style="margin-top:8px">
-                <span>Simple mode <span style="color:var(--text-muted);font-size:11px">· a calm Vex: the everyday buttons, panels and settings only. Nothing is removed — Ctrl+K and the settings search still reach everything, and All features in the toolbar brings the rest back</span></span>
-                <label class="toggle"><input type="checkbox" id="setting-simple-mode" aria-label="Simple mode"><span class="toggle-slider"></span></label>
+                <span>Developer mode <span style="color:var(--text-muted);font-size:11px">· on: every setting, panel and tool Vex has. Off: a calm Vex with only the critical settings and the everyday buttons and panels. Nothing is removed either way — Ctrl+K and the settings search still reach everything, and All features in the toolbar turns this on</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-developer-mode" aria-label="Developer mode"><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Start Vex when I sign in to Windows <span id="login-item-note" style="color:var(--text-muted);font-size:11px">· Vex opens with Windows, in this profile</span></span>
@@ -1165,6 +1166,12 @@
                 <button id="btn-edit-layout" style="background:var(--primary,var(--accent));border:1px solid transparent;color:#111;padding:8px 14px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Edit layout</button>
               </div>
               <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Turns on customize mode: drag any toolbar button or sidebar icon to reorder it, or hit its red X to hide it. Hidden items can be restored from the bar at the bottom. Sidebar per-item resets stay in the Sidebar Buttons section.</div>
+              <div style="margin-top:14px">
+                <div style="font-size:13px;font-weight:600;margin-bottom:4px">Toolbar buttons</div>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">Four icons at most are kept on the right of the toolbar; the rest wait in the "more" menu (three dots). Tick Show in toolbar to keep a button in sight.</div>
+                <div id="toolbar-buttons-list" role="group" aria-label="Show in toolbar"></div>
+                <button id="btn-toolbar-buttons-reset" type="button" class="btn-secondary" style="margin-top:8px">Reset toolbar buttons</button>
+              </div>
             </div>
 
             <!-- Site settings: every site with anything set (js/site-profiles.js),
@@ -1838,6 +1845,7 @@
   <script src="js/nav-lock.js"></script>
   <script src="js/panel-to-tab.js"></script>
   <script src="js/settings-ui.js"></script>
+<script src="js/settings-organize.js"></script>
   <script src="js/settings-control.js"></script>
   <script src="js/tools.js"></script>
   <script src="js/queue-panel.js"></script>
@@ -2320,6 +2328,7 @@
   <script src="js/automations.js"></script>
   <script src="js/pip-manager.js"></script>
   <script src="js/profiles-ui.js"></script>
+  <script src="js/toolbar-limit.js"></script>
   <script src="js/toolbar-overflow.js"></script>
   <script src="js/zoom-indicator.js"></script>
   <script src="js/fullscreen-notice.js"></script>

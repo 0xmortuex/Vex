@@ -262,6 +262,7 @@
         panel.append(actions);
         const more = el('div', 'vws-actions');
         more.append(button(L('Use colours from this wallpaper'), () => colours(d.id), { iconName: 'palette' }));
+        syncButtons(more, d.id, renderPanel);
         if (V.current()) more.append(button(L('Remove wallpaper'), () => V.remove().then(() => { say(L('The wallpaper is off. Your New Tab uses the theme again.')); renderGrid(); }).catch(fail), { cls: 'btn-danger', iconName: 'x' }));
         if (d.source === 'mine') more.append(button(L('Delete this picture'), () => del(d), { cls: 'btn-danger', iconName: 'trash' }));
         panel.append(more);
@@ -362,6 +363,21 @@
     },
   };
 
+  // "Sync Vex to this wallpaper" and "Undo sync" (js/wallpaper-sync.js): only ever on a click.
+  function syncButtons(into, id, after) {
+    const SY = root.VexWallpaperSync;
+    if (!SY) return;
+    into.append(button(L('Sync Vex to this wallpaper'), () => {
+      toast(L('Syncing…'));
+      SY.apply(id).then(() => { toast(L('Vex now matches this wallpaper. Undo sync puts your old theme back.'), 'success'); after(); }).catch(fail);
+    }, { cls: 'btn-primary', iconName: 'palette' }));
+    let can = false;
+    try { can = SY.canUndo(); } catch (err) { fail(err); }
+    if (can) into.append(button(L('Undo sync'), () => {
+      SY.undo().then(() => { toast(L('Your earlier theme is back.'), 'success'); after(); }).catch(fail);
+    }, { iconName: 'undo' }));
+  }
+
   // --- Settings > Appearance > Wallpapers ------------------------------------------------------
 
   function renderSettings(body) {
@@ -374,6 +390,7 @@
     const row = el('div', 'vws-set-actions');
     row.append(button(L('Open the Wallpaper Store'), () => { try { Store.open(); } catch (err) { fail(err); } }, { cls: 'btn-primary', iconName: 'palette' }));
     if (c) row.append(button(L('Remove wallpaper'), () => V.remove().then(again).catch(fail), { iconName: 'x' }));
+    if (c) syncButtons(row, c.id, again);
     body.append(row);
     body.append(G.toggle(L('Show the wallpaper on the New Tab'), V.enabled(), (on) => { try { V.setEnabled(on); if (typeof root.VexUsage !== 'undefined') root.VexUsage.touch(V.FEATURE); } catch (err) { fail(err); } }));
 

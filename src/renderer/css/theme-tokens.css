@@ -547,3 +547,7 @@ html[data-theme="default"] body:not([data-gui-style="glass"]):is(:not([data-gui-
 :is(.auth-add-btn, .auth-save) {
   color: var(--on-primary, #fff) !important;
 }
+
+/* Every native <select> popup: the option rows and group headings take the theme's own surface and text, so a dark
+   theme never leaves light text on the popup's white and a light one never leaves dark text on a dark popup. */
+select option, select optgroup { background-color: var(--surface, var(--vex-bg-elevated, Canvas)); color: var(--text, var(--vex-text-primary, CanvasText)); }

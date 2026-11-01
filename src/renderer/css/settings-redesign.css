@@ -569,3 +569,14 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search-row {
 /* While something is searched for, the left list holds the results: long names are cut, not wrapped. */
 .set-nav[data-results] .set-result-chip { max-width: 100%; min-width: 0; }
 .set-nav[data-results] .set-result-chip span { overflow: hidden; text-overflow: ellipsis; }
+
+/* The single setting a search result took you to, for a moment. */
+.settings-content .set-item-hit {
+  border-radius: var(--radius, 8px);
+  box-shadow: 0 0 0 2px var(--primary), 0 0 0 6px color-mix(in srgb, var(--primary) 22%, transparent);
+  transition: box-shadow .25s ease;
+}
+/* A result that is one setting names the section it is in underneath. */
+.set-nav[data-results] .set-result-chip { flex-direction: column; align-items: flex-start; }
+.set-nav .set-result-sub { display: block; font-size: 10.5px; opacity: .75; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .settings-content .set-item-hit { transition: none; } }

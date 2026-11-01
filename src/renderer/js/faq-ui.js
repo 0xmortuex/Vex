@@ -106,6 +106,8 @@ const VexFaq = {
   async open(opts = {}) {
     if (typeof VexSettingsGroups === 'undefined') throw new Error('Settings sections are not loaded, so Help and FAQ cannot open');
     if (typeof VexFaqData === 'undefined') await VexLazy.ensure('js/faq-data.js');
+    // The Turkish of the questions and answers is its own late file (js/faq-tr.js): it joins the Turkish table as it loads.
+    if (typeof VexLazy !== 'undefined') await VexLazy.ensure('js/faq-tr.js');
     const L = (s) => this._L(s);
     const items = this.items();
     const fromSetup = !!opts.fromSetup;
