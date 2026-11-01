@@ -53,9 +53,10 @@ const ThemePackUI = {
   toggle() { if (this._el) this.close(); else this.open(); },
 
   _do(fn, message) {
+    let failed = false;
     try { fn(); }
-    catch (err) { console.error('[ThemePackUI]', err); window.showToast?.((err && err.message) || 'That did not work', 'error'); }
-    if (message) window.showToast?.(message, 'info', 1500);
+    catch (err) { failed = true; console.error('[ThemePackUI]', err); window.showToast?.((err && err.message) || 'That did not work', 'error'); }
+    if (message && !failed) window.showToast?.(message, 'info', 1500);
     this._draw();
   },
 

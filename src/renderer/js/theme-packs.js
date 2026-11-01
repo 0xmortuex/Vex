@@ -195,8 +195,16 @@
   }
 
   // At start-up: the saved design's attributes (the skin and fonts persist in their own keys).
+  // A private window has storage of its own (nothing saved), so it wears the design of the window it was opened from, which js/early-look.js
+  // already put on <html> from the address: painting the empty default over it would strip it.
   function apply() {
     var s = read();
+    var given = typeof window !== 'undefined' && window.VexEarlyLook ? window.VexEarlyLook.carried() : null;
+    if (given && given.html && given.html.attrs && !localStorage.getItem(KEY)) {
+      var a = given.html.attrs;
+      paintAttrs({ tabs: a['data-pk-tabs'], bar: a['data-pk-bar'], surface: a['data-pk-surface'], density: a['data-pk-density'] });
+      return s;
+    }
     paintAttrs(design(s.design));
     return s;
   }

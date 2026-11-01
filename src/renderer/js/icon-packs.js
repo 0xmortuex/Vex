@@ -124,7 +124,15 @@
 
   var state = { id: DEFAULT };
   function stored() {
-    try { var v = localStorage.getItem(KEY); return get(v) ? v : DEFAULT; } catch (err) { console.error('[IconPacks] the saved icon pack could not be read:', err); return DEFAULT; }
+    try {
+      var v = localStorage.getItem(KEY);
+      // A private window has storage of its own: it wears the icons of the window it was opened from (carried in the address, js/early-look.js).
+      if (v === null && window.VexEarlyLook) {
+        var given = window.VexEarlyLook.carried();
+        v = given && given.html && given.html.attrs ? given.html.attrs['data-icon-pack'] : null;
+      }
+      return get(v) ? v : DEFAULT;
+    } catch (err) { console.error('[IconPacks] the saved icon pack could not be read:', err); return DEFAULT; }
   }
 
   function glyphFor(name, id) {
