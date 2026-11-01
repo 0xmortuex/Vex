@@ -107,6 +107,13 @@ describe('the mark markup', () => {
     expect(block).not.toMatch(/#d4a574|#ffffff|#fff\b/i);
   });
 
+  it('tells scripts/check-ui.js what the mark paints with: the diamond declares currentColor', () => {
+    // check:ui reads an icon's paint from its fill/stroke attributes; with none it assumed the default black and
+    // reported the logo as 1.1:1 on every dark theme (CI, 2026-11-01).
+    expect(logo).toMatch(/class="vex-logo-body"[^>]*fill="currentColor"/);
+    expect(logo).toMatch(/class="vex-logo-body"[^>]*stroke="currentColor"/);
+  });
+
   it('keeps the silhouette: the diamond, two halves and the chevron path', () => {
     expect(logo).toContain('points="40,12 68,40 40,68 12,40"');
     expect(logo).toContain('points="40,12 68,40 40,40"');
