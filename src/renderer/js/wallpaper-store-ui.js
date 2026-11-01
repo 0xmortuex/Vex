@@ -343,10 +343,10 @@
           if (ui.draft.auto) {
             acts.push([L('Show more of it'), async () => { ui.draft.auto = false; ui.draft.dim = Math.max(ui.draft.dim, 0.4); await V.apply(d.id, ui.draft); renderGrid(); await report(d); }]);
           }
-          say(L('Applied: ') + d.title + '. ' + L('But only') + ' ' + Math.round(sh.shows * 100) + '% ' + L('of the picture shows: to keep the text on your New Tab readable over it, Vex has to shade it heavily. Showing more can make some text harder to read.'), acts.concat(matchOffer(d)));
+          say(L('Applied: ' + d.title) + '. ' + L('But only') + ' ' + Math.round(sh.shows * 100) + '% ' + L('of the picture shows: to keep the text on your New Tab readable over it, Vex has to shade it heavily. Showing more can make some text harder to read.'), acts.concat(matchOffer(d)));
           return;
         }
-        say(L('Applied: ') + d.title + '. ' + (sh && sh.textOk === false ? L('Some text on your New Tab may be hard to read over it.') : L('Open a New Tab to see it.')), matchOffer(d));
+        say(L('Applied: ' + d.title) + '. ' + (sh && sh.textOk === false ? L('Some text on your New Tab may be hard to read over it.') : L('Open a New Tab to see it.')), matchOffer(d));
       }
       // "Match Vex to it" / "Not now" after Apply: only when this wallpaper is not matched everywhere yet.
       function matchOffer(d) {

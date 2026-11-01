@@ -12919,6 +12919,7 @@ const VexI18nUI = {
       'Spotify, Netflix and Roblox': 'Spotify, Netflix ve Roblox',
       'Claude and GitHub': 'Claude ve GitHub',
       'Your pinned sites and other apps': 'Sabitlediğiniz siteler ve diğer uygulamalar',
+      'Applied: {1}': 'Uygulandı: {1}',
       // --- end sidebar folders split ---
       // --- extensions screens (agent) ---
       'Allow access to file URLs': 'Dosya adreslerine (file://) erişime izin ver',
