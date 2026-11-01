@@ -392,7 +392,7 @@ const VexClock = {
   // 'schedules' is the Scheduled tasks sub-tab: the former Schedules panel
   // (js/schedules-panel.js) drawn into this panel's body. SidebarManager routes
   // every old way of opening 'schedules' here with _tab set to it.
-  TABS: [['alarms', 'Alarms', 'alarm'], ['timers', 'Timer', 'timer'], ['stopwatch', 'Stopwatch', 'clock'], ['world', 'World', 'globe'], ['schedules', 'Scheduled tasks', 'calendar']],
+  TABS: [['alarms', 'Alarms', 'alarm'], ['reminders', 'Reminders', 'bell'], ['timers', 'Timer', 'timer'], ['stopwatch', 'Stopwatch', 'clock'], ['world', 'World', 'globe'], ['schedules', 'Scheduled tasks', 'calendar']],
   _tab: 'alarms',
   _container: null,
   _clockTimer: null,
@@ -435,12 +435,28 @@ const VexClock = {
     if (this._clockTimer) this._clockTimer.stop(); this._clockTimer = null;
     if (this._tab === 'alarms') this._renderAlarms(body);
     else if (this._tab === 'timers') this._renderTimers(body);
+    else if (this._tab === 'reminders') this._renderReminders(body);
     else if (this._tab === 'stopwatch') this._renderStopwatch(body);
     else if (this._tab === 'schedules') {
       if (typeof SchedulesPanel === 'undefined') throw new Error('Scheduled tasks cannot be shown: js/schedules-panel.js did not load');
       SchedulesPanel.init(body);
     }
     else this._renderWorld(body);
+  },
+
+  // ---- reminders: one list of what will remind you, and one form (js/reminders-tab.js, loaded the first time it is asked for)
+  async _renderReminders(body) {
+    try {
+      if (typeof VexRemindersTab === 'undefined') {
+        if (typeof VexLazy === 'undefined') throw new Error('js/reminders-tab.js did not load');
+        await VexLazy.ensure('js/reminders-tab.js');
+      }
+      if (this._tab !== 'reminders' || !body.isConnected) return;
+      VexRemindersTab.render(body);
+    } catch (err) {
+      body.textContent = 'The Reminders tab could not be shown: ' + ((err && err.message) || 'unknown error');
+      window.VexProblems?.note('Clock', 'The Reminders tab could not be shown', err);
+    }
   },
 
   // ---- alarms

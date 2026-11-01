@@ -246,9 +246,9 @@ describe('the Scheduled tasks sub-tab', () => {
     const host = document.getElementById('panel-clock');
     VexClock.renderPanel(host);
     const tabs = [...host.querySelectorAll('.ck-tabs [role="tab"]')];
-    expect(tabs.map(t => t.dataset.tab)).toEqual(['alarms', 'timers', 'stopwatch', 'world', 'schedules']);
+    expect(tabs.map(t => t.dataset.tab)).toEqual(['alarms', 'reminders', 'timers', 'stopwatch', 'world', 'schedules']);
     expect(tabs.find(t => t.dataset.tab === 'schedules').textContent.trim()).toBe('Scheduled tasks');
-    expect(tabs.map(t => t.getAttribute('aria-selected'))).toEqual(['false', 'false', 'false', 'false', 'true']);
+    expect(tabs.map(t => t.getAttribute('aria-selected'))).toEqual(['false', 'false', 'false', 'false', 'false', 'true']);
     expect(host.querySelector('.ck-tabs').getAttribute('role')).toBe('tablist');
     expect(host.querySelector('#clock-body').getAttribute('role')).toBe('tabpanel');
     // The existing Schedules UI, unchanged: its own tabs, New Task and the cards.

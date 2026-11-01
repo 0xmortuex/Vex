@@ -857,6 +857,8 @@ Notes, sessions, monitoring, automation.
   - Open: Ctrl+K: "Toolbox".
 - **Reminders in another city's time** (`remind-zone`): Type "9am New York time" or "tomorrow 17:00 in Tokyo" and the reminder lands at that moment, read back in both clocks before it saves.
   - Open: Ctrl+K: "Remind me".
+- **Reminders in one place** (`reminders-tab`): The Clock panel's Reminders tab lists what will remind you (timed and site reminders, page reminders, things you owe or wait on, deadlines, things waiting for the end of a game) and adds one of the four kinds from a single form. Every old entry still works.
+  - Open: Ctrl+K: "Reminders".
 - **Tool history** (`tool-history`): Every tool keeps its last ten results and the Toolbox shows the tools you opened most recently, beside your favourites.
   - Open: Ctrl+K: "Toolbox".
 - **automations** (`automations`): When this, do that — when a page opens, or at a time each day, run a command or open something.
