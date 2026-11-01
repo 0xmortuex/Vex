@@ -494,6 +494,8 @@
       permissions: { reads: ['the feature descriptions; the stored data a feature owns, when you reset it'], writes: ['deletes the data of one feature, only after you confirm, with Undo'], sends: [] } },
     { id: 'your-data', title: 'Your data (export and import)', group: 'Your data', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['your-data'],
       permissions: { reads: ['everything Vex stores except saved logins, authenticator codes and tokens'], writes: ['a file you save; or what you bring back from a file, with Undo; Markdown files in a folder you pick'], sends: [] } },
+    { id: 'help-faq', title: 'Help and FAQ', group: 'Help and FAQ', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['help-faq'],
+      permissions: { reads: ['its own list of questions and answers'], writes: [], sends: [] } },
     { id: 'provenance-chip', title: 'Provenance chip on generated output', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['which backend and model wrote a piece of text'], writes: [], sends: [] } },
     { id: 'search-index', title: 'Shared search index', group: 'Search index', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.searchIndex.capMB'],

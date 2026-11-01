@@ -30,6 +30,7 @@ const VexBoot = {
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/diagnostics-bundle.js', usage: [] },
     { src: 'js/your-data.js', usage: [] },
+    { src: 'js/faq-ui.js', usage: [] },
     { src: 'js/page-recorder.js', usage: [] },
     { src: 'js/agent-task-panel.js', usage: [] },
     { src: 'js/shopping-clip.js', usage: [] },

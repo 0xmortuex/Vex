@@ -1073,12 +1073,25 @@ const Onboarding = {
             <span style="font-size:13.5px;font-weight:600">Take a tour</span>
             <span style="font-size:11.5px;color:var(--text-muted)">When you finish, Vex asks which one: a quick minute on the main controls, or a full tour through the areas you choose.</span>
           </span>
+        </button>
+        <button id="ob-open-faq" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin-top:10px;padding:12px 14px;border-radius:11px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;text-align:left">
+          <span style="display:inline-flex">${VexIcons.svg('book-open', { size: 19 })}</span>
+          <span style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:13.5px;font-weight:600">Questions? Help and FAQ is always one click away.</span>
+            <span style="font-size:11.5px;color:var(--text-muted)">Short answers about privacy, sync, passwords, themes, speed and more. There is nothing to read now; open it whenever you need it.</span>
+            <span style="font-size:11.5px;font-weight:600;color:var(--primary)">Open Help and FAQ</span>
+          </span>
         </button>`;
       const btn = body.querySelector('#ob-take-tour');
       btn?.addEventListener('click', () => {
         this._wantTour = !this._wantTour;
         btn.style.borderColor = this._wantTour ? 'var(--primary)' : 'var(--border)';
         btn.querySelector('span:last-child span:first-child').textContent = this._wantTour ? 'Tour queued — starts when you finish' : 'Take a tour';
+      });
+      // The last step says where help lives; opening it is optional and Skip/Finish work without it.
+      body.querySelector('#ob-open-faq')?.addEventListener('click', () => {
+        if (typeof VexLazy === 'undefined') { window.showToast?.('Help and FAQ is not available in this window', 'error'); return; }
+        VexLazy.ensure('js/faq-ui.js').then(() => window.VexFaq.open({ fromSetup: true })).catch(err => window.showToast?.(err.message, 'error'));
       });
     } else if (key === 'browsing') {
       this._renderSwitches(body, this.BROWSING_FIELDS(), 'browsing');
