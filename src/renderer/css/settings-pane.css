@@ -145,9 +145,25 @@
 /* A container whose menu sits next to its label: the label takes what is left, the menu stays right. */
 #panel-settings[data-pane] .set-flexrows { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 0; }
 #panel-settings[data-pane] .set-flexrows > :not(select, button, .toggle, .set-info-btn, input[type="checkbox"], input[type="radio"]) { flex: 1 1 100%; min-width: 0; }
-#panel-settings[data-pane] .set-flexrows > :not(select, button, .toggle, .set-info-btn, input[type="checkbox"], input[type="radio"]):has(+ select) { flex: 1 1 0; min-width: 160px; }
+#panel-settings[data-pane] .set-flexrows > :not(select, button, .toggle, .set-info-btn, input[type="checkbox"], input[type="radio"]):has(+ select) { flex: 1 1 calc(100% - 264px); min-width: 160px; }
 #panel-settings[data-pane] .set-flexrows > select { margin: 6px 0 6px auto; }
 #panel-settings[data-pane] .set-flexrows > :is(label, .setting-row-label):has(+ select) { padding: 8px 0; font-size: 14px; font-weight: 500; color: var(--text); margin: 0; border: 0; }
+
+/* A checkbox with its words (a module's own bordered box) is a plain row. */
+#panel-settings[data-pane] .settings-content .setting-group label:has(> input[type="checkbox"]):not(.toggle) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 0;
+  box-sizing: border-box;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 14px;
+}
 
 /* A row whose right side is several buttons: they sit together on the right. */
 #panel-settings[data-pane] .settings-content .setting-group .setting-toggle-row > :is(span, div):has(> button) {
@@ -316,6 +332,7 @@ select.set-result-control { max-width: 220px; }
 /* A section of a few rows that are a label with its menu: the label left, the menu right, on one line. */
 #panel-settings[data-pane] .settings-content > .setting-group.set-plain { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; }
 .set-plain > * { flex: 1 1 100%; min-width: 0; }
+.set-plain > :is(button, .btn-primary, .btn-secondary, .btn-danger) { flex: 0 0 auto; }
 .set-plain > label.setting-label:not(.set-info-btn) { flex: 1 1 40%; margin: 0; font-size: 14px; font-weight: 500; padding: 8px 0; }
 #panel-settings[data-pane] .settings-content .set-plain > select { flex: 0 0 auto; width: 240px; max-width: 46%; margin: 6px 0 6px auto; }
 #panel-settings[data-pane] .settings-content .set-plain > .set-info-btn--corner { position: static; flex: 0 0 auto; margin: 0 0 0 auto; }
