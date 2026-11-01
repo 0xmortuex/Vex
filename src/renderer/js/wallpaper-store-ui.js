@@ -262,10 +262,10 @@
         panel.append(actions);
         const more = el('div', 'vws-actions');
         more.append(button(L('Use colours from this wallpaper'), () => colours(d.id), { iconName: 'palette' }));
-        syncButtons(more, d.id, renderPanel);
         if (V.current()) more.append(button(L('Remove wallpaper'), () => V.remove().then(() => { say(L('The wallpaper is off. Your New Tab uses the theme again.')); renderGrid(); }).catch(fail), { cls: 'btn-danger', iconName: 'x' }));
         if (d.source === 'mine') more.append(button(L('Delete this picture'), () => del(d), { cls: 'btn-danger', iconName: 'trash' }));
         panel.append(more);
+        matchSection(panel, d.id);
 
         // The picture behind the sample, drawn from the same source the New Tab gets.
         try {
@@ -363,19 +363,48 @@
     },
   };
 
-  // "Sync Vex to this wallpaper" and "Undo sync" (js/wallpaper-sync.js): only ever on a click.
-  function syncButtons(into, id, after) {
+  // "Match Vex to this wallpaper" (js/wallpaper-sync.js): one switch per part of the window, each
+  // working at once, and a button that turns them all on. Only ever on a click.
+  function matchSection(into, id) {
     const SY = root.VexWallpaperSync;
     if (!SY) return;
-    into.append(button(L('Sync Vex to this wallpaper'), () => {
-      toast(L('Syncing…'));
-      SY.apply(id).then(() => { toast(L('Vex now matches this wallpaper. Undo sync puts your old theme back.'), 'success'); after(); }).catch(fail);
-    }, { cls: 'btn-primary', iconName: 'palette' }));
-    let can = false;
-    try { can = SY.canUndo(); } catch (err) { fail(err); }
-    if (can) into.append(button(L('Undo sync'), () => {
-      SY.undo().then(() => { toast(L('Your earlier theme is back.'), 'success'); after(); }).catch(fail);
-    }, { iconName: 'undo' }));
+    const sec = el('div', 'vws-match');
+    sec.append(el('h4', 'vws-match-title', L('Match Vex to this wallpaper')));
+    sec.append(el('p', 'vws-match-note', L('Turn on the parts of Vex that should wear this wallpaper\'s colours. The rest keeps your theme.')));
+    let on = [];
+    try { on = SY.areasFor(id); } catch (err) { fail(err); }
+    const boxes = new Map();
+    let busy = Promise.resolve();
+    const refresh = () => { let can = false; try { can = SY.canUndo(); } catch (err) { fail(err); } undoBtn.disabled = !can; };
+    const undoBtn = button(L('Undo'), () => {
+      busy = busy.then(() => SY.undo()).then(() => { for (const b of boxes.values()) b.checked = false; refresh(); toast(L('Your earlier theme is back.'), 'success'); }).catch(fail);
+    }, { iconName: 'undo' });
+    const send = (done) => {
+      const picked = SY.AREA_IDS.filter(a => boxes.get(a).checked);
+      busy = busy.then(() => SY.setAreas(id, picked)).then(refresh).then(() => { if (done) toast(done, 'success'); }).catch(fail);
+    };
+    const list = el('div', 'vws-match-list');
+    for (const a of SY.AREAS) {
+      const row = el('label', 'vws-match-row');
+      const box = doc.createElement('input');
+      box.type = 'checkbox';
+      box.checked = on.includes(a.id);
+      box.addEventListener('change', () => send());
+      boxes.set(a.id, box);
+      const text = el('span', 'vws-match-text');
+      text.append(el('span', 'vws-match-label', L(a.label)), el('span', 'vws-match-hint', L(a.hint)));
+      row.append(box, text);
+      list.append(row);
+    }
+    sec.append(list);
+    const actions = el('div', 'vws-actions');
+    actions.append(button(L('Match everything'), () => {
+      for (const b of boxes.values()) b.checked = true;
+      send(L('Vex now matches this wallpaper. Undo puts your old theme back.'));
+    }, { cls: 'btn-primary', iconName: 'palette' }), undoBtn);
+    sec.append(actions);
+    refresh();
+    into.append(sec);
   }
 
   // --- Settings > Appearance > Wallpapers ------------------------------------------------------
@@ -390,8 +419,8 @@
     const row = el('div', 'vws-set-actions');
     row.append(button(L('Open the Wallpaper Store'), () => { try { Store.open(); } catch (err) { fail(err); } }, { cls: 'btn-primary', iconName: 'palette' }));
     if (c) row.append(button(L('Remove wallpaper'), () => V.remove().then(again).catch(fail), { iconName: 'x' }));
-    if (c) syncButtons(row, c.id, again);
     body.append(row);
+    if (c) matchSection(body, c.id);
     body.append(G.toggle(L('Show the wallpaper on the New Tab'), V.enabled(), (on) => { try { V.setEnabled(on); if (typeof root.VexUsage !== 'undefined') root.VexUsage.touch(V.FEATURE); } catch (err) { fail(err); } }));
 
     const url = el('input', 'set-input');

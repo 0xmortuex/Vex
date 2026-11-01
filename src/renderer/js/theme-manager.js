@@ -257,12 +257,16 @@ const ThemeManager = {
   // way this window does). `preview` is the editor's: { colors, image } while
   // you edit, image undefined = the saved one, null = none.
   startPageThemeJs(theme, preview) {
-    const id = String(theme).replace(/[^a-z-]/g, '');
+    let id = String(theme).replace(/[^a-z-]/g, '');
     // A New Tab that loads while you edit that theme shows the edit.
     if (!preview && typeof ThemeStudio !== 'undefined') preview = ThemeStudio.previewOf(id) || undefined;
+    // Match Vex to a wallpaper (js/wallpaper-sync.js): the New Tab wears the wallpaper's colours,
+    // or the theme worn before, whichever its switch says.
+    const synced = !preview && window.VexWallpaperSync ? window.VexWallpaperSync.newTabOverride(id) : null;
+    if (synced) id = synced.id;
     let tc = '';
     if (typeof CustomThemes !== 'undefined' && CustomThemes.ID_RE.test(id)) {
-      const colors = (preview && preview.colors) || (typeof ThemeStudio !== 'undefined' ? ThemeStudio.colorsOf(id) : null);
+      const colors = (preview && preview.colors) || (synced ? synced.colors : (typeof ThemeStudio !== 'undefined' ? ThemeStudio.colorsOf(id) : null));
       if (colors) tc = CustomThemes.toQuery(colors);
     }
     const img = preview && preview.image !== undefined ? preview.image : undefined;

@@ -16,8 +16,15 @@ const { VexWallpaperSync: S } = require(JS + 'wallpaper-sync.js');
 
 const all = WallpaperData.generated();
 
+// Themes of the user's own to mix with: two dark, one light, each readable by itself.
+const OWN = {
+  oxford: { background: '#14161d', surface: '#1e222c', text: '#e8eaf0', muted: '#a3a9b8', primary: '#7aa2f7', success: '#34d399', warning: '#fbbf24', danger: '#f87171', border: '#343a49' },
+  'firefox-dark': { background: '#1c1b22', surface: '#2b2a33', text: '#fbfbfe', muted: '#b5b4be', primary: '#00ddff', success: '#34d399', warning: '#fbbf24', danger: '#f87171', border: '#4a4a55' },
+  paper: { background: '#f6f1e7', surface: '#ffffff', text: '#1f1c18', muted: '#5c564c', primary: '#1e3a5f', success: '#0e700e', warning: '#8a5300', danger: '#c42b1c', border: '#d8d0c0' },
+};
+
 function fakeThemes() {
-  const THEMES = [{ id: 'oxford' }, { id: 'firefox-dark' }];
+  const THEMES = [{ id: 'oxford' }, { id: 'firefox-dark' }, { id: 'paper' }];
   const M = {
     DEFAULT_THEME: 'oxford', THEMES, currentTheme: 'oxford', applied: [],
     get availableThemes() { return THEMES.map(t => t.id); },
@@ -27,6 +34,8 @@ function fakeThemes() {
   const St = {
     records: () => CustomThemes.list(),
     isEditing: () => false,
+    record: (id) => CustomThemes.list().find(r => r.id === id) || null,
+    colorsFromTheme: (id) => ({ ...(OWN[id] || OWN.oxford) }),
     _changed: vi.fn(() => {
       for (let i = THEMES.length - 1; i >= 0; i--) if (THEMES[i].user) THEMES.splice(i, 1);
       for (const r of CustomThemes.list()) THEMES.push({ id: r.id, user: true });
