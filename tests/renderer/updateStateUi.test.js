@@ -65,6 +65,22 @@ describe('a folder copy (dist\\win-unpacked) is updated in place', () => {
   });
 });
 
+describe('a folder copy next to an installed Vex', () => {
+  const other = { ...folderInfo, canSelfUpdate: true, cannotUpdateReason: null, otherInstall: 'C:\\Users\\USER\\AppData\\Local\\Programs\\Vex', copy: { kind: 'folder', folder: 'C:\\vex\\dist\\win-unpacked' } };
+  it('says plainly what will happen and offers only Update the installed Vex / Not now', async () => {
+    UpdateNotifier.showCover(other);
+    await flush();
+    expect(labels()).toEqual(['Update the installed Vex', 'Not now']);
+    expect(cover().querySelector('.update-cover-status-text').textContent).toBe('You also have Vex installed in C:\\Users\\USER\\AppData\\Local\\Programs\\Vex. This copy runs from a folder (C:\\vex\\dist\\win-unpacked) and is a build you made yourself. Updating installs the new version into the installed copy; this folder copy stays on 2.34.5 until you rebuild it (npm run pack).');
+  });
+  it('a waiting download says the same', async () => {
+    status.copy = { kind: 'folder', folder: 'C:\\vex\\dist\\win-unpacked', other: 'C:\\Programs\\Vex' };
+    status.staged = { version: '2.35.0', size: 1000 };
+    await UpdateNotifier.checkState();
+    expect(cover().querySelector('.update-cover-status-text').textContent).toMatch(/^You also have Vex installed in C:\\Programs\\Vex\. This copy runs from a folder \(C:\\vex\\dist\\win-unpacked\)/);
+  });
+});
+
 describe('source run (npm start): not updatable', () => {
   it('has no "Update now": it says why and offers the installer', async () => {
     UpdateNotifier.showCover(folderInfo);

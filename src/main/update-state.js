@@ -114,6 +114,41 @@ function installKind({ execPath, isPackaged, platform = process.platform, fs }) 
   return { kind: names.some(n => /^Uninstall .*\.exe$/i.test(n)) ? 'installed' : 'folder', folder };
 }
 
+// Is another Vex INSTALLED (registered with Windows) somewhere? The installer, run
+// with --updated, upgrades and, from a different folder, would replace that
+// registered install, so a folder copy must not run it into its own folder when
+// one exists. `regQuery(key)` returns `reg query <key> /s` text ('' when the key
+// is missing) and is injected so tests need no registry. Looks at the Uninstall
+// keys (DisplayName "Vex" with its InstallLocation) and at Programs\Vex.
+const UNINSTALL_KEYS = ['HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall', 'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall', 'HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall'];
+const normFolder = p => String(p || '').replace(/[\\/]+$/, '').replace(/\//g, '\\').toLowerCase();
+function parseUninstallBlocks(text) {
+  const found = [];
+  let cur = null;
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    if (/^HK/i.test(raw)) { cur = {}; found.push(cur); continue; }
+    const m = raw.match(/^\s+(\w+)\s+REG_(?:EXPAND_)?SZ\s+(.*)$/);
+    if (m && cur) cur[m[1]] = m[2].trim();
+  }
+  return found.filter(b => b.DisplayName === 'Vex' && b.InstallLocation).map(b => b.InstallLocation.replace(/^"|"$/g, ''));
+}
+function findRegisteredInstall({ fs, env = process.env, regQuery }) {
+  const candidates = [];
+  for (const key of UNINSTALL_KEYS) candidates.push(...parseUninstallBlocks(regQuery(key)));
+  if (env.LOCALAPPDATA) candidates.push(nodePath.join(env.LOCALAPPDATA, 'Programs', 'Vex'));
+  for (const folder of candidates) {
+    let names;
+    try { names = fs.readdirSync(folder); } catch (err) { if (err.code === 'ENOENT' || err.code === 'ENOTDIR') continue; throw new Error('Vex could not look at ' + folder + ': ' + err.message, { cause: err }); }
+    if (names.some(n => /^Uninstall .*\.exe$/i.test(n)) && names.some(n => /^Vex\.exe$/i.test(n))) return { folder };
+  }
+  return null;
+}
+// A folder copy next to a registered install in ANOTHER folder: { kind:'folder', folder, other }.
+function withOtherInstall(copy, found) {
+  if (!copy || copy.kind !== 'folder' || !found || normFolder(found.folder) === normFolder(copy.folder)) return copy;
+  return { ...copy, other: found.folder };
+}
+
 // What a person is told when this copy cannot be updated from inside.
 function notInstalledMessage(copy, current) {
   return `This copy of Vex ${current} is running from source code, so it cannot update itself. Install Vex with Vex-Setup.exe to get automatic updates.`;
@@ -253,4 +288,4 @@ function hashFileWith(fs) {
   });
 }
 
-module.exports = { createUpdateLog, createStagedStore, createRollback, installKind, notInstalledMessage, installTarget, installerArgs, checkWritable, hashFileWith, STATE_FILES, LOG_FILE, STAGED_FILE, PENDING_FILE, LOG_LINES, FAILED_STARTS_BEFORE_ROLLBACK };
+module.exports = { createUpdateLog, createStagedStore, createRollback, installKind, notInstalledMessage, installTarget, installerArgs, checkWritable, findRegisteredInstall, withOtherInstall, parseUninstallBlocks, hashFileWith, STATE_FILES, LOG_FILE, STAGED_FILE, PENDING_FILE, LOG_LINES, FAILED_STARTS_BEFORE_ROLLBACK };

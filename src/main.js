@@ -10968,10 +10968,27 @@ const _updatesDir = path.join(app.getPath('userData'), 'updates');
 const _updateLog = _updState.createUpdateLog({ fs, dir: _updatesDir, warn: m => console.warn(m) });
 const _updateRollback = _updState.createRollback({ fs, dir: _updatesDir, currentVersion: app.getVersion(), hashFile: _updState.hashFileWith(fs) });
 let _updateCopy = null;
-try { _updateCopy = _updState.installKind({ execPath: process.execPath, isPackaged: app.isPackaged, fs }); }
-catch (err) { console.error('[Updates]', err.message); _updateLog.add('PROBLEM: ' + err.message); }
+try {
+  _updateCopy = _updState.installKind({ execPath: process.execPath, isPackaged: app.isPackaged, fs });
+  // A folder copy next to a registered install must never run the installer into its own folder.
+  if (_updateCopy.kind === 'folder') {
+    const folderCopy = _updateCopy;
+    _updateCopy = { ...folderCopy, unknownInstall: 'not looked up' };   // refused until the look-up works
+    _updateCopy = _updState.withOtherInstall(folderCopy, _updState.findRegisteredInstall({
+      fs, env: process.env,
+      regQuery: (key) => {
+        try { return require('child_process').execFileSync('reg', ['query', key, '/s'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true }); }
+        catch (err) { if (err.status === 1) return ''; throw err; }   // 1: the key does not exist
+      },
+    }));
+  }
+}
+catch (err) {
+  console.error('[Updates]', err.message); _updateLog.add('PROBLEM: ' + err.message);
+  if (_updateCopy && _updateCopy.unknownInstall) _updateCopy = { ..._updateCopy, unknownInstall: err.message };
+}
 // TEST ONLY (with the VEX_UPDATE_FEED stand-in): act as a folder copy living in the named folder, so the in-place path can be tried from source.
-if (process.env.VEX_UPDATE_FEED && process.env.VEX_UPDATE_FAKE_FOLDER) _updateCopy = { kind: 'folder', folder: process.env.VEX_UPDATE_FAKE_FOLDER };
+if (process.env.VEX_UPDATE_FEED && process.env.VEX_UPDATE_FAKE_FOLDER) _updateCopy = { kind: 'folder', folder: process.env.VEX_UPDATE_FAKE_FOLDER, ...(process.env.VEX_UPDATE_FAKE_OTHER ? { other: process.env.VEX_UPDATE_FAKE_OTHER } : {}) };
 const _updater = require('./main/updates').createUpdater({
   fetch: (url, init) => _egress.wrap((u, i) => net.fetch(u, i), { feature: 'Vex updates', kind: 'update' })(url, init),
   fs, dir: _updatesDir, currentVersion: app.getVersion(),
