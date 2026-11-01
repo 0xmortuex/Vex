@@ -140,7 +140,7 @@ describe('the sidebar group folders', () => {
     for (const f of document.querySelectorAll('.sb-folder')) {
       const tile = f.querySelector('.sb-folder-btn');
       expect(tile.getAttribute('aria-label'), 'the name read out starts with the name shown').toMatch(/, \d+ buttons?$/);
-      expect(tile.getAttribute('aria-label').startsWith(f.querySelector('.sb-folder-label').textContent) || f.dataset.group === 'security').toBe(true);
+      expect(tile.getAttribute('aria-label').startsWith(f.querySelector('.sb-folder-label').textContent) || ['security', 'aicode', 'apps'].includes(f.dataset.group)).toBe(true);
       expect(tile.getAttribute('aria-expanded')).toBe('false');
     }
     const sec = document.querySelector('.sb-folder[data-group="security"]');

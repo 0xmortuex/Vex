@@ -83,7 +83,7 @@ describe('which panel goes in which group', () => {
     for (const [panel, group] of Object.entries(home)) expect(G.groupOf(panel), panel).toBe(group);
     expect(G.GROUPS.find(x => x.id === 'apps').panels).toEqual([]);
     expect(G.GROUPS.find(x => x.id === 'media')).toMatchObject({ label: 'Media and games', railLabel: 'Media' });
-    expect(G.GROUPS.find(x => x.id === 'aicode')).toMatchObject({ label: 'AI and code', railLabel: 'AI' });
+    expect(G.GROUPS.find(x => x.id === 'aicode')).toMatchObject({ label: 'AI and code', railLabel: 'Code' });
     expect(G.groupOf('site_pinned1')).toBe('apps');
     expect(G.groupOf('some-future-panel')).toBe('apps');
   });

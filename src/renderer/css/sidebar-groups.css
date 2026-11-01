@@ -14,8 +14,8 @@
 }
 #icon-sidebar .sb-folder[hidden] { display: none; }
 /* The closed folders share the rail's free height evenly, with room between them, instead of sitting packed at the top over an empty
-   rail. Each slot is capped so a tall window does not make huge gaps; an open folder keeps its own height. The bottom buttons stay put. */
-#icon-sidebar .sb-folder:not(.open) { flex: 1 0 auto; max-height: 116px; justify-content: center; }
+   rail. Each slot is capped (about 10px of air around a tile and its name) so a tall window does not make wide gaps; an open folder keeps its own height. The bottom buttons stay put. */
+#icon-sidebar .sb-folder:not(.open) { flex: 1 0 auto; max-height: 68px; justify-content: center; }
 #icon-sidebar:has(> .sb-folder) > .sidebar-spacer { flex-grow: 0.001; }
 #icon-sidebar .sb-folder[data-color="accent"] { --sbf-tint: var(--vex-accent); }
 #icon-sidebar .sb-folder[data-color="accent2"] { --sbf-tint: color-mix(in srgb, var(--vex-accent) 55%, var(--b-text, var(--vex-text-primary))); }
@@ -26,6 +26,21 @@
 #icon-sidebar .sb-folder.open {
   background: color-mix(in srgb, var(--sbf-tint) 6%, transparent);
   border-color: color-mix(in srgb, var(--sbf-tint) 20%, transparent);
+}
+
+/* The Start button wears the same card and carries its name under it, so the first button of the rail is not the odd one out. */
+#icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label] {
+  --sbf-fg: var(--b-text, var(--vex-text-primary));
+  position: relative; margin: 0 auto 17px; color: var(--sbf-fg);
+  background: color-mix(in srgb, var(--sbf-fg) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sbf-fg) 20%, transparent);
+  border-radius: 8px;
+}
+#icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label].active { background: color-mix(in srgb, var(--vex-accent, currentColor) 18%, transparent); border-color: color-mix(in srgb, var(--vex-accent, currentColor) 45%, transparent); }
+#icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label]::after {
+  content: attr(data-sb-lead-label); position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px;
+  max-width: 58px; box-sizing: border-box; padding: 0 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none;
+  font: inherit; font-size: 11px; font-weight: 500; line-height: 13px; color: var(--sbf-fg);
 }
 
 /* The tile. */
@@ -108,13 +123,13 @@ body[data-sb-launcher="rail"] #icon-sidebar { --sbf-gap: 2px; }
 /* A rail with groups is a little wider, and its buttons keep their size when the window is short (the rail scrolls instead of
    shrinking the icons below 18px). Classic and Glass first, the rail looks (Firefox, Netscape) below. The width follows the longest
    name (--sgh-min, at most 72px); a longer name is cut with an ellipsis. */
-body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(64px, var(--sgh-min, 0px)); min-width: max(64px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
+body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(54px, var(--sgh-min, 0px)); min-width: max(54px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
 body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: 36px; height: 36px; }
 body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 18px; height: 18px; }
 body[data-gui-style="glass"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] {
-  width: max(60px, var(--sgh-min, 0px)) !important; min-width: max(60px, var(--sgh-min, 0px)) !important; padding-left: 0 !important; padding-right: 0 !important;
+  width: max(54px, var(--sgh-min, 0px)) !important; min-width: max(54px, var(--sgh-min, 0px)) !important; padding-left: 0 !important; padding-right: 0 !important;
 }
-body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(60px, var(--sgh-min, 0px)); min-width: max(60px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(54px, var(--sgh-min, 0px)); min-width: max(54px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
 body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: var(--b-rail-btn, 34px); height: var(--b-rail-btn, 34px); }
 body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 18px; height: 18px; }
 

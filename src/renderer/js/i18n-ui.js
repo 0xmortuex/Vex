@@ -12920,6 +12920,7 @@ const VexI18nUI = {
       'Claude and GitHub': 'Claude ve GitHub',
       'Your pinned sites and other apps': 'Sabitlediğiniz siteler ve diğer uygulamalar',
       'Applied: {1}': 'Uygulandı: {1}',
+      'Code': 'Kod',
       // --- end sidebar folders split ---
       // --- extensions screens (agent) ---
       'Allow access to file URLs': 'Dosya adreslerine (file://) erişime izin ver',

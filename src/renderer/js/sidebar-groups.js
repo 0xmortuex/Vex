@@ -48,9 +48,9 @@
     { id: 'tools', label: 'Tools', icon: 'toolbox', desc: 'Clock, developer tools and shortcuts', panels: ['clock', 'devtools-dash', 'shortcuts'] },
     { id: 'chat', label: 'Chat', icon: 'heart', desc: 'Discord and WhatsApp', panels: ['discord', 'whatsapp'] },
     { id: 'media', label: 'Media and games', railLabel: 'Media', icon: 'gamepad', desc: 'Spotify, Netflix and Roblox', panels: ['spotify', 'netflix', 'roblox'] },
-    { id: 'aicode', label: 'AI and code', railLabel: 'AI', icon: 'bulb', desc: 'Claude and GitHub', panels: ['claude', 'github'] },
+    { id: 'aicode', label: 'AI and code', railLabel: 'Code', icon: 'bulb', desc: 'Claude and GitHub', panels: ['claude', 'github'] },
     // The home of every other site you pin: it is left out of the rail until something is in it.
-    { id: 'apps', label: 'Apps', icon: 'grid', desc: 'Your pinned sites and other apps', panels: [] },
+    { id: 'apps', label: 'Apps', railLabel: 'Sites', icon: 'grid', desc: 'Your pinned sites and other apps', panels: [] },
   ];
   // Always on show, no folder.
   const ESSENTIALS = ['start', 'settings'];
@@ -409,6 +409,7 @@
     }
     delete rail.dataset.sbGrouped;
     rail.style.removeProperty('--sgh-min');
+    for (const b of rail.querySelectorAll('.sidebar-icon[data-sb-lead-label]')) delete b.dataset.sbLeadLabel;
   }
 
   function problem(err) {
@@ -497,6 +498,9 @@
       rail.insertBefore(f, spacer);
     }
     rail.dataset.sbGrouped = '1';
+    // The Start button is drawn like the folder tiles, with its name under it (css/sidebar-groups.css).
+    const start = byPanel.get('start');
+    if (start) start.dataset.sbLeadLabel = tr('Home');
     refresh();
     return true;
   }
@@ -569,7 +573,11 @@
   // The rail is as wide as its longest name in the language on show needs, up to a limit; the CSS takes the larger of its own width and
   // this one (--sgh-min). Longer names are cut with an ellipsis and read in full from the tooltip.
   function fitWidth(rail) {
-    const need = Math.max(0, ...[...rail.querySelectorAll('.sb-folder:not([hidden]) .sb-folder-label')].map(l => {
+    // The Start button's name counts too (it is drawn from its data-sb-lead-label, so it is measured with a copy of a folder name).
+    const names = [...rail.querySelectorAll('.sb-folder:not([hidden]) .sb-folder-label')];
+    const start = rail.querySelector('.sidebar-icon[data-sb-lead-label]');
+    if (start && names.length) { const s = names[0].cloneNode(true); s.textContent = start.dataset.sbLeadLabel; names.push(s); }
+    const need = Math.max(0, ...names.map(l => {
       const c = l.cloneNode(true);
       c.style.cssText = 'position:absolute;visibility:hidden;max-width:none;white-space:nowrap';
       rail.appendChild(c);
@@ -577,7 +585,7 @@
       c.remove();
       return w;
     }));
-    if (need > 0) rail.style.setProperty('--sgh-min', Math.min(72, Math.ceil(need) + 8 + (rail.offsetWidth - rail.clientWidth)) + 'px'); else rail.style.removeProperty('--sgh-min');
+    if (need > 0) rail.style.setProperty('--sgh-min', Math.min(60, Math.ceil(need) + 8 + (rail.offsetWidth - rail.clientWidth)) + 'px'); else rail.style.removeProperty('--sgh-min');
   }
   let fitTimer = 0;
   function fitRailSoon() {
