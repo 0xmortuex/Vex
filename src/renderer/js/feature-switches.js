@@ -11,6 +11,8 @@
 // has an Undo.
 const VexFeatureSwitches = {
   _t(key, fallback) { return (window.VexI18n && window.VexI18n.t(key, fallback)) || fallback; },
+  // A feature's name, in the interface language: it goes into "Use {name}" and "{name} is off", which no later pass can translate (the name is already inside the sentence).
+  _name(title) { const hit = typeof VexI18nUI !== 'undefined' ? VexI18nUI.lookup(title) : null; return hit != null ? hit : title; },
 
   // Every manifest joined with its switch: { id, title, group, switchable, on }. Features that registered a switch with no manifest are listed too.
   rows() {
@@ -67,7 +69,7 @@ const VexFeatureSwitches = {
     box.disabled = false;
     if (!done) { box.checked = !wanted; return; }
     if (!wanted) {
-      window.showToast?.(this._t('featOffDone', '{name} is off. Turn it back on in Settings > Feature switches.').split('{name}').join(row.title), 'info', 9000, {
+      window.showToast?.(this._t('featOffDone', '{name} is off. Turn it back on in Settings > Feature switches.').split('{name}').join(this._name(row.title)), 'info', 9000, {
         action: { label: this._t('featUndo', 'Undo'), run: () => { this.set(row.id, true).then(() => this.refresh()); } },
       });
     }
@@ -167,7 +169,7 @@ const VexFeatureSwitches = {
         let on = true;
         try { on = VexUsage.isEnabled(f.id); } catch (err) { console.error('[Features] could not read the switch of "' + f.id + '":', err); }
         const info = { id: f.id, title: f.title };
-        const text = this._t('featSectionSwitch', 'Use {name}').split('{name}').join(f.title);
+        const text = this._t('featSectionSwitch', 'Use {name}').split('{name}').join(this._name(f.title));
         const row = this._switchRow(text, on, (box) => { this._flip(info, box); }, text);
         row.dataset.feature = f.id;
         if (anchor && anchor.nextSibling) g.insertBefore(row, anchor.nextSibling); else g.prepend(row);

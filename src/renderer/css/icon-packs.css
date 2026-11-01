@@ -1,0 +1,23 @@
+/* === Icon packs (js/icon-packs.js) =========================================
+   The icon pack in force is html[data-icon-pack]. With none set, every icon is exactly what VexIcons draws. These rules only restyle: the
+   drawing itself (Solid, Pixel) is swapped in the SVG by js/icon-packs.js. CSS properties outrank the presentation attributes on <svg>, so
+   no icon has to be touched. Icons keep their box (24x24 viewBox at the size the call site asked for), so nothing moves. */
+
+html[data-icon-pack="bold"] .vex-icon { stroke-width: 2.5; }
+
+html[data-icon-pack="duotone"] .vex-icon { stroke-width: 1.6; }
+html[data-icon-pack="duotone"] .vex-icon[data-fill] :is(path, rect, circle, ellipse, polygon):not([fill]) { fill: currentColor; fill-opacity: 0.2; }
+
+html[data-icon-pack="soft"] .vex-icon { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+html[data-icon-pack="soft"] .vex-icon rect { rx: 7px; ry: 7px; }
+
+html[data-icon-pack="sharp"] .vex-icon { stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; }
+html[data-icon-pack="sharp"] .vex-icon rect { rx: 0; ry: 0; }
+
+/* Solid: the icons without a filled drawing of their own get a heavier line and a deeper tint, so the set still reads as one. */
+html[data-icon-pack="solid"] .vex-icon { stroke-width: 2.2; }
+html[data-icon-pack="solid"] .vex-icon[data-fill] :is(path, rect, circle, ellipse, polygon):not([fill]) { fill: currentColor; fill-opacity: 0.32; }
+
+/* Pixel: no soft edges anywhere; what is not redrawn on the grid is kept square and unsmoothed. */
+html[data-icon-pack="pixel"] .vex-icon { stroke-width: 2; stroke-linecap: butt; stroke-linejoin: miter; shape-rendering: crispEdges; }
+html[data-icon-pack="pixel"] .vex-icon rect { rx: 0; ry: 0; }

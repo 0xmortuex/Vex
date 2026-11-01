@@ -1,9 +1,9 @@
 (function () {
   const strings = {
     en: { retry: 'Retry', saveFailed: 'Changes could not be saved. Retry before closing.', cancel: 'Cancel', ok: 'OK', back: 'Back', next: 'Next', skip: 'Skip',
-      welcome: 'Welcome to Vex', setupstyle: 'Choose your starting point', theme: 'Choose a theme', job: 'A Vex built for your work', language: 'Language · Dil', wisdom: 'Daily wisdom', name: 'What should we call you?', weather: 'Weather location', github: 'GitHub username', search: 'Default search engine', defaultbrowser: 'Make Vex your default', aicloud: 'Cloud AI (Claude)', ollama: 'Local AI (Ollama)', ondevice: 'On-device AI (WebGPU)', sync: 'Vex Sync', passwords: 'Password manager', done: 'All set', nearlyDone: 'nearly done', minuteLeft: 'about 1 minute left', minutesLeft: 'about {n} minutes left' },
+      welcome: 'Welcome to Vex', setupstyle: 'Choose your starting point', theme: 'Choose a theme', job: 'A Vex built for your work', language: 'Language · Dil', wisdom: 'Daily wisdom', name: 'What should we call you?', weather: 'Weather location', github: 'GitHub username', search: 'Default search engine', defaultbrowser: 'Make Vex your default', aicloud: 'Cloud AI (Claude)', ollama: 'Local AI (Ollama)', ondevice: 'On-device AI (WebGPU)', sync: 'Vex Sync', done: 'All set', nearlyDone: 'nearly done', minuteLeft: 'about 1 minute left', minutesLeft: 'about {n} minutes left' },
     tr: { retry: 'Yeniden dene', saveFailed: 'Değişiklikler kaydedilemedi. Kapatmadan önce yeniden deneyin.', cancel: 'İptal', ok: 'Tamam', back: 'Geri', next: 'İleri', skip: 'Atla',
-      welcome: 'Vex’e hoş geldiniz', setupstyle: 'Başlangıç düzeninizi seçin', theme: 'Bir tema seçin', job: 'Çalışma alışkanlıklarınıza uygun bir Vex', language: 'Dil · Language', wisdom: 'Günün sözü', name: 'Size nasıl hitap edelim?', weather: 'Hava durumu konumu', github: 'GitHub kullanıcı adı', search: 'Varsayılan arama motoru', defaultbrowser: 'Vex’i varsayılan tarayıcınız yapın', aicloud: 'Bulut yapay zekâsı (Claude)', ollama: 'Yerel yapay zekâ (Ollama)', ondevice: 'Cihaz üzerinde yapay zekâ (WebGPU)', sync: 'Vex eşitleme', passwords: 'Parola yöneticisi', done: 'Her şey hazır', nearlyDone: 'neredeyse bitti', minuteLeft: 'yaklaşık 1 dakika kaldı', minutesLeft: 'yaklaşık {n} dakika kaldı', notifications: 'Bildirimler', look: 'Bir görünüm seçin', performance: 'Hız, bellek ve gizlilik', browsing: 'Tarayıcının davranışı', aidata: 'Vex neleri okuyabilir' }
+      welcome: 'Vex’e hoş geldiniz', setupstyle: 'Başlangıç düzeninizi seçin', theme: 'Bir tema seçin', job: 'Çalışma alışkanlıklarınıza uygun bir Vex', language: 'Dil · Language', wisdom: 'Günün sözü', name: 'Size nasıl hitap edelim?', weather: 'Hava durumu konumu', github: 'GitHub kullanıcı adı', search: 'Varsayılan arama motoru', defaultbrowser: 'Vex’i varsayılan tarayıcınız yapın', aicloud: 'Bulut yapay zekâsı (Claude)', ollama: 'Yerel yapay zekâ (Ollama)', ondevice: 'Cihaz üzerinde yapay zekâ (WebGPU)', sync: 'Vex eşitleme', done: 'Her şey hazır', nearlyDone: 'neredeyse bitti', minuteLeft: 'yaklaşık 1 dakika kaldı', minutesLeft: 'yaklaşık {n} dakika kaldı', notifications: 'Bildirimler', look: 'Bir görünüm seçin', performance: 'Hız, bellek ve gizlilik', browsing: 'Tarayıcının davranışı', aidata: 'Vex neleri okuyabilir' }
   };
   Object.assign(strings.en, { skipSetupAsk: 'Skip the rest of setup? What you have chosen so far is kept, everything else keeps its default, and Settings has all of it.' });
   Object.assign(strings.tr, { skipSetupAsk: 'Kurulumun geri kalanı atlansın mı? Şimdiye kadar seçtikleriniz korunur, geri kalan her şey varsayılan ayarında kalır ve hepsi Ayarlar’da bulunur.' });
@@ -12,10 +12,10 @@
   Object.assign(strings.tr, { import: 'Eşyalarınızı getirin', 'import.sub': 'Chrome, Edge, Brave, Firefox ve diğerlerinden yer imleri, geçmiş ve kayıtlı parolalar; böylece sıfırdan başlamazsınız. İsteğe bağlı.' });
   // The first step's two choices (js/onboarding.js, _renderWelcome): {n} is the minutes.
   Object.assign(strings.en, { paceQuick: 'Just the essentials — about {n} minutes', paceQuickSub: 'How Vex looks, which panels you keep, your name, your search engine, three privacy choices, and whether links open here. Everything else has a sensible default and lives in Settings.',
-    paceFull: 'Everything — about {n} minutes', paceFullSub: 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync, passwords and notifications.',
+    paceFull: 'Everything — about {n} minutes', paceFullSub: 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync and notifications.',
     paceNote: 'Either way, every step has a <b>Skip</b>, nothing here is permanent, and <b>Skip setup</b> leaves the whole thing. Vex works before you answer a single question.' });
   Object.assign(strings.tr, { paceQuick: 'Yalnızca gerekenler — yaklaşık {n} dakika', paceQuickSub: 'Vex’in görünümü, hangi panelleri tutacağınız, adınız, arama motorunuz, üç gizlilik seçimi ve bağlantıların burada açılıp açılmayacağı. Geri kalan her şeyin makul bir varsayılanı vardır ve Ayarlar’da durur.',
-    paceFull: 'Her şey — yaklaşık {n} dakika', paceFullSub: 'Aynısı, ayrıca hız ve bellek, Vex’in nelere bakabileceği, iş araçlarınız, dil, günün ayeti, hava durumu, GitHub, üç tür yapay zekâ, Eşitleme, parolalar ve bildirimler.',
+    paceFull: 'Her şey — yaklaşık {n} dakika', paceFullSub: 'Aynısı, ayrıca hız ve bellek, Vex’in nelere bakabileceği, iş araçlarınız, dil, günün ayeti, hava durumu, GitHub, üç tür yapay zekâ, Eşitleme ve bildirimler.',
     paceNote: 'Hangisini seçerseniz seçin, her adımda <b>Atla</b> vardır, buradaki hiçbir şey kalıcı değildir ve <b>Kurulumu atla</b> hepsini bırakır. Vex tek bir soruyu yanıtlamadan da çalışır.' });
   Object.assign(strings.en, { skipSetup: 'Skip setup', getStarted: 'Get started', finish: 'Finish', saveContinue: 'Save & continue', configured: 'Already set', confirm: 'Confirm', step: 'Step', of: 'of' });
   Object.assign(strings.tr, { skipSetup: 'Kurulumu atla', getStarted: 'Başlayalım', finish: 'Bitir', saveContinue: 'Kaydet ve devam et', configured: 'Zaten ayarlandı', confirm: 'Onayla', step: 'Adım', of: '/',
@@ -34,13 +34,27 @@
     'ollama.sub': 'Ollama ile modelleri cihazınızda çalıştırın. Açık bir Ollama hizmetini otomatik olarak arayacağız.',
     'ondevice.sub': 'Küçük bir modeli Vex içinde çalıştırın. İlk indirmeden sonra çevrimdışı kullanılabilir.',
     'sync.sub': 'Sekme, yer imi, geçmiş ve ayarlarınızı cihazlar arasında şifreleyerek eşitleyin. Mevcut bir hesap için kurtarma kodunuz gerekir.',
-    'passwords.sub': 'Parolalar işletim sistemi anahtarıyla şifrelenir. İlk hesabınızı ekleyebilir veya bu adımı atlayabilirsiniz.',
     'done.sub': 'Hazırsınız. Bu seçenekleri daha sonra Ayarlar bölümünden değiştirebilirsiniz.',
     // The steps that were English in a Turkish setup (found 2026-10-10).
     'look.sub': 'Tarayıcının kendi biçimi: Vex’in kendi görünümü, buzlu Cam, Chrome, Firefox, Safari, Internet Explorer veya Netscape’ten alınmış bir görünüm ya da Fluent, Glossy, Neobrutal veya Terminal stili. Tema renkleriniz hepsinin üzerinde korunabilir.',
     'performance.sub': 'Vex’in gerçekte nasıl davranacağını belirleyen ayarlar. Çalışma biçiminize uyanı seçin ya da listeyi açıp dokuzunu da kendiniz ayarlayın.',
     'browsing.sub': 'Günlük davranışlar: sekmelerin yeri, fare hareketleri, çerez bildirimleri, kopyalamayı engelleyen siteler, oturumunuzun kaydedilmesi. Her biri daha sonra Ayarlar’da bir anahtardır.',
     'aidata.sub': 'İki özellik çalışmak için kendi verilerinizi okur: yapay zekâ geçmiş dizini (Vex AI ziyaret ettiğiniz sayfaları hatırlayabilsin diye) ve e-posta kodu doldurma (giriş kodu gelen kutunuzdan doldurulsun diye). İkisi de bu bilgisayarda kalır. Şimdi seçin; daha sonra Ayarlar’dan değiştirin.',
+    sidebar: 'Kenar çubuğu ister misiniz?',
+    'sidebar.sub': 'Kenar çubuğu, sayfanın yanında duran ve Vex’in kendi panellerini (Discord, Spotify, Notlar, İndirilenler, Yer imleri ve daha fazlasını) bulunduğunuz sayfadan ayrılmadan açan düğme şeridir. Hayır derseniz Vex sade bir tarayıcı olur; paneller yine Ctrl+K ile açılır.',
+    sidebarYes: 'Evet, kenar çubuğu görünsün',
+    sidebarYesSub: 'Sayfanın yanında bir düğme şeridi: tek tıkla Discord, Spotify, Notlar, İndirilenler, Yer imleri ve diğerleri açılır.',
+    sidebarNo: 'Hayır, pencere sade kalsın',
+    sidebarNoSub: 'Şerit ve yan panel düğmesi olmaz. Her panel yine Ctrl+K ile açılır; Ayarlar › Kenar çubuğu onu geri getirir.',
+    sidebarNote: 'Sekmeleriniz kenar çubuğunun parçası değildir. Görünüm adımı daha sonra yanıtınıza uyan görünümleri önce gösterir.',
+    font: 'Bir yazı tipi seçin',
+    'font.sub': 'Vex’in giydiği yazı tipi: sekmeleri, menüleri, ayarları ve başlangıç sayfası. Birini deneyin ve altındaki satırı okuyun; Atla şu anki yazı tipinizi korur. Buradaki her yazı tipi bilgisayarınızda zaten var; tam liste Ayarlar › Görünüm’de.',
+    fontSample: 'Pijamalı hasta yağız şoföre çabucak güvendi. 0123456789',
+    looksSidebar: 'Kenar çubuklu görünümler',
+    looksSidebarSub: 'Bunlar panellerinizi sayfanın yanındaki bir şeritte tutar.',
+    looksNoSidebar: 'Kenar çubuğunu yolundan çeken görünümler',
+    looksNoSidebarSub: 'Bunlar şeritsiz bir pencereye uyar. Paneller yine Ctrl+K ile açılır.',
+    showAllLooks: 'Tüm görünümleri göster',
     privacy: 'Gizlilik seçimleri',
     'privacy.sub': 'İnternetteki bir hizmete soran üç özellik. Her biri sizin seçiminizdir ve her biri daha sonra Ayarlar’da bir anahtardır.',
     'notifications.sub': 'Hatırlatıcılar, alarmlar, sayfa değişikliği uyarıları ve izin verdiğiniz siteler Windows bildirimi olarak gelir. Size ulaştığından emin olmak için şimdi bir tane gönderin; görünmezse düzeltme Windows’tadır ve bu sayfa nerede olduğunu söyler.' });

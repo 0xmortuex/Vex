@@ -386,7 +386,7 @@ const VexBackup = {
       box.hidden = false;
       const e = document.createElement('div');
       e.className = 'vexsr-empty';
-      e.textContent = 'The backups made before updates could not be listed: ' + ((r && r.error) || 'unknown error');
+      e.textContent = window.vexTr('The backups made before updates could not be listed:') + ' ' + ((r && r.error) || 'unknown error');
       list.appendChild(e);
       return;
     }
@@ -439,11 +439,12 @@ const VexBackup = {
     const when = seen.when ? seen.when.toLocaleString() : 'an unknown date';
     const ok = (typeof vexConfirm === 'function') ? await vexConfirm({
       title: 'Restore this backup?',
-      message: 'It holds ' + seen.count + ' things, saved on ' + when + (seen.app ? ' by Vex ' + seen.app : '') + '.'
-        + (seen.chats ? '\n\nIt includes AI conversations.' : '')
-        + (seen.userscripts ? '\n\nIt includes userscripts. They come back switched off; turn each one on in Settings.' : '')
-        + (seen.pageActions ? '\n\nIt includes page actions. They are not restored: turn them on again in Settings and read the warning again.' : '')
-        + '\n\nEverything in it is written over what Vex has now; what it does not have is left as it is. You can undo it until you close Vex.',
+      // Each sentence is translated on its own (window.vexTr): the message is put together from them, so it has no entry as a whole.
+      message: window.vexTr('It holds ' + seen.count + ' things, saved on ' + when + (seen.app ? ' by Vex ' + seen.app : '') + '.')
+        + (seen.chats ? '\n\n' + window.vexTr('It includes AI conversations.') : '')
+        + (seen.userscripts ? '\n\n' + window.vexTr('It includes userscripts. They come back switched off; turn each one on in Settings.') : '')
+        + (seen.pageActions ? '\n\n' + window.vexTr('It includes page actions. They are not restored: turn them on again in Settings and read the warning again.') : '')
+        + '\n\n' + window.vexTr('Everything in it is written over what Vex has now; what it does not have is left as it is. You can undo it until you close Vex.'),
       okLabel: 'Restore', cancelLabel: 'Cancel', danger: true,
     }) : true;
     if (!ok) return;

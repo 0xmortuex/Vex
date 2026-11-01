@@ -355,6 +355,7 @@ const SitePanel = {
       <div class="sp-body">${body}</div>
       <div class="sp-foot">
         ${c.web ? `<button type="button" class="sp-link sp-danger" data-act="reset-site">${this._ico('trash', 13)}<span>Reset this site</span></button>` : '<span></span>'}
+        ${c.web && typeof VexThisSite !== 'undefined' ? `<button type="button" class="sp-link" data-act="this-site">${this._ico('sliders', 13)}<span>More for this site</span></button>` : ''}
         <button type="button" class="sp-link" data-act="settings">${this._ico('settings', 13)}<span>Site settings</span></button>
       </div>`;
     const b = el.querySelector('.sp-body');
@@ -690,6 +691,13 @@ const SitePanel = {
     const c = this._ctx;
     switch (act) {
       case 'close': this.close(); return;
+      case 'this-site': {
+        const back = this._returnFocus;
+        this.close({ keepFocus: true });
+        if (typeof VexThisSite === 'undefined') throw new Error('The site menu is not loaded');
+        VexThisSite.open({ restoreTo: back });
+        return;
+      }
       case 'settings':
         this.close({ keepFocus: true });
         if (typeof SettingsUI === 'undefined') throw new Error('Settings are not loaded');

@@ -51,7 +51,7 @@ body[data-ui-mode="simple"] #icon-sidebar .sidebar-separator {
 }
 #btn-all-features:hover { background: var(--vex-hover-fill, var(--surface-hover, var(--surface))); border-color: var(--primary); }
 #btn-all-features:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-#btn-all-features svg { color: var(--primary); flex-shrink: 0; }
+#btn-all-features svg { color: var(--vex-text-accent, var(--primary)); flex-shrink: 0; }
 /* The browser looks draw toolbar buttons as fixed 28px squares; this one has
    words, so it keeps its own width, in that look's own colours. */
 body[data-gui-family="browser"] #top-bar-right > #btn-all-features {

@@ -91,10 +91,25 @@
     if (!picker || !title || !panel) return;
     const choices = panelChoices();
     picker.innerHTML = '';
-    for (const c of choices) {
+    const addOption = (parent, c) => {
       const o = document.createElement('option');
       o.value = c.panel; o.textContent = c.label;
-      picker.appendChild(o);
+      parent.appendChild(o);
+    };
+    // Sidebar groups on (js/sidebar-groups.js): the panels sit under their headings; Settings stays below them.
+    if (typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.enabled()) {
+      const layout = VexSidebarGroups.pickerPlan(choices);
+      for (const g of layout.groups) {
+        const og = document.createElement('optgroup');
+        // The built-in names come translated from the plan; a name somebody typed is shown as typed.
+        og.label = g.label;
+        og.dataset.group = g.id;
+        g.items.forEach(c => addOption(og, c));
+        picker.appendChild(og);
+      }
+      layout.essentials.forEach(c => addOption(picker, c));
+    } else {
+      for (const c of choices) addOption(picker, c);
     }
     picker.value = panel;
     const cur = choices.find(c => c.panel === panel);
@@ -244,7 +259,8 @@
     localStorage.setItem(RAIL_KEY, hidden ? '1' : '0');
     syncButtonLabel();
   }
-  function toggleRail() { setRailHidden(!railHidden()); }
+  // With the sidebar switched off (js/sidebar-visibility.js) there is no rail to show or hide: Ctrl+B must not flip an invisible flag.
+  function toggleRail() { if (document.body.dataset.sidebar === 'off') return; setRailHidden(!railHidden()); }
   function syncButtonLabel() {
     const btn = document.getElementById('btn-look-sidebar');
     if (!btn) return;
@@ -315,6 +331,8 @@
       sync();
     });
     window.addEventListener('resize', () => applyWidth(savedWidth()));
+    // A group made, renamed, moved or deleted (js/sidebar-groups.js): the picker's headings follow.
+    window.addEventListener('vex:sidebar-groups', (e) => { if (e.detail && (e.detail.groups || 'enabled' in e.detail)) sync(); });
     sync();
   }
 

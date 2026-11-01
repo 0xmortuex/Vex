@@ -186,7 +186,8 @@ const SidebarManager = {
   // the main-process 'toggle-schedules' message) lands on the surviving panel
   // with the sub-tab the old panel became already selected.
   //   schedules -> Clock, sub-tab "Scheduled tasks"
-  PANEL_ALIASES: { schedules: { panel: 'clock', tab: 'schedules' } },
+  //   reminders -> Clock, sub-tab "Reminders" (never a panel of its own: Ctrl+K "Reminders")
+  PANEL_ALIASES: { schedules: { panel: 'clock', tab: 'schedules' }, reminders: { panel: 'clock', tab: 'reminders' } },
 
   _alias(name) {
     return Object.prototype.hasOwnProperty.call(this.PANEL_ALIASES, name) ? this.PANEL_ALIASES[name] : null;
@@ -367,6 +368,7 @@ const SidebarManager = {
     document.querySelectorAll('.sidebar-icon').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const panel = btn.dataset.panel;
+        if (!panel) return;   // a group folder (js/sidebar-groups.js) opens and closes itself
         // The "Start Page" (house) icon has no corresponding panel UI —
         // panel-start is an empty div — so opening it used to blank the
         // webview area. Route it to open/focus the real start-page tab
@@ -1232,13 +1234,13 @@ const SidebarManager = {
       // row about three panels is not asking, it is an obstacle course.
       if (typeof SleepConsent === 'undefined') return;   // cannot ask, so do not act
       const names = due.map(n => this.panelLabel(n));
-      const said = names.length === 1 ? names[0] + ' has'
-        : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have';
+      const one = names.length === 1;
       SleepConsent.gate({
         id: 'panels',
-        title: said + ' been idle for a while. Let ' + (names.length === 1 ? 'it' : 'them') + ' sleep?',
-        detail: 'Asleep ' + (names.length === 1 ? 'it uses' : 'they use') + ' no memory and come'
-          + (names.length === 1 ? 's' : '') + ' back where you left off — but cannot notify you until then.',
+        title: one ? names[0] + ' has been idle for a while. Let it sleep?'
+          : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have been idle for a while. Let them sleep?',
+        detail: one ? 'Asleep it uses no memory and comes back where you left off — but cannot notify you until then.'
+          : 'Asleep they use no memory and come back where you left off — but cannot notify you until then.',
         run: sleep,
       });
     }, 60000);
@@ -1991,6 +1993,8 @@ const SidebarManager = {
       if (o.name) btn.title = o.name;
       if (o.icon && SIDEBAR_ICONS[o.icon]) btn.innerHTML = SIDEBAR_ICONS[o.icon];
     });
+    // Headings follow what is now shown (a group with nothing shown has none).
+    if (typeof VexSidebarGroups !== 'undefined') VexSidebarGroups.arrange();
     this.fitRail();
   },
 
@@ -2063,11 +2067,17 @@ const SidebarManager = {
     for (const el of Array.from(bar.children)) {
       if (el.classList && el.classList.contains('sidebar-spacer')) break;
       if (el.classList && el.classList.contains('sidebar-icon') && el.dataset.panel) out.push(el);
+      // The buttons inside the group folders (js/sidebar-groups.js), in the order the rail shows them.
+      else if (el.classList && el.classList.contains('sb-folder')) {
+        el.querySelectorAll('.sb-folder-inner > .sidebar-icon[data-panel]').forEach(b => out.push(b));
+      }
     }
     return out;
   },
 
   applySidebarOrder() {
+    // Sidebar groups (js/sidebar-groups.js) lay the rail out themselves, in the same saved order; off, this runs as it always did.
+    if (typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.arrange()) return;
     const bar = document.getElementById('icon-sidebar');
     if (!bar) return;
     const spacer = bar.querySelector('.sidebar-spacer');
@@ -2088,7 +2098,14 @@ const SidebarManager = {
     let order = this._loadOrder().filter(p => panels.includes(p));
     panels.forEach(p => { if (!order.includes(p)) order.push(p); }); // seed from current order
     const i = order.indexOf(panel);
-    const j = dir < 0 ? i - 1 : i + 1;
+    let j = dir < 0 ? i - 1 : i + 1;
+    // With groups on, a panel moves among the panels of its own group: the next one up or down that shares it.
+    if (i >= 0 && typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.enabled()) {
+      // A group that lists its panels keeps their order itself; the buttons move inside it.
+      if (VexSidebarGroups.isListed(panel)) { VexSidebarGroups.nudgePanel(panel, dir); return; }
+      const g = VexSidebarGroups.groupOf(panel);
+      while (j >= 0 && j < order.length && VexSidebarGroups.groupOf(order[j]) !== g) j += dir < 0 ? -1 : 1;
+    }
     if (i < 0 || j < 0 || j >= order.length) return;
     [order[i], order[j]] = [order[j], order[i]];
     this._saveOrder(order);
@@ -2141,6 +2158,8 @@ const SidebarManager = {
       if (e.button !== 0) return;
       const btn = e.target.closest && e.target.closest('.sidebar-icon');
       if (!btn || !this._topButtons().includes(btn)) return;
+      // With the sidebar in group folders the buttons are moved between groups (js/sidebar-groups-ui.js).
+      if (typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.enabled()) return;
       drag = { btn, x: e.clientX, y: e.clientY, id: e.pointerId, active: false, target: null };
     });
     bar.addEventListener('pointermove', (e) => {
@@ -2202,11 +2221,31 @@ const SidebarManager = {
       simpleHint.textContent = 'Simple mode is on, so only Start, Bookmarks, History, Downloads, Notes, Privacy, Settings and your pinned sites are on the sidebar. What you set here is kept, and shows as soon as Simple mode is off (Settings › General, or All features in the toolbar).';
       host.appendChild(simpleHint);
     }
+    const grouped = typeof VexSidebarGroups !== 'undefined' && VexSidebarGroups.enabled();
+    let lastGroup = null;
     btns.forEach((btn) => {
       const panel = btn.dataset.panel;
       const o = ov[panel] || {};
       const hidden = !!o.hidden;
       const name = o.name || btn.title || panel;
+      // With groups on, a heading names each group (the folders of the rail; every button stays in this list, open folder or not).
+      if (grouped) {
+        const gid = VexSidebarGroups.groupOf(panel);
+        if (gid !== lastGroup) {
+          lastGroup = gid;
+          if (gid) {
+            const head = document.createElement('div');
+            head.className = 'sidebar-manager-group';
+            head.dataset.groupHead = gid;
+            head.setAttribute('role', 'heading');
+            head.setAttribute('aria-level', '4');
+            head.setAttribute('translate', 'no');
+            head.innerHTML = '<span class="smg-chev" aria-hidden="true">' + VexIcons.svg(VexSidebarGroups.groupInfo(gid).icon, { size: 14 }) + '</span><span class="smg-label"></span>';
+            head.querySelector('.smg-label').textContent = VexSidebarGroups.fullNameOf(VexSidebarGroups.groupInfo(gid));
+            host.appendChild(head);
+          }
+        }
+      }
       const isUrl = this._isUrlPanel(panel);
       const row = document.createElement('div');
       row.dataset.panelRow = panel;
@@ -2240,7 +2279,8 @@ const SidebarManager = {
         else if (ev.key === 'Home') to = rowBtns[0];
         else if (ev.key === 'End') to = rowBtns[rowBtns.length - 1];
         else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
-          const other = ev.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+          let other = ev.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+          while (other && !other.dataset.panelRow && other.dataset.groupHead) other = ev.key === 'ArrowDown' ? other.nextElementSibling : other.previousElementSibling;
           if (other && other.dataset.panelRow) to = other.querySelector('button[data-act="' + rowBtns[i].dataset.act + '"]') || other.querySelector('button[data-act]');
         }
         if (!to) return;
@@ -2268,6 +2308,8 @@ const SidebarManager = {
       const to = row && (row.querySelector('button[data-act="' + refocus.act + '"]') || row.querySelector('button[data-act]'));
       if (to) this._rowFocus(to);
     }
+    // The list of groups above it (js/sidebar-groups-ui.js).
+    if (typeof VexSidebarGroupsUI !== 'undefined') VexSidebarGroupsUI.renderManager();
   },
 
   // Roving focus inside a Sidebar Buttons row: the focused button is the
@@ -2779,6 +2821,11 @@ const SidebarManager = {
       });
     }
     items.push({ separator: true });
+    // Where the button can go without dragging it (js/sidebar-groups-ui.js): into another group, up or down inside its own.
+    if (typeof VexSidebarGroupsUI !== 'undefined') {
+      const move = VexSidebarGroupsUI.panelMenuItems(panelName, e);
+      if (move.length) items.push(...move, { separator: true });
+    }
     if (isSite) {
       // Pinned sites are removed entirely, not just hidden.
       items.push({ label: 'Unpin', danger: true, action: () => this.unpinSite(panelName) });

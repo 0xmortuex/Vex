@@ -317,6 +317,13 @@ contextBridge.exposeInMainWorld('vex', {
   // Returns { ok, mode, preset?, auto?, port?, error? }.
   setDiscordBypassMode: (mode, opts) => ipcRenderer.invoke('discord:set-bypass-mode', mode, opts),
   probeBypass: (url) => ipcRenderer.invoke('bypass:probe', url),
+  // Unblock centre (main/unblock-main.js): is a failed load worth helping, open a site by the first way that works, the saved list.
+  unblock: {
+    assess: (url, code, partition) => ipcRenderer.invoke('unblock:assess', url, code, partition),
+    try: (host, opts) => ipcRenderer.invoke('unblock:try', host, opts),
+    sync: (payload) => ipcRenderer.invoke('unblock:sync', payload),
+    status: () => ipcRenderer.invoke('unblock:status'),
+  },
   // One-click Vencord install into the Discord panel.
   installVencord: () => ipcRenderer.invoke('discord:install-vencord'),
   // Install a LOCAL Vencord build (your custom userplugins/plugins). Optional
@@ -470,8 +477,15 @@ contextBridge.exposeInMainWorld('vex', {
   devextConsoleClear: () => ipcRenderer.invoke('devext:console-clear'),
   devextConsoleList: (level, since) => ipcRenderer.invoke('devext:console-list', level, since),
   castlabsBehind: (force) => ipcRenderer.invoke('castlabs:behind', force),
+  // Settings > Video and music playback (DRM) and the playback banner (src/main/drm-health.js).
+  drmStatus: (reported) => ipcRenderer.invoke('drm:status', reported),
+  drmRepair: (id, reported) => ipcRenderer.invoke('drm:repair', id, reported),
+  drmClearSite: (id) => ipcRenderer.invoke('drm:clear-site', id),
   // Today's TCMB rates, fetched only when asked (main/fx-rates.js).
   fxTcmb: () => ipcRenderer.invoke('fx:tcmb'),
+  // More from the creator (main/maker-repos.js): the refreshed list kept on disk, and the one fetch, only when Refresh is pressed.
+  makerReposStored: () => ipcRenderer.invoke('makerepos:stored'),
+  makerReposRefresh: () => ipcRenderer.invoke('makerepos:refresh'),
   // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook (the address goes in once and
   // never comes back) and the Vencord bridge file (a folder the owner picked, read-only).
   commsWebhookStatus: () => ipcRenderer.invoke('comms:webhook-status'),
@@ -748,6 +762,9 @@ contextBridge.exposeInMainWorld('vex', {
     download: (version) => ipcRenderer.invoke('updates:download', version),
     cancel: () => ipcRenderer.invoke('updates:cancel'),
     install: (version) => ipcRenderer.invoke('updates:install', version),
+    status: () => ipcRenderer.invoke('updates:status'),
+    log: () => ipcRenderer.invoke('updates:log'),
+    acknowledge: () => ipcRenderer.invoke('updates:ack'),
     saveBackup: (version, text) => ipcRenderer.invoke('updates:backup-save', version, text),
     listBackups: () => ipcRenderer.invoke('updates:backups'),
     readBackup: (name) => ipcRenderer.invoke('updates:backup-read', name),
@@ -805,6 +822,15 @@ contextBridge.exposeInMainWorld('vex', {
     check: (address) => ipcRenderer.invoke('websafety:check', address),
     // Of the sites a page loaded things from, how many keep cookies here (counts only).
     thirdPartyCount: (opts) => ipcRenderer.invoke('websafety:third-party-count', opts),
+  },
+  // Known dangerous sites (main/threat-list.js): the list's status, its switch and its update. The check itself runs in main.
+  threat: {
+    status: () => ipcRenderer.invoke('threat:status'),
+    setEnabled: (on) => ipcRenderer.invoke('threat:set-enabled', !!on),
+    setAutoUpdate: (on) => ipcRenderer.invoke('threat:set-auto-update', !!on),
+    update: () => ipcRenderer.invoke('threat:update'),
+    forgetHost: (host) => ipcRenderer.invoke('threat:forget-host', host),
+    continueLog: () => ipcRenderer.invoke('threat:continue-log'),
   },
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
@@ -865,6 +891,14 @@ contextBridge.exposeInMainWorld('vex', {
   setCustomThemeImage: (dataUrl, id) => (id ? ipcRenderer.invoke('theme:set-custom-image', dataUrl, id) : ipcRenderer.invoke('theme:set-custom-image', dataUrl)),
   // A theme from your Windows wallpaper (js/theme-from-image.js): read only.
   readWallpaper: () => ipcRenderer.invoke('theme:read-wallpaper'),
+  // The Wallpaper Store (js/wallpaper-store.js): the optional photo list and the pictures Vex keeps for it.
+  wallpaperCatalogue: (url, force) => ipcRenderer.invoke('wallpaper:catalogue', url, !!force),
+  wallpaperDownload: (url, kind) => ipcRenderer.invoke('wallpaper:download', url, kind),
+  wallpaperSave: (id, kind, bytes) => ipcRenderer.invoke('wallpaper:save', id, kind, bytes),
+  wallpaperRead: (id, kind) => ipcRenderer.invoke('wallpaper:read', id, kind),
+  wallpaperRemove: (id, kind) => (kind ? ipcRenderer.invoke('wallpaper:remove', id, kind) : ipcRenderer.invoke('wallpaper:remove', id)),
+  wallpaperStats: () => ipcRenderer.invoke('wallpaper:stats'),
+  wallpaperClearCache: () => ipcRenderer.invoke('wallpaper:clear-cache'),
   // Light and dark (js/theme-auto.js): Windows' app mode, now and on change.
   getSystemDark: () => ipcRenderer.invoke('system-theme:get'),
   // Website appearance (js/website-appearance.js): 'system', 'light' or 'dark'.

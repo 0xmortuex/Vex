@@ -21,6 +21,9 @@ function createByedpiShare({ byedpi, setRobloxProxy, notify }) {
   let robloxAttached = false;
   // Is Discord's bypass (Strong, or a sweep) using it?
   let discordUsing = false;
+  // Is the Unblock centre (src/main/unblock-main.js) using it for some sites?
+  let unblockUsing = false;
+  let unblockRepoint = () => {};
 
   const socks = (port) => 'socks5://127.0.0.1:' + port;
 
@@ -28,6 +31,12 @@ function createByedpiShare({ byedpi, setRobloxProxy, notify }) {
     // Roblox has taken (or released) the shared process.
     attachRoblox(on) { robloxAttached = !!on; },
     isRobloxAttached() { return robloxAttached; },
+
+    // The Unblock centre has taken (or released) the shared process. repoint(port) is called when
+    // the process moves to another port, and with 0 when it stops, so its sites follow it.
+    attachUnblock(on) { unblockUsing = !!on; },
+    isUnblockAttached() { return unblockUsing; },
+    setUnblockRepoint(fn) { if (typeof fn !== 'function') throw new Error('setUnblockRepoint needs a function'); unblockRepoint = fn; },
 
     // Reuse whatever is already listening, if anything.
     reuseExisting() {
@@ -43,6 +52,7 @@ function createByedpiShare({ byedpi, setRobloxProxy, notify }) {
     async start(userData, buffer, preset, custom) {
       const port = await byedpi.start(userData, buffer, preset, custom);
       if (robloxAttached) setProxy(socks(port));
+      if (unblockUsing) unblockRepoint(port);
       return port;
     },
 
@@ -51,6 +61,7 @@ function createByedpiShare({ byedpi, setRobloxProxy, notify }) {
     // the worst possible outcome for something the user turned on deliberately.
     stop() {
       byedpi.stop();
+      if (unblockUsing) { unblockUsing = false; unblockRepoint(0); }
       if (!robloxAttached) return;
       robloxAttached = false;
       setProxy(null);
@@ -64,7 +75,7 @@ function createByedpiShare({ byedpi, setRobloxProxy, notify }) {
     // Returns true when the process was stopped.
     releaseDiscord() {
       discordUsing = false;
-      if (robloxAttached && byedpi.isRunning && byedpi.isRunning()) return false;
+      if ((robloxAttached || unblockUsing) && byedpi.isRunning && byedpi.isRunning()) return false;
       this.stop();
       return true;
     },
@@ -82,7 +93,16 @@ function createByedpiShare({ byedpi, setRobloxProxy, notify }) {
     releaseRoblox() {
       robloxAttached = false;
       setProxy(null);
-      if (discordUsing && byedpi.isRunning && byedpi.isRunning()) return false;
+      if ((discordUsing || unblockUsing) && byedpi.isRunning && byedpi.isRunning()) return false;
+      byedpi.stop();
+      return true;
+    },
+
+    // The last Unblock centre site that needed the process is gone (or none could be opened). It stops
+    // unless Discord or Roblox are riding it. Returns true when stopped.
+    releaseUnblock() {
+      unblockUsing = false;
+      if ((discordUsing || robloxAttached) && byedpi.isRunning && byedpi.isRunning()) return false;
       byedpi.stop();
       return true;
     },

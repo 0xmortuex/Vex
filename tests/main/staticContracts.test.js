@@ -69,6 +69,8 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:autopilot-done', 'telemetry hook'],
   ['vex:brief-changed', 'state-changed notification, no consumer yet'],
   ['vex:ui-scale-changed', 'state-changed notification, no consumer yet'],
+  ['vex:theme-pack-changed', 'state-changed notification, no consumer yet'],
+  ['vex:icon-pack-changed', 'state-changed notification, no consumer yet'],
   ['vex:challenge-changed', 'state-changed notification, no consumer yet'],
   ['vex:discovery-changed', 'state-changed notification, no consumer yet'],
   ['vex:problem', 'state-changed notification, no consumer yet'],

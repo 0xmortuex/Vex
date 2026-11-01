@@ -27,8 +27,21 @@ const VexBoot = {
   KEEP: 10,
   LATE_MODULES: [
     { src: 'js/release-checklist.js', usage: ['release-check'] },
+    { src: 'js/sidebar-groups-ui.js', usage: [] },
+    { src: 'js/reminders-tab.js', usage: [] },
+    { src: 'js/theme-pack-ui.js', usage: [] },
+    { src: 'js/this-site.js', usage: [] },
+    { src: 'js/share-look.js', usage: [] },
+    { src: 'js/share-look-ui.js', usage: [] },
     { src: 'js/diagnostics-bundle.js', usage: [] },
     { src: 'js/your-data.js', usage: [] },
+    { src: 'js/maker-repos.js', usage: [] },
+    { src: 'js/faq-ui.js', usage: [] },
+    { src: 'js/drm-help-tr.js', usage: [] },
+    { src: 'js/settings-sweep2-tr.js', usage: [] },
+    { src: 'js/dialogs-tr.js', usage: [] },
+    { src: 'js/drm-help.js', usage: [] },
+    { src: 'js/unblock-centre.js', usage: ['unblock-centre'] },
     { src: 'js/page-recorder.js', usage: [] },
     { src: 'js/agent-task-panel.js', usage: [] },
     { src: 'js/shopping-clip.js', usage: [] },
@@ -46,6 +59,7 @@ const VexBoot = {
     { src: 'js/feature-switches.js', usage: [] },
     { src: 'js/fun/fun-settings.js', usage: [] },
     { src: 'js/attention-settings.js', usage: [] },
+    { src: 'js/inbox-hub.js', usage: [] },
     { src: 'js/quiet-hours-ui.js', usage: [] },
     { src: 'js/tabs-nav-settings.js', usage: [] },
     { src: 'js/capture-tools.js', usage: [] },
@@ -68,6 +82,13 @@ const VexBoot = {
     { src: 'js/day-shape.js', usage: ['day-shape'] },
     { src: 'js/whats-new-me.js', usage: ['whats-new-me'] },
     { src: 'js/pointer-fx.js', usage: ['custom-cursor', 'click-effect'] },
+    // The Wallpaper Store: pictures drawn by code (data, generators), the painter shared with the New Tab, the logic and API (window.VexWallpapers) and its screen.
+    { src: 'js/wallpaper-generators.js', usage: [] },
+    { src: 'js/wallpaper-data.js', usage: [] },
+    { src: 'js/wallpaper-paint.js', usage: [] },
+    { src: 'js/wallpaper-store.js', usage: ['wallpaper-store'] },
+    { src: 'js/wallpaper-sync.js', usage: [] },
+    { src: 'js/wallpaper-store-ui.js', usage: [] },
     { src: 'js/update-tour.js', usage: ['whats-new-me'] },
     { src: 'js/media-control.js', usage: ['media-control'] },
     { src: 'js/media-viewer-host.js', usage: ['media-viewer'] },
@@ -85,6 +106,8 @@ const VexBoot = {
     { src: 'js/smart-search.js', usage: [] },
     // Saved payment cards: the offer, the chooser, the manager and Settings > Payment cards (attaches itself to the tabs already open).
     { src: 'js/card-saver.js', usage: [] },
+    // Dangerous-site warnings: the Settings section (switch, list date, Update now, test) and two Ctrl+K commands. The check itself is in main.
+    { src: 'js/threat-list-ui.js', usage: [] },
     // The bar over a tab an extension is controlling through the debugger (draws itself when main says a tab is held).
     { src: 'js/ext-debug-bar.js', usage: [] },
     // An extension's side panel, docked beside the page (chrome.sidePanel.open).

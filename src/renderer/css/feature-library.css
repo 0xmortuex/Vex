@@ -272,3 +272,49 @@
   white-space: nowrap;
 }
 .flib-btn:disabled { opacity: .5; cursor: default; }
+
+/* === What do you want to do? (js/feature-intents.js): the tiles, and the switch between them and the areas === */
+.flib-views { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.flib-views:empty { display: none; }
+.flib-view {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.flib-view:hover { color: var(--text); border-color: var(--text-muted); }
+.flib-view.on { color: var(--on-primary, #fff); background: var(--primary); border-color: var(--primary); }
+.flib-view:focus-visible, .flib-tile:focus-visible, .flib-btn:focus-visible, .flib-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.flib-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 6px 0 10px; }
+.flib-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  font: inherit;
+  padding: 10px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.flib-tile:hover { background: var(--vex-hover-fill, var(--tab-hover)); border-color: var(--text-muted); }
+.flib-tile-icon { display: inline-flex; color: var(--primary); }
+.flib-tile-name { font-size: 12.5px; font-weight: 700; }
+.flib-tile-count { font-size: 11px; color: var(--text-muted); }
+.flib-tile-count b { color: var(--text); }
+.flib-tile-blurb { font-size: 11px; line-height: 1.4; color: var(--text-muted); }
+.flib-tile-sample { font-size: 10.5px; line-height: 1.4; color: var(--text-muted); }
+.flib-intent-bar { padding: 8px 0 0; }
+.flib-intent-bar .flib-btn { display: inline-flex; align-items: center; gap: 4px; }
+.flib-count { font-weight: 400; color: var(--text-muted); }
+.flib-showall { padding: 10px 0 14px; }
+#flib-intent-h:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }

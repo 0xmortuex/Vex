@@ -151,3 +151,74 @@ describe('toolbar overflow', () => {
     expect(js).toMatch(/'window-controls'/);
   });
 });
+
+describe('the chevron menu, from the keyboard and a screen reader', () => {
+  const press = (key, target = document) => {
+    const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    target.dispatchEvent(e);
+    return e;
+  };
+  const open = () => {
+    BAR_W = 900;
+    const api = load();
+    api.relayout();
+    const more = document.getElementById('btn-toolbar-overflow');
+    more.click();
+    return { more, items: [...document.querySelectorAll('.tb-overflow-item')] };
+  };
+
+  it('is a menu of menu items; its button says it opens a menu and whether it is open', () => {
+    const { more, items } = open();
+    const menu = document.getElementById('toolbar-overflow-menu');
+    expect(menu.getAttribute('role')).toBe('menu');
+    expect(menu.getAttribute('aria-label')).toBeTruthy();
+    expect(items.length).toBeGreaterThan(1);
+    expect(items.every(i => i.getAttribute('role') === 'menuitem')).toBe(true);
+    expect(items.every(i => i.querySelector('.tb-overflow-ico').getAttribute('aria-hidden') === 'true')).toBe(true);
+    expect(more.getAttribute('aria-haspopup')).toBe('menu');
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(items[0]);
+  });
+
+  it('Home and End go to the first and the last item, the arrows wrap', () => {
+    const { items } = open();
+    press('End');
+    expect(document.activeElement).toBe(items[items.length - 1]);
+    press('ArrowDown');
+    expect(document.activeElement).toBe(items[0]);
+    press('ArrowUp');
+    expect(document.activeElement).toBe(items[items.length - 1]);
+    press('Home');
+    expect(document.activeElement).toBe(items[0]);
+  });
+
+  it('Escape and Tab close it and the focus is back on its button', () => {
+    const { more } = open();
+    press('Escape');
+    expect(document.getElementById('toolbar-overflow-menu')).toBeNull();
+    expect(document.activeElement).toBe(more);
+    more.click();
+    press('Tab');
+    expect(document.getElementById('toolbar-overflow-menu')).toBeNull();
+    expect(document.activeElement).toBe(more);
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('choosing an item puts the focus on the button first, so what it opens returns there', () => {
+    const { more, items } = open();
+    let at = null;
+    document.getElementById('btn-tor').addEventListener('click', () => { at = document.activeElement; });
+    items.find(i => i.textContent === 'Tor').click();
+    expect(at).toBe(more);
+  });
+
+  it('ArrowDown on the button opens the menu', () => {
+    BAR_W = 900;
+    const api = load();
+    api.relayout();
+    const more = document.getElementById('btn-toolbar-overflow');
+    more.focus();
+    press('ArrowDown', more);
+    expect(document.getElementById('toolbar-overflow-menu')).not.toBeNull();
+  });
+});

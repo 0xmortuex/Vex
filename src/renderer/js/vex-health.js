@@ -76,7 +76,7 @@ const VexHealth = {
       if (!found.length) {
         const e = document.createElement('div');
         e.className = 'vexsr-empty';
-        e.textContent = 'Nothing wrong. Checked: ' + scan.checked.join('; ') + '.';
+        e.textContent = window.vexTr('Nothing wrong. Checked:') + ' ' + scan.checked.map(c => window.vexTr(c)).join('; ') + '.';   // main names the checks in English: each is translated on its own
         list.appendChild(e);
         return;
       }

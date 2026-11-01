@@ -142,6 +142,18 @@ const AttentionInbox = {
     } else if (dot) dot.remove();
     if (this._ui && n === 0) this.close();
     else if (this._ui) this._renderList();
+    if (this._embed && !this._embed.isConnected) this._embed = null;
+    if (this._embed) this._renderList(this._embed);
+  },
+
+  // The same list drawn into an element of the combined Inbox (js/inbox-hub.js, "Notices" tab). Rows, buttons and
+  // the Dismiss / Show less / Never verbs are exactly the bell popover's; opening it counts as having looked.
+  renderInto(el) {
+    this._style();
+    el.classList.add('attention-embed');
+    this._embed = el;
+    this._renderList(el);
+    this.markSeen();
   },
 
   _style() {
@@ -152,15 +164,15 @@ const AttentionInbox = {
       #btn-attention { position: relative; }
       #btn-attention .attention-dot { position:absolute; top:3px; right:3px; width:8px; height:8px; border-radius:50%; background: var(--primary, #4f8cff); box-shadow: 0 0 0 2px var(--bg, #fff); }
       #attention-inbox-pop { position:fixed; z-index:9000; width:min(360px,92vw); max-height:min(70vh,520px); overflow:auto; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:12px; box-shadow:0 14px 40px rgba(0,0,0,.28); padding:10px; }
-      #attention-inbox-pop h2 { margin:0 0 6px; font-size:13px; font-weight:650; }
-      #attention-inbox-pop .ai-row { padding:8px 4px; border-top:1px solid var(--border); }
-      #attention-inbox-pop .ai-row:first-of-type { border-top:none; }
-      #attention-inbox-pop .ai-title { font-size:12.5px; font-weight:600; }
-      #attention-inbox-pop .ai-body { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
-      #attention-inbox-pop .ai-btns { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-      #attention-inbox-pop button { font-size:11.5px; color:var(--text); background:none; border:1px solid var(--border); border-radius:6px; padding:3px 9px; cursor:pointer; }
-      #attention-inbox-pop button.ai-primary { background: var(--primary, #4f8cff); color:var(--on-primary, #fff); border-color: transparent; }
-      #attention-inbox-pop .ai-foot { font-size:11px; color:var(--text-muted); margin-top:6px; }
+      :is(#attention-inbox-pop, .attention-embed) h2 { margin:0 0 6px; font-size:13px; font-weight:650; }
+      :is(#attention-inbox-pop, .attention-embed) .ai-row { padding:8px 4px; border-top:1px solid var(--border); }
+      :is(#attention-inbox-pop, .attention-embed) .ai-row:first-of-type { border-top:none; }
+      :is(#attention-inbox-pop, .attention-embed) .ai-title { font-size:12.5px; font-weight:600; }
+      :is(#attention-inbox-pop, .attention-embed) .ai-body { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+      :is(#attention-inbox-pop, .attention-embed) .ai-btns { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+      :is(#attention-inbox-pop, .attention-embed) button { font-size:11.5px; color:var(--text); background:none; border:1px solid var(--border); border-radius:6px; padding:3px 9px; cursor:pointer; }
+      :is(#attention-inbox-pop, .attention-embed) button.ai-primary { background: var(--primary, #4f8cff); color:var(--on-primary, #fff); border-color: transparent; }
+      :is(#attention-inbox-pop, .attention-embed) .ai-foot { font-size:11px; color:var(--text-muted); margin-top:6px; }
     `;
     document.head.appendChild(st);
   },
@@ -168,6 +180,9 @@ const AttentionInbox = {
   open() {
     if (typeof document === 'undefined') return null;
     if (this._ui) return this._ui;
+    // The bell, Ctrl+K "Open the Inbox" and every "see all" link open the combined Inbox on its Notices tab
+    // (js/inbox-hub.js, loaded late); the popover below is what shows until that file has arrived.
+    if (typeof VexInboxHub !== 'undefined') { VexInboxHub.open('notices'); return null; }
     this._style();
     const pop = document.createElement('div');
     pop.id = 'attention-inbox-pop';
@@ -197,10 +212,13 @@ const AttentionInbox = {
     document.removeEventListener('keydown', this._onKey, true);
     document.removeEventListener('mousedown', this._onDoc, true);
   },
-  toggle() { return this._ui ? (this.close(), null) : this.open(); },
+  toggle() {
+    if (typeof VexInboxHub !== 'undefined' && VexInboxHub.isOpen()) { VexInboxHub.close(); return null; }
+    return this._ui ? (this.close(), null) : this.open();
+  },
 
-  _renderList() {
-    const pop = this._ui;
+  _renderList(target) {
+    const pop = target || this._ui;
     if (!pop) return;
     const rows = this._read();
     pop.textContent = '';

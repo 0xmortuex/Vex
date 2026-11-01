@@ -554,9 +554,9 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   // (src/main/extension-events.js); a webRequest listener's filter goes with
   // it, as its own numbered event.
   var listenerSeq = 0;
-  function tellMain(type, filter) {
+  function tellMain(type, filter, spec) {
     if (!api) return;
-    api('events.listen', { type: type, filter: filter }).catch(function (err) { console.error('[Vex] ' + type + ' will not be heard: ' + err.message); });
+    api('events.listen', spec ? { type: type, filter: filter, spec: spec } : { type: type, filter: filter }).catch(function (err) { console.error('[Vex] ' + type + ' will not be heard: ' + err.message); });
   }
   function mainHubEvent(type) {
     var h = hubEvent(type);
@@ -567,12 +567,12 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   function requestEvent(type) {
     var mine = [];
     return {
-      addListener: function (fn, filter) {
+      addListener: function (fn, filter, spec) {
         if (typeof fn !== 'function') return;
         var sub = type + '#' + (++listenerSeq);
         mine.push([fn, sub]);
         hubEvent(sub).addListener(fn);
-        tellMain(sub, filter || {});
+        tellMain(sub, filter || {}, Array.isArray(spec) ? spec : undefined);
       },
       removeListener: function (fn) {
         mine = mine.filter(function (p) { if (p[0] !== fn) return true; hubEvent(p[1]).removeListener(fn); return false; });
@@ -586,7 +586,11 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       onCreated: mainHubEvent('tabs.onCreated'), onRemoved: mainHubEvent('tabs.onRemoved') }, 'tabs');
   }
   if (api && c.webRequest && perms.indexOf('webRequest') !== -1) {
-    takeOver(c.webRequest, { onCompleted: requestEvent('webRequest.onCompleted') }, 'webRequest');
+    // Observing only: a listener is told, and what it answers (even with 'blocking') changes nothing.
+    var seen = {};
+    ['onBeforeRequest', 'onBeforeSendHeaders', 'onSendHeaders', 'onHeadersReceived', 'onResponseStarted', 'onBeforeRedirect', 'onCompleted', 'onErrorOccurred']
+      .forEach(function (name) { seen[name] = requestEvent('webRequest.' + name); });
+    takeOver(c.webRequest, seen, 'webRequest');
   }
 
   // chrome.windows, chrome.notifications and chrome.downloads: Electron has
@@ -1244,6 +1248,32 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
         return settle(api('sidePanel.close', { tabId: o && typeof o.tabId === 'number' ? o.tabId : undefined }).then(function () { return undefined; }), callback, 'sidePanel.close');
       },
       onOpened: noEvent(), onClosed: noEvent(),
+    };
+  }
+  // chrome.history, chrome.bookmarks and chrome.topSites: the reading half, from Vex's own saved lists (main/extension-browsing.js), for an
+  // extension that names the permission. Everything that would change them is refused in words; the change events never fire.
+  if (api && hasPerm('history') && !c.history) {
+    c.history = {
+      search: mainCall('history.search', function (q) { return { query: q || {} }; }),
+      getVisits: mainCall('history.getVisits', function (d) { return { url: d && d.url }; }),
+      addUrl: refuse('add to your history'), deleteUrl: refuse('delete from your history'),
+      deleteRange: refuse('delete from your history'), deleteAll: refuse('delete your history'),
+      onVisited: noEvent(), onVisitRemoved: noEvent(),
+    };
+  }
+  if (api && hasPerm('topSites') && !c.topSites) c.topSites = { get: mainCall('topSites.get', function () { return {}; }) };
+  if (api && hasPerm('bookmarks') && !c.bookmarks) {
+    c.bookmarks = {
+      getTree: mainCall('bookmarks.getTree', function () { return {}; }),
+      get: mainCall('bookmarks.get', function (ids) { return { ids: ids }; }),
+      getChildren: mainCall('bookmarks.getChildren', function (id) { return { id: id }; }),
+      getSubTree: mainCall('bookmarks.getSubTree', function (id) { return { id: id }; }),
+      getRecent: mainCall('bookmarks.getRecent', function (n) { return { count: n }; }),
+      search: mainCall('bookmarks.search', function (q) { return { query: q }; }),
+      create: refuse('add a bookmark'), update: refuse('change a bookmark'), move: refuse('move a bookmark'),
+      remove: refuse('remove a bookmark'), removeTree: refuse('remove a bookmark folder'),
+      onCreated: noEvent(), onRemoved: noEvent(), onChanged: noEvent(), onMoved: noEvent(), onChildrenReordered: noEvent(), onImportBegan: noEvent(), onImportEnded: noEvent(),
+      BOOKMARK_BAR_ID: '1', OTHER_BOOKMARKS_ID: '2', MANAGED_BOOKMARKS_ID: '4',
     };
   }
   if (!c.offscreen && hasPerm('offscreen')) {
@@ -2767,6 +2797,24 @@ let _vexStartPageOwn = null;
     return e.target;
   }
 
+  // A box that takes a one-time code (an authenticator, SMS or e-mail code) is never a password to save, even when
+  // the site masks it as type=password or the six boxes are plain inputs: the save/update card used to offer the
+  // code as the new password (found 2026-11-01). Narrower than the chooser rule in "Saved-login fill": a real PIN
+  // login (autocomplete current-password / a name that says password) is still saved.
+  function isCodeBox(el) {
+    try {
+      const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+      if (ac.indexOf("one-time-code") !== -1) return true;
+      if (/current-password|new-password/.test(ac)) return false;
+      const m = ((el.name || "") + " " + (el.id || "") + " " + (el.getAttribute("aria-label") || "") + " " + (el.placeholder || "")).toLowerCase();
+      if (/\botp\b|one-?time|\btotp\b|\b2fa\b|\bmfa\b|verif(?:y|ication)|security.?code|auth(?:entication|enticator)?.?code|authenticator|\bcode\b|digit/.test(m)) return true;
+      const im = (el.getAttribute("inputmode") || "").toLowerCase();
+      const max = Number(el.getAttribute("maxlength") || 0);
+      if ((im === "numeric" || im === "decimal") && max > 0 && max <= 8 && !/pass|pwd/.test(m)) return true;
+      return /^\d{4,8}$/.test(String(el.value || "")) && !/pass|pwd/.test(m);
+    } catch { return false; }
+  }
+
   let lastUser = "";
   // The password field the person last typed in. Its "show password" eye
   // turns it into a text field, which no input[type=password] search finds:
@@ -2777,7 +2825,7 @@ let _vexStartPageOwn = null;
       const el = realTarget(e);
       if (!el || el.tagName !== "INPUT") return;
       const t = (el.type || "text").toLowerCase();
-      if (t === "password") { lastPwField = el; return; }
+      if (t === "password") { if (!isCodeBox(el)) lastPwField = el; return; }
       if (el === lastPwField) return;
       if (t === "email" || t === "text" || t === "tel" || t === "") {
         const v = String(el.value || "").trim();
@@ -2801,9 +2849,9 @@ let _vexStartPageOwn = null;
       // On a change-password form the first field is the OLD password, so the
       // new one was never offered for saving (found 2026-09-29). Take the one
       // marked new-password, else the last one filled in.
-      const filled = deepAll("input[type=password]").filter((p) => !!p.value);
+      const filled = deepAll("input[type=password]").filter((p) => !!p.value && !isCodeBox(p));
       // Shown by its eye button: now type=text, but still the password.
-      if (lastPwField && lastPwField.isConnected && lastPwField.value && !filled.includes(lastPwField)
+      if (lastPwField && lastPwField.isConnected && lastPwField.value && !isCodeBox(lastPwField) && !filled.includes(lastPwField)
         && ["text", ""].includes((lastPwField.type || "").toLowerCase())) filled.push(lastPwField);
       const pw = filled.find((p) => /new-password/i.test(p.getAttribute("autocomplete") || "")) || filled[filled.length - 1];
       if (!pw) return;
@@ -2932,8 +2980,23 @@ let _vexStartPageOwn = null;
     if (ac === "username" || ac === "email") return true;
     return /e-?mail|user-?name|userid|user[_-]?login|sign-?in|(^| )login( |$)|phone number|account name/.test(meta(el));
   }
+  // A box that asks for a one-time code (an authenticator or SMS code, usually six boxes of one digit) is never
+  // a user name, whatever else is on the page: a visible password field somewhere made every code box a "login
+  // field" and the saved-account chooser opened over the Authenticator code (Riot account page, found 2026-11-01).
+  function isCodeField(el) {
+    try {
+      const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+      if (ac.indexOf("one-time-code") !== -1) return true;
+      const im = (el.getAttribute("inputmode") || "").toLowerCase();
+      const max = Number(el.getAttribute("maxlength") || 0);
+      if ((im === "numeric" || im === "decimal") && max > 0 && max <= 8) return true;
+      return /\botp\b|one-?time|\btotp\b|\b2fa\b|\bmfa\b|verif(?:y|ication)|security.?code|auth(?:entication|enticator)?.?code|passcode|\bpin\b|\bcode\b|\btoken\b|digit/.test(meta(el));
+    } catch { return false; }
+  }
+
   function looksLikeUser(el) {
     if (!visible(el)) return false;
+    if (isCodeField(el)) return false;
     const t = (el.type || "").toLowerCase();
     if (!(t === "" || t === "text" || t === "email" || t === "tel")) return false;
     return !isSearchy(el);
@@ -2982,10 +3045,20 @@ let _vexStartPageOwn = null;
   function sameOriginForm(el) {
     try { return !el.form || new URL(el.form.action || location.href, location.href).origin === location.origin; } catch { return false; }
   }
+  // A password field in the SAME form or dialog as this box (not anywhere on the page): an account page can show
+  // a password field in one place and a code dialog in another.
+  function passwordNear(el) {
+    try {
+      const root = el.closest("form,dialog,[role=dialog],[aria-modal=true]");
+      if (!root) return !!loginPassword();
+      return deepAll(root, "input[type=password]").some((p) => visible(p) && !isNewPw(p));
+    } catch { return false; }
+  }
+
   function isLoginField(el) {
     if (!el || el.tagName !== "INPUT" || el.disabled || el.readOnly || !visible(el) || !sameOriginForm(el)) return false;
     if ((el.type || "").toLowerCase() === "password") return !isNewPw(el);
-    return looksLikeUser(el) && (loginSignal(el) || !!loginPassword());
+    return looksLikeUser(el) && (loginSignal(el) || passwordNear(el));
   }
   // The native setter, so React/Vue controlled inputs register the change.
   // No el.focus(): it moved the cursor mid-sign-in (found 2026-09-29).

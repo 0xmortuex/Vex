@@ -399,6 +399,8 @@
   // light and dark looks alike. Empty string = let the colour theme through.
   function startPagePaletteCss() {
     if (!isBrowserLook() || currentColors() !== 'look') return '';
+    // A wallpaper the New Tab is matched to (js/wallpaper-sync.js) brings its own colours: not over those.
+    if (window.VexWallpaperSync && window.VexWallpaperSync.newTabWorn()) return '';
     const cs = getComputedStyle(document.body);
     const b = (n) => {
       const v = cs.getPropertyValue(n).trim();
@@ -499,11 +501,17 @@
     set: apply,
     get: current,
     styles: () => Object.keys(STYLES),
+    // How a look opens the sidebar's panels: 'rail' (an icon strip on screen) or 'toolbar' (a toolbar button). Classic has the rail.
+    launcher: (style) => {
+      if (!STYLES[style]) throw new Error(`Unknown GUI style: ${style}`);
+      return STYLES[style].sidebar ? STYLES[style].sidebar.launcher : 'rail';
+    },
     isBrowserLook,
     setColors: applyColors,
     getColors: currentColors,
     pickedByHand,
     paintStartPage,
+    paintStartPages,
     render: () => { const b = document.getElementById('gui-shortcuts-bar'); if (b) renderBar(b); },
     // The stock shortcut set — the onboarding setup-style step builds its
     // pick-and-choose list from this so the two never drift apart.

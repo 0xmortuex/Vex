@@ -1,0 +1,423 @@
+/* === Settings, one category at a time (js/settings-pane.js, js/settings-find.js) ==========
+   ONE visual language (the owner, 2026-11-01: "everything in Settings minimized as much as
+   possible"): a category page is a title, then groups. A group is a small muted label and ONE
+   card (12px radius) whose rows are separated by 1px lines; no card inside a card. A row is
+   44-48px: label 14px/500 and a one-line hint 12.5px muted on the left, its control on the right
+   (a menu is 240px wide, never the page width; buttons are 30px high; the (i) is at the end of
+   the label). The sections of a card stay the elements they always were (same ids, same
+   controls); this file only draws them. Colours come from the existing tokens. Loaded before
+   a11y.css, which stays last. */
+
+#panel-settings[data-pane] .settings-content > .set-pane-off { display: none !important; }
+/* A section a module drew a moment ago has no category yet (js/settings-ui.js gives it one a moment later): it shows nowhere until then. */
+#panel-settings[data-pane] .settings-content > .setting-group:not([data-nav-key]) { display: none !important; }
+
+/* --- The page ----------------------------------------------------------------------------- */
+#panel-settings[data-pane] .settings-content {
+  padding: 16px 28px 72px;
+  font-family: inherit;
+}
+/* One centred column, 880px at most (the scroll area stays the whole panel, so the wheel works beside it). */
+#panel-settings[data-pane] .settings-content > * { max-width: 880px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+#panel-settings[data-pane][data-set-wide] .settings-content > * { max-width: none; }
+#panel-settings[data-pane] .settings-content :is(button, input, select, textarea) { font-family: inherit; }
+#panel-settings[data-pane] .settings-content > h2 { display: none; }
+#panel-settings[data-pane] .settings-content > .set-page-title {
+  margin-top: 4px;
+  padding: 0 2px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+/* --- Groups and their card ---------------------------------------------------------------- */
+/* The group's label: a line of its own above its card. */
+#panel-settings[data-pane] .settings-content > .set-card-title {
+  margin-top: 0;
+  margin-bottom: 6px;
+  padding: 8px 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+#panel-settings[data-pane] .settings-content > .set-page-title + .set-card-title { padding-top: 4px; }
+#panel-settings[data-pane] .settings-content > .setting-group { width: 100%; }
+/* A section is a part of its card: the card's border and radius, 1px lines between sections. */
+#panel-settings[data-pane] .settings-content > .setting-group {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0 16px 8px;
+  margin-top: 0;
+  margin-bottom: 0;
+  overflow: visible;
+  transform: none;
+  box-shadow: none;
+  transition: none;
+}
+#panel-settings[data-pane] .settings-content > .setting-group::before { content: none; }
+#panel-settings[data-pane] .settings-content > .setting-group:hover { transform: none; box-shadow: none; border-color: var(--border); }
+/* The section a search result opened: the rule above (box-shadow: none) beat the highlight, so nothing lit up. */
+#panel-settings[data-pane] .settings-content > .setting-group.set-hit {
+  box-shadow: 0 0 0 2px var(--primary), 0 0 0 7px color-mix(in srgb, var(--primary) 22%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  z-index: 1;
+  transition: box-shadow .25s ease, background-color .25s ease;
+}
+#panel-settings[data-pane] .settings-content > .setting-group.set-card-first { border-radius: 12px 12px 0 0; border-bottom: 0; }
+#panel-settings[data-pane] .settings-content > .setting-group.set-card-mid { border-bottom: 0; }
+#panel-settings[data-pane] .settings-content > .setting-group.set-card-last { border-radius: 0 0 12px 12px; margin-bottom: 14px; }
+#panel-settings[data-pane] .settings-content > .setting-group.set-card-only { border-radius: 12px; margin-bottom: 14px; }
+
+/* A section's own heading (kept only for a section of four or more rows): a quiet line, not a card title. */
+#panel-settings[data-pane] .settings-content > .setting-group > .setting-label {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 0 2px;
+  box-sizing: border-box;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+#panel-settings[data-pane] .settings-content > .setting-group > .setting-label .set-emoji { display: none; }
+#panel-settings[data-pane] .settings-content .setting-group label.setting-label { border: 0; }
+#panel-settings[data-pane] .settings-content > .setting-group.set-head-off > .setting-label { display: none; }
+
+/* --- Rows: label and hint left, control right, 44-48px -------------------------------------- */
+#panel-settings[data-pane] .settings-content .setting-group .setting-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 6px 0;
+  box-sizing: border-box;
+  font-size: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+#panel-settings[data-pane] .settings-content .setting-group .setting-toggle-row:first-child,
+#panel-settings[data-pane] .settings-content .setting-group > .setting-label + .setting-toggle-row { border-top: 0; }
+#panel-settings[data-pane] .settings-content .setting-group .setting-toggle-row > span:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text);
+}
+#panel-settings[data-pane] .settings-content .setting-group .setting-toggle-row > span:first-child > br { display: none; }
+#panel-settings[data-pane] .settings-content .setting-group .setting-row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; min-height: 46px; padding: 6px 0; font-size: 14px; }
+#panel-settings[data-pane] .settings-content .setting-group .setting-row > :is(label, .setting-label) { flex: 1 1 160px; min-width: 0; margin: 0; font-size: 14px; font-weight: 500; color: var(--text); }
+#panel-settings[data-pane] .settings-content .setting-group .setting-row-label { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 0; }
+
+/* The hint: ONE line, 12.5px muted; the whole text is the tooltip, or behind the (i) when it is long. */
+#panel-settings[data-pane] .settings-content .setting-group .set-hint-line {
+  display: block;
+  max-width: 100%;
+  margin: 1px 0 0;
+  font-size: 12.5px !important;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#panel-settings[data-pane] .settings-content .setting-group :is(.setting-info, .setting-hint, .set-layout-hint):not(.set-info-folded) { font-size: 12.5px; line-height: 1.4; color: var(--text-muted); }
+
+/* Menus: 240px on the right of their row, never the width of the page. */
+#panel-settings[data-pane] .settings-content .setting-group select {
+  flex: 0 0 auto;
+  width: 240px;
+  max-width: 46%;
+  min-width: 150px;
+  height: 32px;
+  padding: 0 28px 0 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-left: auto;
+  text-overflow: ellipsis;
+}
+#panel-settings[data-pane] .settings-content .setting-group .setting-toggle-row > select { margin-left: auto; }
+#panel-settings[data-pane] .settings-content .setting-group input:is([type="text"], [type="url"], [type="search"], [type="password"], [type="number"], [type="email"], :not([type])):not(.set-search) {
+  box-sizing: border-box;
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+/* A container whose menu sits next to its label: the label takes what is left, the menu stays right. */
+#panel-settings[data-pane] .set-flexrows { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 0; }
+#panel-settings[data-pane] .set-flexrows > :not(select, button, .toggle, .set-info-btn, input[type="checkbox"], input[type="radio"]) { flex: 1 1 100%; min-width: 0; }
+#panel-settings[data-pane] .set-flexrows > :not(select, button, .toggle, .set-info-btn, input[type="checkbox"], input[type="radio"]):has(+ select) { flex: 1 1 calc(100% - 264px); min-width: 160px; }
+#panel-settings[data-pane] .set-flexrows > select { margin: 6px 0 6px auto; }
+#panel-settings[data-pane] .set-flexrows > :is(label, .setting-row-label):has(+ select) { padding: 8px 0; font-size: 14px; font-weight: 500; color: var(--text); margin: 0; border: 0; }
+
+/* A checkbox with its words (a module's own bordered box) is a plain row. */
+#panel-settings[data-pane] .settings-content .setting-group label:has(> input[type="checkbox"]):not(.toggle) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 0;
+  box-sizing: border-box;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 14px;
+}
+
+/* A row whose right side is several buttons: they sit together on the right. */
+#panel-settings[data-pane] .settings-content .setting-group .setting-toggle-row > :is(span, div):has(> button) {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* --- Buttons: one look (28-32px, 13px, 8px radius) ------------------------------------------ */
+#panel-settings[data-pane] .settings-content :is(.btn-primary, .btn-secondary, .btn-danger) {
+  width: auto !important;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#panel-settings[data-pane] .settings-content .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+#panel-settings[data-pane] .settings-content .btn-secondary:hover { border-color: var(--primary); background: var(--vex-hover-fill, transparent); }
+#panel-settings[data-pane] .settings-content .btn-primary { background: var(--primary); color: var(--on-primary, #fff); border: 1px solid var(--primary); }
+/* A filled danger button keeps white text readable in every look (a light --danger, as in Glass, is darkened). */
+#panel-settings[data-pane] .settings-content .btn-danger { background: color-mix(in srgb, var(--danger) 65%, #000); color: #fff; border: 1px solid color-mix(in srgb, var(--danger) 65%, #000); }
+#panel-settings[data-pane] .settings-content .btn-secondary.set-btn-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+#panel-settings[data-pane] .settings-content .btn-secondary.set-btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: var(--danger); }
+#panel-settings[data-pane] .settings-content .setting-group :is(.vws-set-actions, .extensions-actions) { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0; }
+
+/* The (i): at the end of its label, or the right edge of its row. */
+#panel-settings[data-pane] .settings-content .setting-group .set-info-btn { width: 24px; height: 24px; margin: 0 0 0 4px; }
+#panel-settings[data-pane] .set-info-btn--inline { display: inline-flex; vertical-align: middle; }
+#panel-settings[data-pane] .settings-content .setting-group .set-info-btn--line { display: flex; margin: 2px 0 2px auto; }
+#panel-settings[data-pane] .settings-content > .setting-group > .set-info-btn--corner { position: absolute; top: 8px; right: 12px; margin: 0; }
+#panel-settings[data-pane] .settings-content > .setting-group.set-head-off > .set-info-btn--corner { display: none; }
+#panel-settings[data-pane] .settings-content .setting-group .set-info-folded.set-info-open { display: block; flex: 1 1 100%; margin: 2px 0 8px; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); white-space: normal; }
+
+/* --- Advanced: the rare rows of a section, behind one line -------------------------------- */
+#panel-settings[data-pane] .set-more-btn { margin: 0; padding: 0; min-height: 40px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); font-size: 13px; }
+#panel-settings[data-pane] .settings-content > .set-subnav { margin-top: 4px; margin-bottom: 0; }
+
+/* --- Search ----------------------------------------------------------------------------- */
+.set-search-row { position: relative; }
+.set-search-clear {
+  flex: 0 0 28px;
+  width: 28px; height: 28px;
+  margin-left: -36px;
+  margin-right: 8px;
+  padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  z-index: 2;
+}
+.set-search-clear[hidden] { display: none; }
+.set-search-clear:hover { color: var(--text); background: var(--vex-hover-fill, transparent); }
+.set-search-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+#panel-settings[data-pane] .set-search { padding-right: 38px; }
+#panel-settings[data-pane] .set-search::-webkit-search-cancel-button { display: none; }
+
+/* While searching only the results show. */
+#panel-settings[data-pane].set-searching .settings-content > :is(.setting-group, .set-subnav, .set-advanced-toggle, .set-card-title, .set-page-title) { display: none !important; }
+#panel-settings[data-pane] .set-results[hidden] { display: none; }
+#panel-settings[data-pane] .set-results { max-width: 860px; }
+.set-results-head { font-size: 13px; color: var(--text-muted); margin: 0 2px 10px; min-height: 18px; }
+.set-results-list { display: flex; flex-direction: column; gap: 8px; }
+.set-result-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.set-result-row:hover { border-color: var(--primary); }
+.set-result-row:focus-visible, .set-result-row[aria-selected="true"]:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+.set-result-text { flex: 1; min-width: 0; }
+.set-result-name { font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-result-crumb { font-size: 13px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-result-tag {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.set-result-open { flex-shrink: 0; }
+.set-result-control { flex-shrink: 0; }
+select.set-result-control { max-width: 220px; }
+.set-results-more { margin: 12px 0 0; }
+.set-results-more[hidden] { display: none; }
+.set-results-empty { padding: 36px 8px; text-align: center; }
+.set-results-empty-title { font-size: 16px; font-weight: 600; color: var(--text); }
+.set-results-empty-hint { margin-top: 6px; font-size: 14px; color: var(--text-muted); }
+
+/* Highlight of the row a result opened. */
+#panel-settings .set-item-hit { animation: setPaneHit 3.5s ease-out 1; border-radius: 8px; }
+@keyframes setPaneHit {
+  0%, 80% { background: color-mix(in srgb, var(--primary) 22%, transparent); outline: 2px solid var(--primary); outline-offset: 2px; }
+  100% { background: transparent; outline: 2px solid transparent; outline-offset: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #panel-settings .set-item-hit { animation: none; background: color-mix(in srgb, var(--primary) 22%, transparent); }
+}
+
+/* === Dense list (SettingsPane.densify): one row per small feature ========================= */
+/* A one-row section: label (and its hint) left, the switch or button right. */
+#panel-settings[data-pane] .settings-content > .setting-group.set-dense {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 0;
+  min-height: 46px;
+  box-sizing: border-box;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+#panel-settings[data-pane] .settings-content .setting-group.set-dense > .setting-label { flex: 1 1 200px; min-width: 0; margin: 0; padding: 0; min-height: 0; font-size: 14px; font-weight: 500; }
+#panel-settings[data-pane] .settings-content .setting-group.set-dense > :is([data-group-body], .vex-module-group-body) { display: contents; }
+#panel-settings[data-pane] .settings-content .setting-group.set-dense .setting-toggle-row { display: contents; border: 0; min-height: 0; padding: 0; }
+#panel-settings[data-pane] .settings-content .setting-group.set-dense .setting-toggle-row > span:first-child { flex: 1 1 200px; min-width: 0; }
+#panel-settings[data-pane] .settings-content .setting-group.set-dense .setting-toggle-row > span.set-redundant { display: none; }
+#panel-settings[data-pane] .settings-content .setting-group.set-dense .toggle { flex: 0 0 auto; margin-left: auto; order: 3; }
+#panel-settings[data-pane] .settings-content .setting-group.set-dense > .set-info-btn--corner,
+#panel-settings[data-pane] .settings-content .setting-group.set-dense .set-info-btn { position: static; order: 2; margin: 0 0 0 auto; }
+#panel-settings[data-pane] .settings-content .setting-group.set-dense .set-info-btn + .toggle { margin-left: 0; }
+#panel-settings[data-pane] .settings-content .setting-group.set-dense button:not(.set-info-btn):not(.set-chevron) { order: 3; margin-left: auto; flex: 0 0 auto; }
+/* A hint under the label: one line. */
+#panel-settings[data-pane] .settings-content .setting-group.set-dense > :is(.setting-info, .setting-hint, .set-hint-line):not(.set-info-folded) {
+  order: 9; flex: 1 0 100%; margin: 0 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#panel-settings[data-pane] .settings-content .setting-group.set-dense > .set-info-btn--line { order: 2; margin-left: auto; }
+/* The switches after the first fold behind the chevron. */
+.set-chevron {
+  order: 4; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.set-chevron:hover { color: var(--text); background: var(--vex-hover-fill, transparent); }
+.set-chevron:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.set-chevron svg { transition: transform .15s ease; }
+.set-chevron[aria-expanded="true"] svg { transform: rotate(180deg); }
+.set-dense:not([data-open]) .set-sub { display: none !important; }
+.set-dense[data-open] .set-sub { display: flex !important; flex: 1 0 100%; order: 10; padding: 6px 0 6px 16px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); align-items: center; justify-content: space-between; }
+.set-dense[data-open] .set-sub > span { flex: 1 1 auto; }
+.set-dense[data-open] .set-sub .toggle { order: 0; }
+@media (prefers-reduced-motion: reduce) { .set-chevron svg { transition: none; } }
+
+/* A section of a few rows that are a label with its menu: the label left, the menu right, on one line. */
+#panel-settings[data-pane] .settings-content > .setting-group.set-plain { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; }
+.set-plain > * { flex: 1 1 100%; min-width: 0; }
+.set-plain > :is(button, .btn-primary, .btn-secondary, .btn-danger) { flex: 0 0 auto; }
+.set-plain > label.setting-label:not(.set-info-btn) { flex: 1 1 40%; margin: 0; font-size: 14px; font-weight: 500; padding: 8px 0; }
+#panel-settings[data-pane] .settings-content .set-plain > select { flex: 0 0 auto; width: 240px; max-width: 46%; margin: 6px 0 6px auto; }
+#panel-settings[data-pane] .settings-content .set-plain > .set-info-btn--corner { position: static; flex: 0 0 auto; margin: 0 0 0 auto; }
+.set-plain > .setting-toggle-row { flex: 1 1 100%; }
+#panel-settings[data-pane] .set-info-btn--corner { position: static; }
+#panel-settings[data-pane] .settings-content > .setting-group:not(.set-dense):not(.set-plain) > .set-info-btn--corner { position: absolute; }
+
+/* A long list: its first items and an inline "Show all N" row. */
+.set-clamp-hidden { display: none !important; }
+.set-clamp-btn {
+  display: block; width: 100%; min-height: 40px; margin: 0; padding: 0; border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: transparent; color: var(--primary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.set-clamp-btn:hover { background: var(--vex-hover-fill, transparent); }
+.set-clamp-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+/* === Rows made of a label and its controls (SettingsPane.tidy) =============================== */
+/* "Title — explanation" inside one label: the explanation is the hint line under the title. */
+#panel-settings[data-pane] .settings-content .setting-group .set-sub-hint {
+  display: block; margin: 1px 0 0; font-size: 12.5px; font-weight: 400; line-height: 1.4; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#panel-settings[data-pane] .settings-content .setting-group :is(.setting-toggle-row > span, .setting-row-label, .setting-label):has(> .set-sub-hint) { display: block; min-width: 0; text-align: left; }
+/* A label with its hint on the left, one to three menus or buttons on the right. */
+#panel-settings[data-pane] .settings-content .setting-group .set-split-row {
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; min-height: 46px; padding: 6px 0; box-sizing: border-box;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+#panel-settings[data-pane] .settings-content .setting-group .set-split-text { flex: 1 1 240px; min-width: 0; }
+#panel-settings[data-pane] .settings-content .setting-group .set-split-text > :is(.setting-row-label, .setting-label, label) { margin: 0; padding: 0; border: 0; }
+#panel-settings[data-pane] .settings-content .setting-group .set-split-text > :is(.setting-info, .setting-hint, p) { margin: 1px 0 0; }
+#panel-settings[data-pane] .settings-content .setting-group .set-split-ctl { flex: 0 0 auto; display: flex !important; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin: 0 !important; padding: 0; }
+#panel-settings[data-pane] .settings-content .setting-group .set-split-ctl > select { margin: 0; }
+/* The one look of a picture-only button and of a choice among several (Characters / Words). */
+#panel-settings[data-pane] .settings-content .btn-icon {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 28px; height: 28px; min-width: 28px; padding: 0; box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer;
+}
+#panel-settings[data-pane] .settings-content .btn-icon:hover { color: var(--text); border-color: var(--primary); background: var(--vex-hover-fill, transparent); }
+#panel-settings[data-pane] .settings-content .btn-icon[aria-pressed="true"], #panel-settings[data-pane] .settings-content .btn-icon.active, #panel-settings[data-pane] .settings-content .btn-icon.selected { color: var(--primary); border-color: var(--primary); background: color-mix(in srgb, var(--primary) 14%, transparent); }
+#panel-settings[data-pane] .settings-content .btn-icon:disabled { opacity: .4; cursor: default; }
+#panel-settings[data-pane] .settings-content .btn-icon svg { width: 14px; height: 14px; }
+
+/* A label whose (i) sits at its end: the title and the (i) share a line. */
+#panel-settings[data-pane] .settings-content .setting-group .setting-label:has(> .set-info-btn--inline) > strong { display: inline; }
+/* Lock Vex: two labelled PIN fields and two buttons on one line, the idle menu on its own row. */
+#panel-settings[data-pane] .settings-content .set-lock-pin { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 8px 0 0; }
+#panel-settings[data-pane] .settings-content .set-lock-field { display: flex; flex-direction: column; gap: 4px; flex: 0 1 200px; min-width: 150px; margin: 0; border: 0; padding: 0; min-height: 0; }
+#panel-settings[data-pane] .settings-content .set-lock-field > span { font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+#panel-settings[data-pane] .settings-content .set-lock-field > input { width: 100%; height: 36px; min-height: 36px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 13px; }
+#panel-settings[data-pane] .settings-content .set-lock-field > input:focus { border-color: var(--primary); }
+#panel-settings[data-pane] .settings-content .set-lock-actions { display: flex; gap: 8px; align-items: center; height: 36px; }
+#panel-settings[data-pane] .settings-content #lock-pin-state { margin: 6px 0 0; }
+#panel-settings[data-pane] .settings-content #lock-pin-state:empty { display: none; }
+#panel-settings[data-pane] .settings-content .set-lock-idle { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; margin-top: 8px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+#panel-settings[data-pane] .settings-content .set-lock-idle > label { margin: 0; font-size: 14px; font-weight: 500; color: var(--text); }
+#panel-settings[data-pane] .settings-content .set-lock-idle > select { margin: 0; }
+
+/* === "Rarely used": the advanced sections of a long category, behind ONE line at its end (Developer mode) ===== */
+#panel-settings[data-pane] .settings-content > .setting-group[data-rare]:not(.set-rare-open) { display: none !important; }
+#panel-settings[data-pane] .settings-content > .set-rare-bar[hidden],
+#panel-settings[data-pane].set-searching .settings-content > .set-rare-bar { display: none !important; }
+#panel-settings[data-pane] .settings-content > .set-rare-bar { margin: 6px auto 14px; }
+.set-rare-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 46px; padding: 0 16px; box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text);
+  font: inherit; font-size: 14px; font-weight: 500; text-align: left; cursor: pointer;
+}
+.set-rare-btn:hover { border-color: var(--primary); background: var(--vex-hover-fill, var(--surface)); }
+.set-rare-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.set-rare-btn svg { flex: 0 0 auto; color: var(--text-muted); transition: transform .15s ease; }
+.set-rare-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.set-rare-title { flex: 0 0 auto; font-weight: 600; }
+.set-rare-names { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 400; color: var(--text-muted); }
+.set-rare-count { flex: 0 0 auto; font-size: 12.5px; color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) { .set-rare-btn svg { transition: none; } }

@@ -33,8 +33,8 @@ const WorkPanel = {
         <div class="wp-identity">
           <span class="wp-swatch" style="background:${esc(themeMeta.accent || '#6366f1')}">${this._icon('briefcase', 17)}</span>
           <span class="wp-identity-text">
-            <span class="wp-job">${esc(job.name)}</span>
-            <span class="wp-meta"><span class="wp-tag">${esc(job.cat)}</span>${esc(themeMeta.label || job.theme)} · <span class="wp-count">${toolCount === 1 ? '1 tool' : toolCount + ' tools'}</span></span>
+            <span class="wp-job">${esc(window.JobSetup ? JobSetup.nameOf(job) : job.name)}</span>
+            <span class="wp-meta"><span class="wp-tag">${esc(window.JobSetup ? JobSetup.catOf(job.cat) : job.cat)}</span>${esc(themeMeta.label || job.theme)} · <span class="wp-count">${toolCount === 1 ? '1 tool' : toolCount + ' tools'}</span></span>
           </span>
           <button class="wp-change" id="wp-change">Change</button>
         </div>
@@ -60,6 +60,12 @@ const WorkPanel = {
             <button class="wp-act" data-act="review"><span class="wp-act-icon">${this._icon('clipboard', 15)}</span>Weekly review</button>
         </div>
       </div>`;
+
+    // A Turkish Vex names the job from js/job-picker-tr.js: loaded now, and the strip is drawn again once it is here.
+    if (window.JobSetup && JobSetup.needsTr()) {
+      JobSetup.ensureTr().then(() => { if (container.isConnected) this.renderPanel(container); })
+        .catch((err) => window.showToast?.('The job name could not be translated: ' + ((err && err.message) || err), 'error'));
+    }
 
     // Reminders set while this job was active. They live in the main process
     // and carry the job id, so a personal reminder never shows up here.

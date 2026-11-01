@@ -230,10 +230,13 @@ const VexInbox = {
   },
 
   // ---- the list --------------------------------------------------------------------------------
-  async open() {
+  // With `host` (an element) the list is drawn there: the Inbox's "Things I saved" tab (js/inbox-hub.js).
+  // Without it, the Inbox opens on that tab when it is loaded, else this list has its own dialog as before.
+  async open(host) {
     if (!this.enabled()) { window.showToast?.('The inbox is switched off in Settings', 'info'); return; }
+    if (!host && typeof VexInboxHub !== 'undefined') return VexInboxHub.open('saved');
     if (typeof VexUsage !== 'undefined') VexUsage.touch('inbox-unified');
-    const { body } = VexSettingsGroups.dialog({ id: 'vex-inbox', title: 'Inbox', sub: 'Saved pages, highlights, sticky notes, quick captures and notes from the last ' + this.RECENT_DAYS + ' days, in one list. Nothing here is moved: each row opens where it lives.' });
+    const body = host || VexSettingsGroups.dialog({ id: 'vex-inbox', title: 'Inbox', sub: 'Saved pages, highlights, sticky notes, quick captures and notes from the last ' + this.RECENT_DAYS + ' days, in one list. Nothing here is moved: each row opens where it lives.' }).body;
     let res;
     try { res = await this.collect(); } catch (err) { body.appendChild(VexSettingsGroups.note('Could not read the inbox: ' + err.message)); return; }
     const seen = this.seenAt();

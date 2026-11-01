@@ -60,10 +60,63 @@ describe('what the wizard covers', () => {
   // nothing it promised ever happened.
   it('each preset says, and sets, whether Vex may sleep things by itself', () => {
     const by = Object.fromEntries(Onboarding.PERF_PRESETS().map(p => [p.id, p.values.sleep]));
-    expect(by).toEqual({ balanced: 'ask', memory: 'auto', privacy: 'ask', nothing: 'never' });
+    expect(by).toEqual({ balanced: 'ask', memory: 'auto', game: 'auto', privacy: 'ask', nothing: 'never' });
     // No "Sleep after" the Settings select cannot hold.
     const minutes = Onboarding.PERF_FIELDS().find(f => f.key === 'minutes').select.map(x => x[0]);
     expect(Math.max(...minutes)).toBe(60);
+  });
+});
+
+describe('the presets and the steps the owner asked about', () => {
+  it('offers five presets, with Game performance between Save memory and Maximum privacy', () => {
+    expect(Onboarding.PERF_PRESETS().map(p => p.id)).toEqual(['balanced', 'memory', 'game', 'privacy', 'nothing']);
+    expect(Onboarding.PERF_PRESETS().map(p => p.name)).toEqual(['Balanced', 'Save memory', 'Game performance', 'Maximum privacy', 'Leave it all off']);
+  });
+
+  it('Game performance is exactly: sleep by itself after 5 minutes, Memory Saver, guard at 900 MB, ads blocked', () => {
+    const game = Onboarding.PERF_PRESETS().find(p => p.id === 'game');
+    expect(game.values).toEqual({ sleep: 'auto', memorySaver: true, autosleep: true, minutes: 5, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true });
+    // Every value is one the Settings control can hold, and the text promises nothing Vex does not do.
+    const minutes = Onboarding.PERF_FIELDS().find(f => f.key === 'minutes').select.map(x => x[0]);
+    const ceilings = Onboarding.PERF_FIELDS().find(f => f.key === 'memCeiling').select.map(x => x[0]);
+    expect(minutes).toContain(game.values.minutes);
+    expect(ceilings).toContain(game.values.memCeiling);
+    expect(game.desc).not.toMatch(/processor|CPU/i);
+  });
+
+  it('choosing Game performance in the step marks it, and Save applies all nine through the controls', async () => {
+    globalThis.SleepConsent = SleepConsent;
+    const applied = settingsControls();
+    const body = document.createElement('div'); document.body.appendChild(body);
+    Onboarding._renderBody('performance', body);
+    expect(body.querySelectorAll('[data-preset]')).toHaveLength(5);
+    body.querySelector('[data-preset="game"]').click();
+    expect(Onboarding._perf.preset).toBe('game');
+    expect(body.querySelector('[data-preset="game"]').style.borderColor || body.querySelector('[data-preset="game"]').getAttribute('style')).toMatch(/var\(--primary\)/);
+    await Onboarding._perfApply(Onboarding._perf);
+    expect(applied).toMatchObject({ 'setting-memory-saver': true, 'setting-mem-ceiling': '900' });
+    expect(document.getElementById('setting-autosleep-minutes').value).toBe('5');
+    expect(SleepConsent.mode()).toBe('auto');
+    expect(PrivacyPack.setCfg).toHaveBeenCalledWith({ farble: false, httpsOnly: true, doh: 'off' });
+    delete globalThis.SleepConsent;
+  });
+
+  it('the setup has no password step, in the short or the full version', () => {
+    const steps = Onboarding.STEPS();
+    expect(steps.map(s => s.key)).not.toContain('passwords');
+    expect(steps.filter(s => s.quick).map(s => s.key)).not.toContain('passwords');
+    expect(steps.every(s => s.title && s.sub)).toBe(true);
+    // The wizard no longer asks for, or stores, a first login.
+    expect(localStorage.getItem('vex.vaultSeeded')).toBeNull();
+    localStorage.setItem('vex.vaultSeeded', 'true');
+    expect(Onboarding._isStepDone('passwords')).toBe(false);
+    // The full-setup blurb must not list it either (English in the code, Turkish in i18n.js).
+    const fsx = require('fs');
+    for (const f of ['onboarding.js', 'i18n.js']) {
+      const line = fsx.readFileSync(require('path').join(__dirname, '../../src/renderer/js', f), 'utf8').split(/\r?\n/).filter(l => l.includes('paceFullSub')).join(' ');
+      expect(line).toMatch(/paceFullSub/);
+      expect(line).not.toMatch(/passwords|parolalar/i);
+    }
   });
 });
 

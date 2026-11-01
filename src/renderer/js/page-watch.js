@@ -560,7 +560,7 @@ const PageWatch = {
         if (!watch.goneTold) {
           watch.goneTold = true;
           window.showToast?.('"' + watch.title + '": ' + this.GONE_MSG, 'error', 8000);
-          try { window.vex?.notify?.('Vex — a watched page', '"' + watch.title + '": ' + this.GONE_MSG); } catch {}
+          try { window.vex?.notify?.((window.vexTr || String)('Vex — a watched page'), (window.vexTr || String)('"' + watch.title + '": ' + (window.vexTr || String)(this.GONE_MSG))); } catch {}
         }
       } else if (watch.failures === 5) {
         window.showToast?.('Cannot check "' + watch.title + '" — ' + watch.lastError, 'error');
@@ -705,7 +705,7 @@ const PageWatch = {
       window.showToast?.(what, 'info', 8000);
       // A desktop notification as well: the point of a watch is that you are not
       // looking at Vex (js/notify goes through the main process).
-      try { window.vex?.notify?.('Vex — a page changed', body); } catch {}
+      try { window.vex?.notify?.((window.vexTr || String)('Vex — a page changed'), body); } catch {}
     };
     // One alert per change, waiting for the next digest unless the person asked for it at once
     // (js/watch-alerts.js; off = the lines above, as before).

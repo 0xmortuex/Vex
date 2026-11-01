@@ -84,7 +84,7 @@ const LiveChannels = {
       const liveBody = (first.title || 'on ' + (first.kind === 'twitch' ? 'Twitch' : 'YouTube')) + rest;
       const send = typeof VexAttention !== 'undefined'
         ? VexAttention.osNotify({ feature: 'live-channels', label: 'Live channels', urgency: 'useful', id: first.name, title: first.name + ' is live', body: liveBody })
-        : window.vex.notify?.(first.name + ' is live', liveBody);
+        : window.vex.notify?.((window.vexTr || String)(first.name + ' is live'), liveBody);
       send
         .catch(err => window.VexProblems?.note('Live channels', 'Could not show the notification', err));
     }

@@ -33,9 +33,12 @@ const PanelsCommsUI = {
   _btn(text, fn, opts) { return VexSettingsGroups.button(text, () => this._guard(fn), opts); },
 
   // ---- Needs me --------------------------------------------------------------------------------
-  async openNeedsMe() {
+  // With `host` ({ body, close }) the list is drawn into that element instead of its own dialog: the Inbox's
+  // "Waiting on me" tab (js/inbox-hub.js). Without it, the Inbox opens on that tab when it is loaded.
+  async openNeedsMe(host) {
     if (typeof NeedsMe === 'undefined') throw new Error('Needs me is not loaded');
-    const dlg = VexSettingsGroups.dialog({ id: 'needs-me-dialog', title: 'Needs me', sub: 'Everything waiting on you, with the reason. Newest-first is always one click away.' });
+    if (!host && typeof VexInboxHub !== 'undefined') return VexInboxHub.open('waiting');
+    const dlg = host ? { overlay: host.body, body: host.body, close: host.close } : VexSettingsGroups.dialog({ id: 'needs-me-dialog', title: 'Needs me', sub: 'Everything waiting on you, with the reason. Newest-first is always one click away.' });
     const body = dlg.body;
     const draw = async () => {
       const ranked = NeedsMe.ranked();

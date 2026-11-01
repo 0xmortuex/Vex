@@ -16,8 +16,8 @@
 (function () {
   'use strict';
   var KEY = 'vex.bootLook';
-  var HTML_ATTRS = ['data-theme', 'data-scheme', 'data-look'];
-  var BODY_ATTRS = ['data-gui-style', 'data-gui-family', 'data-gui-colors', 'data-sb-side', 'data-sb-launcher', 'data-tab-layout', 'data-ui-mode'];
+  var HTML_ATTRS = ['data-theme', 'data-scheme', 'data-look', 'data-icon-pack', 'data-pk-tabs', 'data-pk-bar', 'data-pk-surface', 'data-pk-density', 'data-skin-pattern', 'data-skin-shape', 'data-skin-glow', 'data-skin-noise'];
+  var BODY_ATTRS = ['data-gui-style', 'data-gui-family', 'data-gui-colors', 'data-sb-side', 'data-sb-launcher', 'data-tab-layout', 'data-ui-mode', 'data-sidebar'];
 
   function customProps(el) {
     var out = {};

@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="css/theme-extra.css">
   <link rel="stylesheet" href="css/theme-picker.css">
   <link rel="stylesheet" href="css/theme-studio.css">
+  <link rel="stylesheet" href="css/wallpaper-store.css">
   <link rel="stylesheet" href="css/app.css">
   <link rel="stylesheet" href="css/vex-dialog.css">
   <link rel="stylesheet" href="css/medals.css">
@@ -65,6 +66,8 @@
   <link rel="stylesheet" href="css/tab-tools-more.css">
   <link rel="stylesheet" href="css/version-review.css">
   <link rel="stylesheet" href="css/skins.css">
+  <link rel="stylesheet" href="css/icon-packs.css">
+  <link rel="stylesheet" href="css/theme-packs.css">
   <link rel="stylesheet" href="css/settings-redesign.css">
 <link rel="stylesheet" href="css/userscripts.css">
   <link rel="stylesheet" href="css/peek.css">
@@ -74,8 +77,14 @@
   <link rel="stylesheet" href="css/extras.css">
   <link rel="stylesheet" href="css/read-aloud.css">
   <link rel="stylesheet" href="css/tabs-nav.css">
+  <!-- The shared scale (spacing, type, elevation, motion): after the feature sheets, before the looks. -->
+  <link rel="stylesheet" href="css/design-tokens.css">
   <!-- After every feature sheet so the browser looks win; a11y.css stays last. -->
   <link rel="stylesheet" href="css/gui-browser.css">
+  <!-- Sidebar off (js/sidebar-visibility.js): after the looks it overrides. -->
+  <link rel="stylesheet" href="css/sidebar-visibility.css">
+  <!-- Headings that fold the rail's buttons (js/sidebar-groups.js). -->
+  <link rel="stylesheet" href="css/sidebar-groups.css">
   <link rel="stylesheet" href="css/discover.css">
   <link rel="stylesheet" href="css/toolbox-workbench.css">
   <link rel="stylesheet" href="css/dev-mode.css">
@@ -86,6 +95,8 @@
   <link rel="stylesheet" href="css/profiles.css">
   <link rel="stylesheet" href="css/play-room.css">
   <link rel="stylesheet" href="css/simple-mode.css">
+  <link rel="stylesheet" href="css/settings-organize.css">
+  <link rel="stylesheet" href="css/settings-pane.css">
   <link rel="stylesheet" href="css/site-panel.css">
   <link rel="stylesheet" href="css/legal.css">
   <link rel="stylesheet" href="css/passkeys.css">
@@ -96,6 +107,10 @@
   <link rel="stylesheet" href="css/hygiene.css">
   <link rel="stylesheet" href="css/incognito.css">
   <link rel="stylesheet" href="css/page-chrome.css">
+  <link rel="stylesheet" href="css/faq.css">
+  <link rel="stylesheet" href="css/maker-repos.css">
+  <link rel="stylesheet" href="css/drm-help.css">
+  <link rel="stylesheet" href="css/unblock.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -106,16 +121,10 @@
     <div id="top-bar-left">
       <span id="vex-logo">
         <svg viewBox="0 0 80 80" role="img" aria-label="Vex logo">
-          <defs>
-            <linearGradient id="vexBodyTitle" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#d4a574" stop-opacity="0.28"/>
-              <stop offset="100%" stop-color="#6b5638" stop-opacity="0.45"/>
-            </linearGradient>
-          </defs>
-          <polygon points="40,12 68,40 40,68 12,40" fill="url(#vexBodyTitle)" stroke="#d4a574" stroke-width="1.2" stroke-opacity="0.75"/>
-          <polygon points="40,12 68,40 40,40" fill="#d4a574" fill-opacity="0.38"/>
-          <polygon points="40,12 12,40 40,40" fill="#d4a574" fill-opacity="0.52"/>
-          <path d="M 26 38 L 40 56 L 54 38" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <polygon class="vex-logo-body" points="40,12 68,40 40,68 12,40" fill="currentColor" stroke="currentColor" stroke-width="1.2"/>
+          <polygon class="vex-logo-shade" points="40,12 68,40 40,40"/>
+          <polygon class="vex-logo-shade vex-logo-shade-2" points="40,12 12,40 40,40"/>
+          <path class="vex-logo-chev" d="M 26 38 L 40 56 L 54 38" fill="none" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span>Vex</span>
       </span>
@@ -250,6 +259,8 @@
       </button>
       <!-- The nearest running timer, ticking; opens the Clock panel. -->
       <button id="timer-pill" type="button" hidden><span>0:00</span></button>
+      <!-- Settings, in the toolbar, while the sidebar is off and the rail's own button is gone (css/sidebar-visibility.css). -->
+      <button id="btn-settings-top" class="nav-btn" type="button" title="Settings" aria-label="Settings"></button>
       <button id="btn-command" class="nav-btn" title="Command Bar (Ctrl+K)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
@@ -447,8 +458,8 @@
               <div id="setting-search-keywords"></div>
               <button id="setting-search-keyword-add" class="btn-secondary" type="button" style="margin-top:6px">Add a keyword…</button>
               <div class="setting-toggle-row" style="margin-top:8px">
-                <span>Simple mode <span style="color:var(--text-muted);font-size:11px">· a calm Vex: the everyday buttons, panels and settings only. Nothing is removed — Ctrl+K and the settings search still reach everything, and All features in the toolbar brings the rest back</span></span>
-                <label class="toggle"><input type="checkbox" id="setting-simple-mode" aria-label="Simple mode"><span class="toggle-slider"></span></label>
+                <span>Developer mode <span style="color:var(--text-muted);font-size:11px">· on: every setting, panel and tool Vex has. Off: a calm Vex with only the critical settings and the everyday buttons and panels. Nothing is removed either way — Ctrl+K and the settings search still reach everything, and All features in the toolbar turns this on</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-developer-mode" aria-label="Developer mode"><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Start Vex when I sign in to Windows <span id="login-item-note" style="color:var(--text-muted);font-size:11px">· Vex opens with Windows, in this profile</span></span>
@@ -471,6 +482,15 @@
 
             <div class="setting-group">
               <label class="setting-label">Sidebar Buttons</label>
+              <div class="setting-toggle-row" style="margin-bottom:8px">
+                <span>Show the sidebar <span style="color:var(--text-muted);font-size:11px">· the strip of panel buttons and the side-panel button. Off hides it in every look; the panels still open with Ctrl+K, and Settings gets a button in the toolbar</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-sidebar" aria-label="Show the sidebar" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="setting-toggle-row" style="margin-bottom:8px">
+                <span>Group the sidebar buttons <span style="color:var(--text-muted);font-size:11px">· each group of panels (Knowledge, Browsing, Chat, Media and games and more) gets one folder button with its name under it; press it to open the folder, drag buttons in and out, make groups of your own. Every panel keeps its button, its shortcut and its place in Ctrl+K. Off keeps one flat list, in your own order. On by default: turn it off here</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-sidebar-groups" aria-label="Group the sidebar buttons" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div id="sidebar-groups-manager" class="sbg-manager"></div>
               <p class="setting-info muted" style="margin-bottom:8px">Rename, change the icon, hide/show, reorder, or (for web buttons) change the link. You can also right-click any button in the sidebar directly.</p>
               <div id="sidebar-manager-list" style="border:1px solid var(--border);border-radius:var(--radius);padding:4px 10px;max-height:340px;overflow:auto"></div>
             </div>
@@ -480,14 +500,19 @@
               <div class="setting-row" style="display:block;margin-bottom:10px">
                 <div class="setting-label"><strong>Lock Vex</strong>
                   <span class="setting-hint">A PIN screen over the whole window, pages hidden underneath — Ctrl+Alt+L, Ctrl+K › Lock Vex, or when the computer has been idle. A privacy screen, not encryption: your profile on disk is not locked.</span></div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
-                  <input id="lock-pin-new" type="password" inputmode="numeric" maxlength="12" placeholder="New PIN (4–12 digits)" aria-label="New PIN">
-                  <input id="lock-pin-again" type="password" inputmode="numeric" maxlength="12" placeholder="Again" aria-label="New PIN again">
-                  <button id="lock-pin-save" type="button" class="btn-secondary">Save PIN</button>
-                  <button id="lock-pin-clear" type="button" class="btn-secondary">Remove PIN</button>
+                <div class="set-lock-pin">
+                  <label class="set-lock-field" for="lock-pin-new"><span>New PIN</span><input id="lock-pin-new" type="password" inputmode="numeric" maxlength="12" placeholder="New PIN (4–12 digits)" aria-label="New PIN"></label>
+                  <label class="set-lock-field" for="lock-pin-again"><span>New PIN again</span><input id="lock-pin-again" type="password" inputmode="numeric" maxlength="12" placeholder="Again" aria-label="New PIN again"></label>
+                  <div class="set-lock-actions">
+                    <button id="lock-pin-save" type="button" class="btn-secondary">Save PIN</button>
+                    <button id="lock-pin-clear" type="button" class="btn-secondary">Remove PIN</button>
+                  </div>
+                </div>
+                <div id="lock-pin-state" class="setting-hint"></div>
+                <div class="set-lock-idle">
+                  <label for="lock-idle">Lock when idle</label>
                   <select id="lock-idle" aria-label="Lock when idle"><option value="0">Never lock when idle</option><option value="5">Lock after 5 idle minutes</option><option value="15">After 15 minutes</option><option value="30">After 30 minutes</option><option value="60">After an hour</option></select>
                 </div>
-                <div id="lock-pin-state" class="setting-hint" style="margin-top:4px"></div>
               </div>
               <div class="setting-toggle-row">
                 <span>Skip sponsor segments on YouTube <span style="color:var(--text-muted);font-size:11px">· SponsorBlock: the id of each YouTube video you open is sent to sponsor.ajay.app</span></span>
@@ -1145,6 +1170,12 @@
                 <button id="btn-edit-layout" style="background:var(--primary,var(--accent));border:1px solid transparent;color:#111;padding:8px 14px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Edit layout</button>
               </div>
               <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Turns on customize mode: drag any toolbar button or sidebar icon to reorder it, or hit its red X to hide it. Hidden items can be restored from the bar at the bottom. Sidebar per-item resets stay in the Sidebar Buttons section.</div>
+              <div style="margin-top:14px">
+                <div style="font-size:13px;font-weight:600;margin-bottom:4px">Toolbar buttons</div>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">At most four icons are kept on the right of the toolbar in normal use: Downloads, Profiles, the more menu (three dots) and one of the Inbox bell or Settings gear. The bell and the gear are extras that appear only when they have something to show (the bell when the Inbox holds something, the gear when the sidebar is off). Everything else waits in the more menu. Tick Show in toolbar to keep a button in sight.</div>
+                <div id="toolbar-buttons-list" role="group" aria-label="Show in toolbar"></div>
+                <button id="btn-toolbar-buttons-reset" type="button" class="btn-secondary" style="margin-top:8px">Reset toolbar buttons</button>
+              </div>
             </div>
 
             <!-- Site settings: every site with anything set (js/site-profiles.js),
@@ -1402,6 +1433,9 @@
                 <div>
                   <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Theme</label>
                   <button id="setting-open-theme-picker" class="btn-secondary">Choose a theme…</button>
+                  <button id="setting-open-theme-packs" class="btn-secondary" title="A theme as a design, a set of icons and colours together">Theme packs…</button>
+                  <button id="setting-share-look" class="btn-secondary" title="Save your colours, design, icons, fonts and wallpaper choice as a small file or link for a friend">Share my look…</button>
+                  <button id="setting-open-shared-look" class="btn-secondary" title="Open a .vexlook file from a friend, look it over, then wear it">Open a shared look…</button>
                 </div>
               </div>
             </div>
@@ -1439,6 +1473,7 @@
               </div>
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
                 <button id="btn-check-updates" class="btn-primary">Check for Updates</button>
+                <button type="button" id="btn-update-log" class="btn-secondary">Update log</button>
                 <span id="update-check-status" style="font-size:11px;color:var(--text-muted)"></span>
               </div>
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
@@ -1755,6 +1790,7 @@
   <script src="../main/find-policy.js"></script>
   <!-- The icon set. Must load before anything that renders an icon. -->
   <script src="js/vex-icons.js"></script>
+  <script src="js/icon-packs.js"></script>
   <script src="js/geo-search.js"></script>
   <script src="js/image-fallback.js"></script>
   <script src="js/service-status.js"></script>
@@ -1816,6 +1852,9 @@
   <script src="js/nav-lock.js"></script>
   <script src="js/panel-to-tab.js"></script>
   <script src="js/settings-ui.js"></script>
+<script src="js/settings-organize.js"></script>
+<script src="js/settings-find.js"></script>
+<script src="js/settings-pane.js"></script>
   <script src="js/settings-control.js"></script>
   <script src="js/tools.js"></script>
   <script src="js/queue-panel.js"></script>
@@ -2047,6 +2086,7 @@
   <script src="js/tab-cost.js"></script>
   <script src="js/fonts.js"></script>
   <script src="js/skins.js"></script>
+  <script src="js/theme-packs.js"></script>
   <script src="js/private-routing.js"></script>
   <script src="js/incognito.js"></script>
   <script src="js/site-routes.js"></script>
@@ -2085,6 +2125,8 @@
   <script src="js/update-log.js"></script>
   <script src="js/gui-style.js"></script>
   <script src="js/look-sidebar.js"></script>
+  <script src="js/sidebar-visibility.js"></script>
+  <script src="js/sidebar-groups.js"></script>
   <script src="js/skills.js"></script>
   <script src="js/boosts.js"></script>
   <script src="js/userscripts.js"></script>
@@ -2295,6 +2337,7 @@
   <script src="js/automations.js"></script>
   <script src="js/pip-manager.js"></script>
   <script src="js/profiles-ui.js"></script>
+  <script src="js/toolbar-limit.js"></script>
   <script src="js/toolbar-overflow.js"></script>
   <script src="js/zoom-indicator.js"></script>
   <script src="js/fullscreen-notice.js"></script>

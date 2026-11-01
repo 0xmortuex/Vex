@@ -31,14 +31,15 @@ describe('frecency', () => {
     const fresh = CommandBar._frecencyBonus({ n: 3, at: NOW - DAY / 2 }, NOW);
     expect(fresh).toBeGreaterThan(old);
   });
-  it('ranks by it for a typed query', () => {
+  it('is only a tie-breaker for a typed query', () => {
     const a = cmd('history'), b = cmd('history-overlay');
     const q = 'history';
     const base = CommandBar._rankCommands(q).map(c => c.id);
     expect(base.indexOf('history')).toBeGreaterThanOrEqual(0);
     localStorage.setItem(CommandBar.USAGE_KEY, JSON.stringify({ [b.id]: { n: 10, at: Date.now() } }));
     const ranked = CommandBar._rankCommands(q).map(c => c.id);
-    expect(ranked.indexOf(b.id)).toBeLessThan(ranked.indexOf(a.id));
+    // Heavy use settles ties but never lifts a command over the one named exactly what was typed (2026-11-01).
+    expect(ranked.indexOf(b.id)).toBeGreaterThan(ranked.indexOf(a.id));
   });
 });
 

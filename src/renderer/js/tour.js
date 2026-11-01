@@ -106,6 +106,10 @@ const VexTour = {
 
   AREAS_KEY: 'vex.tourAreas',
 
+  // The Turkish for a text while the interface is Turkish (js/i18n-ui.js), the text itself otherwise. The card is drawn again for every step,
+  // so a text is looked up here, whole (the quick tour's texts have markup in them, which the observer would cut into pieces).
+  _L(s) { const hit = typeof VexI18nUI !== 'undefined' ? VexI18nUI.lookup(s) : null; return hit != null ? hit : s; },
+
   _esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
   },
@@ -143,14 +147,14 @@ const VexTour = {
       if (!items.length) continue;
       steps.push({
         title: cat.name,
-        html: this._esc(cat.blurb) + ` <b>${items.length}</b> thing${VexPlural.s(items.length)} in this area.`,
+        html: this._esc(this._L(cat.blurb)) + ' ' + this._L(`<b>${items.length}</b> thing${VexPlural.s(items.length)} in this area.`),
       });
       for (const f of items) {
         const keys = VexFeatures.keysOf(f);
         steps.push({
           sel: this._targetFor(f) || undefined,
           title: VexFeatures.nameOf(f),
-          html: this._esc(f.what) + (keys ? ` <kbd>${this._esc(keys)}</kbd>` : ''),
+          html: this._esc(this._L(f.what)) + (keys ? ` <kbd>${this._esc(keys)}</kbd>` : ''),
         });
       }
     }
@@ -324,11 +328,13 @@ const VexTour = {
     const steps = this._running || this.steps;
     const s = steps[this.idx];
     const E = this._els;
-    E.step.textContent = steps.length === 1 ? '' : `Step ${this.idx + 1} of ${steps.length}`;
-    E.title.textContent = s.title;
-    E.text.innerHTML = s.html || s.text || '';
+    E.step.textContent = steps.length === 1 ? '' : this._L(`Step ${this.idx + 1} of ${steps.length}`);
+    E.title.textContent = this._L(s.title);
+    E.text.innerHTML = this._L(s.html || s.text || '');
     E.back.style.visibility = this.idx === 0 ? 'hidden' : 'visible';
-    E.next.textContent = this.idx === steps.length - 1 ? 'Done' : 'Next';
+    E.next.textContent = this._L(this.idx === steps.length - 1 ? 'Done' : 'Next');
+    E.back.textContent = this._L('Back');
+    E.skip.textContent = this._L('Skip');
 
     let rect = null;
     if (s.sel) {

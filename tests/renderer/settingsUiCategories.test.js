@@ -11,6 +11,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The search box's clear button draws its icon with VexIcons (the page loads it first).
+await import('../../src/renderer/js/vex-icons.js');
 const { SettingsUI } = await import('../../src/renderer/js/settings-ui.js');
 
 // The labels the Settings panel actually renders, in document order: read
@@ -100,7 +102,7 @@ describe('SettingsUI.enhance', () => {
     SettingsUI.enhance();
     const chips = Array.from(document.querySelectorAll('.set-nav .set-nav-chip')).map(c => c.textContent.trim());
     // AI Personas is one of the AI sections, so its nav chip is the AI one.
-    expect(chips).toEqual(['Personalization', 'Autofill', 'AI']);   // in the order of SettingsUI.ORDER
+    expect(chips).toEqual(['General', 'Passwords and sign-in', 'AI']);   // in the order of SettingsUI.ORDER
     expect(document.querySelectorAll('.set-nav .set-nav-chip svg').length).toBe(3);
   });
 
@@ -157,12 +159,11 @@ describe('the AI sections share one chip', () => {
     const names = navNames();
     expect(names.filter(n => n === 'AI')).toHaveLength(1);
     for (const gone of ['Personas', 'AI Memory', 'On-Device', 'MCP', 'Skills', 'History']) expect(names).not.toContain(gone);
-    expect(names.length).toBeLessThanOrEqual(32); // 31 + Downloads (folder and ask-where-to-save, 2026-10-10)
-    expect(names.slice(0, 16)).toEqual(['General', 'Browser', 'Appearance', 'Layout', 'Sidebar', 'Personalization', 'Profiles', 'Privacy',
-      'Passwords', 'Passkeys', 'Autofill', 'Permissions', 'Extensions', 'Downloads', 'Sessions', 'Performance']);
+    expect(names.length).toBeLessThanOrEqual(13); // the top categories (SettingsUI.TOPS), 2026-11-01
+    expect(names.slice(0, 8)).toEqual(['General', 'Appearance', 'Privacy and security', 'Passwords and sign-in', 'Sync and backup',
+      'Downloads and files', 'Tabs and performance', 'Sidebar and toolbar']);
     expect(names).not.toContain('Other');
-    expect(names).toContain('Recall');
-    expect(names).toContain('Personalization');
+    expect(names).toContain('Tabs and performance');   // Recall and Sessions live in it
   });
 
   it('keeps the AI sections together, under their own row of chips', () => {
@@ -328,7 +329,12 @@ describe('the chip bar height', () => {
 
 describe('the order of the sections', () => {
   const cats = () => [...document.querySelectorAll('#panel-settings .settings-content > .setting-group')].map(g => SettingsUI._catOf(g).name);
-  const rank = (name) => SettingsUI.ORDER.indexOf(name);
+  // Top category first (SettingsUI.TOPS), then the old order inside it.
+  const rank = (name) => {
+    const cat = SettingsUI.CATS.find(c => c.name === name);
+    const top = SettingsUI.TOPS.findIndex(t => t.name === SettingsUI.topOf(cat));
+    return top * 1000 + SettingsUI.ORDER.indexOf(name);
+  };
 
   it('names every category there is, once, so none falls into the unlisted spot by accident', () => {
     const all = SettingsUI.CATS.map(c => c.name);
@@ -350,6 +356,7 @@ describe('the order of the sections', () => {
     expect(cats()[cats().length - 1]).toBe('About');
     expect(cats().indexOf('Passwords')).toBeLessThan(cats().indexOf('Boosts'));
     expect(cats().indexOf('Personalization')).toBeLessThan(cats().indexOf('AI'));
+    expect(cats().indexOf('Downloads')).toBeGreaterThan(cats().indexOf('Privacy'));
     expect(new Set(Array.from(root.children).filter(el => el.classList.contains('setting-group')))).toEqual(new Set(before));   // nothing lost
     expect(root.firstElementChild.tagName).toBe('H2');
     expect(SettingsUI._orderGroups(root, Array.from(root.children).filter(el => el.classList.contains('setting-group')))).toBe(false);

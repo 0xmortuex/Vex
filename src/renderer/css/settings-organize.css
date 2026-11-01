@@ -1,0 +1,93 @@
+/* === Short Settings sections (js/settings-organize.js) =====================
+   A long explanation folds behind a small ? button, a long section keeps its
+   later rows behind "More options", three or more radio buttons are one
+   drop-down. Colours come from the existing tokens; the drop-down's own colours
+   are the shared select rules'. */
+
+/* --- The ? button -------------------------------------------------------- */
+.set-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin: 0 0 0 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.set-info-btn:hover { color: var(--primary); background: var(--vex-hover-fill, transparent); }
+.set-info-btn[aria-expanded="true"] { color: var(--primary); }
+.set-info-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+/* Beside a switch: the label keeps the left, the ? and the switch sit together on the right. */
+.setting-toggle-row > span:has(+ .set-info-btn) { margin-right: auto; }
+.setting-toggle-row > .set-info-btn--row { margin: 0 8px 0 6px; }
+/* Under a section's heading: top right of the card. */
+.settings-content .setting-group > .set-info-btn--corner { position: absolute; top: 12px; right: 12px; margin: 0; }
+.set-info-btn--line { display: flex; margin: 2px 0; }
+.set-info-folded:not(.set-info-open) { display: none !important; }
+
+/* --- More options -------------------------------------------------------- */
+.set-more-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 8px 0 0;
+  padding: 8px 2px;
+  border: 0;
+  border-top: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.set-more-btn:hover { color: var(--text); }
+.set-more-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.set-more-btn svg { transition: transform 0.15s ease; }
+.set-more-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.set-more-count { font-weight: 400; }
+.set-more-label { flex: 0 0 auto; }
+.set-more-btn:has(.set-more-names:not(:empty)) .set-more-label::after { content: ":"; }
+.set-more-names { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; }
+.set-more-count { flex: 0 0 auto; }
+.set-more-body:not([data-open]), .set-fs-body:not([data-open]) { display: none; }
+/* A search shows everything it matched, folded or not. */
+.set-searching .set-more-body { display: block; }
+.set-searching .set-more-btn { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .set-more-btn svg { transition: none; }
+}
+
+/* --- Radio buttons as one drop-down -------------------------------------- */
+.set-radio-folded { display: none !important; }
+.set-radio-select { max-width: 100%; font: inherit; }
+
+/* --- A search that reaches Developer mode's sections --------------------- */
+.set-dev-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.set-dev-note[hidden], body[data-ui-mode="full"] .set-dev-note { display: none !important; }
+.set-dev-note-btn { flex-shrink: 0; }
+
+/* --- One row height ------------------------------------------------------ */
+.settings-content .setting-group .setting-toggle-row { min-height: 34px; }

@@ -32,6 +32,8 @@ function vexOwnTextFocused(doc) {
   // Simple mode is for new profiles: one that existed before it stays Full
   // (js/simple-mode.js). Before the sidebar reads the mode.
   VexSimpleMode.migrate();
+  // The sidebar groups are on for every profile unless it saved 'off' itself; nothing saved is rewritten (js/sidebar-groups.js).
+  VexSidebarGroups.migrate();
   // Run-once changes to what is already saved (js/vex-defaults.js): a new default
   // never overrides a choice, a removal reaches saved profiles. After the line above,
   // which marks an existing profile as one that was in use.
@@ -735,6 +737,14 @@ function vexOwnTextFocused(doc) {
       if (typeof ThemePicker !== 'undefined') ThemePicker.open();
     });
 
+    // Theme packs: design, icons and colours together (js/theme-pack-ui.js).
+    // The picker loads after start-up (lazy-boot.js): a click before it is here waits for it, and a file that failed to load says so.
+    document.getElementById('setting-open-theme-packs')?.addEventListener('click', async () => {
+      if (typeof ThemePackUI === 'undefined' && typeof VexBoot !== 'undefined') await VexBoot.whenSettled();
+      if (typeof ThemePackUI === 'undefined') { showToast('Theme packs could not be loaded. Restart Vex and try again.', 'error'); return; }
+      ThemePackUI.open();
+    });
+
     // Weather location — district-accurate pick-list, mirrored to the start page.
     (function wireWeather() {
       const input = document.getElementById('setting-weather-input');
@@ -766,6 +776,14 @@ function vexOwnTextFocused(doc) {
         if (statusEl) statusEl.textContent = 'Saved ' + loc.city;
         showCurrent();
       };
+      // Place names are suggested while typing; a postcode still waits for Enter or Search (its service forbids autocomplete).
+      const geoSuggest = VexGeo.attachSuggest(input, {
+        getCountry: () => (countrySel ? countrySel.value : ''),
+        getLang: () => { try { return (localStorage.getItem('vex.lang') || 'en').slice(0, 2); } catch { return 'en'; } },
+        onStatus: (text) => { if (statusEl) statusEl.textContent = text || ''; },
+        onPick: (hit) => pick(hit),
+      });
+      if (countrySel) countrySel.addEventListener('change', () => geoSuggest.refresh());
       const search = async () => {
         const q = input.value.trim();
         if (!q) { if (statusEl) statusEl.textContent = 'Type a city or district.'; return; }
@@ -808,7 +826,7 @@ function vexOwnTextFocused(doc) {
   // destroyed data and reset nothing. The list below is every preference key a
   // control in this panel writes; anything not on it is user content and stays.
   const SETTINGS_PREF_KEYS = [
-    'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors',
+    'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors', 'vex.sidebar',
     'vex.theme', 'vex.customThemeImage', 'vex.lookName', 'vex.lookPalette', 'vex.themeAuto', 'vex.windDown',
     'vex.memorySaver', 'vex.autoGroupSuggest', 'vex.autoAddToGroups',
     'vex.aiIndexingEnabled', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
@@ -819,7 +837,7 @@ function vexOwnTextFocused(doc) {
     'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
     'vex.aiRoute', 'vex.localAIModel', 'vex.aiRouting',
     'vex.preferOnDeviceAI', 'vex.webllmModel',
-    'vex.panelOverrides', 'vex.sidebarOrder', 'vex.userShortcuts', 'vex.layout',
+    'vex.panelOverrides', 'vex.sidebarOrder', 'vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded', 'vex.sidebarGroups.open', 'vex.sidebarGroupDefs', 'vex.userShortcuts', 'vex.layout', 'vex.toolbarShown',
     // Written by Settings controls but missing from this list until v2.36.5.
     'vex.searchSuggest', 'vex.sponsorSkip', 'vex.streamerMode',
     'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex', 'vex.game.commitGuard',
@@ -1937,6 +1955,8 @@ function vexOwnTextFocused(doc) {
       } catch (err) { window.VexProblems?.note('Widevine', 'Could not read the Widevine status', err); }
     });
   })();
+  // The updater's own log: every check, download, install and failure.
+  document.getElementById('btn-update-log')?.addEventListener('click', () => UpdateNotifier.showLog());
   // Check-updates button
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {
     const status = document.getElementById('update-check-status');
@@ -1946,7 +1966,7 @@ function vexOwnTextFocused(doc) {
     localStorage.setItem('vex.lastUpdateCheck', Date.now().toString());
     if (!status || !r) { if (status) status.textContent = ''; return; }
     if (r.ok && r.hasUpdate) {
-      status.textContent = `Vex ${r.latest} is available`;
+      status.textContent = `Vex ${r.latest} is available` + (r.canSelfUpdate === false ? ' — this copy cannot update itself: install Vex-Setup.exe' : '');
     } else if (r.ok) {
       status.textContent = `Up to date (v${r.current}) \u2014 checked just now`;
     } else {
@@ -2415,10 +2435,13 @@ function vexOwnTextFocused(doc) {
     if (!container) return;
     const panels = [...document.querySelectorAll('[data-avoid-toasts]')];
     panels.forEach(p => p.classList.remove('toast-capped'));
+    // No transition while measuring: with animations off (Windows setting, reduced motion) the clearing below only shows up
+    // in the next frame, the stale rect then missed the card it sits on, and the toast was left on top of it.
+    container.style.transition = 'none';
     container.style.right = '';
     container.style.bottom = '';
     const live = [...container.children].some(t => !t.dataset.leaving);
-    if (!live) return;
+    if (!live) { container.style.transition = ''; return; }
     const GAP = 8, EDGE = 20;
     for (const p of panels) {
       if (!p.getClientRects().length) continue;
@@ -2433,6 +2456,8 @@ function vexOwnTextFocused(doc) {
       p.style.setProperty('--toast-cap', Math.max(96, c.top - GAP - r.top) + 'px');
       p.classList.add('toast-capped');
     }
+    void container.offsetHeight;
+    container.style.transition = '';
   }
   function watchToastPlacement(container) {
     new MutationObserver(placeToasts).observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-leaving'] });

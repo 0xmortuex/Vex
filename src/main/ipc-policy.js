@@ -29,7 +29,7 @@ const GUEST_CHANNELS = new Set(['extensions:external-ids', 'extensions:external-
   // Vex's own viewer for office documents and e-books (vex-office://view/, main/office-viewer.js): downloading the original, opening it with Windows,
   // printing. Each handler checks that the asking frame is that page.
   'officeview:download', 'officeview:open-external', 'officeview:print']);
-const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
+const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'drm:clear-site', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
   // window's page keeps its answers in memory, so these stay allowed there.
@@ -53,7 +53,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle',
 // (main.js, _siteSessionFor). Writes that would land in the main profile are
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
-const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|cards:|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|bypass:|window:keep-on-top|devdesk:|devext:|castlabs:|devbench:|hygiene:|gccbridge:|secondscreen:|pip:memory|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|set-media-names|set-resume|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history|release-assist|mods-plan|mods-apply|mods-undo|mods-history|motw-check|open-defender|defender-scan|extract-here)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|devfeeds:|repos:|startup:|applock:|profilecrypt:|transcribe:|photoprep:|tabs:preconnect|jump:|jumplist:|windows:|sources:|pdftool:|comms:|status:|localsvc:|webhook:|feedback:|spellcheck:set-languages|panelguard:|folderview:(?!set-enabled))/;
+const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|threat:(?:set-enabled|set-auto-update|update|forget-host)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|cards:|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|bypass:|unblock:|window:keep-on-top|devdesk:|devext:|castlabs:|devbench:|hygiene:|gccbridge:|secondscreen:|pip:memory|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|wallpaper:(?:catalogue|download|save|remove|clear-cache)|makerepos:refresh|downloads:(?:choose-folder|set-ask|set-media-names|set-resume|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history|release-assist|mods-plan|mods-apply|mods-undo|mods-history|motw-check|open-defender|defender-scan|extract-here)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|devfeeds:|repos:|startup:|applock:|profilecrypt:|transcribe:|photoprep:|tabs:preconnect|jump:|jumplist:|windows:|sources:|pdftool:|comms:|status:|localsvc:|webhook:|feedback:|spellcheck:set-languages|panelguard:|folderview:(?!set-enabled))/;
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
@@ -97,10 +97,10 @@ const UI_ONLY_CHANNELS = new Set([
   'app:boot-feature', 'app:boot-disabled', 'egress:summary', 'egress:list', 'egress:clear',
   // The GitHub read-only token vault and the developer feeds: Vex's own window only.
   'github:status', 'github:token-set', 'github:token-clear', 'github:token-test', 'github:get',
-  'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping', 'devfeeds:notes', 'fx:tcmb', 'status:check',
+  'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping', 'devfeeds:notes', 'fx:tcmb', 'makerepos:refresh', 'makerepos:stored', 'status:check',
   // Developer desk, plugin dev loop and the Electron ticker: Vex's own window only.
   'devdesk:config', 'devdesk:set-config', 'devdesk:grant-root', 'devdesk:revoke-root', 'devdesk:open-file', 'devdesk:open-terminal', 'devdesk:branch', 'devdesk:ports',
-  'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind',
+  'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind', 'drm:status', 'drm:repair', 'drm:clear-site',
   'devext:vencord-pick', 'devext:vencord-status', 'devext:vencord-reload', 'devext:vencord-restore', 'devext:console-start', 'devext:console-stop', 'devext:console-clear', 'devext:console-list',
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
   // Whether Vex's own text viewer is on (main/text-viewer.js): the interface tells main, never a page.
@@ -142,6 +142,8 @@ const UI_ONLY_CHANNELS = new Set([
   'recall:limits',
   // "Site down, or my bypass?" (main/bypass-probe.js): requests an address from this computer.
   'bypass:probe',
+  // The Unblock centre (main/unblock-main.js): requests a site from this computer, may start the ByeDPI helper, keeps its list.
+  'unblock:assess', 'unblock:try', 'unblock:sync', 'unblock:status',
   'window:keep-on-top',
   // Game Control Center's file, the second-screen window and the PiP memory (T2-068, T2-049, T2-059):
   // opening a window or reading a file is never a page's call.
@@ -161,6 +163,8 @@ const UI_ONLY_CHANNELS = new Set([
   // sites are trusted and which are in paranoid mode are never a page's call.
   'websafety:get', 'websafety:set-sensitivity', 'websafety:allow-host', 'websafety:forget-host', 'websafety:set-paranoid', 'websafety:check',
   // The site panel's third-party count and a download's explanation (main/safe-web-extras.js): read-only, but only the interface asks.
+  // The dangerous-site list (main/threat-list.js): its switch, status, update and the sites you said to go on to are never a page's call.
+  'threat:status', 'threat:set-enabled', 'threat:set-auto-update', 'threat:update', 'threat:forget-host', 'threat:continue-log',
   'websafety:third-party-count', 'downloads:explain',
   // Quick look at a finished download (main/download-peek.js): reads a file's contents, so only the interface asks, and main serves only files Vex downloaded.
   'downloads:peek', 'downloads:peek-hash',
@@ -197,7 +201,9 @@ const UI_ONLY_CHANNELS = new Set([
   // Dark mode for websites: changing a tab's look and asking about Dark Reader are Vex's own window only.
   'darkmode:apply', 'darkmode:status',
   // Whether Vex's own folder browser takes the folders a tab meets, and forgetting its recent folders (main/folder-viewer.js): the interface, never a page.
-  'folderview:set-enabled', 'folderview:forget-recent']);
+  'folderview:set-enabled', 'folderview:forget-recent',
+  // The Wallpaper Store (main/wallpaper-store.js): its files and its one optional list fetch are Vex's own window only.
+  'wallpaper:catalogue', 'wallpaper:download', 'wallpaper:save', 'wallpaper:read', 'wallpaper:remove', 'wallpaper:stats', 'wallpaper:clear-cache']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');

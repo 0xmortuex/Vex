@@ -114,7 +114,11 @@ app.commandLine.appendSwitch('disable-features', _disableFeatures);
 // Windows a toast is silently dropped unless the process has an
 // AppUserModelID. Packaged installs get one via the electron-builder shortcut,
 // but the runtime call makes dev runs behave the same. Matches build.appId.
-app.setAppUserModelId('com.vex.browser');
+// A run from source has its OWN id: the "Vex (dev)" Start Menu shortcut carries
+// it, so Windows search, taskbar pinning and toasts for the installed Vex are
+// never attached to the dev shortcut (they shared one id before).
+const VEX_APP_USER_MODEL_ID = app.isPackaged ? 'com.vex.browser' : 'com.vex.browser.dev';
+app.setAppUserModelId(VEX_APP_USER_MODEL_ID);
 
 const path = require('path');
 const fs = require('fs');
@@ -265,6 +269,10 @@ const _peekChromeByWc = new Map();
 // Widevine/DRM (castLabs) status, surfaced in Settings → About so users can tell
 // whether protected playback (Spotify/Netflix) is actually enabled.
 let _widevineStatus = 'unknown';
+// The same facts as a plain answer with repairs (Settings > Video and music playback, src/main/drm-health.js).
+const _drmHealth = require('./main/drm-health').createDrmHealth({
+  app, electron: require('electron'), versions: process.versions, execPath: process.execPath, platform: process.platform, fs, path,
+});
 
 // Both guest-page preloads. site-tweaks.js is a separate preload (not required
 // from preload-webview.js) because webview preloads run sandboxed, where
@@ -343,10 +351,12 @@ async function initWidevine(attempts = 2) {
       _widevineStatus = app.isPackaged
         ? widevineStatusText(st, components.WIDEVINE_CDM_ID)
         : 'dev mode — protected playback needs the installed build';
+      _drmHealth.noteInit(true);
       return;
     } catch (e) {
       const msg = (e && e.message) || 'unknown error';
       _widevineStatus = 'failed: ' + msg;
+      if (i === attempts) _drmHealth.noteInit(false, msg);
       console.warn(`[Widevine] component init failed (attempt ${i}/${attempts}):`, msg);
       if (i < attempts) await new Promise(r => setTimeout(r, 3000));
     }
@@ -469,6 +479,7 @@ function _httpsUpgradeURL(details) {
 // burner tabs, New Identity and Tor tabs loaded http as it came (SE3).
 function _httpsAnswer(details) {
   if (_lookalikeGuard(details)) return { cancel: true };
+  if (_threatGuard(details)) return { cancel: true };
   const upgraded = _httpsUpgradeURL(details);
   return upgraded ? { redirectURL: upgraded } : { cancel: false };
 }
@@ -501,6 +512,37 @@ function _lookalikePage(id, url, verdict) {
   _wsShown.set(id, url);
   _showVexPage(contents, require('./main/web-safety-pages').lookalikePageHtml(url, verdict), url, 'lookalike page', url);
 }
+// === Known dangerous sites (src/main/threat-list.js) ========================
+// A page address that is on the list of reported phishing and malware sites is not loaded: the tab shows a full-page
+// warning (src/main/threat-pages.js) with "Go back to safety" focused and a "Continue anyway" behind a second click.
+// The lookup is local; the address is never sent anywhere. Like the lookalike guard it runs for every session
+// (private windows, containers, Tor tabs), for the page itself only. A pass is per tab and per name (or address).
+const _threatPassed = new Map();   // page id -> Set<pass key> the person went on to
+const _threatShown = new Map();    // page id -> { url, hit } the warning page stands for
+const _threatPassKey = (hit, url) => {
+  if (hit.kind !== 'address') return hit.host;
+  try { const u = new URL(url); return u.host + u.pathname + u.search; } catch { return url; }
+};
+function _threatGuard(details) {
+  if (details.resourceType !== 'mainFrame' || !details.webContentsId) return false;
+  let hit;
+  try { hit = _threatList.check(details.url); }
+  catch (err) { console.error('[ThreatList] the check failed, the page is loaded:', err.message); return false; }
+  if (!hit) return false;
+  const passed = _threatPassed.get(details.webContentsId);
+  if (hit.kind !== 'test' && passed && passed.has(_threatPassKey(hit, details.url))) return false;
+  const contents = webContents.fromId(details.webContentsId);
+  if (!contents || contents.isDestroyed() || contents.getType() !== 'webview') return false;
+  console.log('[ThreatList] not loading ' + hit.host + ' (' + hit.kind + ')');
+  setTimeout(() => _threatPage(details.webContentsId, details.url, hit), 0);
+  return true;
+}
+function _threatPage(id, url, hit) {
+  const contents = webContents.fromId(id);
+  if (!contents || contents.isDestroyed()) return;
+  _threatShown.set(id, { url, hit });
+  _showVexPage(contents, require('./main/threat-pages').threatPageHtml(url, hit), url, 'dangerous-site page', url);
+}
 // A tab's page (the main session, a container or route, a private window, an
 // off-the-record, burner, New Identity or Tor tab), not an app panel's.
 function _isTabSession(contents) {
@@ -513,7 +555,8 @@ function _isTabSession(contents) {
 // is done when the page commits: loadURL's promise settles earlier, on the
 // error page's own did-finish-load (measured).
 function _showVexPage(contents, html, failedUrl, what, standsFor) {
-  const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  // Vex draws these pages itself, in English; in a Turkish Vex their text is translated here (main/i18n-main.js).
+  const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(_i18nMain.translateHtml(html));
   // The address bar shows the address this page stands for (src/main/vex-page-address.js).
   _vexPages.set(contents, dataUrl, standsFor);
   const shown = (_e, url) => {
@@ -988,6 +1031,25 @@ const _webSafety = require('./main/web-safety').createWebSafety({
   write: (text) => require('./main/file-store').atomicWrite(_webSafetyFile, text),
   topHosts: () => _webSafetyTopHosts(),
 });
+// Known dangerous sites (src/main/threat-list.js): a list of reported phishing and malware sites, downloaded at most once a day
+// through the public-only fetch (https, no cookies, size cap, egress-ledger line "Safety list") and looked up on this computer.
+const _threatList = require('./main/threat-list').createThreatList({
+  dir: path.join(userDataPath, 'threat-list'), fs, path, fetch: boundedPublicFetch,
+  log: (m) => console.error(m),
+});
+// Not before the privacy policy is agreed, and not while the profile is still locked.
+const _threatTick = () => {
+  if (typeof mainWindow !== 'undefined' && mainWindow && _agreementGate.blocks(mainWindow)) return;
+  _threatList.maybeUpdate().catch(err => console.error('[ThreatList] the update pass failed:', err.message));
+};
+setTimeout(_threatTick, 45 * 1000).unref();
+setInterval(_threatTick, 6 * 3600 * 1000).unref();
+ipcMain.handle('threat:status', () => _threatList.status());
+ipcMain.handle('threat:set-enabled', (_e, on) => _threatList.setEnabled(on));
+ipcMain.handle('threat:set-auto-update', (_e, on) => _threatList.setAutoUpdate(on));
+ipcMain.handle('threat:update', () => _threatList.update());
+ipcMain.handle('threat:forget-host', (_e, host) => _threatList.forgetHost(host));
+ipcMain.handle('threat:continue-log', () => _threatList.continueLog());
 // Permission hygiene (src/main/permission-hygiene.js): expiry, the trap guard and the
 // live camera/mic/location indicator. Off until Settings switches the feature on.
 const _permHygiene = require('./main/permission-hygiene').createPermissionHygiene({
@@ -1797,7 +1859,14 @@ ipcMain.handle('clips-inbox:stamp', (_e, id, meta) => {
 });
 ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok: true }; });
 
-ipcMain.on('app:started', () => _bootGuard.started());
+ipcMain.on('app:started', () => {
+  _bootGuard.started();
+  // The interface is up: a version that just replaced another has passed its trial.
+  try {
+    const ready = _updateRollback.markReady();
+    if (ready.kind === 'ready') _updateLog.add(`${ready.to} started fine after the update from ${ready.from}`);
+  } catch (err) { console.error('[Updates] could not end the update trial:', err.message); _updateLog.add('PROBLEM: could not end the update trial: ' + err.message); }
+});
 // Feature isolation (main/safe-mode.js): the interface says which feature it is
 // starting and when it has started, so a launch that dies in between is blamed
 // on that feature alone. The features left out of this launch are read once,
@@ -3224,7 +3293,10 @@ function wireAdblockerOnSession(ses, tag) {
       }
       if (overridden) { callback({ redirectURL: overridden.redirectURL }); return; }
       // Then the rules of the extensions in this session (declarativeNetRequest).
-      callback(_dnrRequest(ses, details) || _httpsAnswer(details));
+      const answer = _dnrRequest(ses, details) || _httpsAnswer(details);
+      // An extension that listens to webRequest.onBeforeRequest is told of a request that goes ahead (observing only).
+      if (!(answer && answer.cancel)) _extRequestSeen(ses, 'onBeforeRequest', details);
+      callback(answer);
     }
   });
 }
@@ -3304,6 +3376,12 @@ function wireClientHintsOnSession(ses) {
     if (_siteUaOverridden.size && details.resourceType === 'mainFrame' && _siteUaOverridden.has(details.webContentsId)
       && !(_hasUaRules && SiteRules.userAgentFor(_siteRules, details.url, MOBILE_UA))) _siteUaOverridden.delete(details.webContentsId);
     _requestRecorder.recordHeaders(details, h); // only a page the person armed; secrets are removed as it is recorded
+    // webRequest.onBeforeSendHeaders / onSendHeaders: told the headers as they are sent, after every change above (observing only).
+    if (_extEvents.anyone('webRequest.onBeforeSendHeaders') || _extEvents.anyone('webRequest.onSendHeaders')) {
+      const sent = Object.assign({}, details, { requestHeaders: h });
+      _extRequestSeen(ses, 'onBeforeSendHeaders', sent);
+      _extRequestSeen(ses, 'onSendHeaders', sent);
+    }
     callback({ requestHeaders: h });
   });
 }
@@ -3469,7 +3547,15 @@ function wireMediaSnifferOnSession(ses) {
   });
   // Requests that never got an answer (the other half of a bug report). No other
   // code registers onErrorOccurred, so this does not replace anything.
-  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => { _devRequestLog.record(details); _requestRecorder.recordDone(details); });
+  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => { _devRequestLog.record(details); _requestRecorder.recordDone(details); _extRequestSeen(ses, 'onErrorOccurred', details); });
+  // The other webRequest events an extension can listen to. Electron gives one listener per event per session and the ones for the
+  // request, its headers and the reply are Vex's own, so these are the free ones. webRequest.onHeadersReceived is told when the
+  // response starts, with the headers as the page gets them (observing only).
+  ses.webRequest.onResponseStarted({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => {
+    _extRequestSeen(ses, 'onHeadersReceived', details);
+    _extRequestSeen(ses, 'onResponseStarted', details);
+  });
+  ses.webRequest.onBeforeRedirect({ urls: ['http://*/*', 'https://*/*'] }, (details) => { _extRequestSeen(ses, 'onBeforeRedirect', details); });
 }
 
 // Keep a page as a PDF, or as one file that opens offline (src/main/page-save.js).
@@ -3989,6 +4075,7 @@ const EXT_PARTITIONS = [
   'persist:container-work', 'persist:container-personal', 'persist:container-shopping'
 ];
 const extHelpers = require('./main/extensions');
+const { placePopup, popupArea } = require('./main/popup-placement');
 
 // folder -> why its last load attempt failed, surfaced by extensions:list so a
 // broken extension explains itself in the manager instead of looking installed.
@@ -4049,7 +4136,7 @@ function _extEntriesOnDisk() {
       if (!fs.existsSync(manifestPath)) return null;
       let manifest;
       try {
-        manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8').replace(/^\uFEFF/, ''));
       } catch (err) {
         // Keep it listed WITH the reason. Dropping it here used to make a
         // corrupt extension vanish from the manager, leaving the user no way
@@ -4155,7 +4242,7 @@ function _migrateFileAccess() {
 // 'everywhere'.
 function _sessionsFor(extPath, manifest) {
   let m = manifest;
-  if (!m) { try { m = JSON.parse(fs.readFileSync(path.join(extPath, 'manifest.json'), 'utf-8')); } catch { m = null; } }
+  if (!m) { try { m = JSON.parse(fs.readFileSync(path.join(extPath, 'manifest.json'), 'utf-8').replace(/^\uFEFF/, '')); } catch { m = null; } }
   const { partitions } = extHelpers.partitionsFor(m || {}, _readScopes()[path.basename(extPath)]);
   return [session.defaultSession, ...partitions.map(p => secureSessions.fromPartition(p))];
 }
@@ -4414,7 +4501,7 @@ async function _replaceInPlace(previous, staged) {
     await reloadOld();
     return { ok: false, error: `Could not put the new version in place: ${err.message}` };
   }
-  const manifest = JSON.parse(fs.readFileSync(path.join(previous.path, 'manifest.json'), 'utf-8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(previous.path, 'manifest.json'), 'utf-8').replace(/^\uFEFF/, ''));
   const name = extHelpers.localize(manifest.name, extHelpers.readMessages(previous.path, manifest.default_locale));
   if (wasDisabled) {
     // Switched off, it stays off: the new files wait for the user to switch it on.
@@ -4467,7 +4554,7 @@ async function _activateInstalledFolder(destFolder, copyToUpdate, match = {}) {
   if (previous) return _replaceInPlace(previous, destFolder);
   if (_boot.safeMode) {
     // Placed but not loaded in safe mode, like an update (_replaceInPlace).
-    const manifest = JSON.parse(fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8'));
+    const manifest = JSON.parse(fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8').replace(/^\uFEFF/, ''));
     const name = extHelpers.localize(manifest.name, extHelpers.readMessages(destFolder, manifest.default_locale));
     return { ok: true, id: null, name: name || path.basename(destFolder), version: manifest.version, afterRestart: true, folder: path.basename(destFolder) };
   }
@@ -4812,7 +4899,7 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
     if (cands.length) { manifestEntry = cands[0]; rootPath = manifestEntry.entryName.replace(/manifest\.json$/, ''); }
   }
   if (!manifestEntry) return { ok: false, error: 'No manifest.json in archive' };
-  const manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
+  const manifest = JSON.parse(manifestEntry.getData().toString('utf-8').replace(/^\uFEFF/, ''));
   let slug = forceSlug;
   if (!slug) {
     // The archive's own _locales name the folder, as in extensions:install-zip.
@@ -4827,17 +4914,23 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
   }
   const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
   fs.mkdirSync(destFolder, { recursive: true });
-  for (const entry of entries) {
-    if (entry.isDirectory) continue;
-    const name = entry.entryName;
-    if (rootPath && !name.startsWith(rootPath)) continue;
-    const rel = rootPath ? name.slice(rootPath.length) : name;
-    if (!rel) continue;
-    if (skipPrefixes.some(p => rel.startsWith(p))) continue;
-    let outPath;
-    try { outPath = safeJoin(destFolder, rel); } catch { continue; }
-    fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, entry.getData());
+  try {
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      const name = entry.entryName;
+      if (rootPath && !name.startsWith(rootPath)) continue;
+      const rel = rootPath ? name.slice(rootPath.length) : name;
+      if (!rel) continue;
+      if (skipPrefixes.some(p => rel.startsWith(p))) continue;
+      let outPath;
+      try { outPath = safeJoin(destFolder, rel); } catch { continue; }
+      fs.mkdirSync(path.dirname(outPath), { recursive: true });
+      fs.writeFileSync(outPath, entry.getData());
+    }
+  } catch (err) {
+    // A half-written folder would be listed (and fail) on every start.
+    fs.rmSync(destFolder, { recursive: true, force: true });
+    throw err;
   }
   const placedManifest = path.join(destFolder, 'manifest.json');
   if (!fs.existsSync(placedManifest)) {
@@ -6102,12 +6195,18 @@ ipcMain.on('tabs:activated', (event, pageId) => {
 });
 // webRequest.onCompleted, from the one onCompleted each session has
 // (wireMediaSnifferOnSession).
-function _extRequestCompleted(ses, details) {
-  _extEmit(ses, 'webRequest.onCompleted', (ext, l) => {
+function _extRequestCompleted(ses, details) { _extRequestSeen(ses, 'onCompleted', details); }
+// Any webRequest event an extension may listen to. Only an extension with the "webRequest" permission and a host permission for the address
+// hears it, through its own filter, and only the headers it asked for. What the listener answers is ignored: this never blocks or changes
+// a request (blocking webRequest is not built; Vex's blocker and the declarativeNetRequest rules decide).
+function _extRequestSeen(ses, event, details) {
+  const base = 'webRequest.' + event;
+  if (!_extEvents.anyone(base)) return;
+  _extEmit(ses, base, (ext, l) => {
     const perms = (ext.manifest && ext.manifest.permissions) || [];
     if (!perms.includes('webRequest') || !_extHostAllowed(ext, details.url)) return null;
     if (!_extEventsMod.filterTakes(l.filter, details, _extMenuModel.matchPattern)) return null;
-    return [_extEventsMod.requestDetails(details)];
+    return [_extEventsMod.requestDetails(details, l.spec)];
   });
 }
 
@@ -6283,6 +6382,26 @@ function _extIconValue(ext, value) {
   throw new Error('setIcon needs imageData or a path');
 }
 
+// The reading half of chrome.history / bookmarks / topSites (src/main/extension-browsing.js), from the saved lists. Not while Vex is locked.
+function _extBrowsingApi(op, args) {
+  if (_vexLocked) throw new Error('Vex is locked');
+  const B = require('./main/extension-browsing');
+  const saved = _persistLoad();
+  if (op === 'history.search') return B.historySearch(B.historyEntries(saved['vex.history']), args.query, Date.now());
+  if (op === 'history.getVisits') return B.historyVisits(B.historyEntries(saved['vex.history']), args.url);
+  if (op === 'topSites.get') return B.topSites(B.historyEntries(saved['vex.history']));
+  const nodes = B.bookmarkNodes(saved['vex.bookmarks']);
+  switch (op) {
+    case 'bookmarks.getTree': return B.bookmarksSubTree(nodes, '0');
+    case 'bookmarks.get': return B.bookmarksGet(nodes, args.ids);
+    case 'bookmarks.getChildren': return B.bookmarksChildren(nodes, args.id);
+    case 'bookmarks.getSubTree': return B.bookmarksSubTree(nodes, args.id);
+    case 'bookmarks.getRecent': return B.bookmarksRecent(nodes, args.count);
+    case 'bookmarks.search': return B.bookmarksSearch(nodes, args.query);
+    default: throw new Error('Vex has no ' + op);
+  }
+}
+
 // --- Asked by the extension (the stand-ins).
 async function _extApi(senderUrl, ses, request) {
   const m = /^chrome-extension:\/\/([a-p]{32})\//.exec(String(senderUrl || ''));
@@ -6349,6 +6468,11 @@ async function _extApi(senderUrl, ses, request) {
       if (r.op === 'native.disconnect') return _extNative.disconnect({ key, portId: String(args.portId) });
       return _extNative.sendOnce({ extId, folder, name: args.name, message: args.message });
     }
+    // chrome.history, chrome.bookmarks, chrome.topSites: read from Vex's saved lists, only for the permission the manifest names.
+    case 'history.search': case 'history.getVisits': case 'topSites.get':
+    case 'bookmarks.getTree': case 'bookmarks.get': case 'bookmarks.getChildren': case 'bookmarks.getSubTree': case 'bookmarks.getRecent': case 'bookmarks.search':
+      needPerm(r.op.split('.')[0]);
+      return _extBrowsingApi(r.op, args);
     case 'cookies.get': case 'cookies.getAll': case 'cookies.set': case 'cookies.remove': case 'cookies.getAllCookieStores':
       return _extCookies.cookiesApi(r.op, args, { manifest, cookies: ses.cookies, matchPattern: _extMenuModel.matchPattern });
     case 'windows.get': case 'windows.getCurrent': case 'windows.getLastFocused': case 'windows.getAll':
@@ -6392,7 +6516,7 @@ async function _extApi(senderUrl, ses, request) {
       if (/^notifications\./.test(type)) needPerm('notifications');
       if (/^webNavigation\./.test(type)) needPerm('webNavigation');
       if (/^cookies\./.test(type)) needPerm('cookies');
-      _extEvents.listen(`${partition}|${extId}`, type, args.filter);
+      _extEvents.listen(`${partition}|${extId}`, type, args.filter, args.spec);
       return undefined;
     }
     case 'webNavigation.getFrame': case 'webNavigation.getAllFrames': {
@@ -6710,6 +6834,22 @@ function _setPopupContentSize(win, w, h, x, y) {
   win.setContentSize(w, h);
   win.setResizable(false);
 }
+// Puts the popup under its button and inside the Vex window and the screen
+// (main/popup-placement.js); a popup that is bigger than that gets less room
+// and its page scrolls. The window's real outer size (Windows adds a border)
+// is read back and the position corrected, so no edge is ever past the area.
+function _placePopupWindow(win, anchor, w, h) {
+  const { screen } = require('electron');
+  const host = anchor.host && !anchor.host.isDestroyed() ? anchor.host : null;
+  const display = screen.getDisplayNearestPoint({ x: Math.round((anchor.left + anchor.right) / 2), y: Math.round(anchor.bottom) });
+  const area = popupArea(host ? host.getContentBounds() : null, display.workArea);
+  const p = placePopup({ anchor, size: { w, h }, area });
+  _setPopupContentSize(win, p.w, p.h, p.x, p.y);
+  const b = win.getBounds();
+  const fixed = placePopup({ anchor, size: { w: b.width, h: b.height }, area });
+  if (fixed.x !== b.x || fixed.y !== b.y) win.setPosition(fixed.x, fixed.y);
+  return p;
+}
 ipcMain.handle('extensions:open-popup', async (_e, request) => {
   try {
     const folderName = request && request.folder;
@@ -6752,6 +6892,21 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       webPreferences: { session: ses, contextIsolation: true, nodeIntegration: false, enablePreferredSizeMode: true }
     });
     _extPopupWindow = win;
+    // The button it opened from, in screen pixels (a shortcut or a look with no
+    // button sends the middle of the window's top).
+    const left = Number.isInteger(request.x) ? request.x : 0;
+    const bottom = Number.isInteger(request.y) ? request.y : 0;
+    const anchor = {
+      left, bottom,
+      right: Number.isInteger(request.right) ? request.right : left,
+      top: Number.isInteger(request.top) ? request.top : bottom,
+      host: BrowserWindow.fromWebContents(_e.sender),
+    };
+    // Under its button from the start: Stylus's popup calls window.focus()
+    // while it loads, which shows a hidden window where it was made (mid-screen),
+    // and its load does not finish for a long while, so waiting to place the
+    // window until the page had loaded left Stylus's popup there (2026-11-01).
+    _placePopupWindow(win, anchor, 360, 480);
     // A popup's content can change size after it loads: Dark Reader's is a
     // "Loading, please wait" line until its data arrives, then 580px tall, and
     // it showed in a 500px window with scroll bars (2026-09-28). Chrome resizes
@@ -6775,9 +6930,8 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       if (preferred) {
         const [w, h] = extHelpers.clampPopupSize(preferred.width, preferred.height);
         if (w !== cw || h !== ch) {
-          const [x, y] = win.getPosition();
-          _setPopupContentSize(win, w, h, Math.max(0, x + Math.round((cw - w) / 2)), y);
-          [cw, ch] = [w, h];
+          const placed = _placePopupWindow(win, anchor, w, h);
+          [cw, ch] = [placed.w, placed.h];
         }
       }
       const size = await measurePopup(cw, ch)
@@ -6786,8 +6940,7 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       if (size.w <= size.iw && size.h <= size.ih) return;
       const [w, h] = extHelpers.clampPopupSize(Math.max(size.w, size.iw), Math.max(size.h, size.ih));
       if (w === size.iw && h === size.ih) return;
-      const [x, y] = win.getPosition();
-      _setPopupContentSize(win, w, h, Math.max(0, x + Math.round((size.iw - w) / 2)), y);
+      _placePopupWindow(win, anchor, w, h);
     };
     win.webContents.on('preferred-size-changed', (_event, size) => {
       preferred = size;
@@ -6827,10 +6980,7 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     ).catch(err => { console.error('[Extensions] popup measure failed:', err.message); return null; });
     if (first && !(Number.isFinite(first.w) && Number.isFinite(first.h))) first = null;
     const [w, h] = first ? extHelpers.clampPopupSize(first.w, first.h) : win.getContentSize();
-    const [x, y] = Number.isInteger(request.x) && Number.isInteger(request.y)
-      ? [Math.max(0, request.x - Math.round(w / 2)), Math.max(0, request.y)]
-      : win.getPosition();
-    _setPopupContentSize(win, w, h, x, y);
+    _placePopupWindow(win, anchor, w, h);
     win.show();
     win.focus();
     // Not every growth raises preferred-size-changed: Return YouTube Dislike's
@@ -7130,6 +7280,42 @@ app.on('web-contents-created', (_event, contents) => {
         .then(() => { if (!contents.isDestroyed()) return contents.loadURL(shown); })
         .catch(err => console.error('[WebSafety] could not trust ' + host + ':', err.message));
     }
+  });
+  // The dangerous-site warning page (_threatPage): its three links are addresses that cannot exist (threat-pages.js) and count only
+  // while this tab is showing that page. A page of a site cannot send one: without the warning on screen they do nothing.
+  contents.once('destroyed', () => { _threatPassed.delete(contents.id); _threatShown.delete(contents.id); });
+  contents.on('will-navigate', (evt, url) => {
+    const to = (evt && evt.url) || url;
+    const pages = require('./main/threat-pages');
+    if (!to.startsWith('https://vex-threat.invalid/')) return;
+    evt.preventDefault();
+    const shown = _threatShown.get(contents.id);
+    if (!shown) return;
+    const persistent = (secureSessions.partitionOf(contents) || '').startsWith('persist:');
+    const fail = (err) => console.error('[ThreatList] could not go on to the site:', err && err.message);
+    if (to === pages.BACK_URL) {
+      _threatShown.delete(contents.id);
+      if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack();
+      else contents.loadURL(pathToFileURL(path.join(__dirname, 'renderer', 'start.html')).toString()).catch(fail);
+      return;
+    }
+    const trust = to.startsWith(pages.TRUST_PREFIX);
+    if (!trust && !to.startsWith(pages.CONTINUE_PREFIX)) return;
+    if (shown.hit.kind === 'test') return;
+    let target;
+    try { target = decodeURIComponent(to.slice((trust ? pages.TRUST_PREFIX : pages.CONTINUE_PREFIX).length)); } catch { return; }
+    if (target !== shown.url) return;
+    _threatShown.delete(contents.id);
+    if (!_threatPassed.has(contents.id)) _threatPassed.set(contents.id, new Set());
+    _threatPassed.get(contents.id).add(_threatPassKey(shown.hit, shown.url));
+    try {
+      _threatList.logContinue(shown.hit.host, { persistent, kind: shown.hit.kind });
+      if (trust) _threatList.allowHost(shown.hit.host, { persistent });
+    } catch (err) { console.error('[ThreatList] could not note that you continued:', err.message); }
+    contents.loadURL(shown.url).catch(err => { if (!(err && (err.errno === -3 || /ERR_ABORTED/.test(err.message)))) fail(err); });
+  });
+  contents.on('did-navigate', (_e, url) => {
+    if (_threatShown.has(contents.id) && !/^data:/i.test(url || '')) _threatShown.delete(contents.id);
   });
   const _paranoidRtc = () => { try { _applyParanoidWebRtc(contents); } catch (err) { console.error('[WebSafety] could not set the WebRTC policy:', err.message); } };
   contents.on('did-navigate', _paranoidRtc);
@@ -7868,6 +8054,8 @@ ipcMain.handle('sources:resolve-doi', async (_event, doi) => {
 // The bank's daily rates for TL equivalent (main/fx-rates.js): one fixed address, only when the person presses Fetch.
 const _fxRates = require('./main/fx-rates').createFxRates({ fetch: boundedNetFetch });
 ipcMain.handle('fx:tcmb', () => _fxRates.tcmb());
+// More from the creator (main/maker-repos.js): the public repositories list, fetched only when the person presses Refresh; the refreshed copy is kept in the profile folder.
+require('./main/maker-repos').registerMakerRepos({ ipcMain, dir: path.join(app.getPath('userData'), 'maker-repos'), fs, path, publicFetch: boundedPublicFetch, userAgent: 'Vex/' + app.getVersion() + ' (+https://github.com/0xmortuex/Vex)' });
 // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook, sealed by the OS
 // in comms-webhook.enc and never handed back, and the folder of the Vencord bridge file, read-only.
 const _commsTools = require('./main/comms-tools').createCommsTools({
@@ -8517,6 +8705,7 @@ function createWindow() {
   // not just the Discord sidebar panel. A PAC script sends ONLY discord.* through
   // ByeDPI (everything else stays direct). TCP only — voice UDP still needs Zapret.
   const _BROWSING_SESSIONS = BROWSING_SESSIONS;
+  let _unblock = null;   // the Unblock centre (src/main/unblock-main.js), wired further down
   function _routeBrowsingDiscord(port) {
     let cfg = { mode: 'direct' };
     if (port) {
@@ -8527,6 +8716,8 @@ function createWindow() {
         + "shExpMatch(h,'*.discordapp.net'))return 'SOCKS5 127.0.0.1:" + port + "';return 'DIRECT';}";
       cfg = { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
     }
+    // The sites the Unblock centre has switched on join the Discord rules in one PAC.
+    if (typeof _unblock !== 'undefined' && _unblock) cfg = _unblock.browsingConfig(port) || cfg;
     // What a covered session set back to direct gets (applyRouting).
     _discordBrowsingProxy = cfg;
     // A session with a saved route (a container through Tor or a proxy, or
@@ -8791,6 +8982,23 @@ function createWindow() {
       },
     });
     ipcMain.handle('bypass:probe', (_e, url) => _bypassProbe.probe(url));
+    // The Unblock centre: a failed load that looks like a block, the ways Vex can open that site
+    // without administrator rights, and the list of sites it remembers (main/unblock-main.js).
+    _unblock = require('./main/unblock-main').wireUnblock({
+      ipcMain, net, secureSessions,
+      userData: app.getPath('userData'),
+      byedpi: _byedpi, share: _share,
+      dohResolve: require('./main-dpi-bypass.js').dohResolve,
+      lightPort: () => _dpiBypassPort,
+      downloadBuffer: _downloadBuffer,
+      reapplyBrowsing: () => {
+        const m = _lastDiscordRules && /socks5?:\/\/127\.0\.0\.1:(\d+)/.exec(String(_lastDiscordRules));
+        _routeBrowsingDiscord(m ? parseInt(m[1], 10) : 0);
+      },
+      isRouted: (partition) => { const saved = readRouting(); return !!(saved[_ALL_ROUTE_KEY] || saved[partition || 'default']); },
+      log: (message) => console.warn(message),
+    });
+    app.on('before-quit', () => { try { _unblock.shutdown(); } catch (err) { console.error('[Unblock] could not stop its helpers:', err); } });
     ipcMain.handle('roblox:set-bypass', (_e, on) => _applyRobloxBypass(!!on));
     ipcMain.handle('gui-style:set', async (_e, style) => {
       await dataStore.write('gui-style', style === 'glass' ? 'glass' : 'classic');
@@ -10782,10 +10990,73 @@ ipcMain.handle('open-guest-window', (_e, look, uiMode) => openPrivateWindow({ lo
 // MSVC runtime, and publisherName in package.json made it refuse every update
 // of the unsigned installer. Download, checksum and install are Vex's own.
 // net.fetch follows GitHub's redirect to its file storage.
+// What the updater remembers between runs (src/main/update-state.js): its log, a
+// downloaded installer waiting to run, the "installing / on trial / rolled back"
+// marker, and whether this copy is an installed Vex at all.
+const _updState = require('./main/update-state');
+const _updatesDir = path.join(app.getPath('userData'), 'updates');
+const _updateLog = _updState.createUpdateLog({ fs, dir: _updatesDir, warn: m => console.warn(m) });
+const _updateRollback = _updState.createRollback({ fs, dir: _updatesDir, currentVersion: app.getVersion(), hashFile: _updState.hashFileWith(fs) });
+let _updateCopy = null;
+try {
+  _updateCopy = _updState.installKind({ execPath: process.execPath, isPackaged: app.isPackaged, fs });
+  // A folder copy next to a registered install must never run the installer into its own folder.
+  if (_updateCopy.kind === 'folder') {
+    const folderCopy = _updateCopy;
+    _updateCopy = { ...folderCopy, unknownInstall: 'not looked up' };   // refused until the look-up works
+    _updateCopy = _updState.withOtherInstall(folderCopy, _updState.findRegisteredInstall({
+      fs, env: process.env,
+      regQuery: (key) => {
+        try { return require('child_process').execFileSync('reg', ['query', key, '/s'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true }); }
+        catch (err) { if (err.status === 1) return ''; throw err; }   // 1: the key does not exist
+      },
+    }));
+  }
+}
+catch (err) {
+  console.error('[Updates]', err.message); _updateLog.add('PROBLEM: ' + err.message);
+  if (_updateCopy && _updateCopy.unknownInstall) _updateCopy = { ..._updateCopy, unknownInstall: err.message };
+}
+// TEST ONLY (with the VEX_UPDATE_FEED stand-in): act as a folder copy living in the named folder, so the in-place path can be tried from source.
+if (process.env.VEX_UPDATE_FEED && process.env.VEX_UPDATE_FAKE_FOLDER) _updateCopy = { kind: 'folder', folder: process.env.VEX_UPDATE_FAKE_FOLDER, ...(process.env.VEX_UPDATE_FAKE_OTHER ? { other: process.env.VEX_UPDATE_FAKE_OTHER } : {}) };
 const _updater = require('./main/updates').createUpdater({
   fetch: (url, init) => _egress.wrap((u, i) => net.fetch(u, i), { feature: 'Vex updates', kind: 'update' })(url, init),
-  fs, dir: path.join(app.getPath('userData'), 'updates'), currentVersion: app.getVersion(),
+  fs, dir: _updatesDir, currentVersion: app.getVersion(),
   spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList, addTurkishNotes: _mainHelpers.addTurkishNotes,
+  journal: _updateLog, staged: _updState.createStagedStore({ fs, dir: _updatesDir }), copy: _updateCopy, keepFiles: () => _updateRollback.keepFiles(),
+});
+_updateLog.add(`Vex ${app.getVersion()} started (${_updateCopy ? _updateCopy.kind : 'unknown copy'}${_updateCopy ? ', ' + _updateCopy.folder : ''})`);
+// A downloaded update from an earlier run is still there to install.
+try { _updater.restoreStaged(); } catch (err) { console.error('[Updates] could not look for a downloaded update:', err.message); _updateLog.add('PROBLEM: ' + err.message); }
+// What happened to the last install (src/main/update-state.js, createRollback):
+// the new version is on trial, the installer did not install, or Vex went back.
+let _updateNotice = null;
+let _updateRollbackDecision = null;
+try {
+  const startState = _updateRollback.onStart();
+  if (startState.kind !== 'none') _updateLog.add(`update state at start: ${startState.kind} (${startState.from || '?'} to ${startState.to || '?'})`);
+  if (startState.kind === 'rollback') _updateRollbackDecision = startState;
+  else if (['not-installed', 'rolled-back', 'rollback-failed', 'broken-no-backup'].includes(startState.kind)) _updateNotice = startState;
+} catch (err) {
+  console.error('[Updates] could not read the install marker:', err.message);
+  _updateLog.add('PROBLEM: could not read the install marker: ' + err.message);
+  _updateNotice = { kind: 'marker-unreadable', error: err.message };
+}
+// The new version failed to start twice: put the old one back, once. The
+// installer is the kept one of the version being left, hashed again first.
+app.whenReady().then(async () => {
+  const d = _updateRollbackDecision;
+  if (!d) return;
+  try {
+    const file = await _updateRollback.checkedBase(d.base);
+    _updateLog.add(`${d.to} did not finish starting ${d.failed} times in a row: going back to ${d.from}`);
+    _updater.launch(_updater.planFor(file, d.target));
+    app.exit(0);
+  } catch (err) {
+    console.error('[Updates] could not go back to the older version:', err.message);
+    _updateLog.add('PROBLEM: could not go back to ' + d.from + ': ' + err.message);
+    _updateNotice = { kind: 'rollback-failed', from: d.from, to: d.to, error: err.message };
+  }
 });
 // Only Vex's own main window may download or install an update: not a private
 // window, not a page, not another window of Vex's.
@@ -10793,6 +11064,16 @@ function _updatesFromMainWindow(event) {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can update Vex');
 }
 let _pendingInstall = null;
+// The verified installer, plus the marker the next start reads to learn what
+// happened (src/main/update-state.js). The kept installer of the running version
+// is what a rollback would run; if there is none, that is logged, and the update
+// still goes ahead (a rollback is a safety net, not a condition).
+async function _armInstall(version) {
+  const plan = await _updater.prepareInstall(version);
+  const armed = await _updateRollback.arm({ from: app.getVersion(), to: version, baseFile: _updater.baseInstallerFile(), target: plan.target });
+  _updateLog.add(`installing ${version} over ${app.getVersion()}` + (plan.target ? ` in place, into ${plan.target}` : '') + (armed.canGoBack ? '; the older installer is kept for a way back' : '; no way back: ' + armed.note));
+  return plan;
+}
 // Vex has closed its windows (tabs saved) and is quitting: start the installer
 // now, detached, so it outlives Vex. With --updated it waits for Vex to exit.
 app.on('quit', () => {
@@ -10802,9 +11083,51 @@ app.on('quit', () => {
   try {
     _updater.launch(plan);
     console.log('[Updates] installer started:', plan.file, plan.args.join(' '));
-  } catch (err) { console.error('[Updates] the installer could not be started:', err.message); }
+  } catch (err) {
+    console.error('[Updates] the installer could not be started:', err.message);
+    _updateLog.add('PROBLEM: the installer could not be started: ' + err.message);
+  }
+});
+// A downloaded update that was never installed (Vex was closed some other way,
+// or restarted) is installed when Vex next quits normally, the way
+// electron-updater's autoInstallOnAppQuit does. Not when Windows is shutting
+// down, and only in the default profile (the others close for it).
+let _stagedQuitHandled = false;
+app.on('will-quit', (event) => {
+  if (_stagedQuitHandled || _pendingInstall) return;
+  const staged = _updater.stagedUpdate();
+  if (!staged || _profile.id !== require('./main/profiles').DEFAULT_ID) return;
+  _stagedQuitHandled = true;
+  const why = _exitWatch.ending();
+  if (why && /^closing because Windows/.test(why.why)) { _updateLog.add(`not installing ${staged.version} now: Windows is ending the session`); return; }
+  event.preventDefault();
+  _armInstall(staged.version)
+    .then(plan => { _pendingInstall = plan; _updateLog.add(`installing the downloaded ${staged.version} as Vex quits`); })
+    .catch(err => { console.error('[Updates] the downloaded update was not installed at quit:', err.message); _updateLog.add('PROBLEM: the downloaded update was not installed at quit: ' + err.message); })
+    .finally(() => app.quit());
 });
 ipcMain.handle('check-for-updates', () => _updater.check());
+// What the interface shows without being asked: a downloaded update waiting, what
+// happened to the last install, whether this copy can update itself at all, and
+// the update log (the last 200 lines).
+ipcMain.handle('updates:status', (event) => {
+  _updatesFromMainWindow(event);
+  try {
+    return { ok: true, current: app.getVersion(), copy: _updateCopy, staged: _updater.stagedUpdate(), notice: _updateNotice,
+      blocked: _updateRollback.blockedVersion(), log: _updateLog.tail(200) };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('updates:log', (event) => {
+  _updatesFromMainWindow(event);
+  try { return { ok: true, lines: _updateLog.tail(200) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+// The person has read what happened to the last install.
+ipcMain.handle('updates:ack', (event) => {
+  _updatesFromMainWindow(event);
+  try { _updateRollback.acknowledge(); _updateNotice = null; return { ok: true }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('updates:upcoming-notes', async (_e, version) => {
   try { return { ok: true, ...(await _updater.notes(version)) }; }
   catch (err) { return { ok: false, error: err.message }; }
@@ -10818,7 +11141,7 @@ ipcMain.handle('updates:cancel', (event) => { _updatesFromMainWindow(event); ret
 ipcMain.handle('updates:install', async (event, version) => {
   _updatesFromMainWindow(event);
   let plan;
-  try { plan = await _updater.prepareInstall(version); }
+  try { plan = await _armInstall(version); }
   catch (err) { return { ok: false, error: err.message }; }
   // Close the main window the way its X does, which saves the tabs first
   // (session-security.js), then quit; the installer starts on 'quit' above.
@@ -10834,6 +11157,8 @@ ipcMain.handle('updates:install', async (event, version) => {
     if (win.isDestroyed()) return;
     win.removeListener('closed', quit);
     _pendingInstall = null;
+    try { _updateRollback.disarm(); } catch (err) { console.error('[Updates] could not clear the install marker:', err.message); }
+    _updateLog.add('PROBLEM: Vex could not save your tabs, so it did not close to install the update');
     win.webContents.send('updates:install-failed', { error: 'Vex could not save your tabs, so it did not close to install the update. Try again once the problem it reported is fixed.' });
   }, 9000);
   win.close();
@@ -11026,7 +11351,12 @@ ipcMain.handle('mail:compose', async (_e, { subject, body, to }) => {
   return { ok: true };
 });
 // The language of the native dialogs (main/i18n-main.js): the window says which one Vex is in, and what a Windows dialog shows follows it.
-ipcMain.handle('i18n:set-language', (_e, lang) => ({ ok: true, language: _i18nMain.setLanguage(lang) }));
+ipcMain.handle('i18n:set-language', (_e, lang) => {
+  const before = _i18nMain.language();
+  const language = _i18nMain.setLanguage(lang);
+  if (language !== before) _applyJumpList();   // the taskbar entries are written in the language in force
+  return { ok: true, language };
+});
 ipcMain.handle('open-external', (_e, url) => {
   try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}
   return { ok: false };
@@ -11147,7 +11477,20 @@ require('./main/wallpaper').registerWallpaper({
   ipcMain, platform: process.platform, env: process.env,
   execFile: require('child_process').execFile, fs, nativeImage,
 });
+// The Wallpaper Store's files (userData/wallpapers) and its one optional list fetch (src/main/wallpaper-store.js).
+require('./main/wallpaper-store').registerWallpaperStore({ ipcMain, dir: path.join(app.getPath('userData'), 'wallpapers'), fs, path, fetch: boundedPublicFetch });
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
+// Settings > Video and music playback (DRM), and the "Why isn't this playing?" banner (src/main/drm-health.js): the
+// diagnosis, the two repairs that need no restart, and clearing one tab's site. A failed repair throws to the caller.
+ipcMain.handle('drm:status', (_e, reported) => _drmHealth.check(reported));
+ipcMain.handle('drm:repair', async (_e, id, reported) => {
+  const result = id === 'enable-updates' ? await _drmHealth.enableUpdates(reported) : await _drmHealth.recheck(reported);
+  const ws = result.facts.widevine;
+  if (app.isPackaged && ws && ws.version) _widevineStatus = `Widevine ready (version ${ws.version})`;
+  return result;
+});
+// The page is one of the asking window's own (ipc-policy.js, TARGET_CHANNELS).
+ipcMain.handle('drm:clear-site', (_e, id) => require('./main/drm-health').clearSiteForPlayback(webContents.fromId(id)));
 // Retry DRM setup: CLEAR the cached Widevine component, then relaunch so the
 // castLabs component install runs from scratch. A plain relaunch isn't enough
 // when the first download left a partial/corrupted component on disk — the
@@ -11282,10 +11625,11 @@ function _applyJumpList() {
   const saved = _readPersistString('vex.jumpList', null);
   const enabled = !(saved && typeof saved === 'object' && saved.on === false);
   const safe = { program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' };
-  app.setUserTasks(require('./main/jump-list').buildTasks({
+  const tasks = require('./main/jump-list').buildTasks({
     execPath: process.execPath, enabled, keep: [safe],
     extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)).concat(_profile.id === 'default' ? [] : ['--profile=' + _profile.id]),
-  }));
+  });
+  app.setUserTasks(tasks.map(t => ({ ...t, title: _i18nMain.t(t.title), description: _i18nMain.t(t.description) })));
 }
 // A second start from a taskbar entry while Vex runs.
 function _jumpFromSecondStart(action) {
@@ -11381,6 +11725,8 @@ const notifier = require('./main/notify').createNotifier({
   iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
   // No sound over a full-screen game (T1-038): the toast still goes to Action Center.
   quiet: _fullscreenGameNow,
+  // The title, body and buttons follow the interface language (main/i18n-main.js).
+  translate: (text) => _i18nMain.t(text),
   // Clicking a toast brings Vex forward; a reminder's toast also opens the
   // reminder itself in the interface, with a way to snooze it.
   onClick: ({ tag } = {}) => {
@@ -11404,7 +11750,7 @@ try {
     startMenuDir: process.env.APPDATA ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs') : null,
     execPath: process.execPath, appPath: app.getAppPath(),
     iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
-    appUserModelId: 'com.vex.browser',
+    appUserModelId: VEX_APP_USER_MODEL_ID,
     log: (m) => console.log(m),
   });
 } catch (err) { console.error('[Notify] could not write the dev Start Menu shortcut:', err.message); }

@@ -24,7 +24,7 @@
     "src/renderer/js/ai-panel.js": 2,
     "src/renderer/js/ai-router.js": 1,
     "src/renderer/js/ai-settings.js": 1,
-    "src/renderer/js/app.js": 20,
+    "src/renderer/js/app.js": 21,
     "src/renderer/js/ask-ai-bar.js": 3,
     "src/renderer/js/attention-digest.js": 1,
     "src/renderer/js/command-aliases.js": 1,

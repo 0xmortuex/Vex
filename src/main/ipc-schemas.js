@@ -58,6 +58,8 @@ define('extensions:debug-state', []);
 const version = value => typeof value === 'string' && /^\d{1,5}\.\d{1,5}\.\d{1,5}[0-9A-Za-z.+-]{0,40}$/.test(value);
 define('updates:upcoming-notes updates:download updates:install', [version]);
 define('updates:cancel', []);
+// The update state and log (src/main/update-state.js): read, and acknowledge a notice.
+define('updates:status updates:log updates:ack', []);
 // The backup made before an update (src/main/update-backups.js): the version
 // it is named after and the backup file's text; then listed and read back by name.
 define('updates:backup-save', [version, string(10 * 1024 * 1024)]);
@@ -192,7 +194,7 @@ define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])])
 define('downloads:retry', [web, optional(string(160))]);
 define('downloads:ask-where downloads:mine', [string(4 * 1024 * 1024 + 64)]);
 define('image:copy', [string(4 * 1024 * 1024 + 64), string(200)]);
-define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), tab: optional(integer) })]);
+define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), right: optional(coordinate), top: optional(coordinate), tab: optional(integer) })]);
 define('extensions:popup-tab', []);
 // An extension's tabs.query/get: which page is the tab in front (main.js, _activeTabsFor).
 define('extensions:active-tabs', []);
@@ -423,6 +425,16 @@ define('routing:prune', [value => Array.isArray(value) && value.length <= 500 &&
 // 'auto' is the Auto-configure sweep (js/discord-bypass.js); it was missing
 // here, so every Auto-configure was refused before it started.
 define('bypass:probe', [string(2048)]);
+// The Unblock centre (main/unblock-main.js): a failed address, its error code and the tab's session; a site name and
+// options; the window's list (200 sites at most); no arguments for the status.
+define('unblock:assess', [string(2048), value => Number.isInteger(value) && value <= 0 && value >= -999, optional(string(160))]);
+define('unblock:try', [string(253), optional(shape({ prefer: optional(oneOf(['doh', 'light', 'byedpi'])), allowDownload: optional(boolean), keep: optional(boolean) }))]);
+define('unblock:sync', [shape({
+  enabled: boolean,
+  sites: value => Array.isArray(value) && value.length <= 200 && value.every(s => object(s) && string(253)(s.host) && oneOf(['ask', 'always', 'never', 'once'])(s.mode)
+    && optional(oneOf(['doh', 'light', 'byedpi']))(s.method) && optional(v => Number.isInteger(v) && v >= 0 && v < 100)(s.preset)),
+})]);
+define('unblock:status', []);
 define('discord:set-bypass-mode', [oneOf(['off','light','strong','auto']), optional(shape({ preset: optional(value => Number.isInteger(value)), custom: optional(string(4096)) }))]);
 define('discord:install-vencord-local', [optional(string())]);
 // Which Vencord plugin allocates how much (main/discord-heap.js): the Discord page's id, then the plugin names.
@@ -438,6 +450,16 @@ define('theme:get-custom-image', [optional(themeId)]);
 define('theme:set-custom-image', [optional(value => typeof value === 'string' && value.length <= 12 * 1024 * 1024 && /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value)), optional(themeId)]);
 // A theme from your Windows wallpaper (src/main/wallpaper.js): read only.
 define('theme:read-wallpaper', []);
+// The Wallpaper Store (src/main/wallpaper-store.js): the optional photo list, and the pictures it keeps.
+const wallpaperId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{1,62}$/.test(value);
+const wallpaperKind = oneOf(['thumb', 'full', 'mine']);
+const wallpaperBytes = value => value instanceof ArrayBuffer && value.byteLength <= 4 * 1024 * 1024;
+define('wallpaper:catalogue', [value => typeof value === 'string' && value.length <= 2048, optional(boolean)]);
+define('wallpaper:download', [value => typeof value === 'string' && value.length <= 2048, oneOf(['thumb', 'full'])]);
+define('wallpaper:save', [wallpaperId, wallpaperKind, wallpaperBytes]);
+define('wallpaper:read', [wallpaperId, wallpaperKind]);
+define('wallpaper:remove', [wallpaperId, optional(wallpaperKind)]);
+define('wallpaper:stats wallpaper:clear-cache', []);
 // Website appearance (src/main/website-appearance.js): light or dark for pages.
 define('theme:set-website-appearance', [oneOf(['system', 'light', 'dark'])]);
 define('i18n:set-language', [oneOf(['en', 'tr'])]);
@@ -634,6 +656,10 @@ define('devdesk:set-config', [shape({ enabled: optional(boolean), editor: option
 define('devdesk:revoke-root devdesk:open-terminal devdesk:branch', [string(500)]);
 define('devdesk:open-file', [shape({ path: string(500), line: optional(integer), col: optional(integer) })]);
 define('castlabs:behind', [optional(boolean)]);
+// Settings > Video and music playback (DRM) and the playback banner (main/drm-health.js): what a page said, a repair, one tab's site.
+define('drm:status', [optional(shape({ host: optional(string(100)), message: string(300) }))]);
+define('drm:repair', [oneOf(['recheck', 'enable-updates']), optional(shape({ host: optional(string(100)), message: string(300) }))]);
+define('drm:clear-site', [integer]);
 define('devdesk:ports', [value => Array.isArray(value) && value.length <= 12 && value.every(p => Number.isInteger(p) && p >= 1024 && p <= 65535)]);
 // The sources list (main/doi-resolve.js): the DOI is checked again in main; this only bounds it.
 define('sources:resolve-doi', [string(300)]);
@@ -707,6 +733,8 @@ define('pdfview:save-copy', [shape({
   toDownloads: optional(boolean),
 })]);
 define('fx:tcmb', []);
+// More from the creator (src/main/maker-repos.js): no arguments; the address is fixed in main.
+define('makerepos:refresh makerepos:stored', []);
 // Community and chat tools (main/comms-tools.js). The webhook address goes in once and never comes back;
 // a post is one text of at most 2000 characters. The bridge channels take no arguments: main reads one fixed file.
 define('comms:webhook-status comms:webhook-clear comms:bridge-status comms:bridge-pick comms:bridge-read comms:bridge-forget', []);
@@ -792,6 +820,10 @@ define('websafety:allow-host websafety:forget-host', [string(253)]);
 define('websafety:set-paranoid', [string(2048), boolean]);
 define('websafety:check', [string(2048)]);
 define('websafety:third-party-count', [shape({ site: string(253), partition: optional(string(160)), hosts: value => Array.isArray(value) && value.length <= 500 && value.every(string(253)) })]);
+// Known dangerous sites (src/main/threat-list.js, js/threat-list-ui.js): the switch, the list's status and its update. Vex's own window only.
+define('threat:status threat:update threat:continue-log', []);
+define('threat:set-enabled threat:set-auto-update', [boolean]);
+define('threat:forget-host', [string(253)]);
 define('downloads:explain', [string(64), optional(boolean)]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);

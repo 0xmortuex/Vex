@@ -156,9 +156,34 @@ const Onboarding = {
     return (this._pace || this.pace()) === 'full' ? all : all.filter(step => step.quick);
   },
 
+  // The starting-point cards only choose which sidebar panels and shortcuts you keep (and Simple vs full), so with the sidebar answered "no" the step is
+  // left out of the walk, the counts and Back (owner, 2026-11-01). A new profile that never saw it still ends up Simple (finish()).
+  _stepHidden(step) { return !!step && step.key === 'setupstyle' && !this._wantsSidebar(); },
+  _visibleSteps(steps) { return steps.filter(step => !this._stepHidden(step)); },
+  // The answer on the sidebar step adds or removes the starting-point step, so the count and the bar follow it at once.
+  _refreshProgress() {
+    const overlay = document.getElementById('vex-onboarding');
+    const label = overlay && overlay.querySelector('#ob-progress-label');
+    const bar = overlay && overlay.querySelector('#ob-progress-fill');
+    if (!label || !bar) return;
+    const steps = this.activeSteps || this.STEPS();
+    const vis = this._visibleSteps(steps);
+    const pos = Math.max(0, vis.findIndex(step => step.key === steps[this.step]?.key));
+    label.textContent = `${window.VexI18n?.t('step', 'Step') || 'Step'} ${pos + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${vis.length} · ${this._timeLeft(vis, pos)}`;
+    bar.style.width = Math.round(((pos + 1) / vis.length) * 100) + '%';
+    bar.parentElement.setAttribute('aria-valuemax', String(vis.length));
+  },
+  // Next/previous step that is shown; past the end is the finish.
+  _move(dir) {
+    const steps = this.activeSteps || this.STEPS();
+    let i = this.step + dir;
+    while (i >= 0 && i < steps.length && this._stepHidden(steps[i])) i += dir;
+    this.step = Math.max(0, i);
+  },
+
   // "about two minutes left", from what each remaining step actually asks for.
-  _timeLeft(steps) {
-    const secs = steps.slice(this.step + 1).reduce((n, step) => n + (step.secs || 25), 0);
+  _timeLeft(steps, at = this.step) {
+    const secs = steps.slice(at + 1).reduce((n, step) => n + (step.secs || 25), 0);
     // Through VexI18n like the rest of the header: it stayed English in
     // Turkish (found 2026-09-29).
     const t = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
@@ -213,7 +238,9 @@ const Onboarding = {
       case 'theme':          return this._has('vex.theme');
       case 'job':            return this._has('vex.job');
       case 'name':           return this._has('vex.userName');
+      case 'sidebar':        return !!(window.VexSidebarVisibility && window.VexSidebarVisibility.chosen());
       case 'look':           return this._flag('vex.guiStyleChosen');
+      case 'font':           return this._has('vex.font');
       case 'performance':    return this._flag('vex.perfConfigured');
       case 'weather':        return this._has('vex.weatherLoc');
       case 'github':         return this._has('vex.githubUsername');
@@ -225,7 +252,6 @@ const Onboarding = {
       case 'ollama':         return this._route() === 'local';
       case 'ondevice':       return this._flag('vex.preferOnDeviceAI');
       case 'sync':           return this._has('vex.syncWorkerUrl');
-      case 'passwords':      return this._flag('vex.vaultSeeded');
       case 'browsing':       return this._flag('vex.browsingConfigured');
       case 'aidata':         return this._flag('vex.aiDataConfigured');
       case 'notifications':  return this._flag('vex.notificationsChecked');
@@ -305,9 +331,11 @@ const Onboarding = {
       ...(this._legalNeeded() ? [{ key: 'legal', title: 'Before you start', sub: 'Vex does some things by itself. Read what they are, then agree to the privacy policy and terms to use Vex.', quick: true, secs: 30 }] : []),
       { key: 'welcome',       title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
       { key: 'import',         title: 'Bring your things over',   sub: 'Bookmarks, history and saved passwords from Chrome, Edge, Brave, Firefox and others, so you do not start from nothing. Optional.', quick: true, secs: 45 },
+      { key: 'sidebar',        title: 'Do you want a sidebar?',   sub: 'The sidebar is the strip of buttons beside the page that opens Vex’s own panels — Discord, Spotify, Notes, Downloads, Bookmarks and more — without leaving the page you are on. Say no and Vex is a plain browser; the panels still open with Ctrl+K.' , quick: true, secs: 15},
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; Simple mode is a switch in Settings › General, and the panels are in Settings › Sidebar.' , quick: true, secs: 40},
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
       { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape, or a Fluent, Glossy, Neobrutal or Terminal style. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
+      { key: 'font',           title: 'Pick a font',              sub: 'The typeface Vex wears: its tabs, menus, settings and start page. Try one and read the line below it; Skip keeps what you have now. Every font here is already on your PC, and Settings › Appearance has the full list.' , secs: 20},
       { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' , secs: 40},
       { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' , secs: 40},
       { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' , secs: 30},
@@ -324,13 +352,13 @@ const Onboarding = {
       { key: 'ollama',         title: 'Local AI (Ollama)',        sub: 'Run models locally with Ollama — private and free. We’ll detect a running Ollama for you.' , secs: 45},
       { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' , secs: 45},
       { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' , secs: 45},
-      { key: 'passwords',      title: 'Password manager',         sub: 'Vex has a built-in, OS-encrypted password vault. Add your first login now, or skip and add them as you browse.' , secs: 40},
       { key: 'notifications',  title: 'Notifications',            sub: 'Reminders, alarms, page-change alerts and websites you allow all arrive as Windows notifications. Send one now to be sure they reach you — if it does not show, the fix is in Windows, and this page says where.' , secs: 25},
       { key: 'done',           title: 'All set',                     sub: 'You’re ready. Everything here lives in Settings if you want to change it later — and Discover (Ctrl+K → “Discover”) introduces every feature Vex has, one at a time.' , quick: true, secs: 10},
     ].map(step => ({ ...step, title: window.VexI18n?.t(step.key, step.title) || step.title, sub: window.VexI18n?.t(step.key + '.sub', step.sub) || step.sub }));
   },
 
   _close() {
+    if (this._geoSuggest) { this._geoSuggest.destroy(); this._geoSuggest = null; }   // its list is on the page, not in the wizard
     document.getElementById('vex-onboarding')?.remove();
     if (this._keyHandler) { document.removeEventListener('keydown', this._keyHandler); this._keyHandler = null; }
     if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
@@ -349,6 +377,8 @@ const Onboarding = {
     else if (key === 'sync')    this._session.sync = grab('#ob-sync-url');
     else if (key === 'weather') this._session.weatherText = grab('#ob-city');
     else if (key === 'search')  this._session.engine = this._pendingEngine;
+    else if (key === 'sidebar') this._session.sidebar = this._pendingSidebar;
+    else if (key === 'font')    this._session.font = this._pendingFont;
   },
 
   // English | Türkçe on the first step. English is selected until someone picks otherwise: nothing reads the Windows language, because Turkish
@@ -386,6 +416,14 @@ const Onboarding = {
     return box;
   },
 
+  // Skip applies nothing. A card clicked on the sidebar step is therefore dropped, or the look step would be steered by an answer that was never saved.
+  _skip(key, overlay) {
+    this._stash(key, overlay);
+    if (key === 'sidebar') delete this._session.sidebar;
+    this._move(1);
+    this._render();
+  },
+
   _render() {
     const steps = this.activeSteps || this.STEPS();
     const s = this.STEPS().find(item => item.key === steps[this.step]?.key);
@@ -394,27 +432,29 @@ const Onboarding = {
     const overlay = document.createElement('div');
     overlay.id = 'vex-onboarding';
     overlay.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
-    const dots = steps.map((_, i) => `<span style="width:7px;height:7px;border-radius:50%;background:${i === this.step ? 'var(--primary)' : 'var(--border)'};display:inline-block"></span>`).join(' ');
-    const isLast = this.step === steps.length - 1;
-    const pct = Math.round(((this.step + 1) / steps.length) * 100);
+    // Hidden steps (the starting point with no sidebar) are not counted. A slim bar and one line of text: 25 dots overflowed the 520px card.
+    const vis = this._visibleSteps(steps);
+    const pos = Math.max(0, vis.findIndex(step => step.key === s.key));
+    const isLast = pos === vis.length - 1;
+    const pct = Math.round(((pos + 1) / vis.length) * 100);
     overlay.innerHTML = `
       <div style="width:520px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,0.55);overflow:hidden">
         <div style="padding:24px 26px 8px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><span id="ob-progress-label" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Step ${this.step + 1} of ${steps.length}</span><span style="flex:1"></span>${dots}</div>
-          <div style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-bottom:4px;min-width:0"><span id="ob-progress-label" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;white-space:nowrap">Step ${pos + 1} of ${vis.length}</span></div>
+          <div role="progressbar" aria-label="Setup progress" aria-valuemin="1" aria-valuemax="${vis.length}" aria-valuenow="${pos + 1}" style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
             <span style="font-size:21px;font-weight:700;color:var(--text)">${this._esc(s.title)}</span>
             ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:var(--success);background:color-mix(in srgb, var(--success) 12%, transparent);border:1px solid color-mix(in srgb, var(--success) 40%, transparent);padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">' + VexIcons.svg('check', { size: 11 }) + ' ' + window.escapeHtml(window.VexI18n?.t('configured', 'Already set') || 'Already set') + '</span>' : ''}
           </div>
-          <div style="font-size:13px;color:var(--text-muted);margin-top:6px;line-height:1.5">${this._esc(s.sub)}</div>
+          <div id="ob-sub" style="font-size:13px;color:var(--text-muted);margin-top:6px;line-height:1.5">${this._esc(s.sub)}</div>
         </div>
         <div id="ob-body" style="padding:14px 26px;overflow-y:auto;flex:1"></div>
         <div style="display:flex;align-items:center;gap:8px;padding:16px 26px;border-top:1px solid var(--border)">
           <button id="ob-skipall" style="background:none;border:none;color:var(--text-muted);font-family:inherit;font-size:12.5px;cursor:pointer">Skip setup</button>
           <span style="flex:1"></span>
-          ${this.step > 0 ? `<button id="ob-back" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Back</button>` : ''}
+          ${pos > 0 ? `<button id="ob-back" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Back</button>` : ''}
           ${!isLast ? `<button id="ob-skip" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Skip</button>` : ''}
-          <button id="ob-next" style="padding:9px 22px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${this.step === 0 ? 'Get started' : isLast ? 'Finish' : 'Save &amp; continue'}</button>
+          <button id="ob-next" style="padding:9px 22px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${pos === 0 ? 'Get started' : isLast ? 'Finish' : 'Save &amp; continue'}</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -422,10 +462,12 @@ const Onboarding = {
     overlay.firstElementChild.setAttribute('role', 'dialog');
     overlay.firstElementChild.setAttribute('aria-modal', 'true');
     overlay.firstElementChild.setAttribute('aria-label', s.title);
-    const labels = { 'ob-skipall': ['skipSetup', 'Skip setup'], 'ob-back': ['back', 'Back'], 'ob-skip': ['skip', 'Skip'], 'ob-next': this.step === 0 ? ['getStarted', 'Get started'] : isLast ? ['finish', 'Finish'] : ['saveContinue', 'Save & continue'] };
+    // Said after the name when the step opens: "Step 3 of 9" and what the step is for.
+    overlay.firstElementChild.setAttribute('aria-describedby', 'ob-progress-label ob-sub');
+    const labels = { 'ob-skipall': ['skipSetup', 'Skip setup'], 'ob-back': ['back', 'Back'], 'ob-skip': ['skip', 'Skip'], 'ob-next': pos === 0 ? ['getStarted', 'Get started'] : isLast ? ['finish', 'Finish'] : ['saveContinue', 'Save & continue'] };
     for (const [id, [key, fallback]] of Object.entries(labels)) { const button = overlay.querySelector('#' + id); if (button) button.textContent = window.VexI18n?.t(key, fallback) || fallback; }
     overlay.querySelector('#ob-progress-label').textContent =
-      `${window.VexI18n?.t('step', 'Step') || 'Step'} ${this.step + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${steps.length} · ${this._timeLeft(steps)}`;
+      `${window.VexI18n?.t('step', 'Step') || 'Step'} ${pos + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${vis.length} · ${this._timeLeft(vis, pos)}`;
     // The language comes first, above the agreement: everything after it, the agreement included, is in the language chosen here.
     if (this.step === 0) this._langSwitch(overlay);
     // The agreement: "I agree" or "Quit Vex", and nothing that skips past it.
@@ -445,12 +487,12 @@ const Onboarding = {
         });
       });
       overlay.querySelector('#ob-next').textContent = window.VexI18n?.t('legalAgree', 'I agree') || 'I agree';
-      overlay.firstElementChild.setAttribute('aria-describedby', 'vex-legal-intro');
+      overlay.firstElementChild.setAttribute('aria-describedby', 'ob-progress-label vex-legal-intro');
     }
     else overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
     if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
-    overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
-    overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step++; this._render(); });
+    overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this._move(-1); this._render(); });
+    overlay.querySelector('#ob-skip')?.addEventListener('click', () => this._skip(s.key, overlay));
     overlay.querySelector('#ob-next').addEventListener('click', () => this._commitAndNext(s.key, overlay));
     // Escape closes what is open first (a drop-down, an opened list), and
     // only then asks whether to skip the rest of setup. It used to finish the
@@ -468,6 +510,8 @@ const Onboarding = {
     };
     document.addEventListener('keydown', this._keyHandler);
     this._renderBody(s.key, overlay.querySelector('#ob-body'));
+    this._nameFields(overlay, s);
+    this._markChoices(overlay.querySelector('#ob-body'));
     overlay.querySelector('input,button')?.focus();
   },
 
@@ -490,7 +534,7 @@ const Onboarding = {
       card('quick', tt('paceQuick', 'Just the essentials — about {n} minutes').replace('{n}', mins(all.filter(x => x.quick))),
         tt('paceQuickSub', 'How Vex looks, which panels you keep, your name, your search engine, three privacy choices, and whether links open here. Everything else has a sensible default and lives in Settings.'), pace !== 'full')
       + card('full', tt('paceFull', 'Everything — about {n} minutes').replace('{n}', mins(all)),
-        tt('paceFullSub', 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync, passwords and notifications.'), pace === 'full')
+        tt('paceFullSub', 'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync and notifications.'), pace === 'full')
       + `<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;line-height:1.5">${tt('paceNote', 'Either way, every step has a <b>Skip</b>, nothing here is permanent, and <b>Skip setup</b> leaves the whole thing. Vex works before you answer a single question.')}</div>`;
     body.querySelectorAll('[data-pace]').forEach(btn => {
       btn.addEventListener('click', () => this.setPace(btn.dataset.pace));
@@ -499,6 +543,28 @@ const Onboarding = {
 
   _input(id, ph, val) {
     return `<input id="${id}" placeholder="${this._esc(ph)}" value="${this._esc(val || '')}" spellcheck="false" autocomplete="off" style="width:100%;box-sizing:border-box;padding:11px 13px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none;font-family:'Outfit',sans-serif">`;
+  },
+
+  // A field that has only a placeholder has no name for a screen reader. A label written just above it is tied to it; otherwise the
+  // step's title names it.
+  _nameFields(overlay, step) {
+    for (const f of overlay.querySelectorAll('#ob-body input, #ob-body select, #ob-body textarea')) {
+      if (f.type === 'hidden' || f.getAttribute('aria-label') || f.getAttribute('aria-labelledby') || (f.labels && f.labels.length)) continue;
+      const prev = f.previousElementSibling;
+      if (prev && prev.tagName === 'LABEL' && !prev.htmlFor && f.id) { prev.htmlFor = f.id; continue; }
+      f.setAttribute('aria-label', step.title);
+    }
+  },
+
+  // The cards that choose one answer show it with a coloured border only. They say it to a screen reader too: pressed or not, kept up
+  // to date after each click (the cards change their own border in place or the step is drawn again).
+  _markChoices(body) {
+    if (!body) return;
+    const mark = () => body.querySelectorAll('button[data-pace], button[data-profile], button[data-theme], button[data-lang], button[data-wisdom], button[data-engine], button[data-look], button[data-tabs], button[data-colors], button[data-preset]').forEach((b) => {
+      b.setAttribute('aria-pressed', String(/border[^;]*var\(--primary\)/.test(b.getAttribute('style') || '')));
+    });
+    mark();
+    body.addEventListener('click', () => setTimeout(mark, 0));
   },
 
   // === Setup style — Full Vex / Minimal / Custom pick-and-choose ===
@@ -855,8 +921,12 @@ const Onboarding = {
         body.querySelectorAll('[data-theme]').forEach(x => x.style.borderColor = 'var(--border)');
         b.style.borderColor = 'var(--primary)';
       }));
+    } else if (key === 'sidebar') {
+      this._renderSidebar(body);
     } else if (key === 'look') {
       this._renderLook(body);
+    } else if (key === 'font') {
+      this._renderFont(body);
     } else if (key === 'performance') {
       this._renderPerformance(body);
     } else if (key === 'job') {
@@ -1039,30 +1109,6 @@ const Onboarding = {
         ${input('ob-sync-url', 'https://vex-sync.your-name.workers.dev', cur)}
         <p style="font-size:11.5px;color:var(--text-muted);margin:0">Blank keeps Sync off. To link another device later, just paste the same URL there too.</p>
       </div>`;
-    } else if (key === 'passwords') {
-      body.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:9px">
-          ${input('ob-pw-host', 'Website (e.g. github.com)')}
-          ${input('ob-pw-user', 'Username or email')}
-          <div style="position:relative">${input('ob-pw-pass', 'Password')}</div>
-          <button id="ob-pw-save" style="padding:10px 16px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Save this login</button>
-          <span id="ob-pw-status" style="font-size:12.5px;color:var(--text-muted)"></span>
-          <p style="font-size:11.5px;color:var(--text-muted);margin:0">Stored encrypted with your OS keychain. Optional — you can also let Vex offer to save logins as you sign in.</p>
-        </div>`;
-      body.querySelector('#ob-pw-pass').type = 'password';
-      body.querySelector('#ob-pw-save')?.addEventListener('click', async () => {
-        const host = body.querySelector('#ob-pw-host')?.value.trim();
-        const username = body.querySelector('#ob-pw-user')?.value.trim();
-        const password = body.querySelector('#ob-pw-pass')?.value || '';
-        const st = body.querySelector('#ob-pw-status');
-        if (!host || !username || !password) { if (st) st.textContent = 'Fill in website, username, and password first.'; return; }
-        try {
-          await window.vex.vaultSave?.({ host, username, password });
-          try { localStorage.setItem('vex.vaultSeeded', 'true'); } catch {}
-          if (st) st.textContent = 'Saved to your encrypted vault.';
-          body.querySelector('#ob-pw-pass').value = '';
-        } catch (e) { if (st) st.textContent = 'Could not save: ' + (e.message || 'error'); }
-      });
     } else if (key === 'done') {
       // Single first-run welcome ends here; offer the interface tour as an
       // opt-in button instead of a second stacked welcome overlay.
@@ -1080,12 +1126,25 @@ const Onboarding = {
             <span style="font-size:13.5px;font-weight:600">Take a tour</span>
             <span style="font-size:11.5px;color:var(--text-muted)">When you finish, Vex asks which one: a quick minute on the main controls, or a full tour through the areas you choose.</span>
           </span>
+        </button>
+        <button id="ob-open-faq" style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;margin-top:10px;padding:12px 14px;border-radius:11px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;text-align:left">
+          <span style="display:inline-flex">${VexIcons.svg('book-open', { size: 19 })}</span>
+          <span style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:13.5px;font-weight:600">Questions? Help and FAQ is always one click away.</span>
+            <span style="font-size:11.5px;color:var(--text-muted)">Short answers about privacy, sync, passwords, themes, speed and more. There is nothing to read now; open it whenever you need it.</span>
+            <span style="font-size:11.5px;font-weight:600;color:var(--primary)">Open Help and FAQ</span>
+          </span>
         </button>`;
       const btn = body.querySelector('#ob-take-tour');
       btn?.addEventListener('click', () => {
         this._wantTour = !this._wantTour;
         btn.style.borderColor = this._wantTour ? 'var(--primary)' : 'var(--border)';
         btn.querySelector('span:last-child span:first-child').textContent = this._wantTour ? 'Tour queued — starts when you finish' : 'Take a tour';
+      });
+      // The last step says where help lives; opening it is optional and Skip/Finish work without it.
+      body.querySelector('#ob-open-faq')?.addEventListener('click', () => {
+        if (typeof VexLazy === 'undefined') { window.showToast?.('Help and FAQ is not available in this window', 'error'); return; }
+        VexLazy.ensure('js/faq-ui.js').then(() => window.VexFaq.open({ fromSetup: true })).catch(err => window.showToast?.(err.message, 'error'));
       });
     } else if (key === 'browsing') {
       this._renderSwitches(body, this.BROWSING_FIELDS(), 'browsing');
@@ -1106,7 +1165,7 @@ const Onboarding = {
         if (!window.vex || typeof window.vex.notify !== 'function') { st.textContent = 'Desktop notifications are not available in this build.'; st.style.color = 'var(--danger,#ef4444)'; return; }
         btn.disabled = true; st.textContent = 'Sending…'; st.style.color = 'var(--text-muted)';
         try {
-          await window.vex.notify('Vex', 'This is a test notification. If you can read this, they work.');
+          await window.vex.notify('Vex', (window.vexTr || String)('This is a test notification. If you can read this, they work.'));
           st.textContent = 'Windows showed it. Reminders and alarms will reach you the same way.';
           st.style.color = 'var(--primary)';
           this._session.notified = true;
@@ -1134,6 +1193,80 @@ const Onboarding = {
   // Geocode the typed text and show up to 5 matches (district · province · country)
   // so the user picks the exact place — districts like "Ataşehir" resolve reliably
   // instead of silently snapping to whatever the single top hit happens to be.
+  // === "Do you want a sidebar?" — asked in both the short and the full setup ===
+  //
+  // The answer is VexSidebarVisibility (js/sidebar-visibility.js, vex.sidebar) and decides which looks the next step offers first.
+  // Yes is pre-selected for a new profile and for one that never answered, because the sidebar is what Vex has always had.
+  _wantsSidebar() {
+    if (typeof this._session.sidebar === 'boolean') return this._session.sidebar;
+    return window.VexSidebarVisibility ? window.VexSidebarVisibility.enabled() : true;
+  },
+
+  _renderSidebar(body) {
+    const cur = this._wantsSidebar();
+    this._pendingSidebar = cur;
+    const tt = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
+    // A little window: the strip at its side is the sidebar.
+    const mock = (on) => '<span aria-hidden="true" style="flex:none;width:62px;height:42px;display:flex;overflow:hidden;border:1px solid var(--border);border-radius:7px;background:var(--surface)">'
+      + (on ? '<span style="flex:none;width:13px;background:var(--primary);opacity:.6"></span>' : '')
+      + '<span style="flex:1;margin:5px;border-radius:3px;background:var(--border)"></span></span>';
+    const card = (id, name, desc, on) => '<button data-sb-answer="' + id + '" aria-pressed="' + (cur === (id === 'yes')) + '" style="display:flex;align-items:center;gap:13px;width:100%;box-sizing:border-box;padding:13px 14px;margin-bottom:9px;border-radius:12px;border:2px solid '
+      + (cur === (id === 'yes') ? 'var(--primary)' : 'var(--border)')
+      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;text-align:left">' + mock(on)
+      + '<span style="display:flex;flex-direction:column;gap:3px"><span style="font-size:13.5px;font-weight:600">' + this._esc(name) + '</span>'
+      + '<span style="font-size:11.5px;color:var(--text-muted);line-height:1.5">' + this._esc(desc) + '</span></span></button>';
+    body.innerHTML =
+      card('yes', tt('sidebarYes', 'Yes, show the sidebar'),
+        tt('sidebarYesSub', 'A strip of buttons beside the page: one click opens Discord, Spotify, Notes, Downloads, Bookmarks and the rest.'), true)
+      + card('no', tt('sidebarNo', 'No, keep the window clean'),
+        tt('sidebarNoSub', 'No strip and no side-panel button. Every panel still opens with Ctrl+K, and Settings › Sidebar brings it back.'), false)
+      + '<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;line-height:1.5">'
+      + this._esc(tt('sidebarNote', 'Your tabs are not part of the sidebar. The look step later shows the looks that suit your answer first.')) + '</div>';
+    body.querySelectorAll('[data-sb-answer]').forEach((b) => b.addEventListener('click', () => {
+      this._pendingSidebar = b.dataset.sbAnswer === 'yes';
+      this._session.sidebar = this._pendingSidebar;
+      this._refreshProgress();
+      body.querySelectorAll('[data-sb-answer]').forEach((x) => {
+        const on = (x.dataset.sbAnswer === 'yes') === this._pendingSidebar;
+        x.style.borderColor = on ? 'var(--primary)' : 'var(--border)';
+        x.setAttribute('aria-pressed', String(on));
+      });
+    }));
+  },
+
+  // === "Pick a font" — full setup only ===
+  //
+  // The same list as Settings › Appearance (js/fonts.js, vex.font). Choosing only moves the preview line; the font is written on Save, so
+  // Skip leaves it untouched. A few readable faces rather than all of them: the rest are one click away in Settings.
+  FONT_CHOICES: ['times', 'default', 'segoe', 'calibri', 'verdana', 'georgia', 'arial', 'system'],
+  _renderFont(body) {
+    const tt = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
+    if (typeof VexFonts === 'undefined') throw new Error('Vex cannot offer fonts here');
+    const cur = this._session.font || VexFonts.current().id;
+    this._pendingFont = cur;
+    const list = this.FONT_CHOICES.map(id => VexFonts.get(id)).filter(Boolean);
+    const sample = tt('fontSample', 'The quick brown fox jumps over the lazy dog. 0123456789');
+    const card = (f) => '<button data-font="' + f.id + '" aria-pressed="' + (f.id === cur) + '" style="display:flex;flex-direction:column;gap:2px;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:2px solid '
+      + (f.id === cur ? 'var(--primary)' : 'var(--border)') + ';background:var(--bg);color:var(--text);cursor:pointer;text-align:left;font-family:' + this._esc(f.stack) + '">'
+      + '<span' + (f.id === 'system' ? '' : ' translate="no"') + ' style="font-size:15px;font-weight:600">' + this._esc(f.name) + '</span>'
+      + '<span style="font-size:11.5px;color:var(--text-muted)">' + this._esc(f.note) + '</span></button>';
+    body.innerHTML = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px">' + list.map(card).join('') + '</div>'
+      + '<div id="ob-font-preview" aria-live="polite" style="margin-top:12px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:15px;line-height:1.5;font-family:'
+      + this._esc((VexFonts.get(cur) || list[0]).stack) + '">' + this._esc(sample) + '</div>';
+    body.querySelectorAll('[data-font]').forEach((b) => b.addEventListener('click', () => {
+      const f = VexFonts.get(b.dataset.font);
+      if (!f) throw new Error('There is no font called "' + b.dataset.font + '"');
+      this._pendingFont = f.id;
+      this._session.font = f.id;
+      body.querySelectorAll('[data-font]').forEach((x) => {
+        const on = x.dataset.font === f.id;
+        x.style.borderColor = on ? 'var(--primary)' : 'var(--border)';
+        x.setAttribute('aria-pressed', String(on));
+      });
+      body.querySelector('#ob-font-preview').style.fontFamily = f.stack;
+    }));
+  },
+
   // === "Pick a look" — every GUI style, not just Glass vs Classic ==========
   //
   // The browser looks were reachable only from Settings → Appearance, so most
@@ -1160,6 +1293,26 @@ const Onboarding = {
     ];
   },
 
+  // The looks by how they open the sidebar's panels, in the order they are offered (gui-style.js STYLES, sidebar.launcher; a test keeps the two
+  // in step): an icon rail that stays on screen, or a toolbar button.
+  LOOK_ORDER() {
+    return {
+      rail: ['classic', 'glass', 'firefox', 'firefox-dark', 'win98', 'neobrutal', 'terminal'],
+      toolbar: ['chrome', 'chrome-dark', 'safari', 'xp', 'fluent', 'fluent-dark', 'glossy'],
+    };
+  },
+  // Which looks lead for the answer, and the rest. A sidebar wanted -> the rail looks first; no sidebar -> the toolbar looks first.
+  looksForSidebar(want) {
+    const o = this.LOOK_ORDER();
+    const first = want ? o.rail : o.toolbar;
+    return { first: first.slice(), rest: (want ? o.toolbar : o.rail).slice() };
+  },
+  // The look that is on when setup reaches the look step: the one already on if it suits the answer, else the best match (the first).
+  bestLook(want, current) {
+    const { first } = this.looksForSidebar(want);
+    return first.includes(current) ? current : first[0];
+  },
+
   _renderLook(body) {
     const looks = this.LOOKS();
     let cur = 'classic';
@@ -1168,6 +1321,19 @@ const Onboarding = {
     try { colors = (window.VexGuiStyle && VexGuiStyle.getColors && VexGuiStyle.getColors()) || 'look'; } catch { colors = 'look'; }
     let tabs = 'horizontal';
     try { tabs = JSON.parse(localStorage.getItem('vex.tabLayout') || '"horizontal"'); } catch { tabs = 'horizontal'; }
+
+    const tt = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
+    const want = this._wantsSidebar();
+    const order = this.looksForSidebar(want);
+    const failed = (err) => window.showToast?.('Could not apply that look: ' + (err && err.message), 'error');
+    // The best match is put on unless the person has picked a look themselves: a pick is never overridden.
+    if (window.VexGuiStyle && !this._flag('vex.guiStyleChosen') && !order.first.includes(cur)) {
+      const best = this.bestLook(want, cur);
+      try { Promise.resolve(window.VexGuiStyle.set(best)).catch(failed); cur = best; }
+      catch (err) { failed(err); }
+    }
+    // A look picked earlier that is not among the leading ones must stay on screen, so the full list opens.
+    let expanded = !order.first.includes(cur);
 
     const card = (l) => '<button data-look="' + l.id + '" style="text-align:left;padding:11px 13px;border-radius:11px;border:2px solid '
       + (l.id === cur ? 'var(--primary)' : 'var(--border)')
@@ -1178,73 +1344,89 @@ const Onboarding = {
     // Browser looks and styles both offer the look's own colours or the theme's.
     const isBorrowed = (id) => { const l = looks.find((x) => x.id === id) || {}; return !!(l.borrowed || l.styled); };
 
-    body.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      + looks.filter((l) => !l.borrowed && !l.styled).map(card).join('') + '</div>'
-      + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Wear another browser</div>'
-      + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Vex, shaped like a browser you already know. Every Vex feature still works the same.</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      + looks.filter((l) => l.borrowed).map(card).join('') + '</div>'
-      + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Or a style</div>'
-      + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Whole-window styles after the popular Discord themes.</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      + looks.filter((l) => l.styled).map(card).join('') + '</div>'
-      + '<div id="ob-look-tabs" style="margin-top:15px;display:' + (cur === 'classic' ? 'block' : 'none') + '">'
-      + '<div style="font-size:12px;font-weight:700;color:var(--text)">Where your tabs go</div>'
-      + '<div style="display:flex;gap:9px;margin-top:7px">'
-      + '<button data-tabs="vertical" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
-      + (tabs === 'vertical' ? 'var(--primary)' : 'var(--border)')
-      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Down the side</button>'
-      + '<button data-tabs="horizontal" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
-      + (tabs === 'horizontal' ? 'var(--primary)' : 'var(--border)')
-      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Along the top</button>'
-      + '</div></div>'
-      + '<div id="ob-look-colors" style="margin-top:15px;display:' + (isBorrowed(cur) ? 'block' : 'none') + '">'
-      + '<div style="font-size:12px;font-weight:700;color:var(--text)">Colours for that look</div>'
-      + '<div style="display:flex;gap:9px;margin-top:7px">'
-      + '<button data-colors="look" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
-      + (colors === 'look' ? 'var(--primary)' : 'var(--border)')
-      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Its own colours</button>'
-      + '<button data-colors="theme" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
-      + (colors === 'theme' ? 'var(--primary)' : 'var(--border)')
-      + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">My Vex theme’s colours</button>'
-      + '</div></div>';
-
     const repaint = (sel, key, value) => body.querySelectorAll(sel).forEach((x) => {
       x.style.borderColor = x.dataset[key] === value ? 'var(--primary)' : 'var(--border)';
     });
 
-    body.querySelectorAll('[data-look]').forEach((b) => b.addEventListener('click', () => {
-      const id = b.dataset.look;
-      try { window.VexGuiStyle?.set(id); }
-      catch (err) { window.showToast?.('Could not apply that look: ' + (err && err.message), 'error'); return; }
-      cur = id;
-      try { localStorage.setItem('vex.guiStyleChosen', '1'); }
-      catch (err) { console.warn('[setup] could not record the look choice:', err && err.message); }
-      repaint('[data-look]', 'look', id);
-      const colorRow = body.querySelector('#ob-look-colors');
-      if (colorRow) colorRow.style.display = isBorrowed(id) ? 'block' : 'none';
-      const tabRow = body.querySelector('#ob-look-tabs');
-      if (tabRow) tabRow.style.display = id === 'classic' ? 'block' : 'none';
-    }));
+    const draw = () => {
+      const grid = (list) => '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">' + list.map(card).join('') + '</div>';
+      const named = (ids) => ids.map((id) => looks.find((l) => l.id === id));
+      const lead = '<div style="font-size:12px;font-weight:700;color:var(--text)">' + this._esc(want ? tt('looksSidebar', 'Looks with a sidebar') : tt('looksNoSidebar', 'Looks that keep the sidebar out of the way')) + '</div>'
+        + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">' + this._esc(want
+          ? tt('looksSidebarSub', 'These keep your panels in a strip beside the page.')
+          : tt('looksNoSidebarSub', 'These suit a window without the strip. Your panels still open with Ctrl+K.')) + '</div>';
+      body.innerHTML = (expanded
+        ? grid(looks.filter((l) => !l.borrowed && !l.styled))
+          + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Wear another browser</div>'
+          + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Vex, shaped like a browser you already know. Every Vex feature still works the same.</div>'
+          + grid(looks.filter((l) => l.borrowed))
+          + '<div style="margin-top:15px;font-size:12px;font-weight:700;color:var(--text)">Or a style</div>'
+          + '<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 9px">Whole-window styles after the popular Discord themes.</div>'
+          + grid(looks.filter((l) => l.styled))
+        : lead + grid(named(order.first))
+          + '<button id="ob-look-all" type="button" style="margin-top:11px;background:none;border:none;padding:2px 0;color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px">'
+          + this._esc(tt('showAllLooks', 'Show all looks')) + '</button>')
+        + '<div id="ob-look-tabs" style="margin-top:15px;display:' + (cur === 'classic' ? 'block' : 'none') + '">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--text)">Where your tabs go</div>'
+        + '<div style="display:flex;gap:9px;margin-top:7px">'
+        + '<button data-tabs="vertical" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+        + (tabs === 'vertical' ? 'var(--primary)' : 'var(--border)')
+        + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Down the side</button>'
+        + '<button data-tabs="horizontal" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+        + (tabs === 'horizontal' ? 'var(--primary)' : 'var(--border)')
+        + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Along the top</button>'
+        + '</div></div>'
+        + '<div id="ob-look-colors" style="margin-top:15px;display:' + (isBorrowed(cur) ? 'block' : 'none') + '">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--text)">Colours for that look</div>'
+        + '<div style="display:flex;gap:9px;margin-top:7px">'
+        + '<button data-colors="look" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+        + (colors === 'look' ? 'var(--primary)' : 'var(--border)')
+        + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Its own colours</button>'
+        + '<button data-colors="theme" style="flex:1;padding:9px;border-radius:10px;border:2px solid '
+        + (colors === 'theme' ? 'var(--primary)' : 'var(--border)')
+        + ';background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">My Vex theme’s colours</button>'
+        + '</div></div>';
+      bind();
+    };
 
-    body.querySelectorAll('[data-tabs]').forEach((b) => b.addEventListener('click', () => {
-      const mode = b.dataset.tabs;
-      const sel = document.getElementById('setting-tab-layout');
-      if (sel) { sel.value = mode; sel.dispatchEvent(new Event('change', { bubbles: true })); }
-      else {
-        try { localStorage.setItem('vex.tabLayout', JSON.stringify(mode)); } catch (err) { console.warn('[setup] could not save the tab layout:', err && err.message); }
-        document.body.dataset.tabLayout = mode;
-      }
-      tabs = mode;
-      repaint('[data-tabs]', 'tabs', mode);
-    }));
+    const bind = () => {
+      body.querySelector('#ob-look-all')?.addEventListener('click', () => { expanded = true; draw(); body.querySelector('[data-look]')?.focus(); });
 
-    body.querySelectorAll('[data-colors]').forEach((b) => b.addEventListener('click', () => {
-      const mode = b.dataset.colors;
-      try { window.VexGuiStyle?.setColors(mode); }
-      catch (err) { window.showToast?.('Could not change those colours: ' + (err && err.message), 'error'); return; }
-      repaint('[data-colors]', 'colors', mode);
-    }));
+      body.querySelectorAll('[data-look]').forEach((b) => b.addEventListener('click', () => {
+        const id = b.dataset.look;
+        try { window.VexGuiStyle?.set(id); }
+        catch (err) { failed(err); return; }
+        cur = id;
+        try { localStorage.setItem('vex.guiStyleChosen', '1'); }
+        catch (err) { console.warn('[setup] could not record the look choice:', err && err.message); }
+        repaint('[data-look]', 'look', id);
+        const colorRow = body.querySelector('#ob-look-colors');
+        if (colorRow) colorRow.style.display = isBorrowed(id) ? 'block' : 'none';
+        const tabRow = body.querySelector('#ob-look-tabs');
+        if (tabRow) tabRow.style.display = id === 'classic' ? 'block' : 'none';
+      }));
+
+      body.querySelectorAll('[data-tabs]').forEach((b) => b.addEventListener('click', () => {
+        const mode = b.dataset.tabs;
+        const sel = document.getElementById('setting-tab-layout');
+        if (sel) { sel.value = mode; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+        else {
+          try { localStorage.setItem('vex.tabLayout', JSON.stringify(mode)); } catch (err) { console.warn('[setup] could not save the tab layout:', err && err.message); }
+          document.body.dataset.tabLayout = mode;
+        }
+        tabs = mode;
+        repaint('[data-tabs]', 'tabs', mode);
+      }));
+
+      body.querySelectorAll('[data-colors]').forEach((b) => b.addEventListener('click', () => {
+        const mode = b.dataset.colors;
+        try { window.VexGuiStyle?.setColors(mode); }
+        catch (err) { window.showToast?.('Could not change those colours: ' + (err && err.message), 'error'); return; }
+        repaint('[data-colors]', 'colors', mode);
+      }));
+    };
+
+    draw();
   },
 
   // === "Speed, memory & privacy" — the settings that actually matter =======
@@ -1267,6 +1449,11 @@ const Onboarding = {
         id: 'memory', name: 'Save memory',
         desc: 'Tabs sleep by themselves after 10 minutes, without asking, and when the window is minimized. For a machine with 8 GB, or for forty open tabs.',
         values: { sleep: 'auto', memorySaver: true, autosleep: true, minutes: 10, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+      },
+      {
+        id: 'game', name: 'Game performance',
+        desc: 'For playing with Vex open: tabs sleep after 5 minutes without asking, and when the window is minimized. When a game starts, the background tabs and panels sleep too and local AI frees its graphics memory; they wake when the game ends. The memory guard sits at 900 MB and ads stay blocked.',
+        values: { sleep: 'auto', memorySaver: true, autosleep: true, minutes: 5, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
       },
       {
         id: 'privacy', name: 'Maximum privacy',
@@ -1553,11 +1740,33 @@ const Onboarding = {
       + '</div>'
       + '<div id="ob-city-status" style="font-size:12px;color:var(--text-muted);margin-top:8px;min-height:16px"></div>';
 
+    // Place names are suggested while typing (js/geo-search.js attachSuggest). A postcode is not: its
+    // service forbids autocomplete, so the Search button / Enter below still does that one.
+    if (this._geoSuggest) this._geoSuggest.destroy();
+    const cityInput = body.querySelector('#ob-city');
+    const cityStatus = body.querySelector('#ob-city-status');
+    this._geoSuggest = VexGeo.attachSuggest(cityInput, {
+      getCountry: () => this._weatherCountry,
+      getLang: () => { try { return (this._pendingLang || localStorage.getItem('vex.lang') || 'en').slice(0, 2); } catch { return 'en'; } },
+      onStatus: (text) => { if (cityStatus) cityStatus.textContent = text || ''; },
+      onPick: (hit) => {
+        this._pendingLoc = VexGeo.toLocation(hit);
+        const wrap = body.querySelector('#ob-city-results-wrap');
+        if (wrap) wrap.style.display = 'none';
+        if (cityStatus) { cityStatus.textContent = 'Using ' + VexGeo.label(hit) + ' — Save & continue to confirm.'; cityStatus.style.color = 'var(--text)'; }
+      },
+    });
+    // Typing again means the place that was picked is no longer what the box says.
+    cityInput.addEventListener('input', () => { this._pendingLoc = null; });
+
     const country = body.querySelector('#ob-country');
     country.addEventListener('change', () => {
       this._weatherCountry = country.value;
-      const typed = (body.querySelector('#ob-city') || {}).value;
-      if (typed && typed.trim()) this._searchCity(typed.trim(), body);
+      this._pendingLoc = null;
+      // Results of a Search in the old country no longer fit the box; the suggestions are asked again for the new one.
+      const oldResults = body.querySelector('#ob-city-results-wrap');
+      if (oldResults) oldResults.style.display = 'none';
+      this._geoSuggest.refresh();
     });
 
     const run = () => this._searchCity((body.querySelector('#ob-city') || {}).value.trim(), body);
@@ -1785,6 +1994,18 @@ const Onboarding = {
       } else if (sel && sel.chosen) {
         this._applySetupProfile(sel);
       }
+    } else if (key === 'sidebar') {
+      // Applied at once, so the window behind the wizard shows it; the look step that follows is filtered by it.
+      try {
+        if (!window.VexSidebarVisibility) throw new Error('Vex cannot change the sidebar here');
+        window.VexSidebarVisibility.setEnabled(this._pendingSidebar !== false);
+      } catch (err) { this._showError(overlay, 'The sidebar choice was not saved: ' + ((err && err.message) || err)); return; }
+    } else if (key === 'font') {
+      // Written only on Save: Skip leaves the font exactly as it was.
+      try {
+        if (typeof VexFonts === 'undefined') throw new Error('Vex cannot change the font here');
+        VexFonts.set(this._pendingFont || VexFonts.current().id);
+      } catch (err) { this._showError(overlay, 'The font was not saved: ' + ((err && err.message) || err)); return; }
     } else if (key === 'language') {
       // The start pages re-read it on the reload that finish() triggers.
       this.setLanguage(this._pendingLang || 'en', { reloadStartPages: false });
@@ -1839,7 +2060,7 @@ const Onboarding = {
       // Done either way: the point was to offer the check, not to insist.
       try { localStorage.setItem('vex.notificationsChecked', 'true'); } catch (err) { console.warn('[setup] could not record the notification check:', err && err.message); }
     }
-    this.step++;
+    this._move(1);
     this._render();
   },
 };

@@ -1,0 +1,182 @@
+/* === Sidebar groups: folders (js/sidebar-groups.js, js/sidebar-groups-ui.js) ===
+   Each group is ONE rounded tile in the rail with its name under it. Pressing it opens the folder downward, in place, inside a soft
+   tinted background (like a Discord server folder); pressing again closes it.
+   Every colour comes from the rail's own tokens (--b-text, --vex-accent, --vex-success ...), so the folders follow each look, each colour
+   theme and the "Match Vex to this wallpaper" palette, which re-declares those tokens on #icon-sidebar. A colour a person picks for a group
+   is the NAME of a palette colour (accent, accent2, success, warning, danger, neutral), never a hex.
+   The tile is a .sidebar-icon too, so every look's own button shape (round skin, Glass, the rail looks) applies to it with no copy here. */
+#icon-sidebar .sb-folder {
+  --sbf-tint: var(--b-text, var(--vex-text-primary));
+  --sbf-fg: var(--b-text, var(--vex-text-primary));
+  position: relative; display: flex; flex-direction: column; align-items: center; align-self: stretch; box-sizing: border-box; min-width: 0;
+  margin: 0 3px; padding: 2px 0 4px; border: 1px solid transparent; border-radius: 14px; flex-shrink: 0;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+#icon-sidebar .sb-folder[hidden] { display: none; }
+/* The closed folders share the rail's free height evenly, with room between them, instead of sitting packed at the top over an empty
+   rail. Each slot is capped (about 10px of air around a tile and its name) so a tall window does not make wide gaps; an open folder keeps its own height. The bottom buttons stay put. */
+#icon-sidebar .sb-folder:not(.open) { flex: 1 0 auto; max-height: 68px; justify-content: center; }
+#icon-sidebar:has(> .sb-folder) > .sidebar-spacer { flex-grow: 0.001; }
+#icon-sidebar .sb-folder[data-color="accent"] { --sbf-tint: var(--vex-accent); }
+#icon-sidebar .sb-folder[data-color="accent2"] { --sbf-tint: color-mix(in srgb, var(--vex-accent) 55%, var(--b-text, var(--vex-text-primary))); }
+#icon-sidebar .sb-folder[data-color="success"] { --sbf-tint: var(--vex-success, var(--success)); }
+#icon-sidebar .sb-folder[data-color="warning"] { --sbf-tint: var(--vex-warning, var(--warning)); }
+#icon-sidebar .sb-folder[data-color="danger"] { --sbf-tint: var(--vex-danger, var(--danger)); }
+/* The open folder: a soft tinted background behind the tile, its name and its buttons. */
+#icon-sidebar .sb-folder.open {
+  background: color-mix(in srgb, var(--sbf-tint) 6%, transparent);
+  border-color: color-mix(in srgb, var(--sbf-tint) 20%, transparent);
+}
+
+/* The Start button wears the same card and carries its name under it, so the first button of the rail is not the odd one out. */
+#icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label] {
+  --sbf-fg: var(--b-text, var(--vex-text-primary));
+  position: relative; margin: 0 auto 17px; color: var(--sbf-fg) !important;
+  background: color-mix(in srgb, var(--sbf-fg) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sbf-fg) 20%, transparent);
+  border-radius: 8px;
+}
+#icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label].active { background: color-mix(in srgb, var(--vex-accent, currentColor) 18%, transparent); border-color: color-mix(in srgb, var(--vex-accent, currentColor) 45%, transparent); }
+#icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label]::after {
+  content: attr(data-sb-lead-label); position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px;
+  max-width: 58px; box-sizing: border-box; padding: 0 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none;
+  font: inherit; font-size: 11px; font-weight: 500; line-height: 13px; color: var(--sbf-fg);
+}
+
+/* The tile. */
+/* Named with .sidebar-icon and the folder so it wins over a look's own rail-button rule (body[data-sb-launcher="rail"] ... .sidebar-icon). */
+#icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon {
+  color: var(--sbf-fg);
+  /* The same soft card the New Tab page draws for its shortcuts: a faint fill, a pale 1px edge, 8px corners. */
+  background: color-mix(in srgb, var(--sbf-tint) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sbf-fg) 20%, transparent);
+  border-radius: 8px;
+  padding: 0;
+}
+#icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon:hover { background: color-mix(in srgb, var(--sbf-tint) 13%, transparent); color: var(--sbf-fg); }
+#icon-sidebar .sb-folder.open > .sb-folder-btn.sidebar-icon { background: color-mix(in srgb, var(--sbf-tint) 11%, transparent); border-color: color-mix(in srgb, var(--sbf-fg) 34%, transparent); }
+#icon-sidebar .sb-folder-btn:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: 2px; }
+#icon-sidebar .sb-folder-btn .sbf-ico { display: grid; place-items: center; line-height: 0; }
+#icon-sidebar .sb-folder-btn .sbf-ico svg { width: 18px; height: 18px; }
+/* A closed folder that holds the open panel: a dot on the tile. */
+#icon-sidebar .sb-folder-btn .sbf-dot {
+  display: none; position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 50%; box-sizing: border-box;
+  background: var(--vex-accent, currentColor); border: 2px solid var(--b-toolbar, var(--vex-glass-strong, transparent)); pointer-events: none;
+}
+#icon-sidebar .sb-folder.has-active:not(.open) > .sb-folder-btn .sbf-dot { display: block; }
+/* The unread counts of the buttons inside, added up (only while the folder is closed; open, each button shows its own). */
+#icon-sidebar .sb-folder-btn .sbf-badge {
+  position: absolute; top: -3px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; box-sizing: border-box;
+  background: #e5484d; color: #fff; font-size: 9px; line-height: 15px; text-align: center; font-weight: 700; pointer-events: none; z-index: 3;
+}
+#icon-sidebar .sb-folder-btn .sbf-badge[hidden] { display: none; }
+
+/* The name under the tile: 11px, in the UI sans (not the theme's serif, which squeezed to 8.5px was unreadable), cut with an ellipsis. */
+#icon-sidebar .sb-folder-label {
+  display: block; box-sizing: border-box; width: 100%; max-width: 100%; margin-top: 3px; padding: 0 1px; overflow: hidden; cursor: pointer;
+  text-overflow: ellipsis; white-space: nowrap; text-align: center; color: var(--sbf-fg);
+  font-size: 11px; font-weight: 500; line-height: 13px; letter-spacing: 0;
+}
+/* The name is set in the window's own font (the look's and the New Tab page's), not a fixed sans. */
+#icon-sidebar .sb-folder-label, #icon-sidebar .sb-folder-label-edit { font-family: inherit; }
+#icon-sidebar .sb-folder-label-edit {
+  box-sizing: border-box; width: calc(100% - 2px); margin-top: 3px; padding: 0 2px; height: 17px; text-align: center; font-size: 11px; font-weight: 500;
+  color: var(--b-text, var(--vex-text-primary)); background: var(--b-menu, var(--vex-bg-elevated, transparent)); border: 1px solid var(--vex-accent, currentColor); border-radius: 4px; outline: none;
+}
+
+/* The body slides open: a grid row from 0 to its natural height. Closed, it is out of sight and out of the Tab order (also inert in the script). */
+#icon-sidebar .sb-folder-body {
+  display: grid; grid-template-rows: 0fr; width: 100%; opacity: 0; visibility: hidden;
+  transition: grid-template-rows 0.22s ease, opacity 0.18s ease, visibility 0s linear 0.22s;
+}
+#icon-sidebar .sb-folder.open > .sb-folder-body { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition-delay: 0s; }
+#icon-sidebar .sb-folder-inner {
+  min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: var(--sbf-gap, 6px); padding: 0 6px; box-sizing: border-box;
+}
+#icon-sidebar .sb-folder-inner > .sidebar-icon:first-child { margin-top: 8px; }
+#icon-sidebar .sb-folder-inner > .sidebar-icon:last-child { margin-bottom: 4px; }
+#icon-sidebar .sb-folder.empty.open .sb-folder-inner::after {
+  content: ''; width: 28px; height: 28px; margin: 8px 0 4px; box-sizing: border-box; border-radius: 9px; flex-shrink: 0;
+  border: 1.5px dashed color-mix(in srgb, var(--sbf-tint) 60%, transparent);
+}
+body[data-sb-launcher="rail"] #icon-sidebar { --sbf-gap: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  #icon-sidebar .sb-folder, #icon-sidebar .sb-folder-body { transition: none; }
+}
+/* Touch can drag a tile or a button inside a folder: the browser must not scroll the rail from them. */
+#icon-sidebar .sb-folder-btn, #icon-sidebar .sb-folder-inner > .sidebar-icon { touch-action: none; }
+
+/* Dragging (js/sidebar-groups-ui.js): a line where a folder or button will land, a ring on the folder a button will go into. */
+#icon-sidebar .sb-folder.sb-dragging { opacity: 0.45; }
+#icon-sidebar .sb-folder.sb-drop-before::before, #icon-sidebar .sb-folder.sb-drop-after::after {
+  content: ''; position: absolute; left: 2px; right: 2px; height: 3px; border-radius: 2px; background: var(--vex-accent, currentColor); pointer-events: none; z-index: 5;
+}
+#icon-sidebar .sb-folder.sb-drop-before::before { top: -3px; }
+#icon-sidebar .sb-folder.sb-drop-after::after { bottom: -3px; }
+#icon-sidebar .sb-folder.sb-drop-into { border-color: var(--vex-accent, currentColor); background: color-mix(in srgb, var(--vex-accent, currentColor) 22%, transparent); }
+#icon-sidebar .sb-folder-inner > .sidebar-icon.sb-drop-before::before, #icon-sidebar .sb-folder-inner > .sidebar-icon.sb-drop-after::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 3px; border-radius: 2px; background: var(--vex-accent, currentColor); pointer-events: none;
+}
+#icon-sidebar .sb-folder-inner > .sidebar-icon.sb-drop-before::before { top: -4px; }
+#icon-sidebar .sb-folder-inner > .sidebar-icon.sb-drop-after::after { bottom: -4px; }
+
+/* A rail with groups is a little wider, and its buttons keep their size when the window is short (the rail scrolls instead of
+   shrinking the icons below 18px). Classic and Glass first, the rail looks (Firefox, Netscape) below. The width follows the longest
+   name (--sgh-min, at most 72px); a longer name is cut with an ellipsis. */
+body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(54px, var(--sgh-min, 0px)); min-width: max(54px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
+body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: 36px; height: 36px; }
+body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 18px; height: 18px; }
+body[data-gui-style="glass"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] {
+  width: max(54px, var(--sgh-min, 0px)) !important; min-width: max(54px, var(--sgh-min, 0px)) !important; padding-left: 0 !important; padding-right: 0 !important;
+}
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(54px, var(--sgh-min, 0px)); min-width: max(54px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: var(--b-rail-btn, 34px); height: var(--b-rail-btn, 34px); }
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 18px; height: 18px; }
+
+/* Settings > Sidebar */
+.sidebar-manager-group {
+  display: flex; align-items: center; gap: 6px; width: 100%; margin: 8px 0 0; padding: 6px 2px;
+  border-bottom: 1px solid var(--border); color: var(--text); font-size: 12px; font-weight: 600; text-align: left;
+}
+.sbg-manager { margin: 0 0 10px; }
+.sbg-manager-head { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
+.sbg-manager-head strong { flex: 1; font-size: 13px; }
+.sbg-row { display: flex; align-items: center; gap: 6px; padding: 5px 2px; border-bottom: 1px solid var(--border); }
+.sbg-row .sbg-ico { width: 22px; height: 22px; display: grid; place-items: center; flex-shrink: 0; color: var(--text); }
+.sbg-row .sbg-text { flex: 1; min-width: 0; }
+.sbg-row .sbg-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sbg-row .sbg-desc { font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sbg-row .sbg-count { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.sbg-row.is-hidden .sbg-name { opacity: 0.55; text-decoration: line-through; }
+.sbg-row button, .sbg-manager-head button {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; cursor: pointer;
+  min-width: 26px; height: 26px; display: inline-grid; place-items: center; font-size: 12px; padding: 0 6px;
+}
+.sbg-row button:hover, .sbg-manager-head button:hover { background: var(--vex-hover-fill, var(--surface)); }
+.sbg-row button:focus-visible, .sbg-manager-head button:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: 1px; }
+.sbg-row button:disabled { opacity: 0.4; cursor: default; }
+
+/* The new-group / edit-group dialog. */
+.sbg-dialog { width: 340px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 16px; border-radius: 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: 0 18px 48px var(--vex-shadow-color, rgba(0,0,0,0.4)); font-size: 13px; }
+.sbg-dialog h3 { margin: 0 0 10px; font-size: 15px; }
+.sbg-dialog label { display: block; margin: 8px 0 3px; font-size: 12px; color: var(--text-muted); }
+.sbg-dialog input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg, var(--surface)); color: var(--text); font: inherit; }
+.sbg-dialog .sbg-icons, .sbg-dialog .sbg-colors { display: flex; flex-wrap: wrap; gap: 5px; }
+.sbg-dialog .sbg-pick { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; padding: 0; }
+.sbg-dialog .sbg-pick[aria-pressed="true"] { border-color: var(--vex-accent, currentColor); box-shadow: 0 0 0 2px var(--vex-accent, currentColor); }
+.sbg-dialog .sbg-pick:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: 2px; }
+.sbg-dialog .sbg-swatch { width: 22px; height: 22px; border-radius: 50%; background: var(--sbg-swatch, var(--text)); border: 2px solid var(--surface); }
+.sbg-dialog .sbg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.sbg-dialog .sbg-actions button { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+.sbg-dialog .sbg-actions button.primary { background: var(--vex-accent, var(--primary)); color: var(--on-primary, #fff); border-color: transparent; }
+.sbg-dialog .sbg-error { margin-top: 8px; color: var(--vex-danger, var(--danger)); font-size: 12px; }
+.sbg-dialog .sbg-count { float: right; font-size: 11px; color: var(--text-muted); }
+
+/* The panel picker of the docked looks. */
+#look-sb-picker optgroup { font-weight: 600; }
+/* The popup of the picker uses the look's own menu colours (white on white headings otherwise), and the
+   select itself carries the look's color-scheme so the native popup chrome follows the look. */
+#look-sb-picker { color-scheme: inherit; }
+#look-sb-picker :is(option, optgroup) { background-color: var(--b-menu); color: var(--b-text); }
+#look-sb-picker optgroup { color: var(--b-text-dim, var(--b-text)); }
+#look-sb-picker option:checked, #look-sb-picker option:hover { background-color: var(--b-btn-hover, var(--b-menu)); color: var(--b-text); }

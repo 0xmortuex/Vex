@@ -344,6 +344,8 @@ describe('feature sheet', () => {
     expect(S.shouldShow(m, { ...base, enabled: false })).toBe(false);
     expect(S.firstUse('night-coach')).toBe(true);
     expect(document.querySelector('.vex-firstuse')).toBeTruthy();
+    // The toast stack sits on top of this corner card, not over it (app.js placeToasts), as it does for the download cards.
+    expect(document.querySelector('.vex-firstuse').getAttribute('data-avoid-toasts')).toBe('above');
     expect(S.firstUse('night-coach')).toBe(false);
   });
 });

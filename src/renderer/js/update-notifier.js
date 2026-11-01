@@ -52,6 +52,9 @@ const UpdateNotifier = {
     // says; each run reads it, so turning it on or off applies at once.
     if (typeof VexJobs === 'undefined') window.VexProblems?.note('Updates', 'The update check while Vex stays open could not start: the job timer is not loaded', new Error('VexJobs is missing'));
     else VexJobs.every(this.JOB_NAME, this.EVERY_MS, () => this.checkWhileOpen());
+    // What became of the last install, and a download that is still waiting: said
+    // whatever the automatic-check switch says, because it is about the past.
+    setTimeout(() => this.checkState(), 2500);
     if (!this.checksOnStart()) return;
     // A few seconds after launch, so the window and its tabs are up first.
     setTimeout(() => this.checkOnStartup(), 4000);
@@ -117,14 +120,83 @@ const UpdateNotifier = {
 
   _remember(key, value) {
     try { localStorage.setItem(key, String(value)); return true; }
-    catch (err) { VexProblems?.note('Updates', 'Could not remember the update choice', err); return false; }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not remember the update choice', err); return false; }
+  },
+
+  // ---- what happened to the last update --------------------------------------
+
+  // Asked once after start (main: updates:status). A notice (the installer did
+  // not install, Vex went back to the older version) is shown until it has been
+  // read; a downloaded update that was never installed comes up as the cover
+  // with "Restart now". Nothing here is silent: a failed read is a problem entry.
+  async checkState() {
+    if (window.VexTabPolicy?.isPrivateWindow) return null;
+    let s;
+    try { s = await window.vex.updates.status(); }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not read the update state', err); return null; }
+    if (!s?.ok) { window.VexProblems?.note('Updates', 'Could not read the update state', new Error(s?.error || 'unknown error')); return null; }
+    this._status = s;
+    // A version Vex went back from is not offered again.
+    if (s.blocked && this.cmpVersion(s.blocked, this.skippedVersion() || '0.0.0') > 0) this._remember(this.SKIP_KEY, s.blocked);
+    if (s.notice) { await this.showNotice(s.notice); return s; }
+    if (s.staged && !this._el) {
+      this.showCover({ ok: true, hasUpdate: true, staged: true, current: s.current, latest: s.staged.version, size: s.staged.size,
+        releaseUrl: 'https://github.com/0xmortuex/Vex/releases/tag/v' + s.staged.version, canSelfUpdate: true,
+        inPlaceFolder: s.copy && s.copy.kind === 'folder' && !s.copy.other ? s.copy.folder : null,
+        otherInstall: s.copy && s.copy.kind === 'folder' && s.copy.other ? s.copy.other : null, copyFolder: s.copy ? s.copy.folder : null });
+    }
+    return s;
+  },
+
+  NOTICES: {
+    'not-installed': (n) => ({
+      title: `Vex ${n.to} was not installed`,
+      message: `Vex tried to update from ${n.from} to ${n.to}, but ${n.from} is still the version that started. The installer may have been blocked (antivirus or SmartScreen) or did not finish. Nothing was changed, and your tabs and settings are as they were. The update log lists every step; the release page has the installer.`,
+    }),
+    'rolled-back': (n) => ({
+      title: `Vex went back to ${n.from}`,
+      message: `Vex ${n.to} did not finish starting two times in a row, so Vex put ${n.from} back. Your tabs and settings were kept. ${n.to} will not be offered again; Skip this version stays until a newer one comes out.`,
+    }),
+    'rollback-failed': (n) => ({
+      title: `Vex could not go back to ${n.from}`,
+      message: `Vex ${n.to} did not finish starting two times in a row, and putting ${n.from} back did not work${n.error ? ' (' + String(n.error).replace(/\.$/, '') + ')' : ''}. Install ${n.from} yourself from the release page; your tabs and settings are kept.`,
+    }),
+    'broken-no-backup': (n) => ({
+      title: `Vex ${n.to} keeps failing to start`,
+      message: `Vex ${n.to} did not finish starting two times in a row, and no installer of ${n.from} was kept to go back to. Install ${n.from} yourself from the release page; your tabs and settings are kept.`,
+    }),
+    'marker-unreadable': (n) => ({
+      title: 'Vex could not read what happened to the last update',
+      message: `The record of the last update is damaged (${String(n.error || 'unknown error').replace(/\.$/, '')}). The update log may still tell what happened.`,
+    }),
+  },
+
+  async showNotice(n) {
+    const make = this.NOTICES[n.kind];
+    if (!make) { window.VexProblems?.note('Updates', 'Unknown update notice', new Error(String(n.kind))); return; }
+    const { title, message } = make(n);
+    const wantLog = await window.vexConfirm({ title, message, okLabel: 'Show the update log', cancelLabel: 'Close' });
+    // Read, so it is not shown again at the next start.
+    try { await window.vex.updates.acknowledge(); }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not mark the update notice as read', err); }
+    if (wantLog) await this.showLog();
+  },
+
+  // The last 200 lines of userData/updates/update-log.txt.
+  async showLog() {
+    let r;
+    try { r = await window.vex.updates.log(); }
+    catch (err) { r = { ok: false, error: err.message }; }
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const body = r?.ok ? (r.lines.length ? r.lines.join('\n') : 'Nothing has been logged yet.') : 'The update log could not be read: ' + (r?.error || 'unknown error');
+    return window.vexConfirm({ title: 'Update log', message: 'Every step the updater took, newest last.', html: `<pre class="update-log-pre" tabindex="0">${esc(body)}</pre>`, okLabel: 'Close', cancelLabel: null, wide: true });
   },
 
   async checkOnStartup() {
     if (window.VexExamSafeMode && window.VexExamSafeMode.holds('updates')) return;   // exam safe mode: no update check
     let r;
     try { r = await window.vex.checkForUpdates(); }
-    catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not check for updates', err); return; }
     this.noteSeen(r);
     if (this.shouldAnnounce(r)) this.announce(r);
   },
@@ -156,7 +228,7 @@ const UpdateNotifier = {
     if (window.VexExamSafeMode && window.VexExamSafeMode.holds('updates')) return;   // exam safe mode: no update check
     let r;
     try { r = await window.vex.checkForUpdates(); }
-    catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not check for updates', err); return; }
     this.noteSeen(r);
     // A cover opened from Settings while the check was out wins.
     if (this._el) return;
@@ -215,7 +287,10 @@ const UpdateNotifier = {
         <section class="update-cover-notes" aria-labelledby="update-cover-notes-title">
           <div class="update-cover-notes-head">
             <h2 class="update-cover-notes-title" id="update-cover-notes-title">What's new</h2>
-            <button type="button" class="update-cover-link" data-act="page">${icon('globe', 14)}<span>Release page</span></button>
+            <span class="update-cover-links">
+              <button type="button" class="update-cover-link" data-act="log">${icon('file-text', 14)}<span>Update log</span></button>
+              <button type="button" class="update-cover-link" data-act="page">${icon('globe', 14)}<span>Release page</span></button>
+            </span>
           </div>
           <div class="update-cover-notes-body" tabindex="0" aria-label="Release notes"><p class="update-cover-muted">Loading the release notes…</p></div>
         </section>
@@ -225,8 +300,9 @@ const UpdateNotifier = {
         </div>
         <div class="update-cover-actions"></div>
       </div>`;
-    el.querySelector('.update-cover-title').textContent = `Vex ${info.latest} is available`;
-    el.querySelector('.update-cover-sub').textContent = `You have ${info.current}` + (info.size ? ` · download ${this._mb(info.size)}` : '');
+    el.querySelector('.update-cover-title').textContent = info.staged ? `Vex ${info.latest} is downloaded and ready to install` : `Vex ${info.latest} is available`;
+    el.querySelector('.update-cover-sub').textContent = `You have ${info.current}` + (info.staged ? ' · Vex restarts to finish the update' : (info.size ? ` · download ${this._mb(info.size)}` : ''));
+    el.querySelector('[data-act="log"]').addEventListener('click', () => this.showLog());
     el.querySelector('[data-act="page"]').addEventListener('click', () => {
       const url = info.releaseUrl || info.url;
       if (/^https:\/\//i.test(String(url || ''))) window.vex.openExternal?.(url);
@@ -246,13 +322,18 @@ const UpdateNotifier = {
     this._el = el;
     document.body.appendChild(el);
     document.body.classList.add('update-cover-open');
-    this._setPhase('choose');
+    // A copy that is not installed cannot be updated from inside: said at once,
+    // with the way to get the installer, never an "Update now" that does nothing.
+    // A copy run from a folder is updated in place: said once, here.
+    this._setPhase('choose', info.canSelfUpdate === false ? (info.cannotUpdateReason || 'This copy of Vex cannot update itself.')
+      : (info.otherInstall ? `You also have Vex installed in ${info.otherInstall}. This copy runs from a folder (${info.copyFolder || (info.copy && info.copy.folder)}) and is a build you made yourself. Updating installs the new version into the installed copy; this folder copy stays on ${info.current} until you rebuild it (npm run pack).`
+        : (info.inPlaceFolder ? `This copy will be updated in place in ${info.inPlaceFolder}` : '')));
     this._loadNotes(info);
     // Tells the version review (js/version-review.js) that the cover is up. Fire
     // and forget: nothing here waits for it or reads an answer, so the update
     // goes on whether the review card is answered, closed or never shown.
     try { document.dispatchEvent(new CustomEvent('vex:update-cover', { detail: { current: info.current, latest: info.latest } })); }
-    catch (err) { VexProblems?.note('Updates', 'Could not tell the version review about the update', err); }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not tell the version review about the update', err); }
     return el;
   },
 
@@ -273,6 +354,14 @@ const UpdateNotifier = {
   async _loadNotes(info) {
     const body = this._el?.querySelector('.update-cover-notes-body');
     if (!body) return;
+    if (info.staged) {
+      body.textContent = '';
+      const p = document.createElement('p');
+      p.className = 'update-cover-muted';
+      p.textContent = 'This update was downloaded earlier. The release page has the notes.';
+      body.appendChild(p);
+      return;
+    }
     let r;
     try { r = await window.vex.updates.upcomingNotes(info.latest); }
     catch (err) { r = { ok: false, error: err.message }; }
@@ -360,10 +449,20 @@ const UpdateNotifier = {
     bar.classList.toggle('is-busy', phase === 'verifying');
     text.textContent = message || '';
     if (phase === 'choose' || phase === 'error') {
-      actions.append(
-        this._button(phase === 'error' ? 'Try again' : 'Update now', 'update', 'primary'),
-        this._button('Later', 'later'),
-        this._button('Skip this version', 'skip', 'quiet'));
+      const info = this._info || {};
+      if (info.canSelfUpdate === false) {
+        // Not installed: no Update now. The installer is the way.
+        actions.append(
+          this._button('Download Vex-Setup.exe', 'manual', 'primary'),
+          this._button('Later', 'later'),
+          this._button('Skip this version', 'skip', 'quiet'));
+      } else {
+        actions.append(
+          this._button(phase === 'error' ? 'Try again' : (info.staged ? 'Restart now to install' : (info.otherInstall ? 'Update the installed Vex' : 'Update now')), this._primaryAct(), 'primary'),
+          ...(phase === 'error' ? [this._button('Download it yourself', 'manual')] : []),
+          this._button(info.otherInstall ? 'Not now' : 'Later', 'later'),
+          ...(info.staged || info.otherInstall ? [] : [this._button('Skip this version', 'skip', 'quiet')]));
+      }
     } else if (phase === 'downloading') {
       actions.append(this._button('Cancel', 'cancel'));
     } else if (phase === 'backup-failed') {
@@ -393,10 +492,26 @@ const UpdateNotifier = {
       catch (err) { this._fail('The download could not be cancelled: ' + err.message); }
       return;
     }
+    if (act === 'manual') {
+      const url = info.canSelfUpdate === false || !info.staged ? (info.downloadUrl || info.releaseUrl || info.url) : (info.releaseUrl || info.url);
+      if (/^https:\/\//i.test(String(url || ''))) window.vex.openExternal?.(url);
+      else this._fail('There is no download address for this update. Open the Vex releases page.');
+      return;
+    }
+    // A download from an earlier run: back up, then close and install, no new download.
+    if (act === 'install-staged') {
+      if (!(await this._backup(info))) return;
+      await this._install(info, true);
+      return;
+    }
     if (act === 'update') await this._update(info);
     if (act === 'install-anyway') await this._install(info, false);
     if (act === 'backup-cancel') this._setPhase('choose', 'The update was not installed.');
   },
+
+  // What the main choice of the cover does: install what is already downloaded,
+  // or download first.
+  _primaryAct() { return this._info && this._info.staged ? 'install-staged' : 'update'; },
 
   async _update(info) {
     this._setPhase('downloading', `Downloading Vex ${info.latest}…`);
@@ -494,7 +609,7 @@ const UpdateNotifier = {
       else if (this._phase === 'backup-failed') this._act('backup-cancel');
     } else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
       e.preventDefault();
-      if (this._phase === 'choose' || this._phase === 'error') this._act('update');
+      if (this._phase === 'choose' || this._phase === 'error') this._act(this._info && this._info.canSelfUpdate === false ? 'manual' : this._primaryAct());
     }
     e.stopPropagation();
   },

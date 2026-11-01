@@ -27,7 +27,7 @@ function buildChrome() {
   document.body.innerHTML = `
     <div id="top-bar"><div id="top-bar-right"><button id="btn-all-features" hidden></button><button id="btn-tor"></button></div></div>
     <div id="icon-sidebar">${RAIL.map(p => `<button class="sidebar-icon" data-panel="${p}" title="${p}"></button>`).join('')}</div>
-    <input type="checkbox" id="setting-simple-mode">
+    <input type="checkbox" id="setting-developer-mode">
     <div id="sidebar-manager-list"></div>`;
 }
 const shown = () => [...document.querySelectorAll('.sidebar-icon[data-panel]')].filter(b => b.style.display !== 'none').map(b => b.dataset.panel);
@@ -130,17 +130,20 @@ describe('the switch', () => {
     expect(localStorage.getItem('vex.uiMode')).toBe('full');
     expect(btn.hidden).toBe(true);
     expect(document.body.dataset.uiMode).toBe('full');
-    expect(document.getElementById('setting-simple-mode').checked).toBe(false);
+    expect(document.getElementById('setting-developer-mode').checked).toBe(true);   // Full is Developer mode on
   });
 
-  it('the Settings toggle switches both ways and announces it', () => {
+  it('the Developer mode toggle is the inverse of Simple, switches both ways and announces it', () => {
     localStorage.setItem('vex.uiMode', 'full');
     VexSimpleMode.init();
-    const box = document.getElementById('setting-simple-mode');
-    box.checked = true; box.dispatchEvent(new Event('change'));
-    expect(VexSimpleMode.isSimple()).toBe(true);
+    const box = document.getElementById('setting-developer-mode');
+    expect(box.checked).toBe(true);                     // Full = Developer mode on
     box.checked = false; box.dispatchEvent(new Event('change'));
+    expect(VexSimpleMode.isSimple()).toBe(true);
+    expect(localStorage.getItem('vex.uiMode')).toBe('simple');
+    box.checked = true; box.dispatchEvent(new Event('change'));
     expect(VexSimpleMode.isSimple()).toBe(false);
+    expect(VexSimpleMode.isDeveloper()).toBe(true);
     expect(window.showToast).toHaveBeenCalledTimes(2);
   });
 
@@ -179,7 +182,8 @@ describe('toolbar', () => {
     expect(html).toContain('<script src="js/simple-mode.js"></script>');
     expect(html.indexOf('css/simple-mode.css')).toBeGreaterThan(-1);
     expect(html.indexOf('css/simple-mode.css')).toBeLessThan(html.indexOf('css/a11y.css'));
-    expect(html).toContain('id="setting-simple-mode"');
+    expect(html).toContain('id="setting-developer-mode"');
+    expect(html).not.toContain('id="setting-simple-mode"');
   });
 });
 
@@ -201,7 +205,8 @@ describe('Settings: advanced sections', () => {
     const panel = buildSettings();
     const tiers = [...panel.querySelectorAll('.setting-group')].map(g => g.dataset.tier);
     expect(tiers).toEqual(['basic', 'basic', 'advanced', 'advanced', 'basic']);
-    expect(SettingsUI.tierOf('Privacy Hardening')).toBe('advanced');
+    expect(SettingsUI.tierOf('Privacy Hardening')).toBe('basic');   // tracking protection is critical
+    expect(SettingsUI.tierOf('AI Backend')).toBe('advanced');
     expect(SettingsUI.tierOf('Passwords')).toBe('basic');
   });
 
@@ -211,11 +216,12 @@ describe('Settings: advanced sections', () => {
     const btns = panel.querySelectorAll('.set-advanced-toggle');
     expect(btns.length).toBe(1);
     expect(panel.querySelector('.settings-content').lastElementChild).toBe(btns[0]);
-    expect(btns[0].textContent).toContain('Show advanced settings (2 more sections)');
+    expect(btns[0].textContent).toContain('Turn on Developer mode to see all settings');
+    // One switch: the button turns Developer mode on.
+    localStorage.setItem('vex.uiMode', 'simple');
     btns[0].click();
-    expect(panel.classList.contains('set-show-advanced')).toBe(true);
-    expect(btns[0].textContent).toContain('Hide advanced settings');
-    expect(btns[0].getAttribute('aria-expanded')).toBe('true');
+    expect(localStorage.getItem('vex.uiMode')).toBe('full');
+    expect(document.body.dataset.uiMode).toBe('full');
   });
 
   it('searching finds advanced sections, and one you click into stays when the search is cleared', () => {

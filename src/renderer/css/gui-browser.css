@@ -1034,7 +1034,7 @@ body[data-sb-launcher="rail"] #icon-sidebar {
   border: none; border-right: 1px solid var(--b-toolbar-border); border-radius: 0;
 }
 body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) {
-  width: var(--b-rail-btn, 32px); height: var(--b-rail-btn, 32px); background: transparent; color: var(--b-icon);
+  width: var(--b-rail-btn, 34px); height: var(--b-rail-btn, 34px); background: transparent; color: var(--b-icon);
   border: 1px solid transparent; border-radius: var(--b-btn-radius); box-shadow: none; transform: none;
 }
 body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon):hover {
@@ -1046,7 +1046,7 @@ body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon.active {
   background: var(--b-rail-active, var(--b-btn-hover)); color: var(--b-text); border-color: transparent;
 }
 body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon.active::before { display: none; }
-body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) svg { width: 16px; height: 16px; }
+body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) svg { width: 18px; height: 18px; }
 body[data-sb-launcher="rail"] #tools-bar { gap: 2px; }
 /* Unread / download badges were sized for Vex's 42px buttons: on these 32px
    ones a "99+" covered the whole icon. Here they hang off the corner. */
@@ -1088,7 +1088,7 @@ body[data-gui-style="safari"][data-sidebar-panel] #panels-container { background
 
 /* Netscape on 98: raised grey buttons that press in when chosen, and the
    sidebar wears a small title bar with a caption-box close. */
-body[data-gui-style="win98"] { --b-rail-w: 40px; }
+body[data-gui-style="win98"] { --b-rail-w: 44px; }
 body[data-gui-style="win98"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon):hover {
   box-shadow: inset -1px -1px var(--b-bevel-lo), inset 1px 1px var(--b-bevel-hi), inset -2px -2px var(--b-bevel-lo2), inset 2px 2px var(--b-bevel-hi2);
   background: var(--b-toolbar);

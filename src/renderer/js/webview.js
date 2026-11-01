@@ -749,6 +749,8 @@ const WebviewManager = {
           window.ReduceMotion?.paintStartPage(webview);
           // And the cursor and click effect (js/pointer-fx.js), which it draws itself.
           window.VexPointerFx?.paintStartPage(webview);
+          // And the wallpaper chosen in the Wallpaper Store (js/wallpaper-store.js); nothing is sent when none is chosen.
+          if (window.VexWallpapers) window.VexWallpapers.paintStartPage(webview).catch(err => console.error('[wallpapers] New Tab at load failed:', err && err.message));
           // The search engine chosen now, a search engine of your own too
           // (js/search-engine-custom.js): the page's own copy can be stale.
           webview.executeJavaScript(VexTypedAddress.startPageEngineJs())
@@ -1086,6 +1088,8 @@ const WebviewManager = {
       // are looking at the page, so a thrown error was invisible until you
       // went looking. Only yours: a badge on every site would be noise.
       if (typeof VexBugBundle !== 'undefined') VexBugBundle.note(tab.id, e, webview);
+      // A streaming site that reports a protected-playback problem gets the "Why isn't this playing?" note (js/drm-help.js, loads after start-up).
+      if (typeof VexDrmHelp !== 'undefined') VexDrmHelp.note(tab, e);
       if (e.level >= 3 && TabManager.isLocalPage?.(tab.url)) {
         tab.consoleErrors = (tab.consoleErrors || 0) + 1;
         tab.lastConsoleError = String(e.message || '').slice(0, 300);
@@ -2391,7 +2395,7 @@ const WebviewManager = {
           const note = (typeof ChatLinkHygiene !== 'undefined') ? ChatLinkHygiene.copyNote(e.params.linkURL) : null;
           if (note) window.showToast?.(note.text, note.kind, 7000);
           else if (out.wrapped || out.tracked) {
-            window.showToast?.('Copied' + (out.wrapped ? ' the real address' : '') + (out.wrapped && out.tracked ? ', ' : '') + (out.tracked ? ' without its tracking tags' : ''));
+            window.showToast?.(out.wrapped && out.tracked ? 'Copied the real address, without its tracking tags' : out.wrapped ? 'Copied the real address' : 'Copied without its tracking tags');
           }
         }
       });

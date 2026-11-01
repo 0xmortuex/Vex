@@ -25,12 +25,31 @@ const FeatureLibrary = {
   _cat: null,
   _openIds: null,      // which cards are expanded
 
+  // "What do you want to do?" (js/feature-intents.js): the front door. null = whichever is the default once the
+  // intent data is here; 'area' = the original areas and their chips.
+  _view: null,
+  _intent: null,       // the tile that was opened
+  _showAll: false,     // "Show all N" pressed inside that tile
+  _moreTiles: false,   // Simple mode: "More areas" pressed
+  INTENT_PREVIEW: 12,
+
   _esc(s) { return window.escapeHtml ? window.escapeHtml(String(s == null ? '' : s)) : String(s == null ? '' : s); },
+
+  _viewMode() {
+    if (typeof FeatureIntents === 'undefined') return 'area';
+    return this._view || 'intent';
+  },
+
+  // The area chip in force: the chips only exist in the "By area" view.
+  _activeCat() { return this._viewMode() === 'area' ? this._cat : null; },
 
   _items() {
     const all = (typeof VexFeatures !== 'undefined' && VexFeatures.ITEMS) || [];
     let list = this._query ? VexFeatures.search(this._query) : all;
-    if (this._cat) list = list.filter(f => f.cat === this._cat);
+    const cat = this._activeCat();
+    if (cat) list = list.filter(f => f.cat === cat);
+    // A search looks through everything; a tile narrows only the list you opened it for.
+    if (!this._query && this._intent && this._viewMode() === 'intent') list = list.filter(f => FeatureIntents.intentOf(f) === this._intent);
     return list;
   },
 
@@ -94,8 +113,10 @@ const FeatureLibrary = {
         </div>
         <div class="flib-top">
           <input id="flib-q" class="flib-search" type="search" placeholder="Search everything Vex does…" aria-label="Search features" autocomplete="off">
+          <div class="flib-views" id="flib-views" role="group" aria-label="Choose what you want to do"></div>
           <div class="flib-cats" id="flib-cats"></div>
         </div>
+        <div class="flib-maker-row"><button type="button" class="flib-maker" id="flib-maker">${typeof VexIcons !== 'undefined' ? VexIcons.svg('code', { size: 16 }) : ''}<span>More from the creator</span><small>Other public projects by the maker of Vex.</small></button></div>
         <div class="flib-list" id="flib-list"></div>
       </div>`;
     const q = host.querySelector('#flib-q');
@@ -105,7 +126,12 @@ const FeatureLibrary = {
       e.preventDefault();
       this.answerInto(host, host.querySelector('#flib-ask-q').value);
     });
+    host.querySelector('#flib-maker').addEventListener('click', () => {
+      const ready = (typeof VexMakerRepos !== 'undefined') ? Promise.resolve() : window.VexLazy.ensure('js/maker-repos.js');
+      ready.then(() => VexMakerRepos.open()).catch(err => window.showToast?.('More from the creator could not open: ' + ((err && err.message) || err), 'error'));
+    });
     this._drawNever(host);
+    this._drawViews(host);
     this._drawCats(host);
     this._drawList(host);
     // The longer paragraphs (js/feature-details.js, ~46 KB) load the first
@@ -120,6 +146,12 @@ const FeatureLibrary = {
       this._faqData().then(() => { if (host.isConnected) { this._drawCats(host); this._drawList(host); } })
         .catch(err => window.showToast?.('The questions could not load: ' + ((err && err.message) || err), 'error'));
     }
+    // The front door (twelve intents) loads with its Turkish the first time the Library opens; until it is here the
+    // areas are shown, and the tiles replace them unless the person already chose "By area".
+    if (typeof FeatureIntents === 'undefined') {
+      this._intentData().then(() => { if (host.isConnected) { this._drawViews(host); this._drawCats(host); this._drawList(host); } })
+        .catch(err => window.showToast?.('The list of things you can do could not load: ' + ((err && err.message) || err), 'error'));
+    }
     return host;
   },
 
@@ -127,6 +159,13 @@ const FeatureLibrary = {
     if (typeof FeatureDetails !== 'undefined') return Promise.resolve(true);
     if (!window.VexLazy) return Promise.reject(new Error('the lazy loader is missing'));
     return window.VexLazy.ensure('js/feature-details.js');
+  },
+
+  // The intents (js/feature-intents.js) and their Turkish (js/feature-intents-tr.js), together, so the tiles are never
+  // drawn before their words can be translated.
+  _intentData() {
+    if (!window.VexLazy) return Promise.reject(new Error('the lazy loader is missing'));
+    return Promise.all([window.VexLazy.ensure('js/feature-intents.js'), window.VexLazy.ensure('js/feature-intents-tr.js')]).then(() => true);
   },
 
   // The "Did you know?" questions (js/feature-faq.js): loaded like the long paragraphs, the first time the Library is
@@ -238,7 +277,9 @@ const FeatureLibrary = {
   _drawCats(host) {
     const nav = host.querySelector('#flib-cats');
     if (!nav) return;
-    const all = (typeof VexFeatures !== 'undefined' && VexFeatures.ITEMS) || [];
+    // The area chips belong to the "By area" view; the tiles are the other way in.
+    if (this._viewMode() === 'intent') { nav.innerHTML = ''; return; }
+    const all =(typeof VexFeatures !== 'undefined' && VexFeatures.ITEMS) || [];
     const chip = (id, label, n) => `<button class="flib-chip${this._cat === id ? ' on' : ''}" data-cat="${this._esc(id == null ? '' : id)}">${this._esc(label)} <span>${n}</span></button>`;
     // "Did you know?" stands beside Everything, ahead of the areas: it is the way in for someone who does not yet know
     // what to look for (js/feature-faq.js).
@@ -248,16 +289,109 @@ const FeatureLibrary = {
       + (VexFeatures.CATS || []).map(c => chip(c.id, c.name, VexFeatures.byCat(c.id).length)).join('');
     nav.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => {
       this._cat = b.dataset.cat || null;
+      this._view = 'area';
       this._drawCats(host);
       this._drawList(host);
     }));
   },
 
+  // ---- What do you want to do? ---------------------------------------------
+  //
+  // Two ways in, side by side: the tiles (what you want to do) and the areas (how Vex is built). Both are buttons
+  // with names, counts and a pressed state, so they work from the keyboard, and a redraw puts focus back where the
+  // person was.
+
+  _drawViews(host) {
+    const el = host.querySelector('#flib-views');
+    if (!el) return;
+    if (typeof FeatureIntents === 'undefined') { el.innerHTML = ''; return; }
+    const mode = this._viewMode();
+    const btn = (v, label) => `<button type="button" class="flib-view${mode === v ? ' on' : ''}" data-view="${v}" aria-pressed="${mode === v}">${label}</button>`;
+    el.innerHTML = btn('intent', 'What do you want to do?') + btn('area', 'By area');
+    el.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+      this._view = b.dataset.view;
+      this._intent = null;
+      this._showAll = false;
+      this._drawViews(host);
+      this._drawCats(host);
+      this._drawList(host);
+      host.querySelector(`[data-view="${this._view}"]`)?.focus();
+    }));
+  },
+
+  _drawTiles(host, list) {
+    const simple = typeof VexSimpleMode !== 'undefined' && VexSimpleMode.isSimple();
+    const tiles = FeatureIntents.tiles({ simple, all: this._moreTiles });
+    const icon = (n) => (typeof VexIcons !== 'undefined' ? VexIcons.svg(n, { size: 20 }) : '');
+    list.innerHTML = `
+      <div class="flib-group"><div class="flib-group-name" role="heading" aria-level="2" id="flib-tiles-h">What do you want to do?</div></div>
+      <div class="flib-tiles" role="group" aria-labelledby="flib-tiles-h">
+        ${tiles.map(t => `
+          <button type="button" class="flib-tile" data-intent="${this._esc(t.id)}" aria-labelledby="flib-t-${this._esc(t.id)}-n flib-t-${this._esc(t.id)}-c" aria-describedby="flib-t-${this._esc(t.id)}-b">
+            <span class="flib-tile-icon" aria-hidden="true">${icon(t.icon)}</span>
+            <span class="flib-tile-name" id="flib-t-${this._esc(t.id)}-n">${this._esc(t.name)}</span>
+            <span class="flib-tile-count" id="flib-t-${this._esc(t.id)}-c"><b>${t.count}</b> <span>features</span></span>
+            <span class="flib-tile-blurb" id="flib-t-${this._esc(t.id)}-b">${this._esc(t.blurb)}</span>
+            <span class="flib-tile-sample" aria-hidden="true">${t.sample.map(n => this._esc(n)).join(' · ')}</span>
+          </button>`).join('')}
+      </div>
+      ${simple ? `<div class="flib-showall"><button type="button" class="flib-btn" data-tiles-more aria-expanded="${this._moreTiles}">${this._moreTiles ? 'Fewer areas' : 'More areas'}</button></div>` : ''}`;
+    list.querySelectorAll('[data-intent]').forEach(b => b.addEventListener('click', () => {
+      this._intent = b.dataset.intent;
+      this._showAll = false;
+      this._drawList(host);
+      host.querySelector('#flib-intent-h')?.focus();
+    }));
+    const more = list.querySelector('[data-tiles-more]');
+    if (more) more.addEventListener('click', () => {
+      this._moreTiles = !this._moreTiles;
+      this._drawList(host);
+      host.querySelector('[data-tiles-more]')?.focus();
+    });
+  },
+
+  // One tile opened: its features, the first INTENT_PREVIEW of them until "Show all N".
+  _drawIntent(host, list) {
+    const intent = FeatureIntents.get(this._intent);
+    if (!intent) throw new Error('[FeatureLibrary] unknown intent: ' + this._intent);
+    const items = this._items();
+    const shown = this._showAll ? items : items.slice(0, this.INTENT_PREVIEW);
+    const back = typeof VexIcons !== 'undefined' ? VexIcons.svg('chevron-left', { size: 14 }) : '';
+    list.innerHTML = `
+      <div class="flib-intent-bar"><button type="button" class="flib-btn" data-intent-back>${back}<span>Back to what you want to do</span></button></div>
+      <div class="flib-group">
+        <div class="flib-group-name" role="heading" aria-level="2" id="flib-intent-h" tabindex="-1"><span>${this._esc(intent.name)}</span> <span class="flib-count">${items.length}</span></div>
+        <div class="flib-group-blurb">${this._esc(intent.blurb)}</div>
+      </div>
+      ${shown.map(f => this._cardHtml(this.card(f))).join('')}
+      ${items.length > shown.length ? `<div class="flib-showall"><button type="button" class="flib-btn" data-show-all><span>Show all</span> <span>${items.length}</span></button></div>` : ''}`;
+    this._wireCards(list);
+    list.querySelector('[data-intent-back]').addEventListener('click', () => {
+      const left = this._intent;
+      this._intent = null;
+      this._showAll = false;
+      this._drawList(host);
+      host.querySelector(`.flib-tile[data-intent="${left}"]`)?.focus();
+    });
+    const all = list.querySelector('[data-show-all]');
+    if (all) all.addEventListener('click', () => {
+      this._showAll = true;
+      this._drawList(host);
+      host.querySelectorAll('#flib-list .flib-card')[this.INTENT_PREVIEW]?.querySelector('.flib-head')?.focus();
+    });
+  },
+
   _drawList(host) {
     const list = host.querySelector('#flib-list');
     if (!list) return;
+    if (this._viewMode() === 'intent' && !this._query) {
+      if (this._intent) this._drawIntent(host, list);
+      else this._drawTiles(host, list);
+      return;
+    }
+    const cat = this._activeCat();
     // The questions: their own category, and also the first thing a search finds.
-    if (typeof FeatureFaq !== 'undefined' && this._cat === FeatureFaq.ID) {
+    if (typeof FeatureFaq !== 'undefined' && cat === FeatureFaq.ID) {
       const found = this.faqEntries(this._query);
       list.innerHTML = `
         <div class="flib-group">
@@ -268,7 +402,7 @@ const FeatureLibrary = {
       this._wireFaq(list);
       return;
     }
-    const faqHits = (this._query && !this._cat && typeof FeatureFaq !== 'undefined') ? this.faqEntries(this._query) : [];
+    const faqHits = (this._query && !cat && typeof FeatureFaq !== 'undefined') ? this.faqEntries(this._query) : [];
     const faqBlock = faqHits.length
       ? `<div class="flib-group"><div class="flib-group-name" role="heading" aria-level="2">${this._esc(FeatureFaq.NAME)}</div></div>${faqHits.map(e => this._faqHtml(this.faqCard(e))).join('')}`
       : '';
@@ -289,7 +423,7 @@ const FeatureLibrary = {
     if (this._query) {
       list.innerHTML = faqBlock + (faqHits.length ? `<div class="flib-group"><div class="flib-group-name" role="heading" aria-level="2">Everything Vex does</div></div>` : '') + items.map(f => this._cardHtml(this.card(f))).join('');
     } else {
-      const cats = (VexFeatures.CATS || []).filter(c => !this._cat || c.id === this._cat);
+      const cats = (VexFeatures.CATS || []).filter(c => !cat || c.id === cat);
       list.innerHTML = cats.map(cat => {
         const shelves = VexFeatures.groupsFor(cat.id).filter(g => g.items.length);
         if (!shelves.length) return '';

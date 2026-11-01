@@ -174,6 +174,12 @@
     // The window's saved look (js/early-look.js): how the window looked, kept so the next start paints it from the first frame. Not staged: it is how the window opens.
     { id: 'early-look', title: 'Window look at start-up', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.bootLook'],
       permissions: { reads: ['the theme and look attributes of the window'], writes: ['a snapshot of them, to paint the next start from the first frame'], sends: [] } },
+    // Theme packs (js/theme-packs.js, js/icon-packs.js, js/theme-pack-ui.js): a theme as a design, a set of icons and colours. Part of how the window looks, not an extra.
+    { id: 'theme-packs', title: 'Theme packs', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.themePack', 'vex.iconPack'],
+      permissions: { reads: ['the theme, font and skin you use now, so Reset can give them back'], writes: ['the pack, design and icon style you chose, and the theme, font and skin the pack sets'], sends: [] } },
+    // Share my look (js/share-look.js, js/share-look-ui.js): the look as a small .vexlook file or vex://look link, and the review before wearing one. Part of how the window looks.
+    { id: 'share-look', title: 'Share my look', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.shareLook.undo'], commands: ['share-look', 'open-shared-look', 'undo-shared-look'],
+      permissions: { reads: ['the theme, pack, design, icons, look, skin, fonts and wallpaper choice you use now, and the file or link you open'], writes: ['the look you put on, and the look you had before so Undo can give it back'], sends: [] } },
     // Dark mode for websites (js/dark-mode.js, src/dark-mode-preload.js, main/dark-mode.js): a choice in Settings > Appearance whose "Off" is its own
     // switch, not an extra to hold back. It owns the per-site list the page menu always kept (vex.forceDarkHosts) and the old everywhere flag.
     { id: 'dark-mode-websites', title: 'Dark mode for websites', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.darkMode.', 'vex.forceDarkHosts', 'vex.forceDarkSites'],
@@ -349,6 +355,11 @@
       permissions: { reads: ['which GitHub run succeeded and which tabs are open'], writes: ['reloads a tab, only when you press Refresh'], sends: [] } },
     { id: 'bypass-doctor', title: 'Site down or my bypass?', group: 'Bypass check', maturity: 'new', storageKeys: ['vex.bypassDoctor.enabled', 'vex.bypassDoctor.lastPreflight', 'vex.bypassDoctor.startupProbe'], commands: ['site-or-bypass'],
       permissions: { reads: ['whether a site answers directly and through the bypass you already run'], writes: ['nothing: it never starts, stops or changes a bypass'], sends: ['One request to the address you ask about, and, only if you turn on the start-up look in Settings (off by default), one to discord.com shortly after start'] } },
+    { id: 'this-site', title: 'This site', killSwitch: 'none', group: 'This site', maturity: 'new', storageKeys: [], commands: ['this-site'],
+      permissions: { reads: ['the address of the page in front'], writes: ['nothing itself: each row runs a command that already existed'], sends: [] } },
+    { id: 'unblock-centre', title: 'Unblock centre', group: 'Unblock centre', maturity: 'new', storageKeys: ['vex.unblock.enabled', 'vex.unblock.sites'], commands: ['unblock-centre'],
+      permissions: { reads: ['pages that failed to load in a way that looks like a block', 'your list of blocked sites'], writes: ['your list of sites and the way that opened each one', 'the proxy rules of your browsing sessions, for those sites only; the ByeDPI helper, while a site needs it'],
+        sends: ['Only after a page failed to load like a block, once per site per hour: an empty request to 1.1.1.1 (to know the network is up) and the site name to Cloudflare\'s encrypted DNS (to know the site exists). When you press Try: requests to that site itself through each way, the site name to Cloudflare\'s encrypted DNS while a way uses it, and, only if you agree, one download of the ByeDPI helper from GitHub. Your list never leaves this computer'] } },
     { id: 'watch-alerts', title: 'One alert per change, digest first', group: 'Watcher alerts', maturity: 'new', storageKeys: ['vex.watchAlerts.enabled', 'vex.watchAlerts.instant'],
       permissions: { reads: ['alerts from the page watch, patch radar and GitHub watch'], writes: ['one line in the Attention Inbox per change'], sends: [] } },
     // ---- Wave 2: tabs and navigation (js/tabs-nav.js) ------------------------------------
@@ -491,6 +502,12 @@
       permissions: { reads: ['the feature descriptions; the stored data a feature owns, when you reset it'], writes: ['deletes the data of one feature, only after you confirm, with Undo'], sends: [] } },
     { id: 'your-data', title: 'Your data (export and import)', group: 'Your data', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['your-data'],
       permissions: { reads: ['everything Vex stores except saved logins, authenticator codes and tokens'], writes: ['a file you save; or what you bring back from a file, with Undo; Markdown files in a folder you pick'], sends: [] } },
+    { id: 'maker-repos', title: 'More from the creator', group: 'More from the creator', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['maker-repos'],
+      permissions: { reads: ['the list of projects that ships with Vex, and the refreshed copy in your profile folder'], writes: ['the refreshed copy of the list in your profile folder, only when you press Refresh from GitHub'], sends: ['One request to api.github.com for the public projects of 0xmortuex, only when you press Refresh from GitHub; nothing about you is in it'] } },
+    { id: 'help-faq', title: 'Help and FAQ', group: 'Help and FAQ', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['help-faq'],
+      permissions: { reads: ['its own list of questions and answers'], writes: [], sends: [] } },
+    { id: 'drm-help', title: 'Protected playback help (DRM)', group: 'Video and music playback (DRM)', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.drmHelp.offer'], commands: ['drm-help'],
+      permissions: { reads: ['the Widevine module state, the signature file next to Vex.exe, and the playback error a streaming page printed to its console'], writes: ['its own switch; clearing one site\'s service workers, caches and stored files, only after you confirm'], sends: [] } },
     { id: 'provenance-chip', title: 'Provenance chip on generated output', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['which backend and model wrote a piece of text'], writes: [], sends: [] } },
     { id: 'search-index', title: 'Shared search index', group: 'Search index', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.searchIndex.capMB'],
@@ -525,6 +542,8 @@
       permissions: { reads: [], writes: ['the cursor style, colour and size you chose'], sends: [] } },
     { id: 'click-effect', title: 'Click effect', group: 'Click effect', maturity: 'new', storageKeys: ['vex.clickFx'],
       permissions: { reads: [], writes: ['the click effect and colour you chose'], sends: [] } },
+    { id: 'wallpaper-store', title: 'Wallpapers', group: 'Wallpapers', maturity: 'new', commands: ['wallpapers'], storageKeys: ['vex.wallpaper', 'vex.wallpaper.catalogueUrl', 'vex.wallpaper.enabled', 'vex.wallpaper.sync', 'vex.wallpaper.sync.areas'], budget: { storageKB: 20 },
+      permissions: { reads: ['the pictures you add yourself, to show them as a wallpaper'], writes: ['the wallpaper you chose, your favourites, and the shrunk pictures it keeps in Vex\'s own folder (at most 80 MB of downloaded photos and 24 of your own)'], sends: ['A request for the photo list, and for the pictures it names, to the address you set in Settings > Wallpapers; only when you open the Wallpaper Store with an address set (none by default)'] } },
     { id: 'revisit-watch', title: 'Watch suggestions', group: 'Watch suggestions', maturity: 'new', storageKeys: ['vex.revisit', 'vex.revisit.enabled'],
       permissions: { reads: ['the address and title of the pages you open (never a private or Tor tab)', 'the words of a page you open often, once per visit, only to tell whether it changed'], writes: ['the address, title and open times of up to 200 pages, and up to 6 short fingerprints of each (not the words), here'], sends: [] } },
     { id: 'workspace-archive', title: 'Idle workspaces', group: 'Idle workspaces', maturity: 'new',
@@ -540,6 +559,10 @@
     // profile gets them OFF and is offered them. The throwaway session is also off on a new profile until chosen.
     { id: 'download-guard', title: 'Cheat tools and fake updates', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['the name and address of a file being downloaded; once it is saved, its first bytes and, for a zip, its list of file names (never decompressed, run or uploaded)'], writes: ['nothing; the file waits in a holding folder until you decide'], sends: [] } },
+    // The list of known dangerous sites (src/main/threat-list.js, js/threat-list-ui.js). The check runs in main; its switch is the one in Settings
+    // (kept in main, like Web safety's sensitivity), so there is no VexUsage row and no vex.* key.
+    { id: 'threat-list', title: 'Warnings for known dangerous sites', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['threat:settings', 'threat:test'],
+      permissions: { reads: ['the address of each page you open, only to look it up in a list on this computer'], writes: ['the downloaded list (a set of hashes, no names), the sites you chose to trust, and a note of each time you chose Continue anyway'], sends: ['About once a day, a request for the public list file (a plain GET with no cookies); none of your addresses are in it'] } },
     // Quick look at a finished download (js/download-quicklook.js): Space in the Downloads panel. Always on, no switch: it is how the panel looks at a file.
     { id: 'download-quicklook', title: 'Quick look at downloads', group: 'Downloads', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['the first part of a finished download you press Space on, only if Vex downloaded it (a picture, a PDF, the first 200 KB of text, the names in an archive, the first text of an Office file)'], writes: ['nothing; a file is deleted to the Recycle Bin only after you confirm'], sends: [] } },
@@ -790,6 +813,15 @@
     { id: 'library-data', title: 'Notes, bookmarks and read later', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.notes', 'vex.bookmarks', 'vex.readLater', 'vex.annotations', 'vex.stickyNotes'],
       permissions: { reads: ['what you saved'], writes: ['what you saved'], sends: [] } },
+    { id: 'sidebar-visibility', title: 'Sidebar on or off', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.sidebar'],
+      permissions: { reads: ['whether you want the sidebar'], writes: ['whether you want the sidebar'], sends: [] } },
+    // A layout choice with its own switch in Settings > Sidebar (not a feature to stage): on for every profile unless it saved 'off';
+    // the .v2 marker lets an 'off' written by the first version (not a choice) flip to on once.
+    { id: 'sidebar-groups', title: 'Sidebar groups', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded', 'vex.sidebarGroups.open', 'vex.sidebarGroupDefs'], usesKeys: ['vex.sidebarOrder', 'vex.panelOverrides'],
+      permissions: { reads: ['which panels the sidebar has and in what order'], writes: ['whether the sidebar is grouped, your groups (names, descriptions, icons, colours, which buttons are in them) and which folders are open'], sends: [] } },
+    // A layout choice (at most four icons on the toolbar's right, the rest in the "more" menu): no switch, it only folds.
+    { id: 'toolbar-limit', title: 'Four toolbar icons', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.toolbarShown'], usesKeys: ['vex.layout'],
+      permissions: { reads: ['which toolbar buttons you rearranged or hid'], writes: ['which toolbar buttons you keep in the toolbar'], sends: [] } },
     { id: 'feature-registry', title: 'Feature records', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.featureUsage', 'vex.usage.prior.', 'vex.minimalMode', 'vex.registry'],
       permissions: { reads: ['which features exist'], writes: ['which features you use, and which are staged'], sends: [] } },

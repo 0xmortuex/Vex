@@ -72,8 +72,8 @@ const FreeGames = {
     // Desktop notification, because the point is hearing about it while you
     // are doing something else (main.js 'notify:show').
     const send = typeof VexAttention !== 'undefined'
-      ? VexAttention.osNotify({ feature: 'free-games', label: 'Free games', urgency: 'useful', id: names, title: 'Free to keep', body: names + ' — ' + this.endsIn(fresh[0]) })
-      : window.vex.notify?.('Free to keep', names + ' — ' + this.endsIn(fresh[0]));
+      ? VexAttention.osNotify({ feature: 'free-games', label: 'Free games', urgency: 'useful', id: names, title: 'Free to keep', body: names + ' — ' + (window.vexTr || String)(this.endsIn(fresh[0])) })
+      : window.vex.notify?.((window.vexTr || String)('Free to keep'), names + ' — ' + (window.vexTr || String)(this.endsIn(fresh[0])));
     send
       .catch(err => window.VexProblems?.note('Free games', 'Could not show the notification', err));
     return { games, fresh };

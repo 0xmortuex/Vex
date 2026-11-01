@@ -109,7 +109,7 @@
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 16px; padding: 28px;
   max-width: 520px; width: 90%;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  box-shadow: var(--vex-elev-4);
 }
 .sync-modal-card h2 { font-size: 18px; margin-bottom: 12px; }
 .sync-modal-card p { font-size: 13px; color: var(--text-muted); line-height: 1.5; }

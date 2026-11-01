@@ -65,7 +65,10 @@ function startUrlWithTheme(base) {
   // A theme of your own carries its colours too (js/theme-studio.js).
   let tc = '';
   try {
-    const colors = typeof ThemeStudio !== 'undefined' ? ThemeStudio.colorsOf(theme) : null;
+    // Match Vex to a wallpaper (js/wallpaper-sync.js) decides what a New Tab wears.
+    const synced = window.VexWallpaperSync ? window.VexWallpaperSync.newTabOverride(theme) : null;
+    if (synced) theme = synced.id;
+    const colors = synced ? synced.colors : (typeof ThemeStudio !== 'undefined' ? ThemeStudio.colorsOf(theme) : null);
     if (colors) tc = '&tc=' + CustomThemes.toQuery(colors);
   } catch (err) { console.error('[Tabs] own theme colours for the New Tab:', err && err.message); }
   return `${clean}?theme=${encodeURIComponent(theme)}${tc}`;
@@ -84,6 +87,9 @@ const TAB_ICONS = {
   audible: '<span class="tab-audio" title="Playing audio — click to mute" aria-label="Playing audio"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.6 5.8a3 3 0 0 1 0 4.4M12.6 3.8a5.8 5.8 0 0 1 0 8.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>',
   muted: '<span class="tab-audio muted" title="Muted — click to unmute" aria-label="Muted"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 6h2.2L8.4 3.4v9.2L5.2 10H3z" fill="currentColor"/><path d="M10.8 6.2l3.4 3.6M14.2 6.2l-3.4 3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>',
   sleeping: '<span class="sleep-indicator" title="Sleeping" aria-label="Sleeping"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>',
+  // A tab restored from the last session that has not been opened yet: it is not
+  // running either, and the Memory panel counts it as asleep, so it wears the moon too.
+  notLoaded: '<span class="sleep-indicator not-loaded" title="Not loaded yet, loads when you open it" aria-label="Not loaded yet"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span>',
 };
 
 // Menu-row icons (16px, stroke-only, currentColor).
@@ -1123,6 +1129,7 @@ const TabManager = {
     // Sleeping tabs render dimmed. Set here so any render path (init restore,
     // rebuildAllTabs) shows the state — not just the old init sleeping branch.
     if (tab.sleeping) el.classList.add('sleeping');
+    if (tab._lazy && !tab.sleeping) el.classList.add('not-loaded');
     if (this._isKeptAwake(tab)) el.classList.add('kept-awake');
     if (tab.partition && !String(tab.partition).startsWith('persist:')) {
       el.classList.add('private-tab');
@@ -1142,7 +1149,7 @@ const TabManager = {
         <div class="tab-title">${this._escapeHtml((typeof VexTabNames !== 'undefined' && VexTabNames.display(tab)) || tab.title)}</div>
         ${tab.note ? `<div class="tab-note-line" title="${this._escapeHtml(tab.note)}">${this._escapeHtml(tab.note)}</div>` : ''}
       </div>
-      ${tab.sleeping ? TAB_ICONS.sleeping : ''}
+      ${this.sleepBadge(tab)}
       ${this.errorBadge(tab)}${this._captureBadge(tab)}${this._audioBadge(tab)}
       ${tab.unread ? '<div class="tab-unread"></div>' : ''}
       <button class="tab-close" title="Close tab">
@@ -1218,6 +1225,12 @@ const TabManager = {
       if (u.protocol === 'file:') return true;
       return /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/.test(u.hostname) || /\.local$/.test(u.hostname);
     } catch { return false; }
+  },
+
+  // The moon on a tab that is not running: asleep, or restored from the last
+  // session and not opened yet (the Memory panel counts both as asleep).
+  sleepBadge(tab) {
+    return tab.sleeping ? TAB_ICONS.sleeping : tab._lazy ? TAB_ICONS.notLoaded : '';
   },
 
   // The count of console errors on a local page, with the last one on hover.
@@ -1298,6 +1311,7 @@ const TabManager = {
     // themselves). Keeping them in sync here means the row never lies after a
     // partial update — previously only title/favicon/unread were refreshed.
     el.classList.toggle('sleeping', !!tab.sleeping);
+    el.classList.toggle('not-loaded', !!tab._lazy && !tab.sleeping);
     el.classList.toggle('kept-awake', this._isKeptAwake(tab));
 
     // Audio badge. media-started-playing / media-paused (webview.js) and
@@ -1327,11 +1341,14 @@ const TabManager = {
 
     // Sleep badge, same reasoning as the audio badge above.
     const haveSleep = el.querySelector('.sleep-indicator');
-    if (tab.sleeping && !haveSleep) {
+    const lazyOnly = !!(tab._lazy && !tab.sleeping);
+    const wantSleep = this.sleepBadge(tab);
+    if (wantSleep && (!haveSleep || haveSleep.classList.contains('not-loaded') !== lazyOnly)) {
       const holder = document.createElement('div');
-      holder.innerHTML = TAB_ICONS.sleeping;
-      el.querySelector('.tab-close')?.before(holder.firstElementChild);
-    } else if (!tab.sleeping && haveSleep) {
+      holder.innerHTML = wantSleep;
+      if (haveSleep) haveSleep.replaceWith(holder.firstElementChild);
+      else el.querySelector('.tab-close')?.before(holder.firstElementChild);
+    } else if (!wantSleep && haveSleep) {
       haveSleep.remove();
     }
 
