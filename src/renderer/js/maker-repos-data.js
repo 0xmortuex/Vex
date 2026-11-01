@@ -3,7 +3,7 @@
 // Plain data, no network: the window (js/maker-repos.js) reads it; "Refresh from GitHub" is the only thing that contacts GitHub.
 const VexMakerReposData = {
  "login": "0xmortuex",
- "fetchedAt": "2026-11-01T12:29:54.581Z",
+ "fetchedAt": "2026-11-01T18:14:12.961Z",
  "repos": [
   {
    "name": "qemu-mcp",
@@ -20,8 +20,8 @@ const VexMakerReposData = {
     "qemu"
    ],
    "license": "MIT",
-   "updatedAt": "2026-10-31T18:07:55.000Z",
-   "pushedAt": "2026-10-31T13:51:38.000Z",
+   "updatedAt": "2026-11-01T13:51:35.000Z",
+   "pushedAt": "2026-11-01T13:51:32.000Z",
    "archived": false,
    "fork": false,
    "homepage": "",
@@ -73,7 +73,7 @@ const VexMakerReposData = {
    ],
    "license": "MIT",
    "updatedAt": "2026-10-31T18:23:42.000Z",
-   "pushedAt": "2026-11-01T10:00:30.000Z",
+   "pushedAt": "2026-11-01T18:13:10.000Z",
    "archived": false,
    "fork": false,
    "homepage": "https://0xmortuex.github.io/vex-website/",
@@ -93,7 +93,7 @@ const VexMakerReposData = {
    ],
    "license": null,
    "updatedAt": "2026-10-25T04:28:10.000Z",
-   "pushedAt": "2026-11-01T09:26:16.000Z",
+   "pushedAt": "2026-11-01T15:22:34.000Z",
    "archived": false,
    "fork": false,
    "homepage": "",
@@ -464,8 +464,8 @@ const VexMakerReposData = {
     "skills"
    ],
    "license": "MIT",
-   "updatedAt": "2026-10-31T14:29:20.000Z",
-   "pushedAt": "2026-10-31T14:29:17.000Z",
+   "updatedAt": "2026-11-01T14:31:53.000Z",
+   "pushedAt": "2026-11-01T14:31:49.000Z",
    "archived": false,
    "fork": false,
    "homepage": "",
@@ -796,8 +796,8 @@ const VexMakerReposData = {
     "transpiler"
    ],
    "license": "MIT",
-   "updatedAt": "2026-10-31T13:22:48.000Z",
-   "pushedAt": "2026-10-31T13:22:44.000Z",
+   "updatedAt": "2026-11-01T13:17:31.000Z",
+   "pushedAt": "2026-11-01T13:17:28.000Z",
    "archived": false,
    "fork": false,
    "homepage": "",
@@ -903,8 +903,8 @@ const VexMakerReposData = {
     "x86"
    ],
    "license": "MIT",
-   "updatedAt": "2026-10-31T14:55:40.000Z",
-   "pushedAt": "2026-10-31T14:55:36.000Z",
+   "updatedAt": "2026-11-01T14:55:40.000Z",
+   "pushedAt": "2026-11-01T14:55:37.000Z",
    "archived": false,
    "fork": false,
    "homepage": "",
