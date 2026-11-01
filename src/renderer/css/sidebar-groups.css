@@ -20,20 +20,22 @@
 #icon-sidebar .sb-folder[data-color="danger"] { --sbf-tint: var(--vex-danger, var(--danger)); }
 /* The open folder: a soft tinted background behind the tile, its name and its buttons. */
 #icon-sidebar .sb-folder.open {
-  background: color-mix(in srgb, var(--sbf-tint) 12%, transparent);
-  border-color: color-mix(in srgb, var(--sbf-tint) 26%, transparent);
+  background: color-mix(in srgb, var(--sbf-tint) 6%, transparent);
+  border-color: color-mix(in srgb, var(--sbf-tint) 20%, transparent);
 }
 
 /* The tile. */
 /* Named with .sidebar-icon and the folder so it wins over a look's own rail-button rule (body[data-sb-launcher="rail"] ... .sidebar-icon). */
 #icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon {
   color: var(--sbf-fg);
-  background: color-mix(in srgb, var(--sbf-tint) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--sbf-fg) 64%, transparent);
+  /* The same soft card the New Tab page draws for its shortcuts: a faint fill, a pale 1px edge, 8px corners. */
+  background: color-mix(in srgb, var(--sbf-tint) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sbf-fg) 20%, transparent);
+  border-radius: 8px;
   padding: 0;
 }
-#icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon:hover { background: color-mix(in srgb, var(--sbf-tint) 18%, transparent); color: var(--sbf-fg); }
-#icon-sidebar .sb-folder.open > .sb-folder-btn.sidebar-icon { background: color-mix(in srgb, var(--sbf-tint) 11%, transparent); border-color: color-mix(in srgb, var(--sbf-fg) 88%, transparent); }
+#icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon:hover { background: color-mix(in srgb, var(--sbf-tint) 13%, transparent); color: var(--sbf-fg); }
+#icon-sidebar .sb-folder.open > .sb-folder-btn.sidebar-icon { background: color-mix(in srgb, var(--sbf-tint) 11%, transparent); border-color: color-mix(in srgb, var(--sbf-fg) 34%, transparent); }
 #icon-sidebar .sb-folder-btn:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: 2px; }
 #icon-sidebar .sb-folder-btn .sbf-ico { display: grid; place-items: center; line-height: 0; }
 #icon-sidebar .sb-folder-btn .sbf-ico svg { width: 18px; height: 18px; }
@@ -56,9 +58,8 @@
   text-overflow: ellipsis; white-space: nowrap; text-align: center; color: var(--sbf-fg);
   font-size: 11px; font-weight: 500; line-height: 13px; letter-spacing: 0;
 }
-#icon-sidebar .sb-folder-label, #icon-sidebar .sb-folder-label-edit {
-  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif !important;
-}
+/* The name is set in the window's own font (the look's and the New Tab page's), not a fixed sans. */
+#icon-sidebar .sb-folder-label, #icon-sidebar .sb-folder-label-edit { font-family: inherit; }
 #icon-sidebar .sb-folder-label-edit {
   box-sizing: border-box; width: calc(100% - 2px); margin-top: 3px; padding: 0 2px; height: 17px; text-align: center; font-size: 11px; font-weight: 500;
   color: var(--b-text, var(--vex-text-primary)); background: var(--b-menu, var(--vex-bg-elevated, transparent)); border: 1px solid var(--vex-accent, currentColor); border-radius: 4px; outline: none;

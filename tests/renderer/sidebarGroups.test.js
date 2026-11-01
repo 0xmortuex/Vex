@@ -544,7 +544,8 @@ describe('the stylesheet', () => {
     expect(Number(/font-size: ([\d.]+)px/.exec(r)[1])).toBeGreaterThanOrEqual(11);
     expect(Number(/font-weight: (\d+)/.exec(r)[1])).toBeGreaterThanOrEqual(500);
     expect(r).toMatch(/text-overflow: ellipsis/);
-    expect(css).toMatch(/\.sb-folder-label \{[^}]*\}\s*#icon-sidebar \.sb-folder-label, #icon-sidebar \.sb-folder-label-edit \{\s*font-family: "Segoe UI Variable Text", "Segoe UI", system-ui[^}]*sans-serif !important/);
+    // The name is set in the window's own font (the look's and the New Tab page's), so the rail and the home page match.
+    expect(css).toMatch(/#icon-sidebar \.sb-folder-label, #icon-sidebar \.sb-folder-label-edit \{ font-family: inherit; \}/);
   });
 
   it('takes colours only from tokens (no hex of its own except the unread badge red)', () => {
