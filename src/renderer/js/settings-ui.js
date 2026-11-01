@@ -230,6 +230,7 @@ const SettingsUI = {
   reveal(el) {
     const group = el && el.closest ? el.closest('.setting-group') : null;
     if (group && group.dataset.tier === 'advanced') group.classList.add('set-revealed');
+    if (group && typeof SettingsPane !== 'undefined') SettingsPane.revealRare(group);
     if (el && typeof SettingsOrganize !== 'undefined') SettingsOrganize.open(el);
     return group;
   },

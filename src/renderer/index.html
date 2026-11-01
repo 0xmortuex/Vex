@@ -498,14 +498,19 @@
               <div class="setting-row" style="display:block;margin-bottom:10px">
                 <div class="setting-label"><strong>Lock Vex</strong>
                   <span class="setting-hint">A PIN screen over the whole window, pages hidden underneath — Ctrl+Alt+L, Ctrl+K › Lock Vex, or when the computer has been idle. A privacy screen, not encryption: your profile on disk is not locked.</span></div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
-                  <input id="lock-pin-new" type="password" inputmode="numeric" maxlength="12" placeholder="New PIN (4–12 digits)" aria-label="New PIN">
-                  <input id="lock-pin-again" type="password" inputmode="numeric" maxlength="12" placeholder="Again" aria-label="New PIN again">
-                  <button id="lock-pin-save" type="button" class="btn-secondary">Save PIN</button>
-                  <button id="lock-pin-clear" type="button" class="btn-secondary">Remove PIN</button>
+                <div class="set-lock-pin">
+                  <label class="set-lock-field" for="lock-pin-new"><span>New PIN</span><input id="lock-pin-new" type="password" inputmode="numeric" maxlength="12" placeholder="New PIN (4–12 digits)" aria-label="New PIN"></label>
+                  <label class="set-lock-field" for="lock-pin-again"><span>New PIN again</span><input id="lock-pin-again" type="password" inputmode="numeric" maxlength="12" placeholder="Again" aria-label="New PIN again"></label>
+                  <div class="set-lock-actions">
+                    <button id="lock-pin-save" type="button" class="btn-secondary">Save PIN</button>
+                    <button id="lock-pin-clear" type="button" class="btn-secondary">Remove PIN</button>
+                  </div>
+                </div>
+                <div id="lock-pin-state" class="setting-hint"></div>
+                <div class="set-lock-idle">
+                  <label for="lock-idle">Lock when idle</label>
                   <select id="lock-idle" aria-label="Lock when idle"><option value="0">Never lock when idle</option><option value="5">Lock after 5 idle minutes</option><option value="15">After 15 minutes</option><option value="30">After 30 minutes</option><option value="60">After an hour</option></select>
                 </div>
-                <div id="lock-pin-state" class="setting-hint" style="margin-top:4px"></div>
               </div>
               <div class="setting-toggle-row">
                 <span>Skip sponsor segments on YouTube <span style="color:var(--text-muted);font-size:11px">· SponsorBlock: the id of each YouTube video you open is sent to sponsor.ajay.app</span></span>
