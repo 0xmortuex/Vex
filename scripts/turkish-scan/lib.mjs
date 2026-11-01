@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 import { targets, Session, sleep } from './cdp.mjs';
 import { looksEnglish } from './english.mjs';
 
-export const TL = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));   // this folder
+export const TL = path.dirname(decodeURIComponent(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'));   // this folder
 export const OUT = process.env.TURKISH_SCAN_OUT || path.join(os.tmpdir(), 'vex-turkish-scan');   // run.json, results, screenshots
 fs.mkdirSync(OUT, { recursive: true });
 export const WT = path.resolve(TL, '..', '..');   // the repo this was started from

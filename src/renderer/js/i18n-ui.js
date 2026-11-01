@@ -12646,6 +12646,23 @@ const VexI18nUI = {
       'Copied.': 'Kopyalandı.',
       'Paste it where you were asked for it.': 'Sizden istendiği yere yapıştırın.',
       'Paste it into the game yourself.': 'Oyuna kendiniz yapıştırın.',
+      'Pin {1} to the toolbar': '{1} uzantısını araç çubuğuna sabitle',
+      'Unpin {1} from the toolbar': '{1} uzantısının araç çubuğundaki sabitlemesini kaldır',
+      '{1} extension{2}. Switching one off keeps it installed; you can switch it back on here.': '{1} uzantı. Birini kapatmak onu kurulu tutar; buradan yeniden açabilirsiniz.',
+      '{1} extension{2} · {3} not used in {4} days. Switching one off keeps it installed; you can switch it back on here.': '{1} uzantı · {3} tanesi {4} gündür kullanılmıyor. Birini kapatmak onu kurulu tutar; buradan yeniden açabilirsiniz.',
+      'Reload page without userscripts': 'Sayfayı kullanıcı betikleri olmadan yeniden yükle',
+      'Open Dashboard': 'Panoyu aç',
+      'Create a new script': 'Yeni betik oluştur',
+      'Update all scripts': 'Tüm betikleri güncelle',
+      'Update current tab\'s scripts': 'Geçerli sekmenin betiklerini güncelle',
+      'Toggle userscript injection': 'Kullanıcı betiği eklemeyi aç/kapat',
+      'Enter element picker mode': 'Öğe seçici kipine gir',
+      'Enter element zapper mode': 'Öğe yok edici kipine gir',
+      'Open the logger': 'Günlüğü aç',
+      'Open the dashboard': 'Panoyu aç',
+      'Relax blocking mode': 'Engelleme kipini gevşet',
+      'Toggle current site': 'Geçerli siteyi aç/kapat',
+      'Theme generation mode': 'Tema oluşturma kipi',
       // --- end extensions screens ---
     },
   },
@@ -12763,7 +12780,7 @@ const VexI18nUI = {
       if (!m) continue;
       // A changing part has to look like one: empty, a single word, or starting with a capital, a digit or a quote, or be a known phrase.
       // Otherwise "Copied the selection to the clipboard" would half-translate through "Copied {1}", the rest left in English.
-      if (m.slice(1).some((piece, i) => piece && !t.bounded[i] && /\s/.test(piece) && !/^["“'‘+\-−]?[A-Z0-9]/.test(piece) && !/^[^\s,]+(?:, [^\s,]+)*(?: and \d+ more)?$/.test(piece) && this.lookup(piece, lang) == null)) continue;
+      if (m.slice(1).some((piece, i) => piece && !t.bounded[i] && /\s/.test(piece) && !/^["“'‘+\-−]?(?:[A-Z0-9]|[a-z]+[A-Z])/.test(piece) && !/^[^\s,]+(?:, [^\s,]+)*(?: and \d+ more)?$/.test(piece) && this.lookup(piece, lang) == null)) continue;
       // A template that opens with a hole is for a count or a name ("3 tabs opened"); "Reload all tabs" is not "Reload all" + "tabs".
       // "{1} tab{3}" is a count with its plural ending ("3 tabs"): "Previous tab" is not "Previous" + "tab".
       if (t.countFirst && m[1] && !/\d/.test(m[1])) continue;

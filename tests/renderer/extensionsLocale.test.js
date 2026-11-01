@@ -102,6 +102,8 @@ describe('Turkish for the extension screens', () => {
 // Texts these files put together at run time, as the screen then holds them (the static scan sees only the pieces).
 describe('Turkish for the texts the extension screens build at run time', () => {
   const BUILT = [
+    'Pin uBlock Origin to the toolbar', 'Unpin Stylus from the toolbar', 'Open the logger', 'Reload page without userscripts',
+    '4 extensions. Switching one off keeps it installed; you can switch it back on here.',
     'What will not work in Vex (6)', 'What it is allowed to do (2)', 'Runs in: browsing tabs (a generic extension: one copy per panel otherwise)',
     'Runs in: browsing tabs + Discord, Claude', 'Can read and change pages on a.com, b.com and 3 more', 'Can read and change pages on a.com',
     'Sites it names: a.com, b.com', 'Sites: *://*.x.com/*, <all_urls>', 'Sites: a.com, b.com and 4 more', 'Request rules: 3 active.',
