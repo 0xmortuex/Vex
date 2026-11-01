@@ -3228,7 +3228,10 @@ function wireAdblockerOnSession(ses, tag) {
       }
       if (overridden) { callback({ redirectURL: overridden.redirectURL }); return; }
       // Then the rules of the extensions in this session (declarativeNetRequest).
-      callback(_dnrRequest(ses, details) || _httpsAnswer(details));
+      const answer = _dnrRequest(ses, details) || _httpsAnswer(details);
+      // An extension that listens to webRequest.onBeforeRequest is told of a request that goes ahead (observing only).
+      if (!(answer && answer.cancel)) _extRequestSeen(ses, 'onBeforeRequest', details);
+      callback(answer);
     }
   });
 }
@@ -3308,6 +3311,12 @@ function wireClientHintsOnSession(ses) {
     if (_siteUaOverridden.size && details.resourceType === 'mainFrame' && _siteUaOverridden.has(details.webContentsId)
       && !(_hasUaRules && SiteRules.userAgentFor(_siteRules, details.url, MOBILE_UA))) _siteUaOverridden.delete(details.webContentsId);
     _requestRecorder.recordHeaders(details, h); // only a page the person armed; secrets are removed as it is recorded
+    // webRequest.onBeforeSendHeaders / onSendHeaders: told the headers as they are sent, after every change above (observing only).
+    if (_extEvents.anyone('webRequest.onBeforeSendHeaders') || _extEvents.anyone('webRequest.onSendHeaders')) {
+      const sent = Object.assign({}, details, { requestHeaders: h });
+      _extRequestSeen(ses, 'onBeforeSendHeaders', sent);
+      _extRequestSeen(ses, 'onSendHeaders', sent);
+    }
     callback({ requestHeaders: h });
   });
 }
@@ -3473,7 +3482,15 @@ function wireMediaSnifferOnSession(ses) {
   });
   // Requests that never got an answer (the other half of a bug report). No other
   // code registers onErrorOccurred, so this does not replace anything.
-  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => { _devRequestLog.record(details); _requestRecorder.recordDone(details); });
+  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => { _devRequestLog.record(details); _requestRecorder.recordDone(details); _extRequestSeen(ses, 'onErrorOccurred', details); });
+  // The other webRequest events an extension can listen to. Electron gives one listener per event per session and the ones for the
+  // request, its headers and the reply are Vex's own, so these are the free ones. webRequest.onHeadersReceived is told when the
+  // response starts, with the headers as the page gets them (observing only).
+  ses.webRequest.onResponseStarted({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => {
+    _extRequestSeen(ses, 'onHeadersReceived', details);
+    _extRequestSeen(ses, 'onResponseStarted', details);
+  });
+  ses.webRequest.onBeforeRedirect({ urls: ['http://*/*', 'https://*/*'] }, (details) => { _extRequestSeen(ses, 'onBeforeRedirect', details); });
 }
 
 // Keep a page as a PDF, or as one file that opens offline (src/main/page-save.js).
@@ -6112,12 +6129,18 @@ ipcMain.on('tabs:activated', (event, pageId) => {
 });
 // webRequest.onCompleted, from the one onCompleted each session has
 // (wireMediaSnifferOnSession).
-function _extRequestCompleted(ses, details) {
-  _extEmit(ses, 'webRequest.onCompleted', (ext, l) => {
+function _extRequestCompleted(ses, details) { _extRequestSeen(ses, 'onCompleted', details); }
+// Any webRequest event an extension may listen to. Only an extension with the "webRequest" permission and a host permission for the address
+// hears it, through its own filter, and only the headers it asked for. What the listener answers is ignored: this never blocks or changes
+// a request (blocking webRequest is not built; Vex's blocker and the declarativeNetRequest rules decide).
+function _extRequestSeen(ses, event, details) {
+  const base = 'webRequest.' + event;
+  if (!_extEvents.anyone(base)) return;
+  _extEmit(ses, base, (ext, l) => {
     const perms = (ext.manifest && ext.manifest.permissions) || [];
     if (!perms.includes('webRequest') || !_extHostAllowed(ext, details.url)) return null;
     if (!_extEventsMod.filterTakes(l.filter, details, _extMenuModel.matchPattern)) return null;
-    return [_extEventsMod.requestDetails(details)];
+    return [_extEventsMod.requestDetails(details, l.spec)];
   });
 }
 
@@ -6402,7 +6425,7 @@ async function _extApi(senderUrl, ses, request) {
       if (/^notifications\./.test(type)) needPerm('notifications');
       if (/^webNavigation\./.test(type)) needPerm('webNavigation');
       if (/^cookies\./.test(type)) needPerm('cookies');
-      _extEvents.listen(`${partition}|${extId}`, type, args.filter);
+      _extEvents.listen(`${partition}|${extId}`, type, args.filter, args.spec);
       return undefined;
     }
     case 'webNavigation.getFrame': case 'webNavigation.getAllFrames': {

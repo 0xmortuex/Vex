@@ -311,7 +311,7 @@ function cautions(manifest) {
     out.push('Its request rules (declarativeNetRequest) are applied by Vex, after its own ad blocker and site switches (those win). Rules that need a regular expression are checked for safety, and rule counts are capped as in Chrome. They do not apply in private, off-the-record or Tor tabs, where no extension runs.');
   }
   if (has('webRequestBlocking')) out.push('It cannot block or redirect requests here (blocking webRequest). Vex\'s own blocker does that.');
-  else if (has('webRequest')) out.push('It is told only about finished requests (webRequest.onCompleted), not about requests as they start or their headers.');
+  else if (has('webRequest')) out.push('It is told about requests (before they go, the headers sent and received, redirects, errors and finished ones) in normal tabs, but it can only watch: it cannot block or change one.');
   if (m.commands && typeof m.commands === 'object' && Object.values(m.commands).some(c => c && c.global === true)) out.push('Its shortcuts work only while Vex is in front, not from other programs (global commands).');
   if (has('cookies')) out.push('It sees the cookies of this profile\'s normal tabs only (one cookie store): never those of private, off-the-record, burner or Tor tabs.');
   if (has('webNavigation')) out.push('It is told when web pages navigate in normal tabs (webNavigation), not in private, burner or Tor tabs, not for Vex\'s own pages, and never about new-window targets or replaced tabs.');

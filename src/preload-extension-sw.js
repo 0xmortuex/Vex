@@ -318,9 +318,9 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   // (src/main/extension-events.js); a webRequest listener's filter goes with
   // it, as its own numbered event.
   var listenerSeq = 0;
-  function tellMain(type, filter) {
+  function tellMain(type, filter, spec) {
     if (!api) return;
-    api('events.listen', { type: type, filter: filter }).catch(function (err) { console.error('[Vex] ' + type + ' will not be heard: ' + err.message); });
+    api('events.listen', spec ? { type: type, filter: filter, spec: spec } : { type: type, filter: filter }).catch(function (err) { console.error('[Vex] ' + type + ' will not be heard: ' + err.message); });
   }
   function mainHubEvent(type) {
     var h = hubEvent(type);
@@ -331,12 +331,12 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   function requestEvent(type) {
     var mine = [];
     return {
-      addListener: function (fn, filter) {
+      addListener: function (fn, filter, spec) {
         if (typeof fn !== 'function') return;
         var sub = type + '#' + (++listenerSeq);
         mine.push([fn, sub]);
         hubEvent(sub).addListener(fn);
-        tellMain(sub, filter || {});
+        tellMain(sub, filter || {}, Array.isArray(spec) ? spec : undefined);
       },
       removeListener: function (fn) {
         mine = mine.filter(function (p) { if (p[0] !== fn) return true; hubEvent(p[1]).removeListener(fn); return false; });
@@ -350,7 +350,11 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       onCreated: mainHubEvent('tabs.onCreated'), onRemoved: mainHubEvent('tabs.onRemoved') }, 'tabs');
   }
   if (api && c.webRequest && perms.indexOf('webRequest') !== -1) {
-    takeOver(c.webRequest, { onCompleted: requestEvent('webRequest.onCompleted') }, 'webRequest');
+    // Observing only: a listener is told, and what it answers (even with 'blocking') changes nothing.
+    var seen = {};
+    ['onBeforeRequest', 'onBeforeSendHeaders', 'onSendHeaders', 'onHeadersReceived', 'onResponseStarted', 'onBeforeRedirect', 'onCompleted', 'onErrorOccurred']
+      .forEach(function (name) { seen[name] = requestEvent('webRequest.' + name); });
+    takeOver(c.webRequest, seen, 'webRequest');
   }
 
   // chrome.windows, chrome.notifications and chrome.downloads: Electron has
