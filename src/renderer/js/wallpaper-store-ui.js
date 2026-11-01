@@ -81,7 +81,7 @@
       // actions: [[label, onClick], ...] shown as buttons after the sentence
       const say = (text, actions) => {
         status.textContent = text || '';
-        for (const [label, fn] of actions || []) status.append(doc.createTextNode(' '), button(label, () => { Promise.resolve().then(fn).catch(fail); }, { cls: 'btn-primary' }));
+        for (const [label, fn, cls] of actions || []) status.append(doc.createTextNode(' '), button(label, () => { Promise.resolve().then(fn).catch(fail); }, { cls: cls || 'btn-primary' }));
       };
       const items = () => V.search({ query: ui.q, category: ui.cat });
 
@@ -238,7 +238,9 @@
         const title = el('h3', 'vws-title', d.title);
         const by = el('div', 'vws-by');
         by.textContent = d.source === 'generated' ? L('Drawn by Vex. Free to use, nothing is downloaded.') : d.source === 'mine' ? L('Your own picture, kept on this computer.') : (L('Photo by') + ' ' + d.author + ' · ' + d.licence);
-        panel.append(box, read, title, by);
+        panel.append(box, read);
+        matchSection(panel, d.id, { compact: true });
+        panel.append(title, by);
         if (d.sourceUrl) {
           panel.append(button(L('Open the source page'), () => {
             if (typeof root.TabManager === 'undefined') { fail(new Error('Tabs are not available')); return; }
@@ -281,7 +283,6 @@
         if (V.current()) more.append(button(L('Remove wallpaper'), () => V.remove().then(() => { say(L('The wallpaper is off. Your New Tab uses the theme again.')); renderGrid(); }).catch(fail), { cls: 'btn-danger', iconName: 'x' }));
         if (d.source === 'mine') more.append(button(L('Delete this picture'), () => del(d), { cls: 'btn-danger', iconName: 'trash' }));
         panel.append(more);
-        matchSection(panel, d.id);
 
         // The picture behind the sample, drawn from the same source the New Tab gets.
         try {
@@ -340,10 +341,23 @@
           if (ui.draft.auto) {
             acts.push([L('Show more of it'), async () => { ui.draft.auto = false; ui.draft.dim = Math.max(ui.draft.dim, 0.4); await V.apply(d.id, ui.draft); renderGrid(); await report(d); }]);
           }
-          say(L('Applied: ') + d.title + '. ' + L('But only') + ' ' + Math.round(sh.shows * 100) + '% ' + L('of the picture shows: to keep the text on your New Tab readable over it, Vex has to shade it heavily. Showing more can make some text harder to read.'), acts);
+          say(L('Applied: ') + d.title + '. ' + L('But only') + ' ' + Math.round(sh.shows * 100) + '% ' + L('of the picture shows: to keep the text on your New Tab readable over it, Vex has to shade it heavily. Showing more can make some text harder to read.'), acts.concat(matchOffer(d)));
           return;
         }
-        say(L('Applied: ') + d.title + '. ' + (sh && sh.textOk === false ? L('Some text on your New Tab may be hard to read over it.') : L('Open a New Tab to see it.')));
+        say(L('Applied: ') + d.title + '. ' + (sh && sh.textOk === false ? L('Some text on your New Tab may be hard to read over it.') : L('Open a New Tab to see it.')), matchOffer(d));
+      }
+      // "Match Vex to it" / "Not now" after Apply: only when this wallpaper is not matched everywhere yet.
+      function matchOffer(d) {
+        const SY = root.VexWallpaperSync;
+        if (!SY || SY.areasFor(d.id).length === SY.AREA_IDS.length) return [];
+        return [
+          [L('Match Vex to it'), async () => {
+            await SY.setAreas(d.id, SY.AREA_IDS);
+            say(L('Vex now matches') + ' ' + d.title + '. ' + L('Undo is in the preview.'));
+            renderPanel();
+          }],
+          [L('Not now'), () => { const t = status.firstChild ? status.firstChild.textContent : ''; say(t); }, 'btn-secondary'],
+        ];
       }
       // A slider let go of on the wallpaper that is on: the New Tab follows at once.
       function liveApply() {
@@ -403,14 +417,19 @@
     },
   };
 
-  // "Match Vex to this wallpaper" (js/wallpaper-sync.js): one switch per part of the window, each
-  // working at once, and a button that turns them all on. Only ever on a click.
-  function matchSection(into, id) {
+  // "Match Vex to this wallpaper" (js/wallpaper-sync.js): one big button that matches every part of
+  // Vex, and one switch per part, each working at once. Only ever on a click.
+  //   opts.compact  the store: the big button, a "Choose the parts" button that opens the switches, Undo
+  //   otherwise     Settings: title, note, the big button, Undo and the switches, all in view
+  function matchSection(into, id, opts = {}) {
     const SY = root.VexWallpaperSync;
     if (!SY) return;
-    const sec = el('div', 'vws-match');
-    sec.append(el('h4', 'vws-match-title', L('Match Vex to this wallpaper')));
-    sec.append(el('p', 'vws-match-note', L('Turn on the parts of Vex that should wear this wallpaper\'s colours. The rest keeps your theme.')));
+    const compact = !!opts.compact;
+    const sec = el('div', 'vws-match' + (compact ? ' vws-match-compact' : ''));
+    if (!compact) {
+      sec.append(el('h4', 'vws-match-title', L('Match Vex to this wallpaper')));
+      sec.append(el('p', 'vws-match-note', L('Turn on the parts of Vex that should wear this wallpaper\'s colours. The rest keeps your theme.')));
+    }
     let on = [];
     try { on = SY.areasFor(id); } catch (err) { fail(err); }
     const boxes = new Map();
@@ -424,6 +443,7 @@
       busy = busy.then(() => SY.setAreas(id, picked)).then(refresh).then(() => { if (done) toast(done, 'success'); }).catch(fail);
     };
     const list = el('div', 'vws-match-list');
+    list.id = 'vws-match-list-' + (compact ? 'store' : 'settings');
     for (const a of SY.AREAS) {
       const row = el('label', 'vws-match-row');
       const box = doc.createElement('input');
@@ -436,15 +456,31 @@
       row.append(box, text);
       list.append(row);
     }
-    sec.append(list);
-    const actions = el('div', 'vws-actions');
-    actions.append(button(L('Match everything'), () => {
+    // The big button: every part at once.
+    const all = button(L('Match Vex to this wallpaper'), () => {
       for (const b of boxes.values()) b.checked = true;
       send(L('Vex now matches this wallpaper. Undo puts your old theme back.'));
-    }, { cls: 'btn-primary', iconName: 'palette' }), undoBtn);
-    sec.append(actions);
+    }, { cls: 'btn-primary vws-match-all', iconName: 'palette' });
+    const actions = el('div', 'vws-actions');
+    if (compact) {
+      const partial = on.length > 0 && on.length < SY.AREA_IDS.length;
+      const parts = button(L('Choose the parts'), () => {
+        const open = parts.getAttribute('aria-expanded') !== 'true';
+        parts.setAttribute('aria-expanded', String(open));
+        list.hidden = !open;
+      }, { iconName: 'sliders' });
+      parts.setAttribute('aria-expanded', String(partial));
+      parts.setAttribute('aria-controls', list.id);
+      list.hidden = !partial;
+      actions.append(parts, undoBtn);
+      sec.append(all, actions, list);
+    } else {
+      actions.append(all, undoBtn);
+      sec.append(actions, list);
+    }
     refresh();
     into.append(sec);
+    return sec;
   }
 
   // --- Settings > Appearance > Wallpapers ------------------------------------------------------
@@ -459,6 +495,7 @@
       const unsub = V.onChange(() => { if (!body.isConnected) { unsub(); delete body.dataset.vwsLive; return; } again(); });
     }
     const c = V.current();
+    body.append(G.note(c ? L('Want Vex itself to look like this wallpaper? "Match Vex to this wallpaper" below paints the tabs, the toolbar and search bar, the side bar and more in its colours, in one click. You can also pick the parts.') : L('Choose a wallpaper in the store, then match Vex to it: the tabs, toolbar, side bar and more take its colours, in one click.')));
     body.append(G.note(L('Pictures for your New Tab page: 74 drawn by Vex, free photos from a list you can point Vex at, and your own pictures. Nothing is downloaded until you open the store with a list address set.')));
     body.append(G.field(L('Now'), el('span', 'vws-now', c ? c.title : L('No wallpaper'))));
     const row = el('div', 'vws-set-actions');

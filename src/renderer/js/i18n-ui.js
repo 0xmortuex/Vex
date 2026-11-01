@@ -12295,6 +12295,14 @@ const VexI18nUI = {
       'Violet hour': 'Mor saat',
       'Your 2026 in Vex': 'Vex’te 2026 yılınız',
       // --- end turkish sweep ---
+      // --- wallpaper match (agent) ---
+      'Choose the parts': 'Parçaları seçin',
+      'Match Vex to it': 'Vex\'i buna eşleştir',
+      'Vex now matches': 'Vex şimdi şununla eşleşiyor:',
+      'Undo is in the preview.': 'Geri al düğmesi önizlemede.',
+      'Want Vex itself to look like this wallpaper? "Match Vex to this wallpaper" below paints the tabs, the toolbar and search bar, the side bar and more in its colours, in one click. You can also pick the parts.': 'Vex\'in kendisi de bu duvar kağıdına benzesin mi? Aşağıdaki "Vex\'i bu duvar kağıdıyla eşleştir" düğmesi sekmeleri, araç çubuğunu ve arama çubuğunu, kenar çubuğunu ve daha fazlasını tek tıkla onun renklerine boyar. İsterseniz yalnızca bazı parçaları da seçebilirsiniz.',
+      'Choose a wallpaper in the store, then match Vex to it: the tabs, toolbar, side bar and more take its colours, in one click.': 'Mağazadan bir duvar kağıdı seçin, sonra Vex\'i ona eşleştirin: sekmeler, araç çubuğu, kenar çubuğu ve daha fazlası tek tıkla onun renklerini alır.',
+      // --- end wallpaper match ---
     },
   },
 

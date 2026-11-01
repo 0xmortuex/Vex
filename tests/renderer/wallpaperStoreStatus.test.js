@@ -12,6 +12,7 @@ const D = { id: 'aurora-polar', title: 'Polar veil', category: 'aurora', source:
 
 beforeEach(async () => {
   document.body.innerHTML = '';
+  delete window.VexWallpaperSync;
   state = { current: null, enabled: true, shade: { alpha: 0, shows: 1, textOk: true } };
   const listeners = new Set();
   V = {
@@ -103,7 +104,126 @@ describe('the store after Apply', () => {
   });
 });
 
+// "Match Vex to this wallpaper" (js/wallpaper-sync.js), stubbed: what the store shows and when it asks.
+function stubSync(on = []) {
+  const IDS = ['newtab', 'tabs', 'toolbar', 'sidebar', 'accent', 'rest'];
+  const sync = {
+    AREAS: IDS.map(id => ({ id, label: 'Area ' + id, hint: 'Hint ' + id })), AREA_IDS: IDS,
+    on: [...on],
+    areasFor: vi.fn(() => sync.on),
+    canUndo: () => sync.on.length > 0,
+    setAreas: vi.fn(async (id, areas) => { sync.on = [...areas]; return null; }),
+    undo: vi.fn(async () => { sync.on = []; return true; }),
+  };
+  window.VexWallpaperSync = sync;
+  return sync;
+}
+
+describe('Match Vex to this wallpaper: easy to find, and never by itself', () => {
+  it('sits right under the picture and its readability line, with the big button in view', async () => {
+    stubSync();
+    UI.open();
+    await flush();
+    document.querySelector('.vws-card-item').click();
+    await flush();
+    const kids = [...document.querySelector('.vws-panel').children].map(n => n.className.split(' ')[0]);
+    expect(kids.slice(0, 3)).toEqual(['vws-preview', 'vws-read', 'vws-match']);
+    expect(kids.indexOf('vws-match')).toBeLessThan(kids.indexOf('vws-actions'));
+    const big = document.querySelector('.vws-match-all');
+    expect(big.textContent.trim()).toBe('Match Vex to this wallpaper');
+    expect(big.classList.contains('btn-primary')).toBe(true);
+  });
+  it('the six switches are tucked behind "Choose the parts" until some are on', async () => {
+    stubSync();
+    UI.open();
+    await flush();
+    document.querySelector('.vws-card-item').click();
+    await flush();
+    const list = document.querySelector('.vws-match-list');
+    const parts = document.querySelector('.vws-match-compact [aria-controls]');
+    expect(list.hidden).toBe(true);
+    expect(parts.getAttribute('aria-expanded')).toBe('false');
+    parts.click();
+    expect(list.hidden).toBe(false);
+    expect(parts.getAttribute('aria-expanded')).toBe('true');
+    expect(list.querySelectorAll('input[type=checkbox]').length).toBe(6);
+  });
+  it('a wallpaper that is partly matched opens its switches', async () => {
+    stubSync(['tabs']);
+    UI.open();
+    await flush();
+    document.querySelector('.vws-card-item').click();
+    await flush();
+    expect(document.querySelector('.vws-match-list').hidden).toBe(false);
+    expect(document.querySelectorAll('.vws-match-list input:checked').length).toBe(1);
+  });
+  it('the big button matches every part, on a click only', async () => {
+    const sync = stubSync();
+    UI.open();
+    await flush();
+    document.querySelector('.vws-card-item').click();
+    await flush();
+    expect(sync.setAreas).not.toHaveBeenCalled();
+    document.querySelector('.vws-match-all').click();
+    await flush();
+    expect(sync.setAreas).toHaveBeenCalledWith('aurora-polar', sync.AREA_IDS);
+  });
+  it('right after Apply the status offers "Match Vex to it" and "Not now"; nothing is matched by itself', async () => {
+    const sync = stubSync();
+    const s = await applyInStore();
+    expect(s.textContent).toMatch(/^Applied: Polar veil\./);
+    const labels = [...s.querySelectorAll('button')].map(b => b.textContent.trim());
+    expect(labels).toEqual(['Match Vex to it', 'Not now']);
+    expect(sync.setAreas).not.toHaveBeenCalled();
+    [...s.querySelectorAll('button')][0].click();
+    await flush(20);
+    expect(sync.setAreas).toHaveBeenCalledWith('aurora-polar', sync.AREA_IDS);
+    expect(document.querySelector('.vws-status').textContent).toMatch(/^Vex now matches Polar veil/);
+  });
+  it('"Not now" drops the offer and keeps the sentence', async () => {
+    const sync = stubSync();
+    const s = await applyInStore();
+    [...s.querySelectorAll('button')][1].click();
+    await flush(5);
+    const after = document.querySelector('.vws-status');
+    expect(after.querySelector('button')).toBeNull();
+    expect(after.textContent).toMatch(/^Applied: Polar veil/);
+    expect(sync.setAreas).not.toHaveBeenCalled();
+  });
+  it('no offer when the wallpaper already matches everywhere', async () => {
+    stubSync(['newtab', 'tabs', 'toolbar', 'sidebar', 'accent', 'rest']);
+    const s = await applyInStore();
+    expect(s.querySelector('button')).toBeNull();
+  });
+  it('the offer also comes with the heavy-shade question', async () => {
+    stubSync();
+    state.shade = { alpha: 0.98, shows: 0.02, textOk: true };
+    const s = await applyInStore();
+    expect([...s.querySelectorAll('button')].map(b => b.textContent.trim())).toEqual(['Show more of it', 'Match Vex to it', 'Not now']);
+  });
+});
+
 describe('Settings > Wallpapers', () => {
+  it('says about "Match Vex" at the top, and shows the big button before the switches', async () => {
+    stubSync();
+    await V.apply('aurora-polar', { dim: 0, blur: 0, auto: true });
+    const body = document.createElement('div');
+    document.body.append(body);
+    UI.renderSettings(body);
+    expect(body.firstChild.textContent).toMatch(/Match Vex to this wallpaper/);
+    const big = body.querySelector('.vws-match-all');
+    const list = body.querySelector('.vws-match-list');
+    expect(big.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(list.hidden).toBe(false);
+  });
+  it('with no wallpaper on, it points to the store', () => {
+    stubSync();
+    const body = document.createElement('div');
+    document.body.append(body);
+    UI.renderSettings(body);
+    expect(body.firstChild.textContent).toMatch(/Choose a wallpaper in the store/);
+  });
+
   it('shows the wallpaper that is on now and follows a change made later (the store applies on top of it)', async () => {
     const body = document.createElement('div');
     document.body.append(body);
