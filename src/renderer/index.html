@@ -1164,6 +1164,12 @@
                 <button id="btn-edit-layout" style="background:var(--primary,var(--accent));border:1px solid transparent;color:#111;padding:8px 14px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Edit layout</button>
               </div>
               <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Turns on customize mode: drag any toolbar button or sidebar icon to reorder it, or hit its red X to hide it. Hidden items can be restored from the bar at the bottom. Sidebar per-item resets stay in the Sidebar Buttons section.</div>
+              <div style="margin-top:14px">
+                <div style="font-size:13px;font-weight:600;margin-bottom:4px">Toolbar buttons</div>
+                <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">Four icons at most are kept on the right of the toolbar; the rest wait in the "more" menu (three dots). Tick Show in toolbar to keep a button in sight.</div>
+                <div id="toolbar-buttons-list" role="group" aria-label="Show in toolbar"></div>
+                <button id="btn-toolbar-buttons-reset" type="button" class="btn-secondary" style="margin-top:8px">Reset toolbar buttons</button>
+              </div>
             </div>
 
             <!-- Site settings: every site with anything set (js/site-profiles.js),
@@ -2319,6 +2325,7 @@
   <script src="js/automations.js"></script>
   <script src="js/pip-manager.js"></script>
   <script src="js/profiles-ui.js"></script>
+  <script src="js/toolbar-limit.js"></script>
   <script src="js/toolbar-overflow.js"></script>
   <script src="js/zoom-indicator.js"></script>
   <script src="js/fullscreen-notice.js"></script>

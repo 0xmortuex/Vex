@@ -34,7 +34,7 @@
   const NEVER = new Set(['tor-running', 'game-mode-chip', 'battery-saving', 'timer-pill', 'btn-routing', 'btn-incognito', 'btn-site-rules', 'btn-page-watch', 'btn-ai-news', 'btn-userscripts', 'window-controls', 'btn-toolbar-overflow', 'btn-all-features', 'url-zoom', 'url-site-btn']);
 
   let bar = null, more = null, menu = null;
-  let moved = [];          // elements currently in the menu, in ORDER order
+  let moved = [];          // elements currently in the menu: the folded ones (js/toolbar-limit.js), then those squeezed out
   let proxied = null;      // the element standing in under the chevron after a menu click
   let scheduled = false;
 
@@ -74,6 +74,12 @@
     return true;
   }
 
+  // The buttons the four-icon limit folds away (js/toolbar-limit.js): always in the menu, whatever the width.
+  function folded() {
+    if (typeof ToolbarLimit === 'undefined') return [];
+    return ToolbarLimit.foldedIds().map(id => document.getElementById(id)).filter(el => el && bar.contains(el) && visible(el));
+  }
+
   function clearProxy() {
     if (!proxied) return;
     proxied.classList.remove('tb-overflow-proxy');
@@ -89,10 +95,11 @@
     for (const el of moved) el.classList.remove('tb-overflowed');
     moved = [];
     bar.classList.remove('tb-compact', 'tb-tight');
-    more.hidden = true;
-    if (fits()) { closeMenu(); return; }
+    for (const el of folded()) { el.classList.add('tb-overflowed'); moved.push(el); }
+    more.hidden = !moved.length;
+    if (fits()) { if (menu) renderMenu(); return; }
     bar.classList.add('tb-compact');
-    if (fits()) { closeMenu(); return; }
+    if (fits()) { if (menu) renderMenu(); return; }
     more.hidden = false;
     for (const el of candidates()) {
       el.classList.add('tb-overflowed');
@@ -133,7 +140,24 @@
       row.addEventListener('click', () => invoke(el));
       menu.appendChild(row);
     }
-    if (!moved.length) closeMenu();
+    if (!moved.length) { closeMenu(); return; }
+    // The way to put a button back in the toolbar.
+    const cust = document.createElement('button');
+    cust.type = 'button';
+    cust.className = 'tb-overflow-item tb-overflow-customize';
+    cust.setAttribute('role', 'menuitem');
+    const cico = document.createElement('span');
+    cico.className = 'tb-overflow-ico';
+    cico.innerHTML = VexIcons.svg('sliders', { size: 16 });
+    const clabel = document.createElement('span');
+    clabel.className = 'tb-overflow-label';
+    clabel.textContent = 'Customize toolbar…';
+    cust.append(cico, clabel);
+    cust.addEventListener('click', () => {
+      closeMenu();
+      if (typeof SettingsUI !== 'undefined') SettingsUI.openSection('setcat-layout');
+    });
+    menu.appendChild(cust);
   }
 
   // The real button runs, standing in (invisibly) where the chevron is, so a
@@ -219,7 +243,7 @@
     more.setAttribute('aria-haspopup', 'menu');
     more.setAttribute('aria-expanded', 'false');
     more.hidden = true;
-    more.innerHTML = VexIcons.svg('chevron-down', { size: 16 });
+    more.innerHTML = VexIcons.svg('more', { size: 16 });
     more.addEventListener('click', (e) => { e.stopPropagation(); openMenu(); });
     right.appendChild(more);
 
@@ -231,6 +255,8 @@
     const input = document.getElementById('url-input');
     if (input) ro.observe(input);
     window.addEventListener('resize', schedule);
+    // A button shown in the toolbar or folded away in Settings > Layout.
+    window.addEventListener('vex:toolbar-shown', schedule);
     // A button shown or hidden, added by another module, or moved by the
     // layout editor; a look or UI size switched.
     new MutationObserver((records) => {
