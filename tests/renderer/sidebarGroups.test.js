@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// Sidebar groups (js/sidebar-groups.js): the model (built-in five, make, rename, move, delete, order, unknown panels, a panel in two
+// Sidebar groups (js/sidebar-groups.js): the model (built-in eight, make, rename, move, delete, order, unknown panels, a panel in two
 // groups is an error), the rail (one folder button per group with its name under it, open and closed, the dot, the summed badge, the
 // names read out), persistence, reset, and the switch off leaving the rail as it was.
 // What it looks like (the narrow rail, the contrast, the docked looks) is checked in the real window, not here.
@@ -71,7 +71,21 @@ describe('which panel goes in which group', () => {
     expect(g('browsing')).toEqual(['history', 'bookmarks', 'downloads', 'feeds', 'queue']);
     expect(g('security')).toEqual(['authenticator', 'privacy']);
     expect(g('tools')).toEqual(['clock', 'devtools-dash', 'shortcuts']);
-    expect(g('apps')).toEqual(['discord', 'whatsapp', 'spotify', 'netflix', 'claude', 'github', 'roblox']);
+    expect(g('chat')).toEqual(['discord', 'whatsapp']);
+    expect(g('media')).toEqual(['spotify', 'netflix', 'roblox']);
+    expect(g('aicode')).toEqual(['claude', 'github']);
+    expect(g('apps')).toEqual([]);
+  });
+
+  it('splits the old Apps group into Chat, Media and games and AI and code, and keeps Apps for pinned sites', () => {
+    expect(G.GROUPS.map(x => x.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'chat', 'media', 'aicode', 'apps']);
+    const home = { discord: 'chat', whatsapp: 'chat', spotify: 'media', netflix: 'media', roblox: 'media', claude: 'aicode', github: 'aicode' };
+    for (const [panel, group] of Object.entries(home)) expect(G.groupOf(panel), panel).toBe(group);
+    expect(G.GROUPS.find(x => x.id === 'apps').panels).toEqual([]);
+    expect(G.GROUPS.find(x => x.id === 'media')).toMatchObject({ label: 'Media and games', railLabel: 'Media' });
+    expect(G.GROUPS.find(x => x.id === 'aicode')).toMatchObject({ label: 'AI and code', railLabel: 'AI' });
+    expect(G.groupOf('site_pinned1')).toBe('apps');
+    expect(G.groupOf('some-future-panel')).toBe('apps');
   });
 
   it('puts every rail panel in exactly one group, and Start and Settings in none', () => {
@@ -98,9 +112,9 @@ describe('which panel goes in which group', () => {
   });
 });
 
-describe('the model: absent means the built-in five', () => {
-  it('starts with five groups in the built-in order and writes nothing', () => {
-    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'apps']);
+describe('the model: absent means the built-in eight', () => {
+  it('starts with eight groups in the built-in order and writes nothing', () => {
+    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'chat', 'media', 'aicode', 'apps']);
     expect(localStorage.getItem('vex.sidebarGroupDefs')).toBeNull();
   });
 
@@ -112,7 +126,7 @@ describe('the model: absent means the built-in five', () => {
   });
 
   it('lists the groups in model order whatever order the panels come in', () => {
-    expect(G.plan(['discord', 'privacy', 'clock', 'history', 'notes']).groups.map(x => x.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'apps']);
+    expect(G.plan(['discord', 'privacy', 'clock', 'history', 'notes']).groups.map(x => x.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'chat']);
   });
 });
 
@@ -138,7 +152,7 @@ describe('making, renaming and deleting groups', () => {
     expect(() => G.createGroup({ name: 'x'.repeat(G.NAME_MAX + 1) })).toThrow(/at most/);
     expect(() => G.createGroup({ name: 'X', desc: 'x'.repeat(G.DESC_MAX + 1) })).toThrow(/at most/);
     expect(() => G.createGroup({ name: 'X', icon: 'not-an-icon' })).toThrow(/icon/);
-    expect(G.model()).toHaveLength(5);
+    expect(G.model()).toHaveLength(8);
   });
 
   it('renames a built-in group and edits its description, and an empty value puts the built-in words back', () => {
@@ -217,7 +231,7 @@ describe('moving buttons and groups', () => {
 
   it('reorders the groups, up and down and to a place', () => {
     G.nudgeGroup('apps', -1);
-    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'apps', 'tools']);
+    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'chat', 'media', 'apps', 'aicode']);
     G.reorderGroup('tools', 'knowledge');
     expect(G.model().map(g => g.id)[0]).toBe('tools');
     G.reorderGroup('tools', null);
@@ -241,7 +255,7 @@ describe('moving buttons and groups', () => {
     G.arrange();
     expect(inFolder('knowledge').slice(0, 4)).toEqual(['recall', 'memory', 'notes', 'library']);
     expect(inFolder('security')).toEqual(['privacy', 'authenticator']);
-    expect(inFolder('apps')[0]).toBe('github');
+    expect(inFolder('aicode')[0]).toBe('github');
   });
 });
 
@@ -293,7 +307,7 @@ describe('persistence, reset, and a later version', () => {
     expect(folder(id).dataset.color).toBe('success');
   });
 
-  it('resets to the built-in five and takes the made groups away, leaving the saved order and the open folders', () => {
+  it('resets to the built-in eight and takes the made groups away, leaving the saved order and the open folders', () => {
     buildRail(); G.arrange();
     localStorage.setItem('vex.sidebarOrder', '["notes"]');
     G.setOpen('tools', true);
@@ -301,7 +315,7 @@ describe('persistence, reset, and a later version', () => {
     G.movePanel('clock', id, null);
     G.resetGroups();
     expect(localStorage.getItem('vex.sidebarGroupDefs')).toBeNull();
-    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'apps']);
+    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'chat', 'media', 'aicode', 'apps']);
     expect(inFolder('tools')).toContain('clock');
     expect(localStorage.getItem('vex.sidebarOrder')).toBe('["notes"]');
     expect(G.isOpen('tools')).toBe(true);
@@ -312,7 +326,7 @@ describe('persistence, reset, and a later version', () => {
     expect(G.groupOf('library')).toBe('knowledge');
     expect(G.groupOf('notes')).toBe('knowledge');
     expect(G.groupOf('whatever')).toBe('apps');
-    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'apps']);
+    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'chat', 'media', 'aicode', 'apps']);
   });
 });
 
@@ -354,9 +368,10 @@ describe('the rail', () => {
     expect(G.arrange()).toBe(true);
     const o = order();
     expect(o[0]).toBe('start');
-    expect(o.filter(x => x.startsWith('#'))).toEqual(['#knowledge', '#browsing', '#security', '#tools', '#apps']);
+    expect(o.filter(x => x.startsWith('#'))).toEqual(['#knowledge', '#browsing', '#security', '#tools', '#chat', '#media', '#aicode', '#apps']);
     expect(o.slice(-2)).toEqual(['spacer', 'settings']);
-    expect(document.querySelectorAll('.sb-folder-btn')).toHaveLength(5);
+    expect(document.querySelectorAll('.sb-folder:not([hidden]) .sb-folder-btn')).toHaveLength(7);   // Apps holds no panel here, so its folder stays out of the rail
+    expect(folder('apps').hidden).toBe(true);
     expect(document.querySelector('#icon-sidebar').dataset.sbGrouped).toBe('1');
     for (const f of document.querySelectorAll('.sb-folder')) {
       const kids = [...f.children].map(c => c.className.split(' ')[0]);
@@ -419,11 +434,11 @@ describe('the rail', () => {
       document.querySelector(`[data-panel="${p}"]`).appendChild(b);
     }
     G.refreshState();
-    const badge = folder('apps').querySelector('.sbf-badge');
+    const badge = folder('chat').querySelector('.sbf-badge');
     expect(badge.hidden).toBe(false);
     expect(badge.textContent).toBe('7');
-    expect(folder('apps').querySelector('.sb-folder-btn').getAttribute('aria-label')).toContain('7 unread');
-    G.setOpen('apps', true);
+    expect(folder('chat').querySelector('.sb-folder-btn').getAttribute('aria-label')).toContain('7 unread');
+    G.setOpen('chat', true);
     expect(badge.hidden).toBe(true);
   });
 
@@ -483,7 +498,7 @@ describe('the picker', () => {
     G.reorderGroup(id, 'knowledge');
     const choices = ['notes', 'history', 'settings', 'privacy', 'discord', 'spotify'].map(p => ({ panel: p, label: p }));
     const plan = G.pickerPlan(choices);
-    expect(plan.groups.map(g => g.label)).toEqual(['Games', 'Knowledge', 'Browsing', 'Security and privacy', 'Apps']);
+    expect(plan.groups.map(g => g.label)).toEqual(['Games', 'Knowledge', 'Browsing', 'Security and privacy', 'Chat']);
     expect(plan.groups[0].items.map(c => c.panel)).toEqual(['spotify']);
     expect(plan.essentials.map(c => c.panel)).toEqual(['settings']);
     expect(plan.groups.flatMap(g => g.items).length + plan.essentials.length).toBe(choices.length);
