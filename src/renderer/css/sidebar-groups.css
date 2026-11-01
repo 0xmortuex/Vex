@@ -34,3 +34,9 @@
 
 /* The panel picker of the docked looks. */
 #look-sb-picker optgroup { font-weight: 600; }
+/* The popup of the picker uses the look's own menu colours (white on white headings otherwise), and the
+   select itself carries the look's color-scheme so the native popup chrome follows the look. */
+#look-sb-picker { color-scheme: inherit; }
+#look-sb-picker :is(option, optgroup) { background-color: var(--b-menu); color: var(--b-text); }
+#look-sb-picker optgroup { color: var(--b-text-dim, var(--b-text)); }
+#look-sb-picker option:checked, #look-sb-picker option:hover { background-color: var(--b-btn-hover, var(--b-menu)); color: var(--b-text); }

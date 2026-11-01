@@ -90,6 +90,7 @@ describe('Onboarding step bodies render without throwing', () => {
   it('every step key produces a body (no exceptions)', () => {
     globalThis.ThemeManager = { THEMES: [{ id: 'oxford', label: 'Oxford' }], currentTheme: 'oxford', applyTheme() {} };
     globalThis.WebLLM = undefined;   // exercises the "no WebGPU" branch
+    globalThis.VexFonts = require('../../src/renderer/js/fonts.js').VexFonts;   // the font step reads it (loaded before onboarding.js in index.html)
     globalThis.window.vex = { isDefaultBrowser: () => Promise.resolve(false), setAsDefaultBrowser: () => Promise.resolve(), vaultSave: () => Promise.resolve() };
     const keys = Onboarding.STEPS().map(s => s.key);
     for (const key of keys) {
@@ -125,7 +126,8 @@ describe('Setup style step (Full Vex / Simple / Custom)', () => {
     const keys = Onboarding.STEPS().map(s => s.key);
     expect(keys[0]).toBe('welcome');
     expect(keys[1]).toBe('import');
-    expect(keys[2]).toBe('setupstyle');
+    expect(keys[2]).toBe('sidebar');      // asked before the starting point
+    expect(keys[3]).toBe('setupstyle');
   });
 
   it('offers the import in the short wizard too, and is done once the button was pressed', () => {

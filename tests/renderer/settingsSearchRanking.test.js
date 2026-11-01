@@ -137,8 +137,10 @@ describe('the list on the left', () => {
     const { root, nav } = build(sample());
     SettingsUI._filter(root, 'update');
     expect(nav.dataset.results).toBe('1');
-    const names = Array.from(nav.querySelectorAll('.set-result-chip')).map(b => b.textContent);
-    expect(names[0]).toBe('About Vex');
+    const names = Array.from(nav.querySelectorAll('.set-result-chip')).map(b => b.querySelector('span').textContent);
+    // The setting itself comes first, then its section.
+    expect(names[0]).toBe('Check for updates');
+    expect(names).toContain('About Vex');
     expect(nav.style.display).toBe('');
     SettingsUI._filter(root, '');
     expect(nav.dataset.results).toBeUndefined();
@@ -150,9 +152,17 @@ describe('the list on the left', () => {
     expect(nav.style.display).toBe('none');
     expect(root.querySelector('.set-empty').textContent).toContain('xyzzyq');
   });
-  it('a result takes you to its section and marks it for a moment', () => {
+  it('a result takes you to its setting and marks it for a moment', () => {
     const { root, nav } = build(sample());
     SettingsUI._filter(root, 'update');
+    nav.querySelector('.set-result-chip').click();
+    const row = Array.from(root.querySelectorAll('.setting-toggle-row')).find(r => r.textContent.includes('Check for updates'));
+    expect(row.dataset.scrolled).toBe('1');
+    expect(row.classList.contains('set-item-hit')).toBe(true);
+  });
+  it('a section result takes you to the section and marks it', () => {
+    const { root, nav } = build(sample());
+    SettingsUI._filter(root, 'about vex');
     nav.querySelector('.set-result-chip').click();
     const about = Array.from(root.querySelectorAll('.setting-group')).find(g => g.querySelector('.setting-label').textContent === 'About Vex');
     expect(about.dataset.scrolled).toBe('1');

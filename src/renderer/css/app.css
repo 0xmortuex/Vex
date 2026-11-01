@@ -314,6 +314,8 @@ body:not([data-gui-family="browser"]) #top-bar.tb-compact #url-bar-wrapper { pad
   visibility: hidden !important;
   pointer-events: none !important;
 }
+/* The Settings gear forces itself on while the sidebar is off; folded into the menu it must still hide. */
+body[data-sidebar="off"] #top-bar #btn-settings-top.tb-overflowed:not(.tb-overflow-proxy) { display: none !important; }
 #btn-toolbar-overflow { flex: 0 0 auto; }
 #btn-toolbar-overflow[aria-expanded="true"] { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); color: var(--vex-text-primary); }
 .tb-overflow-menu {

@@ -31,12 +31,12 @@ beforeEach(() => {
 });
 
 describe('the step list', () => {
-  it('has the sidebar question right before the look, in BOTH versions', () => {
+  it('has the sidebar question right before the starting point (and so before the look), in BOTH versions', () => {
     const all = Onboarding.STEPS().map(s => s.key);
     expect(all.indexOf('sidebar')).toBeGreaterThan(-1);
-    expect(all.indexOf('sidebar')).toBe(all.indexOf('look') - 1);
+    expect(all.indexOf('sidebar')).toBe(all.indexOf('setupstyle') - 1);
     const quick = Onboarding.STEPS().filter(s => s.quick).map(s => s.key);
-    expect(quick.indexOf('sidebar')).toBe(quick.indexOf('look') - 1);
+    expect(quick.indexOf('sidebar')).toBe(quick.indexOf('setupstyle') - 1);
     Onboarding._pace = 'quick';
     expect(Onboarding._stepsForPace().map(s => s.key)).toContain('sidebar');
     Onboarding._pace = 'full';
