@@ -11520,6 +11520,11 @@ const VexI18nUI = {
       'The job list could not be translated: {1}': 'Meslek listesi çevrilemedi: {1}',
       'The job name could not be translated: {1}': 'Meslek adı çevrilemedi: {1}',
       // --- end job picker errors ---
+      // --- raw network errors shown in the status box (integrator) ---
+      'Failed to fetch': 'Sunucuya ulaşılamadı',
+      'Load failed': 'Sunucuya ulaşılamadı',
+      'NetworkError when attempting to fetch resource.': 'Ağ hatası: sunucuya ulaşılamadı.',
+      // --- end raw network errors ---
     },
   },
 
