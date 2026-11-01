@@ -120,7 +120,7 @@ const UpdateNotifier = {
 
   _remember(key, value) {
     try { localStorage.setItem(key, String(value)); return true; }
-    catch (err) { VexProblems?.note('Updates', 'Could not remember the update choice', err); return false; }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not remember the update choice', err); return false; }
   },
 
   // ---- what happened to the last update --------------------------------------
@@ -133,8 +133,8 @@ const UpdateNotifier = {
     if (window.VexTabPolicy?.isPrivateWindow) return null;
     let s;
     try { s = await window.vex.updates.status(); }
-    catch (err) { VexProblems?.note('Updates', 'Could not read the update state', err); return null; }
-    if (!s?.ok) { VexProblems?.note('Updates', 'Could not read the update state', new Error(s?.error || 'unknown error')); return null; }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not read the update state', err); return null; }
+    if (!s?.ok) { window.VexProblems?.note('Updates', 'Could not read the update state', new Error(s?.error || 'unknown error')); return null; }
     this._status = s;
     // A version Vex went back from is not offered again.
     if (s.blocked && this.cmpVersion(s.blocked, this.skippedVersion() || '0.0.0') > 0) this._remember(this.SKIP_KEY, s.blocked);
@@ -173,12 +173,12 @@ const UpdateNotifier = {
 
   async showNotice(n) {
     const make = this.NOTICES[n.kind];
-    if (!make) { VexProblems?.note('Updates', 'Unknown update notice', new Error(String(n.kind))); return; }
+    if (!make) { window.VexProblems?.note('Updates', 'Unknown update notice', new Error(String(n.kind))); return; }
     const { title, message } = make(n);
     const wantLog = await window.vexConfirm({ title, message, okLabel: 'Show the update log', cancelLabel: 'Close' });
     // Read, so it is not shown again at the next start.
     try { await window.vex.updates.acknowledge(); }
-    catch (err) { VexProblems?.note('Updates', 'Could not mark the update notice as read', err); }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not mark the update notice as read', err); }
     if (wantLog) await this.showLog();
   },
 
@@ -196,7 +196,7 @@ const UpdateNotifier = {
     if (window.VexExamSafeMode && window.VexExamSafeMode.holds('updates')) return;   // exam safe mode: no update check
     let r;
     try { r = await window.vex.checkForUpdates(); }
-    catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not check for updates', err); return; }
     this.noteSeen(r);
     if (this.shouldAnnounce(r)) this.announce(r);
   },
@@ -228,7 +228,7 @@ const UpdateNotifier = {
     if (window.VexExamSafeMode && window.VexExamSafeMode.holds('updates')) return;   // exam safe mode: no update check
     let r;
     try { r = await window.vex.checkForUpdates(); }
-    catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not check for updates', err); return; }
     this.noteSeen(r);
     // A cover opened from Settings while the check was out wins.
     if (this._el) return;
@@ -333,7 +333,7 @@ const UpdateNotifier = {
     // and forget: nothing here waits for it or reads an answer, so the update
     // goes on whether the review card is answered, closed or never shown.
     try { document.dispatchEvent(new CustomEvent('vex:update-cover', { detail: { current: info.current, latest: info.latest } })); }
-    catch (err) { VexProblems?.note('Updates', 'Could not tell the version review about the update', err); }
+    catch (err) { window.VexProblems?.note('Updates', 'Could not tell the version review about the update', err); }
     return el;
   },
 
