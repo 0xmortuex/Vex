@@ -48,6 +48,7 @@
 .vws-preview { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); }
 .vws-pv-pic, .vws-pv-scrim { position: absolute; inset: -12px; background-size: cover; background-position: center; }
 .vws-pv-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 8px; }
+.vws-pv-plate { display: flex; flex-direction: column; gap: 6px; padding: 9px 18px; border-radius: 10px; border: 1px solid transparent; backdrop-filter: blur(8px); }
 .vws-s1 { font-family: Georgia, 'Times New Roman', serif; font-size: 26px; color: var(--vex-text-primary); }
 .vws-s2 { font-size: 11px; color: var(--vex-text-secondary); }
 .vws-s3 { font-size: 11px; color: var(--vex-text-muted); }

@@ -32,7 +32,7 @@ beforeEach(async () => {
   window.VexWallpapers = V;
   window.IntersectionObserver = class { observe() {} disconnect() {} };
   window.WallpaperData = { categoryTitle: () => 'Aurora' };
-  window.WallpaperPaint = { pageColours: () => ({ scrim: [255, 255, 255], inks: [[0, 0, 0]] }), neededScrim: () => ({ alpha: 0 }), judge: () => ({ worst: 9, ok: true }), hexRgb: () => [0, 0, 0] };
+  window.WallpaperPaint = { pageColours: () => ({ scrim: [255, 255, 255], inks: [[0, 0, 0]], accent: [0, 0, 0] }), plan: () => ({ scheme: 'dark', plate: [13, 17, 27], plateAlpha: 0.6, shade: 0, worst: 9, ok: true, inks: [[247, 249, 253], [224, 229, 239], [200, 208, 222]], accent: [200, 200, 255] }), rgbCss: () => 'rgb(0 0 0)' };
   window.showToast = vi.fn();
   window.VexSettingsGroups = {
     register: vi.fn(),
