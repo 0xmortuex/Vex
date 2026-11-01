@@ -315,7 +315,7 @@ const FeatureLibrary = {
   },
 
   _drawTiles(host, list) {
-    const simple = typeof SimpleMode !== 'undefined' && SimpleMode.isSimple();
+    const simple = typeof VexSimpleMode !== 'undefined' && VexSimpleMode.isSimple();
     const tiles = FeatureIntents.tiles({ simple, all: this._moreTiles });
     const icon = (n) => (typeof VexIcons !== 'undefined' ? VexIcons.svg(n, { size: 20 }) : '');
     list.innerHTML = `

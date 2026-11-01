@@ -27,7 +27,7 @@ beforeEach(() => {
   globalThis.VexIcons = VexIcons;
   globalThis.CommandBar = { commands: [] };
   simple = false;
-  globalThis.SimpleMode = { isSimple: () => simple };
+  globalThis.VexSimpleMode = { isSimple: () => simple };
   window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   Object.assign(FeatureLibrary, { _query: '', _cat: null, _view: null, _intent: null, _showAll: false, _moreTiles: false });
 });
