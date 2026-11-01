@@ -287,19 +287,20 @@ const strings = (v) => (Array.isArray(v) ? v.filter(s => typeof s === 'string') 
 // Vex's stand-ins really provide (src/preload-webview.js,
 // src/preload-extension-sw.js) and what Electron has: tabs, storage (sync
 // too), permissions, alarms, cookies, contextMenus, commands, the toolbar
-// button, windows, notifications and downloads work, some in part (said
-// below); the namespaces in ABSENT are not there at all (measured
-// 2026-10-10: the list missed most of them, EX7).
+// button, windows, notifications, downloads, tabGroups, the side panel,
+// identity sign-in, the debugger and native messaging work, some in part (said
+// below); history, bookmarks and topSites can be read but not changed; the
+// namespaces in ABSENT are not there at all (measured 2026-10-10: the list
+// missed most of them, EX7; re-checked 2026-11-01: it still named seven that
+// Vex has since built).
 const ABSENT = [
-  ['history', 'your browsing history'], ['bookmarks', 'your bookmarks'], ['tabGroups', 'tab groups'],
-  ['topSites', 'your most visited sites'], ['sessions', 'recently closed tabs'], ['tts', 'reading text aloud'],
+  ['sessions', 'recently closed tabs'], ['tts', 'reading text aloud'],
   ['ttsEngine', 'being a text-to-speech voice'], ['fontSettings', 'font settings'], ['privacy', 'privacy settings'],
   ['proxy', 'proxy settings'], ['browsingData', 'clearing browsing data'], ['search', 'searching'],
   ['contentSettings', 'site settings'], ['pageCapture', 'saving pages'], ['tabCapture', 'capturing a tab'],
-  ['desktopCapture', 'capturing the screen'], ['debugger', 'the debugger'], ['readingList', 'the reading list'],
+  ['desktopCapture', 'capturing the screen'], ['readingList', 'the reading list'],
   ['declarativeContent', 'showing its button by page'], ['gcm', 'push messages'], ['printerProvider', 'printers'],
   ['webAuthenticationProxy', 'passkey requests'], ['dns', 'DNS lookups'], ['processes', 'the task list'],
-  ['sidePanel', 'its side panel'], ['identity', 'signing in through it'], ['nativeMessaging', 'talking to programs on this computer'],
   ['userScripts', 'its user scripts'],
 ];
 function cautions(manifest) {
@@ -315,6 +316,12 @@ function cautions(manifest) {
   if (m.commands && typeof m.commands === 'object' && Object.values(m.commands).some(c => c && c.global === true)) out.push('Its shortcuts work only while Vex is in front, not from other programs (global commands).');
   if (has('cookies')) out.push('It sees the cookies of this profile\'s normal tabs only (one cookie store): never those of private, off-the-record, burner or Tor tabs.');
   if (has('webNavigation')) out.push('It is told when web pages navigate in normal tabs (webNavigation), not in private, burner or Tor tabs, not for Vex\'s own pages, and never about new-window targets or replaced tabs.');
+  if (has('history', 'bookmarks', 'topSites')) {
+    const what = [has('history') && 'history', has('bookmarks') && 'bookmarks', has('topSites') && 'most visited sites'].filter(Boolean).join(', ');
+    out.push(`It can read your ${what} (private, container and Tor browsing excluded) but cannot add, change or delete any, and is not told when they change.`);
+  }
+  if (has('debugger')) out.push('It can control other tabs only after you switch on "Allow it to control other tabs" on its card.');
+  if (has('nativeMessaging')) out.push('It can talk to programs on this computer only after you switch on "Allow it to talk to programs on this computer" on its card.');
   if (has('notifications')) out.push('Its notifications show as Windows notifications without buttons or pictures, and it cannot take one back.');
   if (has('downloads')) out.push('It can start, list, pause and cancel downloads, but cannot name the file, open it, show it or delete it.');
   if (m.side_panel) perms.add('sidePanel');
