@@ -541,10 +541,45 @@ const SettingsPane = {
       if (!SettingsOrganize._foldEl(el, { allowId: true })) el.addEventListener('mouseenter', () => { el.title = (el.textContent || '').replace(/\s+/g, ' ').trim(); });
       n++;
     }
+    // 1c. a label (with its hint) and, under it, a line of one to three menus or buttons: the controls go to the right of the label.
+    const HINTS = '.setting-info, .setting-hint, .set-hint-line, .set-info-btn, .set-info-folded, p.muted';
+    for (const d of g.querySelectorAll('div')) {
+      if (d.dataset.splitDone || d.closest('.set-split-row, .set-dense, .set-plain, .set-nav') || d.matches('.set-split-row, .set-split-text, [hidden]')) continue;
+      const kids = Array.from(d.children);
+      if (kids.length < 1 || kids.length > 3 || !kids.every(c => c.matches('select, button:not(.set-info-btn)')) || !kids.some(c => c.matches('select'))) continue;
+      let label = d.previousElementSibling;
+      const between = [];
+      while (label && label.matches(HINTS)) { between.unshift(label); label = label.previousElementSibling; }
+      if (!label || label.parentElement !== d.parentElement || label.matches('select, button, input, textarea') || label.querySelector('input, select, textarea, button:not(.set-info-btn)')) continue;
+      if (label.matches('label.setting-label') && label.parentElement === g) continue;
+      const t = (label.textContent || '').trim();
+      if (t.length < 2 || t.length > 200) continue;
+      d.dataset.splitDone = '1';
+      const row = document.createElement('div');
+      row.className = 'set-split-row';
+      const words = document.createElement('div');
+      words.className = 'set-split-text';
+      label.before(row);
+      row.append(words);
+      words.append(label, ...between);
+      d.classList.add('set-split-ctl');
+      row.append(d);
+      n++;
+    }
     // 2. a (i) alone on its own line goes to the end of the label beside it
     const text = (e) => !!e && e.nodeType === 1 && !e.matches('button, .set-info-btn, .set-info-folded, hr') && !e.querySelector('input, select, textarea') && (e.textContent || '').trim().length > 0 && (e.textContent || '').trim().length <= 70 && !e.matches('.set-info-folded, [hidden]');
     const anyText = (e) => !!e && e.nodeType === 1 && !e.matches('button, .set-info-btn, .set-info-folded, hr, [hidden]') && !e.querySelector('input, select, textarea') && (e.textContent || '').trim().length > 0;
-    const inline = (btn, host) => { host.appendChild(btn); this._name(btn, host); btn.classList.remove('set-info-btn--line'); btn.classList.add('set-info-btn--inline'); n++; };
+    const inline = (btn, host) => {
+      // A list laid out as a column (rows drawn at run time): the (i) ends its last row of text, it is not a row of its own.
+      const cs = getComputedStyle(host);
+      if (/flex/.test(cs.display) && cs.flexDirection === 'column') {
+        const last = Array.from(host.children).reverse().find(k => anyText(k) && !k.matches('input, select, textarea'));
+        if (last) host = last;
+      }
+      // A label with its own hint line: the (i) ends the title, above the hint.
+      const subHint = host.querySelector(':scope > .set-sub-hint');
+      if (subHint) subHint.before(btn); else host.appendChild(btn);
+      this._name(btn, host); btn.classList.remove('set-info-btn--line'); btn.classList.add('set-info-btn--inline'); n++; };
     for (const btn of g.querySelectorAll('.set-info-btn--line')) {
       // Inside a label already: it ends that label.
       if (btn.parentElement && btn.parentElement.matches('.setting-row-label, .setting-label, .setting-toggle-row > span')) { inline(btn, btn.parentElement); continue; }
@@ -597,31 +632,6 @@ const SettingsPane = {
       if (!p || p.classList.contains('set-flexrows') || p.matches('.setting-toggle-row, .setting-row, label, .set-plain, .set-dense, .set-layout-field')) continue;
       if (getComputedStyle(p).display === 'block') { p.classList.add('set-flexrows'); n++; }
     }
-    // 2d. a label (with its hint) and, under it, a line of one to three menus or buttons: the controls go to the right of the label.
-    const HINTS = '.setting-info, .setting-hint, .set-hint-line, .set-info-btn, .set-info-folded, p.muted';
-    for (const d of g.querySelectorAll('div')) {
-      if (d.dataset.splitDone || d.closest('.set-split-row, .set-dense, .set-plain, .set-nav') || d.matches('.set-split-row, .set-split-text, [hidden]')) continue;
-      const kids = Array.from(d.children);
-      if (kids.length < 1 || kids.length > 3 || !kids.every(c => c.matches('select, button:not(.set-info-btn)')) || !kids.some(c => c.matches('select'))) continue;
-      let label = d.previousElementSibling;
-      const between = [];
-      while (label && label.matches(HINTS)) { between.unshift(label); label = label.previousElementSibling; }
-      if (!label || label.parentElement !== d.parentElement || label.matches('select, button, input, textarea') || label.querySelector('input, select, textarea, button:not(.set-info-btn)')) continue;
-      if (label.matches('label.setting-label') && label.parentElement === g) continue;
-      const t = (label.textContent || '').trim();
-      if (t.length < 2 || t.length > 200) continue;
-      d.dataset.splitDone = '1';
-      const row = document.createElement('div');
-      row.className = 'set-split-row';
-      const words = document.createElement('div');
-      words.className = 'set-split-text';
-      label.before(row);
-      row.append(words);
-      words.append(label, ...between);
-      d.classList.add('set-split-ctl');
-      row.append(d);
-      n++;
-    }
     // 3. one button look
     for (const b of g.querySelectorAll('button')) {
       if (b.dataset.btnDone) continue;
@@ -673,7 +683,9 @@ const SettingsPane = {
         // Only a list of like items (one kind of row) is a list; a section's own mixed rows are not.
         const kinds = new Map();
         for (const k of kids) { const sig = k.tagName + '.' + (k.classList[0] || ''); kinds.set(sig, (kinds.get(sig) || 0) + 1); }
-        if (Math.max(...kinds.values()) / kids.length >= 0.7) found.push({ c, kids });
+        const [top, count] = Array.from(kinds).sort((a, b) => b[1] - a[1])[0];
+        // The rows of a section's own settings are settings, not items of a list: the Advanced fold handles those.
+        if (count / kids.length >= 0.7 && !/\.(setting-toggle-row|setting-row|setting-group|setting-label|setting-row-label)$/.test(top)) found.push({ c, kids });
       }
       const lists = found.filter(x => !found.some(y => y !== x && x.c.contains(y.c)));
       if (!lists.length) continue;

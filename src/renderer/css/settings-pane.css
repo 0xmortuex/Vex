@@ -131,11 +131,12 @@
   max-width: 46%;
   min-width: 150px;
   height: 32px;
-  padding: 0 10px;
+  padding: 0 28px 0 10px;
   box-sizing: border-box;
   border-radius: 8px;
   font-size: 13px;
   margin-left: auto;
+  text-overflow: ellipsis;
 }
 #panel-settings[data-pane] .settings-content .setting-group .setting-toggle-row > select { margin-left: auto; }
 #panel-settings[data-pane] .settings-content .setting-group input:is([type="text"], [type="url"], [type="search"], [type="password"], [type="number"], [type="email"], :not([type])):not(.set-search) {
@@ -198,7 +199,8 @@
 #panel-settings[data-pane] .settings-content .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
 #panel-settings[data-pane] .settings-content .btn-secondary:hover { border-color: var(--primary); background: var(--vex-hover-fill, transparent); }
 #panel-settings[data-pane] .settings-content .btn-primary { background: var(--primary); color: var(--on-primary, #fff); border: 1px solid var(--primary); }
-#panel-settings[data-pane] .settings-content .btn-danger { background: var(--danger); color: #fff; border: 1px solid var(--danger); }
+/* A filled danger button keeps white text readable in every look (a light --danger, as in Glass, is darkened). */
+#panel-settings[data-pane] .settings-content .btn-danger { background: color-mix(in srgb, var(--danger) 65%, #000); color: #fff; border: 1px solid color-mix(in srgb, var(--danger) 65%, #000); }
 #panel-settings[data-pane] .settings-content .btn-secondary.set-btn-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
 #panel-settings[data-pane] .settings-content .btn-secondary.set-btn-danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: var(--danger); }
 #panel-settings[data-pane] .settings-content .setting-group :is(.vws-set-actions, .extensions-actions) { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0; }
@@ -358,6 +360,7 @@ select.set-result-control { max-width: 220px; }
   display: block; margin: 1px 0 0; font-size: 12.5px; font-weight: 400; line-height: 1.4; color: var(--text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+#panel-settings[data-pane] .settings-content .setting-group :is(.setting-toggle-row > span, .setting-row-label, .setting-label):has(> .set-sub-hint) { display: block; min-width: 0; text-align: left; }
 /* A label with its hint on the left, one to three menus or buttons on the right. */
 #panel-settings[data-pane] .settings-content .setting-group .set-split-row {
   display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; min-height: 46px; padding: 6px 0; box-sizing: border-box;

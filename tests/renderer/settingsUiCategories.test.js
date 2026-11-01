@@ -11,6 +11,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The search box's clear button draws its icon with VexIcons (the page loads it first).
+await import('../../src/renderer/js/vex-icons.js');
 const { SettingsUI } = await import('../../src/renderer/js/settings-ui.js');
 
 // The labels the Settings panel actually renders, in document order: read
