@@ -437,6 +437,8 @@ const VexFeatures = {
       what: 'Reminders and alarms carry the job they were set under. Today marks them, and the Toolbox lists what is set for this job.' },
     { id: 'remind-zone', cat: 'work', cmd: 'remind', name: 'Reminders in another city\'s time', manual: true,
       what: 'Type "9am New York time" or "tomorrow 17:00 in Tokyo" and the reminder lands at that moment, read back in both clocks before it saves.' },
+    { id: 'reminders-tab', phrases: 'reminders list upcoming remind me everything coming up what will remind me follow-ups page reminders deadlines', cat: 'work', cmd: 'reminders', name: 'Reminders in one place', manual: true,
+      what: 'The Clock panel\'s Reminders tab lists what will remind you (timed and site reminders, page reminders, things you owe or wait on, deadlines, things waiting for the end of a game) and adds one of the four kinds from a single form. Every old entry still works.' },
     { id: 'tool-history', cat: 'work', cmd: 'toolbox', name: 'Tool history', manual: true,
       what: 'Every tool keeps its last ten results and the Toolbox shows the tools you opened most recently, beside your favourites.' },
     { id: 'automations', cat: 'work', cmd: 'automations',

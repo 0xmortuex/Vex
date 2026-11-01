@@ -41,6 +41,7 @@
 }
 .ck-day input:checked + span { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 
+.ck-body [hidden] { display: none; }
 .ck-list { display: flex; flex-direction: column; gap: 6px; }
 .ck-empty { font-size: 12px; color: var(--text-muted); padding: 10px 11px; border: 1px dashed var(--border); border-radius: 9px; }
 .ck-item {

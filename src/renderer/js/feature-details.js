@@ -194,6 +194,7 @@ const FeatureDetails = {
   'remind-site': 'Instead of a time, say "when I open github.com" — the reminder fires the moment a tab lands there. The right answer for "remember to do this next time I am in there".',
   'remind-zone': 'Type "9am New York time" and the reminder lands at that moment, read back to you in both zones so you can see what you agreed to.',
   'remind-calendar': 'Any timed reminder can be saved as a .ics file for Outlook or Google Calendar, repeat rule included.',
+  'reminders-tab': 'Reminders used to be spread over the Remind me box, the page reminder list, Follow-ups and Deadlines. This tab shows what is coming from all of them in one list and adds a new one from one form. It reads each place the way that place already works and changes nothing about where things are kept.',
   'reminders-sync': 'With Sync on, a reminder set on the laptop rings on the desktop too. Only the machine that set it schedules the wake-up, so it does not ring twice.',
   'quick-capture': 'Select anything on any page and right-click: remind me about this, save it as a note for this page, or ask Vex about it. It works inside the sidebar panels too, which is where most of what you want to keep actually is.',
   today: 'The one screen for "what is happening today": reminders due, scheduled tasks about to run, watched pages that changed, and what you saved recently. It sits on the new tab page, so you see it without going anywhere.',
@@ -693,6 +694,8 @@ const FeatureHow = {
   'focus-reminders': 'While a focus session is running, reminders do not interrupt: they wait and arrive together when it ends. A reminder you marked “Urgent — even during focus” in the Remind me box is the exception and rings at once. Starting and ending a focus session is the Focus command; there is no separate switch for this part.',
   // quick-reminder.js: ics
   'remind-calendar': 'A timed reminder’s card has a Calendar button. Pressing it saves a .ics file for that reminder, with its repeat rule and an alarm, that Outlook and Google Calendar can import. Only reminders with a time have the button, not “when I open a site” ones. Make one from Ctrl+K, then “Remind me”.',
+  // reminders-tab.js
+  'reminders-tab': 'Press Ctrl+K and choose “Reminders”, or open the Clock panel and pick its Reminders tab. The list shows timed and “when I open a site” reminders, page reminders, things you owe or wait on, deadlines and things waiting for the end of a game. The form adds a reminder at a time, for a site, about the page in front, or something you owe or wait on. The small buttons under the list open the old Page reminders, Follow-ups and Deadlines screens.',
   // quick-commands.js
   'quick-commands': 'Open the command bar with Ctrl+K and type a plain sentence instead of a command name: “remind me to call Dana tomorrow 9am”, “timer 25 min”, “alarm 7am weekdays” or “what time is it in Tokyo”. Vex works the sentence out on this machine and Enter does it. A sentence it cannot read says so rather than guessing. There is no switch for it.',
   // main/reminders.js: toast actions

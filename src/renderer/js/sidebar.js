@@ -186,7 +186,8 @@ const SidebarManager = {
   // the main-process 'toggle-schedules' message) lands on the surviving panel
   // with the sub-tab the old panel became already selected.
   //   schedules -> Clock, sub-tab "Scheduled tasks"
-  PANEL_ALIASES: { schedules: { panel: 'clock', tab: 'schedules' } },
+  //   reminders -> Clock, sub-tab "Reminders" (never a panel of its own: Ctrl+K "Reminders")
+  PANEL_ALIASES: { schedules: { panel: 'clock', tab: 'schedules' }, reminders: { panel: 'clock', tab: 'reminders' } },
 
   _alias(name) {
     return Object.prototype.hasOwnProperty.call(this.PANEL_ALIASES, name) ? this.PANEL_ALIASES[name] : null;
