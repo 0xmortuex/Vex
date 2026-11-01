@@ -59,6 +59,63 @@ const TR = {
   '{1}. Use the site’s other sign-in methods.': '{1}. Sitenin diğer oturum açma yöntemlerini kullanın.',
   'Vex is locked. Unlock it to use a passkey.': 'Vex kilitli. Bir geçiş anahtarı kullanmak için kilidini açın.',
   '{1} asked for a passkey too many times, so Vex stopped asking for a minute.': '{1} çok fazla kez geçiş anahtarı istedi; bu yüzden Vex bir dakika sormayı bıraktı.',
+  // --- turkish sweep (agent): the pages Vex draws itself when it stops a site (main.js _showVexPage) ---
+  'Blocked by Vex\'s ad blocker': 'Vex’in reklam engelleyicisi tarafından engellendi',
+  'is on the ad and tracker lists Vex blocks, so this page was not loaded. Ads and sponsored links often go through an address like this one before the shop or site they point to.': 'sitesi Vex’in engellediği reklam ve izleyici listelerinde olduğu için bu sayfa yüklenmedi. Reklamlar ve sponsorlu bağlantılar, işaret ettikleri mağazaya ya da siteye gitmeden önce çoğu zaman bunun gibi bir adresten geçer.',
+  'Go back': 'Geri dön',
+  'Go anyway': 'Yine de git',
+  'Secure connection not available': 'Güvenli bağlantı yok',
+  'This site doesn\'t support a secure connection': 'Bu site güvenli bağlantıyı desteklemiyor',
+  'did not answer over HTTPS, so HTTPS-Only mode stopped here instead of loading it unencrypted.': 'sitesi HTTPS üzerinden yanıt vermedi; bu yüzden Yalnızca HTTPS modu, siteyi şifresiz yüklemek yerine burada durdu.',
+  'Over an unencrypted connection, anyone on the network (public Wi-Fi, your provider) can read and change what you see and send.': 'Şifresiz bir bağlantıda ağdaki herkes (herkese açık Wi-Fi, servis sağlayıcınız) gördüğünüz ve gönderdiğiniz şeyi okuyabilir ve değiştirebilir.',
+  'Continue to the unencrypted site': 'Şifresiz siteye devam et',
+  'If you continue, Vex loads': 'Devam ederseniz Vex,',
+  'unencrypted until it closes, without asking again.': 'sitesini kapanana kadar şifresiz yükler ve bir daha sormaz.',
+  'Certificate not valid': 'Sertifika geçerli değil',
+  'This site\'s certificate is not valid': 'Bu sitenin sertifikası geçerli değil',
+  'offered a secure connection whose certificate does not check out ({1}). It may be out of date or made for another site, or someone in the middle of your connection may be trying to read it.': 'sitesi sertifikası doğrulanamayan güvenli bir bağlantı sundu ({1}). Süresi dolmuş ya da başka bir site için yapılmış olabilir; ya da bağlantınızın ortasında biri onu okumaya çalışıyor olabilir.',
+  'Vex did not load the page, so nothing you would send it has left your computer.': 'Vex sayfayı yüklemedi; bu yüzden ona göndereceğiniz hiçbir şey bilgisayarınızdan çıkmadı.',
+  'If this is your own server or device, give it a certificate your computer trusts.': 'Bu sizin kendi sunucunuz ya da cihazınızsa, ona bilgisayarınızın güvendiği bir sertifika verin.',
+  'offered a secure connection whose certificate does not check out. That is what happens when someone in the middle of your connection tries to read it.': 'sitesi sertifikası doğrulanamayan güvenli bir bağlantı sundu. Bağlantınızın ortasında biri onu okumaya çalıştığında bu olur.',
+  'HTTPS-Only mode stopped here instead of loading the page over an unencrypted connection.': 'Yalnızca HTTPS modu, sayfayı şifresiz bir bağlantıyla yüklemek yerine burada durdu.',
+  'If you trust this network and still want the page, you can': 'Bu ağa güveniyor ve sayfayı yine de istiyorsanız,',
+  'load it unencrypted': 'şifresiz yükleyin',
+  '. Anyone on the network can then read and change what you see and send.': '. O zaman ağdaki herkes gördüğünüz ve gönderdiğiniz şeyi okuyabilir ve değiştirebilir.',
+  'This address looks like another site': 'Bu adres başka bir siteye benziyor',
+  'is written to look like': 'sitesi şuna benzesin diye yazılmış:',
+  ', and it is not that site. Vex stopped before loading it, so nothing you would type there has gone anywhere.': ', ama o site değil. Vex siteyi yüklemeden önce durdu; bu yüzden orada yazacağınız hiçbir şey bir yere gitmedi.',
+  'is written the way sites that fake another site are, and it is not that site. Vex stopped before loading it, so nothing you would type there has gone anywhere.': 'sitesi, başka bir siteyi taklit eden sitelerin yazıldığı biçimde yazılmış ve o site değil. Vex siteyi yüklemeden önce durdu; bu yüzden orada yazacağınız hiçbir şey bir yere gitmedi.',
+  'Why Vex flagged it': 'Vex bunu neden işaretledi',
+  'Continue this once': 'Bunu bir kez sürdür',
+  'This site is fine, do not warn again': 'Bu site sorunsuz, bir daha uyarma',
+  'If you know this site, choosing “do not warn again” adds': 'Bu siteyi tanıyorsanız, “bir daha uyarma” seçeneği',
+  'to your own list. You can change how often Vex warns, or switch this off, in Vex\'s Web safety settings.': 'sitesini kendi listenize ekler. Vex’in ne sıklıkla uyardığını değiştirebilir ya da bunu Vex’in Web güvenliği ayarlarından kapatabilirsiniz.',
+  'The name looks like one that is made to be mistaken for another.': 'Ad, başka bir adla karıştırılsın diye yapılmış bir ada benziyor.',
+  'One part of the name (“{1}”) mixes {2} letters, which honest sites do not do. It is the usual way to fake a familiar name.': 'Adın bir bölümü (“{1}”) {2} harflerini karıştırıyor; dürüst siteler bunu yapmaz. Tanıdık bir adı taklit etmenin olağan yoludur.',
+  'The name is written with letters from another alphabet that look like “{1}”.': 'Ad, “{1}” gibi görünen başka bir alfabenin harfleriyle yazılmış.',
+  'Swaps letters for numbers or lookalike pairs so that it reads as “{1}”.': 'Harfleri rakamlarla ya da benzer çiftlerle değiştirerek “{1}” gibi okunmasını sağlıyor.',
+  '“{1}” appears at the front of the name, but the site really belongs to “{2}”.': 'Adın başında “{1}” geçiyor, ama site aslında “{2}” adresine ait.',
+  'One letter away from “{1}” (two letters swapped), the kind of slip a copycat site registers on purpose.': '“{1}” adından bir harf farklı (iki harfin yeri değişmiş); taklitçi sitelerin bilerek kaydettiği türden bir hata.',
+  'One letter away from “{1}” (a doubled letter), the kind of slip a copycat site registers on purpose.': '“{1}” adından bir harf farklı (çift yazılmış bir harf); taklitçi sitelerin bilerek kaydettiği türden bir hata.',
+  'One letter away from “{1}” (a doubled letter dropped), the kind of slip a copycat site registers on purpose.': '“{1}” adından bir harf farklı (çift harflerden biri düşmüş); taklitçi sitelerin bilerek kaydettiği türden bir hata.',
+  'Only one letter different from “{1}”.': '“{1}” adından yalnızca bir harf farklı.',
+  'Written as “{1}” plus an official-sounding word, which is how fake sign-in pages are named.': '“{1}” artı resmî görünen bir sözcük olarak yazılmış; sahte oturum açma sayfaları böyle adlandırılır.',
+  'The name uses letters outside the plain alphabet, which is easy to mistake for another name.': 'Ad, düz alfabenin dışında harfler kullanıyor; başka bir adla karıştırılması kolay.',
+  'This site is reported as dangerous': 'Bu site tehlikeli olarak bildirilmiş',
+  'may try to steal your passwords or put harmful software on this computer. Vex stopped before loading it, so nothing you would type there has gone anywhere.': 'sitesi parolalarınızı çalmaya ya da bu bilgisayara zararlı yazılım yüklemeye çalışabilir. Vex siteyi yüklemeden önce durdu; bu yüzden orada yazacağınız hiçbir şey bir yere gitmedi.',
+  'The site name': 'Site adı:',
+  'is on a list of reported phishing and malware sites.': 'bildirilen kimlik avı ve kötü amaçlı yazılım sitelerinin listesinde yer alıyor.',
+  'Go back to safety': 'Güvenli yere dön',
+  'Continue anyway': 'Yine de devam et',
+  'Only go on if you are sure this site is safe. Vex will note that you continued to': 'Yalnızca bu sitenin güvenli olduğundan eminseniz devam edin. Vex,',
+  'in this tab.': 'sitesine bu sekmede devam ettiğinizi not eder.',
+  'I understand the risk, open the site': 'Riski anlıyorum, siteyi aç',
+  'Never warn me about this site': 'Bu site için beni bir daha uyarma',
+  'This is the test page, so nothing was opened and nothing was saved. A real warning would have gone on to the site here.': 'Bu bir sınama sayfası; bu yüzden hiçbir şey açılmadı ve hiçbir şey kaydedilmedi. Gerçek bir uyarıda burada siteye geçilirdi.',
+  'Checked on this computer against a list Vex keeps; the address you went to was not sent anywhere. You can turn this off, or see the list, in Vex Settings under Privacy and security.': 'Vex’in tuttuğu bir listeye karşı bu bilgisayarda denetlendi; gittiğiniz adres hiçbir yere gönderilmedi. Bunu kapatabilir ya da listeyi Vex Ayarları’nda Gizlilik ve güvenlik altında görebilirsiniz.',
+  'This exact page address is on a list of reported phishing and malware pages.': 'Bu sayfa adresi, bildirilen kimlik avı ve kötü amaçlı yazılım sayfaları listesinde yer alıyor.',
+  'This is a test. No real site is involved and nothing was downloaded; it shows what you would see for a site on the list.': 'Bu bir sınamadır. Gerçek bir site söz konusu değil ve hiçbir şey indirilmedi; listedeki bir site için neyi göreceğinizi gösterir.',
+  // --- end turkish sweep ---
 };
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -90,6 +147,23 @@ function localizeOptions(opts, lang) {
   return out;
 }
 
+// The text of a page Vex draws itself (the dangerous-site warning, the certificate notice, the ad-blocked page): every piece of text
+// between tags that is, whole, a key of TR is replaced; markup, styles, links and the host names the code puts in are left alone.
+function translateHtml(html, lang) {
+  if (lang !== 'tr' || typeof html !== 'string') return html;
+  const unesc = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const parts = html.split(/(<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>)/i);
+  return parts.map((part, i) => (i % 2 ? part : part.replace(/(<title>|>)([^<>]+)(?=<)/g, (all, open, text) => {
+    const core = text.trim();
+    if (!core) return all;
+    const plain = unesc(core);
+    const hit = translate(plain, lang);
+    if (hit === plain) return all;
+    return open + /^\s*/.exec(text)[0] + esc(hit) + /\s*$/.exec(text)[0];
+  }))).join('');
+}
+
 function create({ fs, dir }) {
   let lang = 'en';
   const file = require('path').join(dir, FILE);
@@ -108,6 +182,7 @@ function create({ fs, dir }) {
       return lang;
     },
     t: (text) => translate(text, lang),
+    translateHtml: (html) => translateHtml(html, lang),
     // Wrap the dialog functions of Electron's dialog module (once) so the text they show is translated.
     install(dialog) {
       if (!dialog || dialog.__vexI18n) return;
@@ -126,4 +201,4 @@ function create({ fs, dir }) {
   };
 }
 
-module.exports = { create, translate, localizeOptions, TR };
+module.exports = { create, translate, translateHtml, localizeOptions, TR };

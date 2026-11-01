@@ -555,7 +555,8 @@ function _isTabSession(contents) {
 // is done when the page commits: loadURL's promise settles earlier, on the
 // error page's own did-finish-load (measured).
 function _showVexPage(contents, html, failedUrl, what, standsFor) {
-  const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  // Vex draws these pages itself, in English; in a Turkish Vex their text is translated here (main/i18n-main.js).
+  const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(_i18nMain.translateHtml(html));
   // The address bar shows the address this page stands for (src/main/vex-page-address.js).
   _vexPages.set(contents, dataUrl, standsFor);
   const shown = (_e, url) => {
