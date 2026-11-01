@@ -16,6 +16,7 @@
   const doc = root.document;
   const W = () => root.VexWallpapers;
   const PAGE = 120;
+  const HIDDEN_SHADE = 0.6;      // a shade stronger than this leaves under 40% of the picture showing: the person is told
   const icon = (name, size = 14) => (typeof root.VexIcons !== 'undefined' ? root.VexIcons.svg(name, { size }) : '');
   const toast = (msg, kind) => { root.showToast?.(msg, kind || 'info'); };    // answers to a button the person just pressed
   const fail = (err) => { root.console.error('[wallpapers]', err); toast(err && err.message ? err.message : String(err), 'error'); };
@@ -77,7 +78,11 @@
       main.append(gridWrap, panel);
       dlg.body.append(top, cats, status, main);
 
-      const say = (text) => { status.textContent = text || ''; };
+      // actions: [[label, onClick], ...] shown as buttons after the sentence
+      const say = (text, actions) => {
+        status.textContent = text || '';
+        for (const [label, fn] of actions || []) status.append(doc.createTextNode(' '), button(label, () => { Promise.resolve().then(fn).catch(fail); }, { cls: 'btn-primary' }));
+      };
       const items = () => V.search({ query: ui.q, category: ui.cat });
 
       // --- categories
@@ -299,8 +304,10 @@
             scrim.style.backgroundColor = 'rgb(' + bg.map(Math.round).join(' ') + ' / ' + alpha.toFixed(2) + ')';
             pic.style.filter = ui.draft.blur ? 'blur(' + Math.round(ui.draft.blur * 0.5) + 'px)' : '';
             const { worst, ok } = P.judge(inks, [P.hexRgb(s.lightest), P.hexRgb(s.darkest)], bg, alpha);
-            read.className = 'vws-read ' + (ok ? 'vws-good' : 'vws-bad');
-            read.textContent = (ok ? L('Text reads at') : L('Text is hard to read, only')) + ' ' + worst.toFixed(1) + ':1 · ' + L('shade') + ' ' + Math.round(alpha * 100) + '%' + (ok ? '' : ' · ' + L('turn on "Keep text readable" or raise Dim'));
+            const hidden = alpha > HIDDEN_SHADE;
+            read.className = 'vws-read ' + (ok && !hidden ? 'vws-good' : 'vws-bad');
+            read.textContent = (ok ? L('Text reads at') : L('Text is hard to read, only')) + ' ' + worst.toFixed(1) + ':1 · ' + L('shade') + ' ' + Math.round(alpha * 100) + '%' + (ok ? '' : ' · ' + L('turn on "Keep text readable" or raise Dim'))
+              + (hidden ? ' · ' + L('only') + ' ' + Math.round((1 - alpha) * 100) + '% ' + L('of the picture shows on your New Tab with this shade') : '');
           }).catch((err) => { read.textContent = err.message; read.className = 'vws-read vws-bad'; });
         }
       }
@@ -310,8 +317,27 @@
         if (!d) throw new Error('Choose a wallpaper first');
         say(L('Applying…'));
         await V.apply(d.id, ui.draft);
-        say(L('Applied: ') + d.title + '. ' + L('Open a New Tab to see it.'));
         renderGrid();
+        await report(d);
+      }
+      // Says what the person will really see. Success is only claimed when the picture is painted and visible.
+      async function report(d) {
+        if (!V.enabled()) {
+          say(L('Saved, but wallpapers are switched off, so your New Tab does not show it.'), [[L('Turn on'), async () => { V.setEnabled(true); await V.paintStartPages(); await report(d); }]]);
+          return;
+        }
+        const sh = await V.shade();
+        if (sh && sh.shows < 1 - HIDDEN_SHADE) {
+          // "Keep text readable" shades the picture until the page's text reads at 4.5:1 over its lightest and darkest parts.
+          // Over this picture that is nearly all of it. The person chooses: keep the readable text, or see more of the picture.
+          const acts = [];
+          if (ui.draft.auto) {
+            acts.push([L('Show more of it'), async () => { ui.draft.auto = false; ui.draft.dim = Math.max(ui.draft.dim, 0.4); await V.apply(d.id, ui.draft); renderGrid(); await report(d); }]);
+          }
+          say(L('Applied: ') + d.title + '. ' + L('But only') + ' ' + Math.round(sh.shows * 100) + '% ' + L('of the picture shows: to keep the text on your New Tab readable over it, Vex has to shade it heavily. Showing more can make some text harder to read.'), acts);
+          return;
+        }
+        say(L('Applied: ') + d.title + '. ' + (sh && sh.textOk === false ? L('Some text on your New Tab may be hard to read over it.') : L('Open a New Tab to see it.')));
       }
       // A slider let go of on the wallpaper that is on: the New Tab follows at once.
       function liveApply() {
@@ -421,6 +447,11 @@
     const V = W(), G = root.VexSettingsGroup;
     if (!V) { body.textContent = L('Wallpapers are not loaded yet.'); return; }
     const again = () => { body.textContent = ''; renderSettings(body); };
+    // The section shows what is true now: a wallpaper applied in the store (open on top of Settings) shows here when it closes.
+    if (!body.dataset.vwsLive) {
+      body.dataset.vwsLive = '1';
+      const unsub = V.onChange(() => { if (!body.isConnected) { unsub(); delete body.dataset.vwsLive; return; } again(); });
+    }
     const c = V.current();
     body.append(G.note(L('Pictures for your New Tab page: 74 drawn by Vex, free photos from a list you can point Vex at, and your own pictures. Nothing is downloaded until you open the store with a list address set.')));
     body.append(G.field(L('Now'), el('span', 'vws-now', c ? c.title : L('No wallpaper'))));

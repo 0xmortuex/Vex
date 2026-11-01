@@ -263,7 +263,25 @@
     }
     if (!pages.length) return [];
     const spec = await buildSpec();       // built once, handed to every open New Tab
-    return Promise.all(pages.map(wv => paintStartPage(wv, spec)));
+    const results = await Promise.all(pages.map(wv => paintStartPage(wv, spec)));
+    const done = results.find(r => r && !r.error && typeof r.alpha === 'number');
+    if (done) lastPaint = { alpha: done.alpha, required: done.required, readable: done.readable !== false, textOk: done.ok !== false };
+    return results;
+  }
+  let lastPaint = null;       // what the New Tab said when it last painted: { alpha, required, readable }
+  // How much of the chosen picture shows through the shade that keeps the text readable (0..1), from the
+  // New Tab itself when one has just painted, else worked out here with this window's text colours.
+  async function shade() {
+    const cur = st().current;
+    if (!cur || !enabled()) return null;
+    if (lastPaint) return { ...lastPaint, shows: 1 - lastPaint.alpha, fromPage: true };
+    const P = root.WallpaperPaint;
+    if (!P) throw new Error('js/wallpaper-paint.js is not loaded');
+    const { summary } = await sourceOf(describe(cur.id));
+    const { scrim, inks } = P.pageColours();
+    const need = P.neededScrim({ inks, extremes: [P.hexRgb(summary.lightest), P.hexRgb(summary.darkest)], scrim });
+    const alpha = cur.auto ? Math.max(cur.dim, need.alpha) : cur.dim;
+    return { alpha, required: need.alpha, readable: need.ok, shows: 1 - alpha, fromPage: false };
   }
 
   // --- the API ----------------------------------------------------------------------------------
@@ -314,8 +332,13 @@
       await sourceOf(d);
       if (mine !== token) return api.current();         // a later choice won
       persist(pushRecent({ ...st(), current: next }, id));
-      await paintStartPages();
+      lastPaint = null;
+      const painted = await paintStartPages();
       emit();
+      // A New Tab that refused the picture is an error, never a quiet "applied".
+      // (paint's own "ok" says whether the text reads well, so a refusal is told apart by its error text.)
+      const bad = painted.find(r => r && r.ok === false && r.error);
+      if (bad) throw new Error('The New Tab page could not show the wallpaper: ' + bad.error);
       return next;
     },
 
@@ -329,6 +352,7 @@
     async remove() {
       ++token;
       persist({ ...st(), current: null });
+      lastPaint = null;
       await paintStartPages();
       emit();
       return null;
@@ -411,7 +435,7 @@
 
     // --- helpers for the store's screen
     sourceOf, thumbOf, summarise, buildSpec,
-    startPageJs, paintStartPage, paintStartPages,
+    startPageJs, paintStartPage, paintStartPages, shade,
 
     // A picture of the wallpaper for "Use colours from this wallpaper" (js/theme-from-image.js reads it).
     async rasterFile(id) {
