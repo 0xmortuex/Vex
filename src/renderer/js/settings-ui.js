@@ -132,13 +132,15 @@ const SettingsUI = {
   // Put the section cards in ORDER (a stable sort: cards of one category keep the order they have), in the page and in `groups`.
   // It changes nothing when they are already in order, so running it on every open costs nothing.
   _orderGroups(root, groups) {
-    const rankOf = (cat) => {
+    const rankOf = (cat, g) => {
       const i = this.ORDER.indexOf(cat.name);
       const inside = i >= 0 ? i : this.ORDER.indexOf('Vex health') - 0.5;
       const top = this.TOPS.findIndex(t => t.name === this.topOf(cat));
-      return (top >= 0 ? top : this.TOPS.length) * 1000 + inside;
+      // The sections of one card sit together (js/settings-pane.js).
+      const card = typeof SettingsPane !== 'undefined' ? SettingsPane.cardRank(g, cat, this.topOf(cat)) : 0;
+      return (top >= 0 ? top : this.TOPS.length) * 1000 + card * 50 + inside;
     };
-    const ordered = groups.map((g, i) => ({ g, i, r: rankOf(this._catOf(g)) })).sort((a, b) => a.r - b.r || a.i - b.i).map(x => x.g);
+    const ordered = groups.map((g, i) => ({ g, i, r: rankOf(this._catOf(g), g) })).sort((a, b) => a.r - b.r || a.i - b.i).map(x => x.g);
     if (ordered.every((g, i) => g === groups[i])) return false;
     const after = groups[groups.length - 1].nextSibling;
     ordered.forEach(g => root.insertBefore(g, after));
@@ -305,6 +307,7 @@ const SettingsUI = {
   // Live-filter the setting groups by the search query. Hiding the chip nav while
   // searching keeps the result list clean.
   _filter(root, query) {
+    if (root.parentElement && root.parentElement.dataset.pane && typeof SettingsFind !== 'undefined') return this._filterPane(root, query);
     const q = (query || '').trim().toLowerCase();
     const groups = Array.from(root.querySelectorAll('.setting-group'));
     let any = false;
@@ -348,6 +351,54 @@ const SettingsUI = {
     } else if (empty) { empty.style.display = 'none'; }
     // The results, and the empty note, get their place in the columns.
     this._layout(root);
+  },
+
+  // The search in the one-category-at-a-time Settings (js/settings-pane.js): the category view is replaced by a list of the
+  // settings found (js/settings-find.js), once each, best first.
+  _filterPane(root, query) {
+    const panel = root.parentElement;
+    const q = String(query || '').trim();
+    const host = root.querySelector(':scope > .set-results');
+    const said = this._searchStatus(root);
+    panel.classList.toggle('set-searching', !!q);
+    const box = panel.querySelector('.set-search');
+    const clear = panel.querySelector('.set-search-clear');
+    if (clear) clear.hidden = !(box && box.value);
+    if (typeof SettingsOrganize !== 'undefined') SettingsOrganize.devNote(root, 0);
+    if (!q) {
+      host.hidden = true;
+      host.replaceChildren();
+      if (said) said.textContent = '';
+      SettingsPane.refresh(root);
+      this._layout(root);
+      return 0;
+    }
+    const groups = Array.from(root.querySelectorAll('.setting-group'));
+    const ranked = this._rankGroups(groups, query);
+    const S = typeof VexSmartSearch !== 'undefined' ? VexSmartSearch : null;
+    const parsed = S ? S.parse(query) : null;
+    let rows = parsed ? SettingsFind.collect(S, parsed, ranked.hits || []) : [];
+    if (!rows.length) {
+      // What the ranking does not understand (an address, a number): the sections whose text holds it.
+      rows = groups.filter(g => ranked.get(g) > 0 && !SettingsFind.isExcluded(g)).map((g, order) => {
+        const label = g.querySelector('.setting-label');
+        const t = ((label && label.textContent) || '').trim() || 'Settings';
+        return { g, el: null, title: t, section: t, tier: 1, rank: ranked.get(g), order };
+      });
+    }
+    const n = SettingsFind.render(host, rows, q, (row) => this._openHit(row.g, row.el));
+    if (said) said.textContent = n ? (n === 1 ? '1 result' : n + ' results') : '';
+    root.scrollTop = 0;
+    this._layout(root);
+    return n;
+  },
+
+  // A category was picked in the list on the left: it replaces a search that was running.
+  _pickCategory(root, key) {
+    const panel = root.parentElement;
+    const box = panel && panel.querySelector('.set-search');
+    if (box && box.value) { box.value = ''; this._filter(root, ''); }
+    SettingsPane.select(root, key);
   },
 
   // The search's own status line: read by a screen reader, never drawn.
@@ -537,7 +588,13 @@ const SettingsUI = {
 
   // A result was picked: show its section, open whatever folds it, scroll to the setting and light it up for a moment.
   _openHit(g, el) {
-    this.reveal(g);
+    this.reveal(el || g);
+    if (typeof SettingsPane !== 'undefined') {
+      SettingsPane.unclamp(g);
+      if (el && el.closest && el.closest('.set-sub')) g.dataset.open = '1';
+    }
+    const area = g.closest('.settings-content');
+    if (area && area.parentElement && area.parentElement.dataset.pane && g.dataset.navKey) this._pickCategory(area, g.dataset.navKey);
     let target = g;
     if (el && el.isConnected) {
       target = el.closest('.setting-toggle-row, .setting-row') || el;
@@ -643,12 +700,41 @@ const SettingsUI = {
       const searchRow = document.createElement('div');
       searchRow.className = 'set-search-row';
       searchRow.appendChild(search);
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'set-search-clear';
+      clear.hidden = true;
+      clear.title = 'Clear search';
+      clear.setAttribute('aria-label', 'Clear search');
+      clear.innerHTML = typeof VexIcons !== 'undefined' ? VexIcons.svg('x', { size: 14 }) : '×';
+      searchRow.appendChild(clear);
       this._buildLayoutButton(searchRow);
       inner.appendChild(searchRow);
       inner.appendChild(nav);
       toolbar.appendChild(inner);
       panel.insertBefore(toolbar, root);                 // pinned over the scroll area
       search.addEventListener('input', () => SettingsUI._filter(root, search.value));
+      const clearSearch = () => { search.value = ''; SettingsUI._filter(root, ''); search.focus(); };
+      clear.addEventListener('click', clearSearch);
+      // Esc clears the search; the arrows go from the box down the results, and Enter opens the best one.
+      search.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && search.value) { e.preventDefault(); e.stopPropagation(); clearSearch(); return; }
+        const host = root.querySelector(':scope > .set-results');
+        if (!host || host.hidden) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); SettingsFind.move(host, null, 1); }
+        else if (e.key === 'Enter') { const first = SettingsFind.rows(host)[0]; if (first) { e.preventDefault(); first.click(); } }
+      });
+      root.addEventListener('keydown', (e) => {
+        const row = e.target && e.target.closest ? e.target.closest('.set-result-row') : null;
+        if (!row) return;
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); clearSearch(); }
+        else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const host = row.closest('.set-results');
+          if (e.key === 'ArrowUp' && SettingsFind.rows(host)[0] === row) { search.focus(); return; }
+          SettingsFind.move(host, row, e.key === 'ArrowDown' ? 1 : -1);
+        } else if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); row.click(); }
+      });
       // The list on the left goes up and down with the arrow keys too.
       nav.addEventListener('keydown', (e) => SettingsUI._navKey(e, panel, nav));
       // Focus (a click, or Tab) makes that entry the one Tab returns to.
@@ -761,6 +847,8 @@ const SettingsUI = {
         // The first section of a category can be switched off (a feature that is off hides its group):
         // scrolling to something that is not shown goes nowhere, so the first one in view is the target.
         navChip.addEventListener('click', () => {
+          // One category at a time (js/settings-pane.js): the list on the left chooses it.
+          if (panel.dataset.pane) { SettingsUI._pickCategory(root, key); SettingsUI._countChip(key, look.name); return; }
           SettingsUI._wanted = { key, until: Date.now() + 3000 };
           const shown = target.getClientRects().length ? target : Array.from(root.children).find(el => el.dataset && el.dataset.navKey === key && !el.classList.contains('set-nav-chip') && el.getClientRects().length);
           (shown || target).scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -801,6 +889,8 @@ const SettingsUI = {
 
     // Short sections: info folded behind a ?, More options, dropdowns (js/settings-organize.js).
     if (typeof SettingsOrganize !== 'undefined') SettingsOrganize.apply(root);
+    // One category at a time, its sections gathered into a few cards (js/settings-pane.js).
+    if (typeof SettingsPane !== 'undefined') SettingsPane.apply(root);
 
     // Settings › Appearance › Settings layout, and the saved choices.
     this._fillLayoutSetting(document.getElementById('settings-layout-setting'));
@@ -1086,6 +1176,16 @@ const SettingsUI = {
     const panel = root.parentElement || root;
     const nav = panel.querySelector('.set-nav');
     if (!nav) return null;
+    if (panel.dataset.pane) {
+      const picked = panel.dataset.paneCat || null;
+      let on = null;
+      nav.querySelectorAll('.set-nav-chip').forEach((chip) => {
+        if (picked && chip.dataset.navKey === picked) { chip.setAttribute('aria-current', 'true'); on = chip; }
+        else chip.removeAttribute('aria-current');
+      });
+      if (!nav.contains(document.activeElement)) this._rove(panel, on);
+      return picked;
+    }
     const area = root.getBoundingClientRect();
     const top = area.top + (parseFloat(root.style.scrollPaddingTop) || 0);
     let best = null;
@@ -1300,7 +1400,7 @@ const SettingsUI = {
       this._rove(panel);
     }
     const nav = keepCols ? navHad : navWant;
-    const want = this.columnsFor(root.clientWidth, prefs.columns);
+    const want = panel.dataset.pane ? 1 : this.columnsFor(root.clientWidth, prefs.columns);
     const had = Number(panel.dataset.setCols) || 1;
     const cols = keepCols ? had : want;
     // Said before the heights are read: a note changes its section's height.
@@ -1482,6 +1582,8 @@ const SettingsUI = {
         }
         // A link into an advanced section opens it even in Simple mode.
         SettingsUI.reveal(el);
+        // One category at a time: the link's category is the one shown.
+        if (hiddenBy && hiddenBy.dataset.navKey && hiddenBy.closest('.settings-content') && hiddenBy.closest('.settings-content').parentElement.dataset.pane) SettingsUI._pickCategory(hiddenBy.closest('.settings-content'), hiddenBy.dataset.navKey);
         // Instantly, and again while the layout settles: a smooth scroll was
         // cut short as the panels above rendered and pushed the section down,
         // stopping well before it (found 2026-09-29). Any touch of the scroll
