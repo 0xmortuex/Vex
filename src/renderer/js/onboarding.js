@@ -1165,7 +1165,7 @@ const Onboarding = {
         if (!window.vex || typeof window.vex.notify !== 'function') { st.textContent = 'Desktop notifications are not available in this build.'; st.style.color = 'var(--danger,#ef4444)'; return; }
         btn.disabled = true; st.textContent = 'Sending…'; st.style.color = 'var(--text-muted)';
         try {
-          await window.vex.notify('Vex', 'This is a test notification. If you can read this, they work.');
+          await window.vex.notify('Vex', (window.vexTr || String)('This is a test notification. If you can read this, they work.'));
           st.textContent = 'Windows showed it. Reminders and alarms will reach you the same way.';
           st.style.color = 'var(--primary)';
           this._session.notified = true;

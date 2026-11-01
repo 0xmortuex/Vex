@@ -1233,13 +1233,13 @@ const SidebarManager = {
       // row about three panels is not asking, it is an obstacle course.
       if (typeof SleepConsent === 'undefined') return;   // cannot ask, so do not act
       const names = due.map(n => this.panelLabel(n));
-      const said = names.length === 1 ? names[0] + ' has'
-        : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have';
+      const one = names.length === 1;
       SleepConsent.gate({
         id: 'panels',
-        title: said + ' been idle for a while. Let ' + (names.length === 1 ? 'it' : 'them') + ' sleep?',
-        detail: 'Asleep ' + (names.length === 1 ? 'it uses' : 'they use') + ' no memory and come'
-          + (names.length === 1 ? 's' : '') + ' back where you left off — but cannot notify you until then.',
+        title: one ? names[0] + ' has been idle for a while. Let it sleep?'
+          : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have been idle for a while. Let them sleep?',
+        detail: one ? 'Asleep it uses no memory and comes back where you left off — but cannot notify you until then.'
+          : 'Asleep they use no memory and come back where you left off — but cannot notify you until then.',
         run: sleep,
       });
     }, 60000);

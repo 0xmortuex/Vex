@@ -2395,7 +2395,7 @@ const WebviewManager = {
           const note = (typeof ChatLinkHygiene !== 'undefined') ? ChatLinkHygiene.copyNote(e.params.linkURL) : null;
           if (note) window.showToast?.(note.text, note.kind, 7000);
           else if (out.wrapped || out.tracked) {
-            window.showToast?.('Copied' + (out.wrapped ? ' the real address' : '') + (out.wrapped && out.tracked ? ', ' : '') + (out.tracked ? ' without its tracking tags' : ''));
+            window.showToast?.(out.wrapped && out.tracked ? 'Copied the real address, without its tracking tags' : out.wrapped ? 'Copied the real address' : 'Copied without its tracking tags');
           }
         }
       });

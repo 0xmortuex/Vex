@@ -172,7 +172,7 @@ const PermissionsSettings = (() => {
       status.textContent = 'Sending…';
       status.className = 'perm-test-body muted';
       try {
-        await window.vex.notify('Vex', 'This is a test notification. If you can read this, they work.');
+        await window.vex.notify('Vex', (window.vexTr || String)('This is a test notification. If you can read this, they work.'));
         status.textContent = 'Windows showed it. If you did not see it, check Focus Assist and Settings › System › Notifications › Vex.';
         status.className = 'perm-test-body ok';
       } catch (err) {

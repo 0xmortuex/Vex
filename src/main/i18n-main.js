@@ -59,6 +59,21 @@ const TR = {
   '{1}. Use the site’s other sign-in methods.': '{1}. Sitenin diğer oturum açma yöntemlerini kullanın.',
   'Vex is locked. Unlock it to use a passkey.': 'Vex kilitli. Bir geçiş anahtarı kullanmak için kilidini açın.',
   '{1} asked for a passkey too many times, so Vex stopped asking for a minute.': '{1} çok fazla kez geçiş anahtarı istedi; bu yüzden Vex bir dakika sormayı bıraktı.',
+  // The Windows notifications this process builds itself (notify.js, reminders.js, main.js, quiet-hours.js). A body is read line by line.
+  'Alarm': 'Alarm',
+  'Reminder': 'Hatırlatıcı',
+  'Reminder — urgent': 'Hatırlatıcı — acil',
+  'Snooze 9 min': 'Ertele 9 dk',
+  'Open': 'Aç',
+  'Mute this source': 'Bu kaynağı sustur',
+  'Windows is almost out of memory': 'Windows’un belleği neredeyse bitti',
+  'Only {1} GB of {2} GB is left to promise. Vex put its own tabs, AI and background work to rest. It has not touched {3}.':
+    '{2} GB’ın yalnızca {1} GB’ı verilebilir durumda kaldı. Vex kendi sekmelerini, yapay zekâsını ve arka plan işlerini dinlendirdi. {3} uygulamasına dokunmadı.',
+  'your game': 'oyununuz',
+  'From the extension {1}': 'Uzantıdan: {1}',
+  'Userscript {1}': 'Kullanıcı betiği {1}',
+  'Userscript {1}: {2}': 'Kullanıcı betiği {1}: {2}',
+  '{1} notifications held while you were away': 'Yokken tutulan {1} bildirim',
 };
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -75,8 +90,11 @@ function translate(text, lang) {
   if (Object.prototype.hasOwnProperty.call(TR, text)) return TR[text];
   for (const t of TEMPLATES) {
     const m = t.re.exec(text);
-    if (m) return t.value.replace(/\{(\d)\}/g, (all, n) => { const i = t.order.indexOf(n); return i === -1 ? all : m[i + 1]; });
+    // A value put in is translated too when it is a phrase of the table ("your game").
+    if (m) return t.value.replace(/\{(\d)\}/g, (all, n) => { const i = t.order.indexOf(n); return i === -1 ? all : translate(m[i + 1], lang); });
   }
+  // A notification body is several lines ("…\nFrom the extension Foo"): each line on its own.
+  if (text.includes('\n')) return text.split('\n').map(line => translate(line, lang)).join('\n');
   return text;
 }
 

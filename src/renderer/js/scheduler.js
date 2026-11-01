@@ -1088,7 +1088,7 @@ const Scheduler = {
       window.showToast?.('Desktop notifications are not available in this build', 'error');
       return;
     }
-    Promise.resolve(bridge.notify(title, body)).catch(err => {
+    Promise.resolve(bridge.notify((window.vexTr || String)(title), (window.vexTr || String)(body))).catch(err => {
       window.showToast?.('Desktop notification failed: ' + ((err && err.message) || 'unknown error'), 'error');
     });
   },
