@@ -2517,6 +2517,8 @@
 
     // Turkish, when Vex is set to it (vex.lang). The page's own words; the browser translates what it hands in (js/brief.js).
     const START_TR = (() => { try { return localStorage.getItem('vex.lang') === 'tr'; } catch (e) { return false; } })();
+    // The tab's own name: the page title is what the tab strip and the window show.
+    if (START_TR) document.title = 'Yeni sekme — Vex';
     function trShortcutDialog(root) {
       if (!START_TR) return;
       const words = { 'Add Shortcut': 'Kısayol ekle', 'Edit Shortcut': 'Kısayolu düzenle', 'Name': 'Ad', 'URL': 'Adres', 'Cancel': 'İptal', 'Save': 'Kaydet' };
@@ -2974,7 +2976,7 @@
           else engineGlyph.style.setProperty('--engine-color', e.color);
         }
         if (input) input.placeholder = START_TR ? e.name + ' ile ara…' : 'Search with ' + e.name + '…';
-        if (engineBtn) engineBtn.title = 'Search engine: ' + e.name;
+        if (engineBtn) engineBtn.title = (START_TR ? 'Arama motoru: ' : 'Search engine: ') + e.name;
       }
       function buildEngineMenu() {
         if (!engineMenu) return;
