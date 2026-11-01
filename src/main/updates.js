@@ -177,7 +177,13 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
   const problem = message => { log.warn('[Updates] ' + message); if (journal) journal.add('PROBLEM: ' + message); };
   // Only an installed Vex can be updated by the installer (see update-state.js).
   // The test feed (a .cmd stand-in) is allowed from any copy.
-  const copyProblem = () => (copy && copy.kind === 'dev' && !resolveFeed(env).test ? notInstalledMessage(copy, currentVersion) : null);
+  const copyProblem = () => {
+    if (resolveFeed(env).test) return null;
+    if (copy && copy.kind === 'dev') return notInstalledMessage(copy, currentVersion);
+    // A folder copy is only updated when Vex knows whether another Vex is installed (see update-state.js findRegisteredInstall).
+    if (copy && copy.kind === 'folder' && copy.unknownInstall) return `Vex could not tell whether another Vex is installed (${copy.unknownInstall}), so it will not update this folder copy. Install Vex with Vex-Setup.exe.`;
+    return null;
+  };
 
   const feed = () => resolveFeed(env);
 
@@ -213,7 +219,9 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     const base = { current, url: REPO + '/releases', downloadUrl: REPO + '/releases/latest/download/Vex-Setup.exe',
       copy: copy ? { kind: copy.kind, folder: copy.folder } : null, canSelfUpdate: !cannot, cannotUpdateReason: cannot,
       // A folder copy is updated where it is: the cover says so.
-      inPlaceFolder: copy && copy.kind === 'folder' ? copy.folder : null };
+      inPlaceFolder: copy && copy.kind === 'folder' && !copy.other ? copy.folder : null,
+      // A folder copy next to a registered install: the update goes into THAT install, never into this folder.
+      otherInstall: copy && copy.kind === 'folder' && copy.other ? copy.other : null };
     state.lastCheckAt = now();
     try {
       const { status, text } = await readText(f.latestYml, { maxBytes: 256 * 1024, timeoutMs: 20000 });
@@ -569,7 +577,7 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     const cannot = copyProblem();
     if (cannot) { problem('refused to install ' + version + ': ' + cannot); throw new UpdateError('not-installed', cannot); }
     // A folder copy: the installer is told to install into this copy's own folder, so the folder must take a write.
-    const target = copy && copy.kind === 'folder' ? copy.folder : null;
+    const target = copy && copy.kind === 'folder' && !copy.other ? copy.folder : null;
     if (target) {
       try { checkWritable(fs, target, env); }
       catch (err) { problem('refused to install ' + version + ' into ' + target + ': ' + err.message); throw new UpdateError('not-writable', err.message); }
@@ -588,7 +596,8 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
     if (script && !feed().test) throw new UpdateError('feed', 'Vex only runs a real installer.');
     if (!script && platform !== 'win32') throw new UpdateError('feed', 'Updating from inside Vex works on Windows only.');
     step(`checked the downloaded ${version} again before installing: it is exactly the release's installer`);
-    if (target) step(`this copy is not installed: the update goes into its own folder, ${target}`);
+    if (target) step(`this copy is not installed and no installed Vex exists: the update goes into its own folder, ${target}`);
+    else if (copy && copy.other) step(`this copy runs from a folder (${copy.folder}) and Vex is installed in ${copy.other}: the update goes into the installed Vex (no /D); this folder copy stays on ${currentVersion}`);
     return { file: verified.file, args: installerArgs(INSTALLER_ARGS, target), script, ...(target ? { target } : {}) };
   }
 

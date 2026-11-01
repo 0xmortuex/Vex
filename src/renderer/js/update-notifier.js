@@ -142,7 +142,8 @@ const UpdateNotifier = {
     if (s.staged && !this._el) {
       this.showCover({ ok: true, hasUpdate: true, staged: true, current: s.current, latest: s.staged.version, size: s.staged.size,
         releaseUrl: 'https://github.com/0xmortuex/Vex/releases/tag/v' + s.staged.version, canSelfUpdate: true,
-        inPlaceFolder: s.copy && s.copy.kind === 'folder' ? s.copy.folder : null });
+        inPlaceFolder: s.copy && s.copy.kind === 'folder' && !s.copy.other ? s.copy.folder : null,
+        otherInstall: s.copy && s.copy.kind === 'folder' && s.copy.other ? s.copy.other : null, copyFolder: s.copy ? s.copy.folder : null });
     }
     return s;
   },
@@ -325,7 +326,8 @@ const UpdateNotifier = {
     // with the way to get the installer, never an "Update now" that does nothing.
     // A copy run from a folder is updated in place: said once, here.
     this._setPhase('choose', info.canSelfUpdate === false ? (info.cannotUpdateReason || 'This copy of Vex cannot update itself.')
-      : (info.inPlaceFolder ? `This copy will be updated in place in ${info.inPlaceFolder}` : ''));
+      : (info.otherInstall ? `You also have Vex installed in ${info.otherInstall}. This copy runs from a folder (${info.copyFolder || (info.copy && info.copy.folder)}) and is a build you made yourself. Updating installs the new version into the installed copy; this folder copy stays on ${info.current} until you rebuild it (npm run pack).`
+        : (info.inPlaceFolder ? `This copy will be updated in place in ${info.inPlaceFolder}` : '')));
     this._loadNotes(info);
     // Tells the version review (js/version-review.js) that the cover is up. Fire
     // and forget: nothing here waits for it or reads an answer, so the update
@@ -456,10 +458,10 @@ const UpdateNotifier = {
           this._button('Skip this version', 'skip', 'quiet'));
       } else {
         actions.append(
-          this._button(phase === 'error' ? 'Try again' : (info.staged ? 'Restart now to install' : 'Update now'), this._primaryAct(), 'primary'),
+          this._button(phase === 'error' ? 'Try again' : (info.staged ? 'Restart now to install' : (info.otherInstall ? 'Update the installed Vex' : 'Update now')), this._primaryAct(), 'primary'),
           ...(phase === 'error' ? [this._button('Download it yourself', 'manual')] : []),
-          this._button('Later', 'later'),
-          ...(info.staged ? [] : [this._button('Skip this version', 'skip', 'quiet')]));
+          this._button(info.otherInstall ? 'Not now' : 'Later', 'later'),
+          ...(info.staged || info.otherInstall ? [] : [this._button('Skip this version', 'skip', 'quiet')]));
       }
     } else if (phase === 'downloading') {
       actions.append(this._button('Cancel', 'cancel'));

@@ -219,6 +219,55 @@ describe('a copy run from a folder (dist\\win-unpacked) is updated in place; sou
     expect(u.planFor(base, null).args).toEqual(['--updated', '/S', '--force-run']);
   });
 
+  describe('a folder copy next to a registered install in another folder', () => {
+    const INSTALLED = 'C:\\Users\\USER\\AppData\\Local\\Programs\\Vex';
+    it('never gets /D: the installer runs exactly as for an installed copy, and the log names the installed Vex', async () => {
+      const spawn = vi.fn(() => ({ on: vi.fn(), unref: vi.fn(), pid: 3 }));
+      const u = newUpdater({ copy: { ...folder, other: INSTALLED }, spawn });
+      const r = await u.check();
+      expect(r).toMatchObject({ canSelfUpdate: true, otherInstall: INSTALLED, inPlaceFolder: null });
+      await u.download('2.35.0');
+      const plan = await u.prepareInstall('2.35.0');
+      expect(plan.args).toEqual(['--updated', '/S', '--force-run']);
+      expect(plan.target).toBeUndefined();
+      u.launch(plan);
+      expect(spawn).toHaveBeenCalledWith(plan.file, ['--updated', '/S', '--force-run'], expect.not.objectContaining({ windowsVerbatimArguments: true }));
+      const text = journal.tail().join('\n');
+      expect(text).toContain(`Vex is installed in ${INSTALLED}: the update goes into the installed Vex (no /D)`);
+      expect(text).not.toContain('/D=');
+      // The folder is not even probed for writing: nothing of this copy is touched.
+      expect(fs.readdirSync(appDir)).toEqual([]);
+    });
+    it('the rollback for it also has no /D', async () => {
+      const u = newUpdater({ copy: { ...folder, other: INSTALLED } });
+      expect(u.planFor('x.exe', null).args).toEqual(['--updated', '/S', '--force-run']);
+    });
+    it('findRegisteredInstall: Uninstall key with InstallLocation, Programs\\Vex, a same-folder hit is not "another"', () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-reg-'));
+      const inst = path.join(root, 'Programs', 'Vex'); fs.mkdirSync(inst, { recursive: true });
+      fs.writeFileSync(path.join(inst, 'Vex.exe'), ''); fs.writeFileSync(path.join(inst, 'Uninstall Vex.exe'), '');
+      try {
+        const reg = `\r\nHKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{GUID}\r\n    DisplayName    REG_SZ    Vex\r\n    InstallLocation    REG_SZ    ${inst}\r\n`;
+        expect(S.findRegisteredInstall({ fs, env: {}, regQuery: key => (key.startsWith('HKCU') ? reg : '') })).toEqual({ folder: inst });
+        expect(S.findRegisteredInstall({ fs, env: { LOCALAPPDATA: root }, regQuery: () => '' })).toEqual({ folder: inst });
+        expect(S.findRegisteredInstall({ fs, env: {}, regQuery: () => '' })).toBe(null);
+        // A registry entry whose folder is gone is not an install.
+        expect(S.findRegisteredInstall({ fs, env: {}, regQuery: () => reg.replace(inst, path.join(root, 'gone')) })).toBe(null);
+        const found = { folder: inst };
+        expect(S.withOtherInstall({ kind: 'folder', folder: inst }, found)).toEqual({ kind: 'folder', folder: inst });
+        expect(S.withOtherInstall({ kind: 'folder', folder: appDir }, found)).toEqual({ kind: 'folder', folder: appDir, other: inst });
+        expect(S.withOtherInstall({ kind: 'installed', folder: inst }, found).other).toBeUndefined();
+      } finally { fs.rmSync(root, { recursive: true, force: true }); }
+    });
+    it('if Vex cannot tell whether another install exists, the folder copy is not updated (visible reason)', async () => {
+      const u = newUpdater({ copy: { ...folder, unknownInstall: 'reg.exe failed' } });
+      const r = await u.check();
+      expect(r.canSelfUpdate).toBe(false);
+      expect(r.cannotUpdateReason).toMatch(/could not tell whether another Vex is installed \(reg\.exe failed\)/);
+      expect((await u.download('2.35.0')).code).toBe('not-installed');
+    });
+  });
+
   it('a staged download is also installed in place after a restart', async () => {
     const first = newUpdater({ copy: folder }); await first.check(); await first.download('2.35.0');
     const second = newUpdater({ copy: folder }); second.restoreStaged();
