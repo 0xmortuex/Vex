@@ -317,6 +317,13 @@ contextBridge.exposeInMainWorld('vex', {
   // Returns { ok, mode, preset?, auto?, port?, error? }.
   setDiscordBypassMode: (mode, opts) => ipcRenderer.invoke('discord:set-bypass-mode', mode, opts),
   probeBypass: (url) => ipcRenderer.invoke('bypass:probe', url),
+  // Unblock centre (main/unblock-main.js): is a failed load worth helping, open a site by the first way that works, the saved list.
+  unblock: {
+    assess: (url, code, partition) => ipcRenderer.invoke('unblock:assess', url, code, partition),
+    try: (host, opts) => ipcRenderer.invoke('unblock:try', host, opts),
+    sync: (payload) => ipcRenderer.invoke('unblock:sync', payload),
+    status: () => ipcRenderer.invoke('unblock:status'),
+  },
   // One-click Vencord install into the Discord panel.
   installVencord: () => ipcRenderer.invoke('discord:install-vencord'),
   // Install a LOCAL Vencord build (your custom userplugins/plugins). Optional

@@ -423,6 +423,16 @@ define('routing:prune', [value => Array.isArray(value) && value.length <= 500 &&
 // 'auto' is the Auto-configure sweep (js/discord-bypass.js); it was missing
 // here, so every Auto-configure was refused before it started.
 define('bypass:probe', [string(2048)]);
+// The Unblock centre (main/unblock-main.js): a failed address, its error code and the tab's session; a site name and
+// options; the window's list (200 sites at most); no arguments for the status.
+define('unblock:assess', [string(2048), value => Number.isInteger(value) && value <= 0 && value >= -999, optional(string(160))]);
+define('unblock:try', [string(253), optional(shape({ prefer: optional(oneOf(['doh', 'light', 'byedpi'])), allowDownload: optional(boolean), keep: optional(boolean) }))]);
+define('unblock:sync', [shape({
+  enabled: boolean,
+  sites: value => Array.isArray(value) && value.length <= 200 && value.every(s => object(s) && string(253)(s.host) && oneOf(['ask', 'always', 'never', 'once'])(s.mode)
+    && optional(oneOf(['doh', 'light', 'byedpi']))(s.method) && optional(v => Number.isInteger(v) && v >= 0 && v < 100)(s.preset)),
+})]);
+define('unblock:status', []);
 define('discord:set-bypass-mode', [oneOf(['off','light','strong','auto']), optional(shape({ preset: optional(value => Number.isInteger(value)), custom: optional(string(4096)) }))]);
 define('discord:install-vencord-local', [optional(string())]);
 // Which Vencord plugin allocates how much (main/discord-heap.js): the Discord page's id, then the plugin names.
