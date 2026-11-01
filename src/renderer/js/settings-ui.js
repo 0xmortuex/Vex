@@ -62,7 +62,7 @@ const SettingsUI = {
   // name/weather — so they keep their chips.
   CATS: [
     { name: 'General',         icon: 'search',   color: '#6366f1', match: ['general', 'search engine', 'search by what you want'] },
-    { name: 'Browser',         icon: 'globe',    color: '#0ea5e9', match: ['default browser', 'folder browser', 'document viewer', 'image viewer', 'video and sound player', 'documents and e-books'] },
+    { name: 'Browser',         icon: 'globe',    color: '#0ea5e9', match: ['default browser', 'folder browser', 'document viewer', 'image viewer', 'video and sound player', 'video and music playback', 'documents and e-books'] },
     { name: 'Appearance',      icon: 'palette',  color: '#a855f7', match: ['appearance', 'theme', 'gui style', 'tab layout', 'vex packs', 'mouse cursor', 'click effect', 'wallpapers', 'sounds'] },
     { name: 'Layout',          icon: 'grid',     color: '#c084fc', match: ['layout', 'customize toolbar'] },
     { name: 'Sidebar',         icon: 'panel',    color: '#818cf8', match: ['sidebar', 'links and panels', 'panels and messages'] },
@@ -216,7 +216,7 @@ const SettingsUI = {
     'general', 'default browser', 'sidebar buttons', 'privacy & security', 'privacy hardening',
     'site settings', 'site permissions',
     'autofill', 'sessions', 'downloads', 'passwords', 'passkeys', 'payment cards', 'appearance', 'gui style', 'tab layout',
-    'wallpapers', 'reading & accessibility', 'vex sync', 'data', 'your data', 'about', 'help and faq',
+    'wallpapers', 'reading & accessibility', 'vex sync', 'data', 'your data', 'about', 'help and faq', 'video and music playback',
   ],
   tierOf(labelText) {
     const t = String(labelText || '').trim().toLowerCase();

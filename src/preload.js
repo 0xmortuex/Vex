@@ -470,6 +470,10 @@ contextBridge.exposeInMainWorld('vex', {
   devextConsoleClear: () => ipcRenderer.invoke('devext:console-clear'),
   devextConsoleList: (level, since) => ipcRenderer.invoke('devext:console-list', level, since),
   castlabsBehind: (force) => ipcRenderer.invoke('castlabs:behind', force),
+  // Settings > Video and music playback (DRM) and the playback banner (src/main/drm-health.js).
+  drmStatus: (reported) => ipcRenderer.invoke('drm:status', reported),
+  drmRepair: (id, reported) => ipcRenderer.invoke('drm:repair', id, reported),
+  drmClearSite: (id) => ipcRenderer.invoke('drm:clear-site', id),
   // Today's TCMB rates, fetched only when asked (main/fx-rates.js).
   fxTcmb: () => ipcRenderer.invoke('fx:tcmb'),
   // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook (the address goes in once and
