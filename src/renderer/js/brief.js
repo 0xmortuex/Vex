@@ -429,6 +429,7 @@ const VexBrief = {
         if (typeof it.text === 'string') it.text = this.translate(it.text);
         if (typeof it.badge === 'string') it.badge = this.translate(it.badge);
         if (typeof it.sub === 'string') it.sub = this.translate(it.sub);
+        if (typeof it.when === 'string') it.when = this.translate(it.when);
         for (const a of it.actions || []) if (a && a.label) a.label = this.translate(a.label);
       }
     }
