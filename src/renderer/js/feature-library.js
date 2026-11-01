@@ -116,6 +116,7 @@ const FeatureLibrary = {
           <div class="flib-views" id="flib-views" role="group" aria-label="Choose what you want to do"></div>
           <div class="flib-cats" id="flib-cats"></div>
         </div>
+        <div class="flib-maker-row"><button type="button" class="flib-maker" id="flib-maker">${typeof VexIcons !== 'undefined' ? VexIcons.svg('code', { size: 16 }) : ''}<span>More from the creator</span><small>Other public projects by the maker of Vex.</small></button></div>
         <div class="flib-list" id="flib-list"></div>
       </div>`;
     const q = host.querySelector('#flib-q');
@@ -124,6 +125,10 @@ const FeatureLibrary = {
     host.querySelector('#flib-ask-form').addEventListener('submit', (e) => {
       e.preventDefault();
       this.answerInto(host, host.querySelector('#flib-ask-q').value);
+    });
+    host.querySelector('#flib-maker').addEventListener('click', () => {
+      const ready = (typeof VexMakerRepos !== 'undefined') ? Promise.resolve() : window.VexLazy.ensure('js/maker-repos.js');
+      ready.then(() => VexMakerRepos.open()).catch(err => window.showToast?.('More from the creator could not open: ' + ((err && err.message) || err), 'error'));
     });
     this._drawNever(host);
     this._drawViews(host);
