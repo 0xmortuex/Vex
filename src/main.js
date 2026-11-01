@@ -6902,6 +6902,11 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       top: Number.isInteger(request.top) ? request.top : bottom,
       host: BrowserWindow.fromWebContents(_e.sender),
     };
+    // Under its button from the start: Stylus's popup calls window.focus()
+    // while it loads, which shows a hidden window where it was made (mid-screen),
+    // and its load does not finish for a long while, so waiting to place the
+    // window until the page had loaded left Stylus's popup there (2026-11-01).
+    _placePopupWindow(win, anchor, 360, 480);
     // A popup's content can change size after it loads: Dark Reader's is a
     // "Loading, please wait" line until its data arrives, then 580px tall, and
     // it showed in a 500px window with scroll bars (2026-09-28). Chrome resizes

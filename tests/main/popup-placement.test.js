@@ -94,6 +94,11 @@ describe('wiring', () => {
     expect(handler.slice(0, handler.indexOf('\n});\n'))).not.toMatch(/Math\.max\(0, x \+|getPosition\(\)/);
     expect(handler.slice(0, handler.indexOf('\n});\n'))).toMatch(/_placePopupWindow\(win, anchor, w, h\);\n\s*win\.show\(\)/);
   });
+  it('the window is under its button before the page loads (Stylus focuses it while loading, and its load does not finish)', () => {
+    const body = handler.slice(0, handler.indexOf('\n});\n'));
+    expect(body.indexOf('_placePopupWindow(win, anchor, 360, 480)')).toBeGreaterThan(0);
+    expect(body.indexOf('_placePopupWindow(win, anchor, 360, 480)')).toBeLessThan(body.indexOf('await win.loadURL(popupUrl)'));
+  });
   it('the toolbar menu and Settings send the whole button, not just its left edge', () => {
     for (const f of ['src/renderer/js/extensions-menu.js', 'src/renderer/js/extensions-settings.js']) {
       expect(read(f)).toMatch(/right: Math\.max\(0, Math\.round\(window\.screenX/);
