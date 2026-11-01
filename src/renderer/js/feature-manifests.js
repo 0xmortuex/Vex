@@ -547,6 +547,10 @@
     // profile gets them OFF and is offered them. The throwaway session is also off on a new profile until chosen.
     { id: 'download-guard', title: 'Cheat tools and fake updates', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['the name and address of a file being downloaded; once it is saved, its first bytes and, for a zip, its list of file names (never decompressed, run or uploaded)'], writes: ['nothing; the file waits in a holding folder until you decide'], sends: [] } },
+    // The list of known dangerous sites (src/main/threat-list.js, js/threat-list-ui.js). The check runs in main; its switch is the one in Settings
+    // (kept in main, like Web safety's sensitivity), so there is no VexUsage row and no vex.* key.
+    { id: 'threat-list', title: 'Warnings for known dangerous sites', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['threat:settings', 'threat:test'],
+      permissions: { reads: ['the address of each page you open, only to look it up in a list on this computer'], writes: ['the downloaded list (a set of hashes, no names), the sites you chose to trust, and a note of each time you chose Continue anyway'], sends: ['About once a day, a request for the public list file (a plain GET with no cookies); none of your addresses are in it'] } },
     // Quick look at a finished download (js/download-quicklook.js): Space in the Downloads panel. Always on, no switch: it is how the panel looks at a file.
     { id: 'download-quicklook', title: 'Quick look at downloads', group: 'Downloads', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['the first part of a finished download you press Space on, only if Vex downloaded it (a picture, a PDF, the first 200 KB of text, the names in an archive, the first text of an Office file)'], writes: ['nothing; a file is deleted to the Recycle Bin only after you confirm'], sends: [] } },

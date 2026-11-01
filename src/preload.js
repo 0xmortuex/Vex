@@ -806,6 +806,15 @@ contextBridge.exposeInMainWorld('vex', {
     // Of the sites a page loaded things from, how many keep cookies here (counts only).
     thirdPartyCount: (opts) => ipcRenderer.invoke('websafety:third-party-count', opts),
   },
+  // Known dangerous sites (main/threat-list.js): the list's status, its switch and its update. The check itself runs in main.
+  threat: {
+    status: () => ipcRenderer.invoke('threat:status'),
+    setEnabled: (on) => ipcRenderer.invoke('threat:set-enabled', !!on),
+    setAutoUpdate: (on) => ipcRenderer.invoke('threat:set-auto-update', !!on),
+    update: () => ipcRenderer.invoke('threat:update'),
+    forgetHost: (host) => ipcRenderer.invoke('threat:forget-host', host),
+    continueLog: () => ipcRenderer.invoke('threat:continue-log'),
+  },
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
   reminders: {

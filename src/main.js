@@ -472,7 +472,7 @@ function _httpsUpgradeURL(details) {
 // containers' sessions asked before; private windows, off-the-record and
 // burner tabs, New Identity and Tor tabs loaded http as it came (SE3).
 function _httpsAnswer(details) {
-  if (_lookalikeGuard(details)) return { cancel: true };
+  if (_threatGuard(details) || _lookalikeGuard(details)) return { cancel: true };
   const upgraded = _httpsUpgradeURL(details);
   return upgraded ? { redirectURL: upgraded } : { cancel: false };
 }
@@ -504,6 +504,37 @@ function _lookalikePage(id, url, verdict) {
   if (!contents || contents.isDestroyed()) return;
   _wsShown.set(id, url);
   _showVexPage(contents, require('./main/web-safety-pages').lookalikePageHtml(url, verdict), url, 'lookalike page', url);
+}
+// === Known dangerous sites (src/main/threat-list.js) ========================
+// A page address that is on the list of reported phishing and malware sites is not loaded: the tab shows a full-page
+// warning (src/main/threat-pages.js) with "Go back to safety" focused and a "Continue anyway" behind a second click.
+// The lookup is local; the address is never sent anywhere. Like the lookalike guard it runs for every session
+// (private windows, containers, Tor tabs), for the page itself only. A pass is per tab and per name (or address).
+const _threatPassed = new Map();   // page id -> Set<pass key> the person went on to
+const _threatShown = new Map();    // page id -> { url, hit } the warning page stands for
+const _threatPassKey = (hit, url) => {
+  if (hit.kind !== 'address') return hit.host;
+  try { const u = new URL(url); return u.host + u.pathname + u.search; } catch { return url; }
+};
+function _threatGuard(details) {
+  if (details.resourceType !== 'mainFrame' || !details.webContentsId) return false;
+  let hit;
+  try { hit = _threatList.check(details.url); }
+  catch (err) { console.error('[ThreatList] the check failed, the page is loaded:', err.message); return false; }
+  if (!hit) return false;
+  const passed = _threatPassed.get(details.webContentsId);
+  if (hit.kind !== 'test' && passed && passed.has(_threatPassKey(hit, details.url))) return false;
+  const contents = webContents.fromId(details.webContentsId);
+  if (!contents || contents.isDestroyed() || contents.getType() !== 'webview') return false;
+  console.log('[ThreatList] not loading ' + hit.host + ' (' + hit.kind + ')');
+  setTimeout(() => _threatPage(details.webContentsId, details.url, hit), 0);
+  return true;
+}
+function _threatPage(id, url, hit) {
+  const contents = webContents.fromId(id);
+  if (!contents || contents.isDestroyed()) return;
+  _threatShown.set(id, { url, hit });
+  _showVexPage(contents, require('./main/threat-pages').threatPageHtml(url, hit), url, 'dangerous-site page', url);
 }
 // A tab's page (the main session, a container or route, a private window, an
 // off-the-record, burner, New Identity or Tor tab), not an app panel's.
@@ -992,6 +1023,25 @@ const _webSafety = require('./main/web-safety').createWebSafety({
   write: (text) => require('./main/file-store').atomicWrite(_webSafetyFile, text),
   topHosts: () => _webSafetyTopHosts(),
 });
+// Known dangerous sites (src/main/threat-list.js): a list of reported phishing and malware sites, downloaded at most once a day
+// through the public-only fetch (https, no cookies, size cap, egress-ledger line "Safety list") and looked up on this computer.
+const _threatList = require('./main/threat-list').createThreatList({
+  dir: path.join(userDataPath, 'threat-list'), fs, path, fetch: boundedPublicFetch,
+  log: (m) => console.error(m),
+});
+// Not before the privacy policy is agreed, and not while the profile is still locked.
+const _threatTick = () => {
+  if (typeof mainWindow !== 'undefined' && mainWindow && _agreementGate.blocks(mainWindow)) return;
+  _threatList.maybeUpdate().catch(err => console.error('[ThreatList] the update pass failed:', err.message));
+};
+setTimeout(_threatTick, 45 * 1000).unref();
+setInterval(_threatTick, 6 * 3600 * 1000).unref();
+ipcMain.handle('threat:status', () => _threatList.status());
+ipcMain.handle('threat:set-enabled', (_e, on) => _threatList.setEnabled(on));
+ipcMain.handle('threat:set-auto-update', (_e, on) => _threatList.setAutoUpdate(on));
+ipcMain.handle('threat:update', () => _threatList.update());
+ipcMain.handle('threat:forget-host', (_e, host) => _threatList.forgetHost(host));
+ipcMain.handle('threat:continue-log', () => _threatList.continueLog());
 // Permission hygiene (src/main/permission-hygiene.js): expiry, the trap guard and the
 // live camera/mic/location indicator. Off until Settings switches the feature on.
 const _permHygiene = require('./main/permission-hygiene').createPermissionHygiene({
@@ -7140,6 +7190,42 @@ app.on('web-contents-created', (_event, contents) => {
         .then(() => { if (!contents.isDestroyed()) return contents.loadURL(shown); })
         .catch(err => console.error('[WebSafety] could not trust ' + host + ':', err.message));
     }
+  });
+  // The dangerous-site warning page (_threatPage): its three links are addresses that cannot exist (threat-pages.js) and count only
+  // while this tab is showing that page. A page of a site cannot send one: without the warning on screen they do nothing.
+  contents.once('destroyed', () => { _threatPassed.delete(contents.id); _threatShown.delete(contents.id); });
+  contents.on('will-navigate', (evt, url) => {
+    const to = (evt && evt.url) || url;
+    const pages = require('./main/threat-pages');
+    if (!to.startsWith('https://vex-threat.invalid/')) return;
+    evt.preventDefault();
+    const shown = _threatShown.get(contents.id);
+    if (!shown) return;
+    const persistent = (secureSessions.partitionOf(contents) || '').startsWith('persist:');
+    const fail = (err) => console.error('[ThreatList] could not go on to the site:', err && err.message);
+    if (to === pages.BACK_URL) {
+      _threatShown.delete(contents.id);
+      if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack();
+      else contents.loadURL(pathToFileURL(path.join(__dirname, 'renderer', 'start.html')).toString()).catch(fail);
+      return;
+    }
+    const trust = to.startsWith(pages.TRUST_PREFIX);
+    if (!trust && !to.startsWith(pages.CONTINUE_PREFIX)) return;
+    if (shown.hit.kind === 'test') return;
+    let target;
+    try { target = decodeURIComponent(to.slice((trust ? pages.TRUST_PREFIX : pages.CONTINUE_PREFIX).length)); } catch { return; }
+    if (target !== shown.url) return;
+    _threatShown.delete(contents.id);
+    if (!_threatPassed.has(contents.id)) _threatPassed.set(contents.id, new Set());
+    _threatPassed.get(contents.id).add(_threatPassKey(shown.hit, shown.url));
+    try {
+      _threatList.logContinue(shown.hit.host, { persistent, kind: shown.hit.kind });
+      if (trust) _threatList.allowHost(shown.hit.host, { persistent });
+    } catch (err) { console.error('[ThreatList] could not note that you continued:', err.message); }
+    contents.loadURL(shown.url).catch(err => { if (!(err && (err.errno === -3 || /ERR_ABORTED/.test(err.message)))) fail(err); });
+  });
+  contents.on('did-navigate', (_e, url) => {
+    if (_threatShown.has(contents.id) && !/^data:/i.test(url || '')) _threatShown.delete(contents.id);
   });
   const _paranoidRtc = () => { try { _applyParanoidWebRtc(contents); } catch (err) { console.error('[WebSafety] could not set the WebRTC policy:', err.message); } };
   contents.on('did-navigate', _paranoidRtc);
