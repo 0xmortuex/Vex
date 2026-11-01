@@ -28,7 +28,7 @@ const SettingsOrganize = {
   // …but only when at least this many rows would be folded away.
   MORE_MIN: 3,
 
-  INFO_SELECTOR: '.setting-info, .setting-hint, [style*="text-muted"]',
+  INFO_SELECTOR: '.setting-info, .setting-hint, .vex-platform-note, .set-layout-hint, [style*="text-muted"]',
 
   // ---- importance ----------------------------------------------------------
   // critical: in Settings for everyone. high / mid / low: Developer mode.
@@ -68,8 +68,8 @@ const SettingsOrganize = {
 
   // ---- the ? button ---------------------------------------------------------
   _seq: 0,
-  _isFoldable(el) {
-    if (el.dataset.infoFolded || el.id || el.closest('.set-info-btn, [role="alert"], [role="status"], [aria-live]')) return false;
+  _isFoldable(el, opts) {
+    if (el.dataset.infoFolded || (el.id && !(opts && opts.allowId && !/status|state|result|err|msg|count|live|progress/i.test(el.id))) || el.closest('.set-info-btn, [role="alert"], [role="status"], [aria-live]')) return false;
     if (el.hasAttribute('aria-live') || el.hasAttribute('role')) return false;
     if (el.querySelector('input, button, select, textarea, a[href], [contenteditable]')) return false;
     if (el.closest('label.toggle')) return false;
@@ -78,7 +78,7 @@ const SettingsOrganize = {
     const style = el.getAttribute('style') || '';
     // A grey inline style only counts when it really is the small grey note.
     if (el.matches('[style*="text-muted"]') && !el.matches('.setting-info, .setting-hint')) {
-      if (!/color:\s*var\(--text-muted\)/.test(style) || !/font-size:\s*1[0-2]px/.test(style)) return false;
+      if (!/color:\s*var\(--text-muted\)/.test(style) || !/font-size:\s*1[0-3](\.\d+)?px/.test(style)) return false;
     }
     const inline = el.tagName === 'SPAN' && !!el.closest('.setting-toggle-row');
     const len = (el.textContent || '').trim().length;
@@ -97,47 +97,60 @@ const SettingsOrganize = {
     return btn;
   },
 
+  // Fold one description behind its own ? (false when it is not foldable).
+  _foldEl(el, opts) {
+    if (!this._isFoldable(el, opts)) return false;
+    const btn = this._infoButton();
+    if (!el.id) el.id = 'set-info-' + (++this._seq); else ++this._seq;
+    btn.setAttribute('aria-controls', el.id);
+    // Where the button goes: beside the row the text explains.
+    const row = el.closest('.setting-toggle-row');
+    const prev = el.previousElementSibling;
+    if (row) {
+      const first = row.querySelector(':scope > span');
+      if (first) first.after(btn); else row.prepend(btn);
+      btn.classList.add('set-info-btn--row');
+    } else if (prev && prev.matches('.setting-toggle-row, .setting-row') && !prev.querySelector(':scope > .set-info-btn')) {
+      const first = prev.querySelector(':scope > span');
+      if (first && prev.matches('.setting-toggle-row')) first.after(btn); else prev.append(btn);
+      btn.classList.add('set-info-btn--row');
+    } else if (prev && prev.matches('label.setting-label') && prev.parentElement && prev.parentElement.matches('.setting-group')) {
+      prev.after(btn);
+      btn.classList.add('set-info-btn--corner');
+    } else {
+      el.before(btn);
+      btn.classList.add('set-info-btn--line');
+    }
+    // Named by the row it explains: "About this setting" alone, a hundred times, tells a screen reader nothing.
+    const src = row ? row.querySelector(':scope > span') : (btn.previousElementSibling || null);
+    if (src && src !== el && !src.contains(el) && !src.classList.contains('set-info-folded') && (src.textContent || '').trim().length > 0 && src.textContent.trim().length <= 90) {
+      if (!src.id) src.id = 'set-info-for-' + this._seq;
+      btn.id = 'set-info-btn-' + this._seq;
+      btn.setAttribute('aria-labelledby', btn.id + ' ' + src.id);
+    }
+    // No label beside it: the heading of its section names it.
+    if (!btn.hasAttribute('aria-labelledby')) {
+      const grp = el.closest('.setting-group');
+      const head = grp && grp.querySelector('.setting-label');
+      if (head && !head.contains(el) && (head.textContent || '').trim().length > 0 && head.textContent.trim().length <= 90) {
+        if (!head.id) head.id = 'set-info-for-' + this._seq;
+        btn.id = btn.id || 'set-info-btn-' + this._seq;
+        btn.setAttribute('aria-labelledby', btn.id + ' ' + head.id);
+      }
+    }
+    el.dataset.infoFolded = '1';
+    el.classList.add('set-info-folded');
+    btn.addEventListener('click', () => {
+      const open = el.classList.toggle('set-info-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    return true;
+  },
+
   // Fold every long description under `root`.
   fold(root) {
     let n = 0;
-    for (const el of root.querySelectorAll(this.INFO_SELECTOR)) {
-      if (!this._isFoldable(el)) continue;
-      const btn = this._infoButton();
-      el.id = 'set-info-' + (++this._seq);
-      btn.setAttribute('aria-controls', el.id);
-      // Where the button goes: beside the row the text explains.
-      const row = el.closest('.setting-toggle-row');
-      const prev = el.previousElementSibling;
-      if (row) {
-        const first = row.querySelector(':scope > span');
-        if (first) first.after(btn); else row.prepend(btn);
-        btn.classList.add('set-info-btn--row');
-      } else if (prev && prev.matches('.setting-toggle-row, .setting-row') && !prev.querySelector(':scope > .set-info-btn')) {
-        const first = prev.querySelector(':scope > span');
-        if (first && prev.matches('.setting-toggle-row')) first.after(btn); else prev.append(btn);
-        btn.classList.add('set-info-btn--row');
-      } else if (prev && prev.matches('label.setting-label') && prev.parentElement && prev.parentElement.matches('.setting-group')) {
-        prev.after(btn);
-        btn.classList.add('set-info-btn--corner');
-      } else {
-        el.before(btn);
-        btn.classList.add('set-info-btn--line');
-      }
-      // Named by the row it explains: "About this setting" alone, a hundred times, tells a screen reader nothing.
-      const src = row ? row.querySelector(':scope > span') : (btn.previousElementSibling || null);
-      if (src && src !== el && !src.contains(el) && !src.classList.contains('set-info-folded') && (src.textContent || '').trim().length > 0 && src.textContent.trim().length <= 90) {
-        if (!src.id) src.id = 'set-info-for-' + this._seq;
-        btn.id = 'set-info-btn-' + this._seq;
-        btn.setAttribute('aria-labelledby', btn.id + ' ' + src.id);
-      }
-      el.dataset.infoFolded = '1';
-      el.classList.add('set-info-folded');
-      btn.addEventListener('click', () => {
-        const open = el.classList.toggle('set-info-open');
-        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      });
-      n++;
-    }
+    for (const el of root.querySelectorAll(this.INFO_SELECTOR)) if (this._foldEl(el)) n++;
     return n;
   },
 
@@ -150,7 +163,7 @@ const SettingsOrganize = {
     btn.type = 'button';
     btn.className = 'set-more-btn';
     btn.setAttribute('aria-expanded', 'false');
-    btn.innerHTML = VexIcons.svg('chevron-down', { size: 14 }) + '<span class="set-more-label">More options</span><span class="set-more-count"></span>';
+    btn.innerHTML = VexIcons.svg('chevron-down', { size: 14 }) + '<span class="set-more-label">Advanced</span><span class="set-more-count"></span>';
     btn.querySelector('.set-more-count').textContent = '(' + count + ')';
     const body = document.createElement('div');
     body.className = 'set-more-body';
@@ -177,11 +190,12 @@ const SettingsOrganize = {
         n++;
       }
       const rows = Array.from(box.children).filter(c => this._isRow(c));
-      if (rows.length - this.MORE_AFTER < this.MORE_MIN) continue;
-      const cut = rows[this.MORE_AFTER];
+      if (rows.length - Math.max(this.MORE_AFTER, Math.ceil(rows.length * 0.6)) < this.MORE_MIN) continue;
+      // Never more than 40% of a section is folded: "Advanced" holds the rare rows, the common ones are on the page.
+      const cut = rows[Math.max(this.MORE_AFTER, Math.ceil(rows.length * 0.6))];
       const tail = [];
       for (let node = cut; node; node = node.nextSibling) tail.push(node);
-      const { btn, body } = this._makeMore(rows.length - this.MORE_AFTER);
+      const { btn, body } = this._makeMore(rows.length - rows.indexOf(cut));
       cut.before(btn, body);
       for (const node of tail) body.appendChild(node);
       n++;
