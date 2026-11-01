@@ -733,6 +733,8 @@ define('pdfview:save-copy', [shape({
   toDownloads: optional(boolean),
 })]);
 define('fx:tcmb', []);
+// More from the creator (src/main/maker-repos.js): no arguments; the address is fixed in main.
+define('makerepos:refresh makerepos:stored', []);
 // Community and chat tools (main/comms-tools.js). The webhook address goes in once and never comes back;
 // a post is one text of at most 2000 characters. The bridge channels take no arguments: main reads one fixed file.
 define('comms:webhook-status comms:webhook-clear comms:bridge-status comms:bridge-pick comms:bridge-read comms:bridge-forget', []);

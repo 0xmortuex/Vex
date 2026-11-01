@@ -11,6 +11,7 @@ A release is two commands: `scripts/release.js` prepares and pushes the version,
   ```
   (`VEX_SKIP_VMP_VERIFY=1` builds without DRM. Such a build is never a release: Netflix/Spotify playback fails with it.)
 - **The website checked out next to this repo** as `..\vex-website` — `post-publish.js` moves its "Latest" badge.
+- **Refresh the creator's project list before a release:** `npm run update:maker` rewrites `src/renderer/js/maker-repos-data.js` ("More from the creator", public repositories only, read-only GitHub call, nothing is contacted by users until they press Refresh). Commit the file.
 - **Close any Vex running from `dist\`.** The build deletes and rebuilds `dist\`; `scripts/check-dist-free.js` stops the build with a message if a `dist\…\Vex.exe` is still running.
 - **CI is green** for the commit you are releasing (`gh run list --limit 3`). CI runs on Node 22 — run the tests under Node 22 too, along with `npm run lint`, `npm run check:types` and `npm audit --omit=dev --audit-level=high`.
 
