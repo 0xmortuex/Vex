@@ -737,15 +737,24 @@ const SettingsPane = {
         btn.className = 'set-clamp-btn';
         btn.textContent = this._t('Show all') + ' ' + best.kids.length;
         btn._list = best.c;
-        btn.addEventListener('click', () => this.unclamp(g));
+        btn.addEventListener('click', this._unclamper(g));
         // One list in the group: its row is the LAST row of the group (rows under it stay under the list's rows, not under "Show all").
         if (lists.length === 1 && box !== best.c && box.contains(best.c)) {
           const tail = Array.from(box.children).find(k => k.matches('.set-more-btn'));
           if (tail) tail.before(btn); else box.appendChild(btn);
         } else best.c.after(btn);
       }
-      g.addEventListener('focusin', () => this.unclamp(g), { once: true });
+      // One waiting listener per section: this runs on every refresh, and a listener made here shared this scope's `found` (the old
+      // lists with all their rows), so each refresh kept the personas grid, memory list, etc. of the one before alive.
+      this._unclampOnFocus(g);
     }
+  },
+  // Functions of their own, so a closure holds only the section.
+  _unclamper(g) { return () => this.unclamp(g); },
+  _unclampOnFocus(g) {
+    if (g._clampFocusWaiting) return;
+    g._clampFocusWaiting = true;
+    g.addEventListener('focusin', () => { g._clampFocusWaiting = false; this.unclamp(g); }, { once: true });
   },
   unclamp(g) {
     if (!g) return;
