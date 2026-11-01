@@ -91,8 +91,8 @@ describe('dragging a folder', () => {
   });
 
   it('moves it above the first one when let go over the top half of that one', () => {
-    drag(center(folder('apps').querySelector('.sb-folder-btn')), { x: 30, y: folder('knowledge').getBoundingClientRect().top + 5 });
-    expect(G.model().map(g => g.id)[0]).toBe('apps');
+    drag(center(folder('chat').querySelector('.sb-folder-btn')), { x: 30, y: folder('knowledge').getBoundingClientRect().top + 5 });
+    expect(G.model().map(g => g.id)[0]).toBe('chat');
   });
 
   it('draws the line while dragging and takes it away after', () => {
@@ -111,11 +111,11 @@ describe('dragging a folder', () => {
     ptr('pointerup', 10, 60, document.getElementById('icon-sidebar'));
     tile.click();
     expect(G.isOpen('tools')).toBe(true);
-    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'apps']);
+    expect(G.model().map(g => g.id)).toEqual(['knowledge', 'browsing', 'security', 'tools', 'chat', 'media', 'aicode', 'apps']);
   });
 
   it('Escape while dragging puts it back and writes nothing', () => {
-    const from = center(folder('apps').querySelector('.sb-folder-btn'));
+    const from = center(folder('chat').querySelector('.sb-folder-btn'));
     ptr('pointerdown', from.x, from.y, from.el);
     ptr('pointermove', from.x, from.y - 40, document.getElementById('icon-sidebar'));
     ptr('pointermove', 30, folder('knowledge').getBoundingClientRect().top + 5, document.getElementById('icon-sidebar'));
@@ -227,7 +227,7 @@ describe('the menus (the keyboard way of dragging)', () => {
     const groups = UI.panelMenuItems('history', { clientX: 5, clientY: 5 });
     expect(groups.map(i => i.label)).toEqual(['Move to group…', 'Move up in group', 'Move down in group']);
     groups[0].action();
-    expect(items()).toEqual(['Knowledge', 'Security and privacy', 'Tools', 'Apps', 'New group…']);   // not its own group
+    expect(items()).toEqual(['Knowledge', 'Security and privacy', 'Tools', 'Chat', 'Media and games', 'AI and code', 'Apps', 'New group…']);   // not its own group
     click('Tools');
     expect(G.groupOf('history')).toBe('tools');
     expect(G.isOpen('tools')).toBe(true);
@@ -292,14 +292,14 @@ describe('the dialog that makes a group', () => {
     dlg().querySelector('[data-ok]').click();
     expect(dlg()).toBeTruthy();
     expect(dlg().querySelector('.sbg-error').hidden).toBe(false);
-    expect(G.model()).toHaveLength(5);
+    expect(G.model()).toHaveLength(8);
   });
 
   it('Escape and Cancel make nothing', async () => {
     const p = UI.newGroup();
     dlg().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(await p).toBeNull();
-    expect(G.model()).toHaveLength(5);
+    expect(G.model()).toHaveLength(8);
   });
 
   it('edits a built-in group\'s name and description; leaving them as shown keeps the built-in words', async () => {
@@ -365,9 +365,9 @@ describe('renaming and describing', () => {
 describe('Settings > Sidebar: the list of groups', () => {
   const rows = () => [...document.querySelectorAll('#sidebar-groups-manager .sbg-row')];
 
-  it('lists the five with name, description and how many buttons, and a New group and a Reset', () => {
+  it('lists the eight with name, description and how many buttons, and a New group and a Reset', () => {
     UI.renderManager();
-    expect(rows()).toHaveLength(5);
+    expect(rows()).toHaveLength(8);
     expect(rows()[0].querySelector('.sbg-name').textContent).toBe('Knowledge');
     expect(rows()[0].querySelector('.sbg-desc').textContent).toBe('Notes, library and what you keep');
     expect(rows()[0].querySelector('.sbg-count').textContent).toBe('2 buttons');
@@ -378,7 +378,7 @@ describe('Settings > Sidebar: the list of groups', () => {
   it('moves a group up and down, with the first Up and the last Down off', () => {
     UI.renderManager();
     expect(rows()[0].querySelector('[data-act="up"]').disabled).toBe(true);
-    expect(rows()[4].querySelector('[data-act="down"]').disabled).toBe(true);
+    expect(rows()[7].querySelector('[data-act="down"]').disabled).toBe(true);
     rows()[1].querySelector('[data-act="up"]').click();
     expect(G.model()[0].id).toBe('browsing');
     expect(rows()[0].dataset.groupRow).toBe('browsing');
@@ -403,13 +403,13 @@ describe('Settings > Sidebar: the list of groups', () => {
     await vi.waitFor(() => expect(G.groupInfo(id)).toBeNull());
   });
 
-  it('puts the built-in five back after a confirm', async () => {
+  it('puts the built-in eight back after a confirm', async () => {
     const id = G.createGroup({ name: 'Games' });
     UI.renderManager();
     window.vexConfirm.mockResolvedValue(true);
     document.querySelector('#sidebar-groups-manager [data-act="reset"]').click();
     await vi.waitFor(() => expect(G.groupInfo(id)).toBeNull());
-    expect(G.model()).toHaveLength(5);
+    expect(G.model()).toHaveLength(8);
   });
 
   it('is hidden while the groups are off, and says what is wrong when the saved groups are broken', () => {
