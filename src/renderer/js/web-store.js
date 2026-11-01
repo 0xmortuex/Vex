@@ -60,11 +60,11 @@ const VexWebStore = (() => {
       case 'webstore-file':
         return [false, `Version ${v}, a Chrome Web Store package from a file${file}. Its signatures, the developer's and the store's, check out.`];
       case 'developer':
-        return [true, `Version ${v}: <strong>not from the Chrome Web Store</strong>. A package its developer signed themselves${file}, id ${esc(p.id || '?')}. The signature checks out, so it has not been changed since it was signed, but no store has looked at it.`];
+        return [true, `<strong>Not from the Chrome Web Store.</strong> Version ${v}: a package its developer signed themselves${file}, id ${esc(p.id || '?')}. The signature checks out, so it has not been changed since it was signed, but no store has looked at it.`];
       case 'zip':
-        return [true, `Version ${v} from a .zip file${file}: <strong>not from the Chrome Web Store</strong>, and not signed, so Vex cannot tell who made it.`];
+        return [true, `<strong>Not from the Chrome Web Store.</strong> Version ${v} from a .zip file${file}, not signed, so Vex cannot tell who made it.`];
       case 'folder':
-        return [true, `Version ${v} from a folder on this computer${file}: <strong>not from the Chrome Web Store</strong>, and not signed, so Vex cannot tell who made it.`];
+        return [true, `<strong>Not from the Chrome Web Store.</strong> Version ${v} from a folder on this computer${file}, not signed, so Vex cannot tell who made it.`];
       default:
         return [false, `Version ${v} from the Chrome Web Store. Its signatures, the developer's and the store's, check out.`];
     }
