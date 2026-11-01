@@ -27,6 +27,8 @@ const ThemePackUI = {
         <div class="vpk-body"></div>
         <div class="vpk-foot">
           <button type="button" data-reset>Back to Vex’s own design</button>
+          <button type="button" data-share-look>Share my look</button>
+          <button type="button" data-open-look>Open a shared look</button>
           <span class="vpk-now" role="status"></span>
         </div>
       </div>`;
@@ -34,6 +36,10 @@ const ThemePackUI = {
     this._el = el;
     el.querySelector('.vpk-close').addEventListener('click', () => this.close());
     el.addEventListener('mousedown', (e) => { if (e.target === el) this.close(); });
+    // Share my look (js/share-look-ui.js) loads after start-up like this file does.
+    const shareWith = (fn) => () => { if (typeof VexShareLookUI === 'undefined') { window.showToast?.('Share my look is still loading. Try again in a moment.', 'error'); return; } try { fn(); } catch (err) { VexShareLookUI._fail(err); } };
+    el.querySelector('[data-share-look]').addEventListener('click', shareWith(() => VexShareLookUI.share()));
+    el.querySelector('[data-open-look]').addEventListener('click', shareWith(() => VexShareLookUI.pickFile()));
     el.querySelector('[data-reset]').addEventListener('click', () => this._do(() => window.VexThemePacks.reset(), 'Vex’s own design is back'));
     this._onKey = (e) => {
       if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
@@ -70,8 +76,8 @@ const ThemePackUI = {
 
   // A mini window in the pack's own colours, tab shape, toolbar and card, with its icons, drawn with inline styles only (as the theme cards are),
   // so it is the same whatever stylesheet is loaded.
-  _preview(colourId, designId, iconsId) {
-    const m = ThemePicker._themeColors(colourId);
+  _preview(colourId, designId, iconsId, palette) {
+    const m = palette || ThemePicker._themeColors(colourId);
     const d = window.VexThemePacks.design(designId);
     const tab = {
       default: 'border-radius:5px 5px 0 0', pill: 'border-radius:99px', block: `border-radius:0;border:2px solid ${m.bd};border-bottom:none`,

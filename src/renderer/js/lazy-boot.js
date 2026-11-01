@@ -28,6 +28,8 @@ const VexBoot = {
   LATE_MODULES: [
     { src: 'js/release-checklist.js', usage: ['release-check'] },
     { src: 'js/theme-pack-ui.js', usage: [] },
+    { src: 'js/share-look.js', usage: [] },
+    { src: 'js/share-look-ui.js', usage: [] },
     { src: 'js/diagnostics-bundle.js', usage: [] },
     { src: 'js/your-data.js', usage: [] },
     { src: 'js/faq-ui.js', usage: [] },
