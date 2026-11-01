@@ -39,7 +39,7 @@ const VexI18nUI = {
     // there are dozens of classes. Only a text that is, whole, one of the dictionary's phrases is ever replaced.
     '#panels-container', '.vex-tour', '#toast-container', '#vex-linkbar', '.whatsnew-tip', '.vexroute-backdrop',
     // The tab strip's two buttons (not its tabs, whose titles are pages) and the two update dialogs, whose classes carry no 'overlay'.
-    '#btn-new-tab-top', '#btn-list-all-tabs', '.whatsnew-ov', '#vex-welcome-back', '#vex-onboarding', '.vexsr-ov',
+    '#btn-new-tab-top', '#btn-list-all-tabs', '.whatsnew-ov', '#vex-welcome-back', '#vex-onboarding', '.vexsr-ov', '.vex-firstuse',
     '[role="dialog"]', '[role="menu"]', '[class*="overlay"]', '[class*="backdrop"]', '[class*="modal"]',
   ],
 
@@ -10902,6 +10902,16 @@ const VexI18nUI = {
       'Open More from the creator': 'Yapımcının diğer çalışmalarını aç',
       'Lists the public projects of the person who makes Vex (0xmortuex) with their stars, forks, languages and topics, and a filter bar to search and sort them. Reach it from Ctrl+K with "More from the creator", from the top of Everything Vex Can Do, or from Settings.': 'Vex’i yapan kişinin (0xmortuex) herkese açık projelerini yıldızları, çatalları, dilleri ve konularıyla listeler; aramak ve sıralamak için bir süzgeç çubuğu vardır. Ctrl+K’da “More from the creator” yazarak, Vex’in Yapabildiği Her Şey’in üstünden ya da Ayarlar’dan açılır.',
       'The list ships inside Vex, so opening it contacts nothing. Only the Refresh from GitHub button asks GitHub for the current list: one request to api.github.com, no sign-in, no cookies, at most three pages, shown in the list of what left this computer. If it fails you see why, and when GitHub\'s limit resets. The newer copy is kept on this computer, and the button is switched off in a private window. A project that is not public can never appear.': 'Liste Vex’in içinde gelir; bu yüzden açmak hiçbir yere bağlanmaz. Yalnızca GitHub’dan yenile düğmesi GitHub’dan güncel listeyi ister: api.github.com’a tek istek, oturum açmadan, çerezsiz, en fazla üç sayfa; bilgisayardan çıkanlar listesinde görünür. Başarısız olursa nedenini ve GitHub sınırının ne zaman sıfırlandığını görürsünüz. Daha yeni kopya bu bilgisayarda saklanır ve düğme gizli pencerede kapalıdır. Herkese açık olmayan bir proje asla görünmez.',
+      // --- look step and first-use card (agent) ---
+      'Wear another browser': 'Başka bir tarayıcıyı giyin',
+      'Or a style': 'Ya da bir stil',
+      'Its own colours': 'Kendi renkleri',
+      'My Vex theme\u2019s colours': 'Vex temamın renkleri',
+      'My Vex theme\'s colours': 'Vex temamın renkleri',
+      '{1} is new. Here is what it touches.': '{1} yeni. Dokunduğu yerler şunlar.',
+      'About {1}': '{1} hakkında',
+      'Turn this off': 'Bunu kapat',
+      // --- end look step and first-use card ---
     },
   },
 
