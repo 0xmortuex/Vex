@@ -25,14 +25,15 @@
 }
 
 /* The tile. */
-#icon-sidebar .sb-folder-btn {
+/* Named with .sidebar-icon and the folder so it wins over a look's own rail-button rule (body[data-sb-launcher="rail"] ... .sidebar-icon). */
+#icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon {
   color: var(--sbf-fg);
   background: color-mix(in srgb, var(--sbf-tint) 16%, transparent);
   border: 1px solid color-mix(in srgb, var(--sbf-fg) 64%, transparent);
   padding: 0;
 }
-#icon-sidebar .sb-folder-btn:hover { background: color-mix(in srgb, var(--sbf-tint) 18%, transparent); color: var(--sbf-fg); }
-#icon-sidebar .sb-folder.open > .sb-folder-btn { background: color-mix(in srgb, var(--sbf-tint) 11%, transparent); border-color: color-mix(in srgb, var(--sbf-fg) 88%, transparent); }
+#icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon:hover { background: color-mix(in srgb, var(--sbf-tint) 18%, transparent); color: var(--sbf-fg); }
+#icon-sidebar .sb-folder.open > .sb-folder-btn.sidebar-icon { background: color-mix(in srgb, var(--sbf-tint) 11%, transparent); border-color: color-mix(in srgb, var(--sbf-fg) 88%, transparent); }
 #icon-sidebar .sb-folder-btn:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: 2px; }
 #icon-sidebar .sb-folder-btn .sbf-ico { display: grid; place-items: center; line-height: 0; }
 #icon-sidebar .sb-folder-btn .sbf-ico svg { width: 18px; height: 18px; }

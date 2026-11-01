@@ -636,8 +636,9 @@
     }
     wireRail();
   }
-  // A web font that arrives late changes the names' width.
+  // A web font that arrives late changes the names' width; a new language changes the built-in names and sentences.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => refresh());
+  window.addEventListener('vex-lang-changed', () => refresh());
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 

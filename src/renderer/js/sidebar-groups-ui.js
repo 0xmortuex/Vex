@@ -500,6 +500,7 @@ const VexSidebarGroupsUI = (() => {
     wireDrag();
     renderManager();
     window.addEventListener(G().EVENT, () => renderManager());
+    window.addEventListener('vex-lang-changed', () => renderManager());
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

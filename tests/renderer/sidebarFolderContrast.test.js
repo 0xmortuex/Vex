@@ -4,7 +4,7 @@
 //   glyph on the tile          >= 4.5:1
 //   name on the rail           >= 4.5:1, and on the open folder's background >= 4.5:1
 // The numbers in the formulas are read FROM the stylesheet, so a later edit of the mix amounts is measured, not assumed.
-// A real window (Firefox look, Classic, Glass, the wallpaper match) is measured by scripts/verify-sidebar-folders.js, not here.
+// A real window (Firefox look, Classic, Glass, the wallpaper match) is measured with getComputedStyle in Chromium, not here.
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 import fs from 'fs';
@@ -14,10 +14,10 @@ const T = require('./themeTokens.js');
 
 const css = fs.readFileSync(path.join(__dirname, '../../src/renderer/css/sidebar-groups.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 const pct = (re) => { const m = re.exec(css); if (!m) throw new Error('not found in the stylesheet: ' + re); return Number(m[1]) / 100; };
-const EDGE = pct(/#icon-sidebar \.sb-folder-btn \{[^}]*border: 1px solid color-mix\(in srgb, var\(--sbf-fg\) (\d+)%/);
-const FILL = pct(/#icon-sidebar \.sb-folder-btn \{[^}]*background: color-mix\(in srgb, var\(--sbf-tint\) (\d+)%/);
-const TILE_OPEN = pct(/#icon-sidebar \.sb-folder\.open > \.sb-folder-btn \{ background: color-mix\(in srgb, var\(--sbf-tint\) (\d+)%/);
-const TILE_HOVER = pct(/#icon-sidebar \.sb-folder-btn:hover \{ background: color-mix\(in srgb, var\(--sbf-tint\) (\d+)%/);
+const EDGE = pct(/#icon-sidebar \.sb-folder > \.sb-folder-btn\.sidebar-icon \{[^}]*border: 1px solid color-mix\(in srgb, var\(--sbf-fg\) (\d+)%/);
+const FILL = pct(/#icon-sidebar \.sb-folder > \.sb-folder-btn\.sidebar-icon \{[^}]*background: color-mix\(in srgb, var\(--sbf-tint\) (\d+)%/);
+const TILE_OPEN = pct(/#icon-sidebar \.sb-folder\.open > \.sb-folder-btn\.sidebar-icon \{ background: color-mix\(in srgb, var\(--sbf-tint\) (\d+)%/);
+const TILE_HOVER = pct(/#icon-sidebar \.sb-folder > \.sb-folder-btn\.sidebar-icon:hover \{ background: color-mix\(in srgb, var\(--sbf-tint\) (\d+)%/);
 const OPEN = pct(/#icon-sidebar \.sb-folder\.open \{[^}]*background: color-mix\(in srgb, var\(--sbf-tint\) (\d+)%/);
 
 const mix = (a, b, p) => ({ r: a.r * p + b.r * (1 - p), g: a.g * p + b.g * (1 - p), b: a.b * p + b.b * (1 - p), a: 1 });

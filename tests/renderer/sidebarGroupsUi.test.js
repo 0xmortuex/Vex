@@ -140,7 +140,6 @@ describe('dragging a button', () => {
     const lib = document.querySelector('[data-panel="library"]');
     const r = lib.getBoundingClientRect();
     drag(center(document.querySelector('[data-panel="history"]')), { x: 30, y: r.top + 3 });
-    expect(inFolder('knowledge')).toEqual(['notes', 'history', 'library'].filter(p => inFolder('knowledge').includes(p)).length ? inFolder('knowledge') : []);
     const k = inFolder('knowledge');
     expect(k.indexOf('history')).toBe(k.indexOf('library') - 1);
     expect(inFolder('browsing')).not.toContain('history');
