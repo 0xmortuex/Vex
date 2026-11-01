@@ -262,6 +262,50 @@ describe('the picker', () => {
   });
 });
 
+
+// The size and type of the rail are checked in the real window (screenshots and getComputedStyle); these read the stylesheet text so
+// a later edit cannot quietly shrink them again (owner, 2026-11-01: heading 8.5px in a serif, icons 16px).
+describe('the rail design (stylesheet text)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const css = (f) => fs.readFileSync(path.join(__dirname, '../../src/renderer/css', f), 'utf8');
+  const groups = css('sidebar-groups.css');
+  const head = groups.slice(groups.indexOf('#icon-sidebar .sidebar-group-head {'));
+  const rule = (src, sel) => { const i = src.indexOf(sel + ' {'); if (i < 0) throw new Error('no rule ' + sel); return src.slice(i, src.indexOf('}', i)); };
+
+  it('sets the heading at 11px or more, medium weight, in the UI sans, with the text colour of the rail', () => {
+    const r = rule(head, '#icon-sidebar .sidebar-group-head');
+    expect(Number(/font-size: ([\d.]+)px/.exec(r)[1])).toBeGreaterThanOrEqual(11);
+    expect(Number(/font-weight: (\d+)/.exec(r)[1])).toBeGreaterThanOrEqual(500);
+    expect(r).toMatch(/color: var\(--sgh-fg\)/);
+    expect(r).toMatch(/--sgh-fg: var\(--b-text, var\(--vex-text-primary\)\)/);
+    expect(r).toMatch(/border-top: 1px solid/);
+    expect(groups).toMatch(/\.sgh-label \{\s*font-family: "Segoe UI Variable Text", "Segoe UI", system-ui[^}]*sans-serif !important/);
+    expect(groups).not.toMatch(/ellipsis/);
+  });
+
+  it('gives the fold chevron 14px and the heading a hit target of at least 24px', () => {
+    expect(rule(head, '#icon-sidebar .sidebar-group-head .sgh-chev svg')).toMatch(/width: 14px; height: 14px/);
+    expect(Number(/min-height: (\d+)px/.exec(rule(head, '#icon-sidebar .sidebar-group-head'))[1])).toBeGreaterThanOrEqual(24);
+    const js = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/sidebar-groups.js'), 'utf8');
+    expect(js).toMatch(/VexIcons\.svg\('chevron-down', \{ size: 14 \}\)/);
+  });
+
+  it('keeps the rail buttons at 36px or more with icons of 20px or more, also while the window is short', () => {
+    const b = css('gui-browser.css');
+    expect(rule(b.slice(b.indexOf('/* Icon rail (Firefox, Netscape)')), 'body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon)')).toMatch(/var\(--b-rail-btn, 36px\)/);
+    expect(b).toMatch(/\.sidebar-icon, #tools-bar \.tool-icon\) svg \{ width: 20px; height: 20px; \}/);
+    expect(groups).toMatch(/\[data-sb-grouped="1"\] \.sidebar-icon \{ width: 38px; height: 38px; \}/);
+    expect(groups).toMatch(/\[data-sb-grouped="1"\] \.sidebar-icon svg \{ width: 20px; height: 20px; \}/);
+  });
+
+  it('widens a rail with groups only a little (at most 64px) and grows it for a longer word', () => {
+    const widths = [...groups.matchAll(/width: max\((\d+)px, var\(--sgh-min, 0px\)\)/g)].map(m => Number(m[1]));
+    expect(widths.length).toBeGreaterThanOrEqual(3);
+    for (const w of widths) expect(w).toBeLessThanOrEqual(64);
+  });
+});
+
 describe('the manifest and the strings', () => {
   it('has a Turkish word for every heading', () => {
     const { VexI18nUI } = require('../../src/renderer/js/i18n-ui.js');

@@ -2435,10 +2435,13 @@ function vexOwnTextFocused(doc) {
     if (!container) return;
     const panels = [...document.querySelectorAll('[data-avoid-toasts]')];
     panels.forEach(p => p.classList.remove('toast-capped'));
+    // No transition while measuring: with animations off (Windows setting, reduced motion) the clearing below only shows up
+    // in the next frame, the stale rect then missed the card it sits on, and the toast was left on top of it.
+    container.style.transition = 'none';
     container.style.right = '';
     container.style.bottom = '';
     const live = [...container.children].some(t => !t.dataset.leaving);
-    if (!live) return;
+    if (!live) { container.style.transition = ''; return; }
     const GAP = 8, EDGE = 20;
     for (const p of panels) {
       if (!p.getClientRects().length) continue;
@@ -2453,6 +2456,8 @@ function vexOwnTextFocused(doc) {
       p.style.setProperty('--toast-cap', Math.max(96, c.top - GAP - r.top) + 'px');
       p.classList.add('toast-capped');
     }
+    void container.offsetHeight;
+    container.style.transition = '';
   }
   function watchToastPlacement(container) {
     new MutationObserver(placeToasts).observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-leaving'] });
