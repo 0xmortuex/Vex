@@ -372,7 +372,7 @@ describe('Settings > Sidebar: the list of groups', () => {
     expect(rows()[0].querySelector('.sbg-desc').textContent).toBe('Notes, library and what you keep');
     expect(rows()[0].querySelector('.sbg-count').textContent).toBe('2 buttons');
     expect(document.querySelector('#sidebar-groups-manager [data-act="new"]')).toBeTruthy();
-    expect(document.querySelector('#sidebar-groups-manager [data-act="reset"]').textContent).toBe('Reset groups to the built-in five');
+    expect(document.querySelector('#sidebar-groups-manager [data-act="reset"]').textContent).toBe('Reset groups to the built-in ones');
   });
 
   it('moves a group up and down, with the first Up and the last Down off', () => {
@@ -419,7 +419,7 @@ describe('Settings > Sidebar: the list of groups', () => {
     localStorage.setItem('vex.sidebarGroupDefs', JSON.stringify({ v: 1, groups: [{ id: 'knowledge', panels: ['notes'] }, { id: 'tools', panels: ['notes'] }] }));
     UI.renderManager();
     expect(document.querySelector('#sidebar-groups-manager [role="alert"]').textContent).toMatch(/two sidebar groups/);
-    expect(document.querySelector('#sidebar-groups-manager button').textContent).toBe('Reset groups to the built-in five');
+    expect(document.querySelector('#sidebar-groups-manager button').textContent).toBe('Reset groups to the built-in ones');
   });
 });
 
@@ -428,7 +428,7 @@ describe('the strings', () => {
     const { VexI18nUI } = require('../../src/renderer/js/i18n-ui.js');
     const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../src/renderer/js/sidebar-groups-ui.js'), 'utf8');
     const labels = [...src.matchAll(/label: '([^']+)'/g)].map(m => m[1]);
-    const more = ['New group', 'Icon and colour', 'Edit group', 'Create', 'Give the group a name', 'Group name', 'Groups', 'Reset groups to the built-in five', 'Delete this group?',
+    const more = ['New group', 'Icon and colour', 'Edit group', 'Create', 'Give the group a name', 'Group name', 'Groups', 'Reset groups to the built-in ones', 'Delete this group?',
       'Reset the groups?', 'Edit description', 'Rename group', 'Show group', 'Delete group', 'Accent', 'Accent 2', 'Green', 'Amber', 'Red', 'Neutral', 'Description', 'Icon', 'Name', 'Save', 'Cancel'];
     const missing = [...new Set([...labels, ...more])].filter(s => !VexI18nUI.lookup(s, 'tr'));
     expect(missing).toEqual([]);

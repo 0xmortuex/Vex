@@ -13347,9 +13347,9 @@ const VexI18nUI = {
       'Delete this group?': 'Bu grup silinsin mi?',
       'its buttons go back to their own groups. Nothing else is lost.': 'düğmeleri kendi gruplarına geri döner. Başka hiçbir şey kaybolmaz.',
       'Reset the groups?': 'Gruplar sıfırlansın mı?',
-      'This puts the built-in five groups back, with their own names, icons and buttons, and deletes the groups you made. Your sidebar order and hidden buttons are not touched.': 'Bu işlem yerleşik beş grubu kendi adları, simgeleri ve düğmeleriyle geri getirir ve sizin oluşturduğunuz grupları siler. Kenar çubuğu sıranıza ve gizlediğiniz düğmelere dokunulmaz.',
+      'This puts the built-in groups back, with their own names, icons and buttons, and deletes the groups you made. Your sidebar order and hidden buttons are not touched.': 'Bu işlem yerleşik grupları kendi adları, simgeleri ve düğmeleriyle geri getirir ve sizin oluşturduğunuz grupları siler. Kenar çubuğu sıranıza ve gizlediğiniz düğmelere dokunulmaz.',
       'Groups': 'Gruplar',
-      'Reset groups to the built-in five': 'Grupları yerleşik beşe sıfırla',
+      'Reset groups to the built-in ones': 'Grupları yerleşik olanlara sıfırla',
       // --- end sidebar groups v2 ---
       // --- settings sweep 2 (agent) ---
       'Advanced': 'Gelişmiş',

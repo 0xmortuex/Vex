@@ -265,7 +265,7 @@ const VexSidebarGroupsUI = (() => {
   async function resetAll() {
     const ok = await window.vexConfirm({
       title: 'Reset the groups?',
-      message: 'This puts the built-in five groups back, with their own names, icons and buttons, and deletes the groups you made. Your sidebar order and hidden buttons are not touched.',
+      message: 'This puts the built-in groups back, with their own names, icons and buttons, and deletes the groups you made. Your sidebar order and hidden buttons are not touched.',
       okLabel: 'Reset', danger: true,
     });
     if (ok) attempt(() => G().resetGroups());
@@ -443,7 +443,7 @@ const VexSidebarGroupsUI = (() => {
       const reset = document.createElement('button');
       reset.type = 'button';
       reset.className = 'btn-secondary';
-      reset.textContent = tr('Reset groups to the built-in five');
+      reset.textContent = tr('Reset groups to the built-in ones');
       reset.addEventListener('click', () => resetAll());
       host.appendChild(reset);
       return;
@@ -454,7 +454,7 @@ const VexSidebarGroupsUI = (() => {
     head.querySelector('strong').textContent = tr('Groups');
     head.querySelector('[data-act="new"]').innerHTML = VexIcons.svg('plus', { size: 12 }) + '<span style="margin-left:4px"></span>';
     head.querySelector('[data-act="new"] span').textContent = tr('New group');
-    head.querySelector('[data-act="reset"]').textContent = tr('Reset groups to the built-in five');
+    head.querySelector('[data-act="reset"]').textContent = tr('Reset groups to the built-in ones');
     head.querySelector('[data-act="new"]').addEventListener('click', () => newGroup());
     head.querySelector('[data-act="reset"]').addEventListener('click', () => resetAll());
     host.appendChild(head);

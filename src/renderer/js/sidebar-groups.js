@@ -74,7 +74,7 @@
     try { d = JSON.parse(raw); }
     catch (err) { throw new Error('The saved sidebar groups are not readable: ' + err.message, { cause: err }); }
     if (!d || typeof d !== 'object' || Array.isArray(d) || d.v !== 1 || !Array.isArray(d.groups)) {
-      throw new Error('The saved sidebar groups are not in a format this version knows (Settings > Sidebar > Reset groups puts the built-in five back)');
+      throw new Error('The saved sidebar groups are not in a format this version knows (Settings > Sidebar > Reset groups puts the built-in groups back)');
     }
     const ids = new Set();
     const owner = new Map();
