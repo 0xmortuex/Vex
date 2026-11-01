@@ -10318,7 +10318,7 @@ const VexI18nUI = {
       'Unpin a Task From Ctrl+K': 'Bir görevin Ctrl+K sabitlemesini kaldır',
       'Why is Discord big?': 'Discord neden büyük?',
       'Bypass check': 'Aşma denetimi',
-      'Why isn\x27t this playing?': 'Bu neden oynatılmıyor?',
+      'Why isn\'t this playing?':'Bu neden oynatılmıyor?',
       'Video and music playback (DRM)': 'Video ve müzik oynatma (DRM)',
       'Unblock centre': 'Engel kaldırma merkezi',
       'Sites your network blocks, and the way that opens each one': 'Ağınızın engellediği siteler ve her birini açan yöntem',
