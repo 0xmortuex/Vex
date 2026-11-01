@@ -122,7 +122,7 @@ const VexFeatures = {
         { sel: '#top-tab-bar', title: 'A tab with its own cookie jar', html: 'The new tab is in a container: its logins are separate, so you can be signed into two accounts on one site at once. The tab is marked with the container’s colour.' },
       ],
       what: 'A tab with its own separate cookies, so you can be signed into two accounts on the same site at once. Work, Personal and Shopping are ready-made.' },
-    { id: 'pinsite', cat: 'tabs', cmd: 'pinsite',
+    { id: 'pinsite', cat: 'tabs', cmd: 'pinsite', phrases: 'pin any site as a panel web app own session own unread badge',
       what: 'Turns a site into a permanent sidebar panel — it stays loaded and signed in beside the page.' },
     { id: 'openasapp', cat: 'tabs', cmd: 'openasapp',
       what: 'Opens a site in a bare window with no tabs or address bar, like a desktop app.' },
@@ -183,7 +183,7 @@ const VexFeatures = {
       what: 'A real filter engine — EasyList, EasyPrivacy, uBlock lists — blocking the request and hiding what it left behind.' },
     { id: 'privacy-report', cat: 'privacy', cmd: 'privacy', panel: 'privacy',
       what: 'What was blocked, how much of it, and whether your fingerprint and DNS protection are actually on.' },
-    { id: 'trackerreceipts', cat: 'privacy', cmd: 'trackerreceipts',
+    { id: 'trackerreceipts', cat: 'privacy', cmd: 'trackerreceipts', phrases: 'tracker receipts weekly tracking report who followed you from where how the trend is moving',
       what: 'A weekly report in words: who tried hardest to follow you, and which sites let them.' },
     { id: 'fingerprint', cat: 'privacy', name: 'Fingerprint protection', setting: { section: 'privacy-panel-content' },
       what: 'Randomises the canvas, WebGL and audio signals sites use to recognise your machine across visits.' },
@@ -305,7 +305,7 @@ const VexFeatures = {
     // --- Productivity -----------------------------------------------------
     { id: 'notes', phrases: 'write notes notepad jot', cat: 'work', cmd: 'notes', panel: 'notes',
       what: 'Markdown notes with tags, pinning and search, beside the page instead of in another app.' },
-    { id: 'stickynote', cat: 'work', cmd: 'stickynote',
+    { id: 'stickynote', cat: 'work', cmd: 'stickynote', phrases: 'sticky notes per page all sticky notes stickynotes notes that belong to a url come back when you do',
       what: 'A note pinned to one specific page, which reappears every time you return to it.' },
     { id: 'clip', cat: 'work', cmd: 'clip',
       what: 'Sends the selected text into your notes with a link back to where it came from.' },
@@ -397,7 +397,7 @@ const VexFeatures = {
       what: 'Opens the archived copy of a page that has gone dead, or archives one before it does.' },
     { id: 'focus', phrases: 'focus block distracting sites concentrate', cat: 'work', cmd: 'focus',
       what: 'Hides the browser chrome and blocks the sites you lose time to, for 25 or 50 minutes.' },
-    { id: 'focusflows', cat: 'work', cmd: 'focusflows',
+    { id: 'focusflows', cat: 'work', cmd: 'focusflows', phrases: 'focus flows composable work modes tabs persona interface blocking one click',
       what: 'A named work mode: one click opens a set of tabs, switches AI persona, dims the interface and blocks distractions.' },
     { id: 'remind', phrases: 'reminder remind alarm', cat: 'work', cmd: 'remind',
       what: 'Paste what you have to do, type "in 2 hours" or "tomorrow 9am", and a desktop notification arrives at the minute — even if Vex is closed, because Windows wakes it. It reads the time back to you before it saves anything.' },
@@ -439,7 +439,7 @@ const VexFeatures = {
       what: 'Type "9am New York time" or "tomorrow 17:00 in Tokyo" and the reminder lands at that moment, read back in both clocks before it saves.' },
     { id: 'tool-history', cat: 'work', cmd: 'toolbox', name: 'Tool history', manual: true,
       what: 'Every tool keeps its last ten results and the Toolbox shows the tools you opened most recently, beside your favourites.' },
-    { id: 'automations', cat: 'work', cmd: 'automations',
+    { id: 'automations', cat: 'work', cmd: 'automations', phrases: 'browser automations if this then that for browsing runs entirely on your machine',
       what: 'When this, do that — when a page opens, or at a time each day, run a command or open something.' },
     { id: 'chains', cat: 'work', name: 'Command chains', setting: { section: 'chains-panel-content' }, keys: 'Ctrl+Alt+1 / 2 / 3',
       what: 'Bundle several commands into one — reading mode then read aloud — and put the first three on a shortcut.' },
@@ -461,7 +461,7 @@ const VexFeatures = {
       what: 'Downloads you can pause, resume, cancel and retry, with the real byte counts \u2014 and \u201copen when done\u201d on any one of them.' },
     { id: 'sendphone', phrases: 'send to phone my phone', cat: 'work', cmd: 'sendphone',
       what: 'Hands the page you are on to your phone — by QR code, or straight to your other Vex if you have sync on.' },
-    { id: 'queue', cat: 'work', cmd: 'queuepodcast', panel: 'queue',
+    { id: 'queue', cat: 'work', cmd: 'queuepodcast', panel: 'queue', phrases: 'read later as a podcast saved articles read aloud playlist advances itself hands free queuepodcast',
       what: 'Your read-later pile read aloud as an auto-advancing playlist, with spoken introductions.' },
     { id: 'autorefresh', cat: 'work', cmd: 'autorefresh',
       what: 'Reloads a tab on a timer — live scores, a build log, a status page.' },
@@ -508,8 +508,6 @@ const VexFeatures = {
     { id: 'panel-page-tab', cat: 'panels', name: 'Open a panel’s page as a tab', manual: true,
       phrases: 'open panel page in a tab link address url roblox hub copy link game id server link discord whatsapp',
       what: 'A web panel has no address bar. The button on its bar, the right-click menu of its icon, or Ctrl+K opens the page it is showing as a tab, still signed in, or copies its link.' },
-    { id: 'pinsite2', cat: 'panels', cmd: 'pinsite', name: 'Pin any site as a panel',
-      what: 'Any site at all can become one of these — it keeps its own session and its own unread badge.' },
 
     // --- Logins & autofill ------------------------------------------------
     { id: 'passwords', phrases: 'passwords remember my passwords saved logins password manager sign in login', cat: 'logins', cmd: 'loginshub',
@@ -521,7 +519,7 @@ const VexFeatures = {
       what: 'Vex keeps your passkeys and signs you in with them, in tabs and in side panels, so a site that offers "Sign in with a passkey" just works.' },
     { id: 'emailcode', feature: 'email-code-autofill', cat: 'logins', cmd: 'fillemailcode',
       what: 'Reads the verification code out of your Gmail and fills it — even with no Gmail tab open.' },
-    { id: 'formfill', cat: 'logins', cmd: 'formfill',
+    { id: 'formfill', cat: 'logins', cmd: 'formfill', phrases: 'universal form fill one profile fills any form on any site no card details',
       what: 'One saved profile fills any signup or checkout form. It holds no card details: cards are kept separately, in Payment cards.' },
     { id: 'filltotp', cat: 'logins', cmd: 'filltotp',
       phrases: 'fill 2fa code authenticator code field right click code manual one time code did not fill',
@@ -574,7 +572,7 @@ const VexFeatures = {
       what: 'Install a .user.js script from a paste, an address or a file, see what it may do first, and switch any of them off with one click.' },
     { id: 'zap', phrases: 'hide element remove thing from page', cat: 'look', cmd: 'zap',
       what: 'Click anything you never want to see on that site again, and it is gone for good.' },
-    { id: 'airestyle', cat: 'look', cmd: 'airestyle',
+    { id: 'airestyle', cat: 'look', cmd: 'airestyle', phrases: 'ai restyle redesign any website by describing what you want',
       what: 'Describe a look — "declutter", "match my dark theme" — and the AI writes the CSS, saved as a per-site Boost.' },
     { id: 'setupgallery', cat: 'look', cmd: 'setupgallery',
       what: 'Save your whole setup as a code you can paste on another machine, or hand to someone else.' },
@@ -627,22 +625,8 @@ const VexFeatures = {
       what: 'One click for a throwaway identity: a session that forgets everything, opened on a disposable email site, optionally over Tor. Sign up for something without it coming back to you.' },
     { id: 'leakcanary', cat: 'unique', name: 'Leak Canary', setting: { section: 'privacy-panel-content' },
       what: 'Warns you when one of your own saved email addresses turns up pre-filled on a site you never gave it to — a tracker caught in the act.' },
-    { id: 'receipts2', cat: 'unique', cmd: 'trackerreceipts', name: 'Tracker Receipts',
-      what: 'Your week in tracking, written as a report rather than a number: who followed you, from where, and how the trend is moving.' },
-    { id: 'flows2', cat: 'unique', cmd: 'focusflows', name: 'Focus Flows',
-      what: 'Composable work modes — tabs, persona, interface and blocking, all switched by one click.' },
-    { id: 'podcast2', cat: 'unique', cmd: 'queuepodcast', name: 'Read-later as a podcast',
-      what: 'Your saved articles, read aloud as a playlist that advances itself. Hands free.' },
-    { id: 'restyle2', cat: 'unique', cmd: 'airestyle', name: 'AI Restyle',
-      what: 'Redesign any website by describing what you want.' },
     { id: 'linkedscroll', cat: 'unique', cmd: 'linkedscroll',
       what: 'In split screen, scroll one pane and the others keep pace — for comparing two versions of the same thing.' },
-    { id: 'stickynotes2', cat: 'unique', cmd: 'stickynotes', name: 'Sticky notes per page',
-      what: 'Notes that belong to a URL rather than to a notebook, and come back when you do.' },
-    { id: 'automations2', cat: 'unique', cmd: 'automations', name: 'Browser automations',
-      what: 'If-this-then-that for browsing, running entirely on your machine.' },
-    { id: 'formfill2', cat: 'unique', cmd: 'formfill', name: 'Universal form fill',
-      what: 'One profile that fills any form on any site. It holds no card details: those are in Payment cards.' },
     // --- Wave 0-3 features (one entry per feature manifest; `feature` names the manifest) ---
     { id: 'brief-mail-triage', setting: {"section":"settings-brief-actions","label":"Brief actions"}, feature: 'brief-mail-triage', newer: true, cat: 'work', name: 'Mail triage in the brief', phrases: 'mail inbox triage reply draft brief', manual: true,
       what: 'In the morning brief, each message of your read-only inbox gets Done, Snooze, Mark and a drafted reply. A reply draft sends that one message to your AI backend only when you press it.' },
@@ -1359,7 +1343,7 @@ const VexFeatures = {
     ],
     panels: [
       { name: 'The apps', ids: ['panel-whatsapp', 'panel-discord', 'panel-spotify', 'panel-netflix', 'panel-claude', 'panel-github', 'panel-roblox'] },
-      { name: 'And your own', ids: ['panel-authenticator', 'pinsite2'] },
+      { name: 'And your own', ids: ['panel-authenticator'] },
     ],
     look: [
       { name: 'The whole browser', ids: ['themes', 'theme-editor', 'theme-from-picture', 'theme-auto', 'chrome-themes', 'skin', 'font', 'uisize', 'guistyle', 'simple-mode', 'login-start', 'startpage', 'editlayout', 'tools-bar', 'shortcuts'] },
@@ -1391,7 +1375,15 @@ const VexFeatures = {
     return out;
   },
 
-  get(id) { return this.ITEMS.find(f => f.id === id) || null; },
+  // Entries that used to be listed twice in "Only in Vex" (and once in Sidebar panels). One entry per feature
+  // survives; the old id still resolves to it (get), and the old wording lives on in its `phrases`, so nothing that
+  // names an old id (a manifest, a FAQ line, a saved link) breaks.
+  ALIASES: {
+    pinsite2: 'pinsite', receipts2: 'trackerreceipts', flows2: 'focusflows', podcast2: 'queue',
+    restyle2: 'airestyle', stickynotes2: 'stickynote', automations2: 'automations', formfill2: 'formfill',
+  },
+
+  get(id) { return this.ITEMS.find(f => f.id === id) || this.ITEMS.find(f => f.id === (this.ALIASES || {})[id]) || null; },
 
   // The Ctrl+K command an entry points at, or null. Read live so a renamed
   // command shows up rather than being duplicated here.

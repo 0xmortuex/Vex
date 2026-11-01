@@ -234,7 +234,6 @@ const FeatureDetails = {
   'panel-github': 'Your GitHub one click away, signed in separately from anything else.',
   'panel-netflix': 'Netflix in the sidebar; right-click the icon to switch it to Prime Video or Disney+. They share one session, so switching does not sign you out of the others.',
   'panel-authenticator': 'Your 2FA codes generated here, with a ring showing how long each one has left. Add an account by scanning a screenshot of its QR code. Rename an account with its pencil (imports often arrive as just “Account”), and search the list once you have six or more.',
-  pinsite2: 'Any site at all can become a panel, with its own session and its own unread badge. This is how a web app you use all day stops being a lost tab.',
 
   // ---- Logins & autofill ---------------------------------------------------
   passwords: 'A vault encrypted by Windows itself, that offers to save a login and fills it in when you click the sign-in field. Nothing is stored in a file you could read, and nothing leaves the machine unless you turn on Passwords in Vex Sync, which carries them end-to-end encrypted to your other devices.',
@@ -299,14 +298,7 @@ const FeatureDetails = {
   updates: 'Vex updates itself and tells you what it changed. A new version keeps a copy of your settings as they were, in case something goes wrong. A downloaded update waits for a restart and says so, an install that did not happen is reported with a log of every step (Settings > About > Update log), and a version that cannot start twice in a row is replaced by the one before it. A copy run from a folder (such as dist\win-unpacked) is updated in place, in that folder; a run from source code is told to use Vex-Setup.exe.',
 
   // ---- Only in Vex ---------------------------------------------------------
-  receipts2: 'Your week in tracking as a report rather than a number: who followed you, from where, and how often. It names the sites you trust, which is the uncomfortable and useful part.',
-  flows2: 'Work modes you can compose: tabs, persona, interface and blocking, all switched by one click and switched back afterwards.',
-  podcast2: 'The articles you saved, read aloud as a playlist that advances itself. It turns a backlog into a commute.',
-  restyle2: 'Redesign any website by describing what you want. The CSS it writes is saved as a boost, so you can keep it, edit it, or throw it away.',
   linkedscroll: 'In split screen, scroll one pane and the others keep pace. For two versions of the same document, or a translation beside its original.',
-  stickynotes2: 'The difference from an ordinary note is where it lives: it is attached to the address, so it finds you rather than the other way round. For the page you always get wrong and the form with the field nobody can explain.',
-  automations2: 'If-this-then-that for browsing, running entirely on your machine — no service, no account, nothing uploaded.',
-  formfill2: 'One profile that fills any form on any site. It holds no card details: saved cards are a separate feature, Payment cards.',
 
   // ---- Wave 0-3 features: what each reads, keeps and sends (from js/feature-manifests.js) ----
   'brief-mail-triage': 'It reads mail headers from your read-only inbox. It writes only its own on/off switch. What can leave this computer: The text of a message to your AI backend, only when you ask for a drafted reply.',
