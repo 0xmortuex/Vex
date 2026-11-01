@@ -96,6 +96,9 @@ const VexFonts = {
   SHIPPED: 'times',
   SHIPPED_MONO: 'jetbrains',
 
+  // A font's name is never translated ("Georgia" is also a country); only "Your system font" is a description.
+  nameAttrs(f) { return f.id === 'system' ? '' : ' translate="no"'; },
+
   // kind is what the list groups by; `stack` is what actually gets applied,
   // with fallbacks so a machine without the face still reads sensibly.
   FONTS: [
@@ -318,7 +321,7 @@ const VexFonts = {
       <div class="vexfont-grid">
         ${this.FONTS.filter(f => f.kind === kind.id).map(f => `
           <button class="vexfont-one${f.id === now.id ? ' on' : ''}" data-font="${esc(f.id)}">
-            <span class="vexfont-name" style="font-family:${f.stack} !important">${esc(f.name)}</span>
+            <span class="vexfont-name"${this.nameAttrs(f)} style="font-family:${f.stack} !important">${esc(f.name)}</span>
             <span class="vexfont-note">${esc(f.note)}${f.id === now.id ? ' \u00b7 in use' : ''}</span>
             <span class="vexfont-sample" style="font-family:${f.stack} !important">${esc(this.SAMPLE)}</span>
           </button>`).join('')}
@@ -327,7 +330,7 @@ const VexFonts = {
          <div class="vexfont-grid">
            ${this.FONTS.filter(f => f.kind === 'mono').map(f => `
              <button class="vexfont-one${f.id === mono.id ? ' on' : ''}" data-mono="${esc(f.id)}">
-               <span class="vexfont-name" style="font-family:${f.stack} !important">${esc(f.name)}</span>
+               <span class="vexfont-name"${this.nameAttrs(f)} style="font-family:${f.stack} !important">${esc(f.name)}</span>
                <span class="vexfont-note">${esc(f.note)}${f.id === mono.id ? ' \u00b7 in use' : ''}</span>
                <span class="vexfont-sample" style="font-family:${f.stack} !important">if (x &lt;= 10) { return 0; }</span>
              </button>`).join('')}
