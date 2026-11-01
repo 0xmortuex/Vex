@@ -102,22 +102,40 @@ describe('the default', () => {
     expect(G.enabled()).toBe(true);
   });
 
-  it('is off for a profile that saved its own sidebar order', () => {
-    localStorage.setItem('vex.sidebarOrder', JSON.stringify(['notes', 'history']));
+  it('is on for a profile that saved its own sidebar order or was in use before, with that order and the hidden panels untouched', () => {
+    const order = JSON.stringify(['notes', 'history']);
+    const over = '{"notes":{"hidden":true},"clock":{"name":"Time"}}';
+    localStorage.setItem('vex.sidebarOrder', order);
+    localStorage.setItem('vex.panelOverrides', over);
+    globalThis.Onboarding = { done: () => true, _usedBefore: () => true };
+    expect(G.enabled()).toBe(true);
+    expect(localStorage.getItem('vex.sidebarGroups')).toBe('on');
+    buildRail();
+    G.arrange();
+    expect(localStorage.getItem('vex.sidebarOrder')).toBe(order);
+    expect(localStorage.getItem('vex.panelOverrides')).toBe(over);
+  });
+
+  it('flips an "off" written by the first version to "on" once, then respects "off"', () => {
+    localStorage.setItem('vex.sidebarGroups', 'off');   // no marker: the old migration wrote it
+    expect(G.enabled()).toBe(true);
+    expect(localStorage.getItem('vex.sidebarGroups')).toBe('on');
+    expect(localStorage.getItem('vex.sidebarGroups.v2')).toBe('1');
+    G.setEnabled(false);                                  // the person's own choice
     expect(G.enabled()).toBe(false);
+    expect(G.migrate()).toBeNull();
     expect(localStorage.getItem('vex.sidebarGroups')).toBe('off');
   });
 
-  it('is off for a profile that was in use before (the wizard is done, or it has data)', () => {
-    globalThis.Onboarding = { done: () => true, _usedBefore: () => false };
-    expect(G.enabled()).toBe(false);
-    localStorage.clear();
-    globalThis.Onboarding = { done: () => false, _usedBefore: () => true };
-    expect(G.enabled()).toBe(false);
+  it('writes an unset key as "on" and never writes "off" itself', () => {
+    expect(G.migrate()).toBe('on');
+    localStorage.removeItem('vex.sidebarGroups');          // Reset to defaults
+    expect(G.enabled()).toBe(true);
   });
 
-  it('never overrides a saved answer', () => {
-    localStorage.setItem('vex.sidebarGroups', 'off');
+  it('never overrides a saved answer once the marker is there', () => {
+    localStorage.setItem('vex.sidebarGroups.v2', '1');
+    localStorage.setItem('vex.sidebarGroups.v2', '1'); localStorage.setItem('vex.sidebarGroups', 'off');
     expect(G.enabled()).toBe(false);
     localStorage.setItem('vex.sidebarGroups', 'on');
     localStorage.setItem('vex.sidebarOrder', JSON.stringify(['notes']));
@@ -136,7 +154,7 @@ describe('the default', () => {
 
 describe('the rail', () => {
   it('with the switch off is left exactly as it was', () => {
-    localStorage.setItem('vex.sidebarGroups', 'off');
+    localStorage.setItem('vex.sidebarGroups.v2', '1'); localStorage.setItem('vex.sidebarGroups', 'off');
     buildRail();
     const before = order();
     expect(G.arrange()).toBe(false);
@@ -232,7 +250,7 @@ describe('the rail', () => {
     const builtIn = panelsOnly();
     G.arrange();
     expect(panelsOnly()).not.toEqual(builtIn);
-    localStorage.setItem('vex.sidebarGroups', 'off');
+    localStorage.setItem('vex.sidebarGroups.v2', '1'); localStorage.setItem('vex.sidebarGroups', 'off');
     expect(G.arrange()).toBe(false);
     expect(order().filter(x => x.startsWith('#'))).toEqual([]);
     expect(panelsOnly()).toEqual(builtIn);
@@ -240,7 +258,7 @@ describe('the rail', () => {
     localStorage.setItem('vex.sidebarGroups', 'on');
     localStorage.setItem('vex.sidebarOrder', JSON.stringify(['recall', 'github']));
     G.arrange();
-    localStorage.setItem('vex.sidebarGroups', 'off');
+    localStorage.setItem('vex.sidebarGroups.v2', '1'); localStorage.setItem('vex.sidebarGroups', 'off');
     G.arrange();
     expect(panelsOnly().slice(0, 2)).toEqual(['recall', 'github']);
   });
@@ -291,12 +309,18 @@ describe('the rail design (stylesheet text)', () => {
     expect(js).toMatch(/VexIcons\.svg\('chevron-down', \{ size: 14 \}\)/);
   });
 
-  it('keeps the rail buttons at 36px or more with icons of 20px or more, also while the window is short', () => {
+  it('keeps the rail buttons at 32px or more with icons of 18px or more, also while the window is short', () => {
     const b = css('gui-browser.css');
-    expect(rule(b.slice(b.indexOf('/* Icon rail (Firefox, Netscape)')), 'body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon)')).toMatch(/var\(--b-rail-btn, 36px\)/);
-    expect(b).toMatch(/\.sidebar-icon, #tools-bar \.tool-icon\) svg \{ width: 20px; height: 20px; \}/);
-    expect(groups).toMatch(/\[data-sb-grouped="1"\] \.sidebar-icon \{ width: 38px; height: 38px; \}/);
-    expect(groups).toMatch(/\[data-sb-grouped="1"\] \.sidebar-icon svg \{ width: 20px; height: 20px; \}/);
+    expect(rule(b.slice(b.indexOf('/* Icon rail (Firefox, Netscape)')), 'body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon)')).toMatch(/var\(--b-rail-btn, 34px\)/);
+    expect(b).toMatch(/\.sidebar-icon, #tools-bar \.tool-icon\) svg \{ width: 18px; height: 18px; \}/);
+    expect(groups).toMatch(/\[data-sb-grouped="1"\] \.sidebar-icon \{ width: 36px; height: 36px; \}/);
+    expect(groups).toMatch(/\[data-sb-grouped="1"\] \.sidebar-icon svg \{ width: 18px; height: 18px; \}/);
+    const side = css('sidebar.css');
+    for (const cls of ['compact', 'tight']) {
+      const m = new RegExp('#icon-sidebar\\.' + cls + ' \\.sidebar-icon \\{ width: (\\d+)px; height: (\\d+)px').exec(side);
+      expect(Number(m[1]), cls).toBeGreaterThanOrEqual(32);
+      expect(Number(new RegExp('#icon-sidebar\\.' + cls + ' \\.sidebar-icon svg \\{ width: (\\d+)px').exec(side)[1])).toBeGreaterThanOrEqual(18);
+    }
   });
 
   it('widens a rail with groups only a little (at most 64px) and grows it for a longer word', () => {

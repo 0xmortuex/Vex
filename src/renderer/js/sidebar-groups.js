@@ -13,14 +13,17 @@
 // No panel is merged, renamed or given a new id, so shortcuts, Ctrl+K, the screen-share blur and the Simple mode list all see
 // the same panels.
 //
-//   vex.sidebarGroups         'on' | 'off'. A new profile gets 'on'; a profile that was in use, or that saved its own sidebar order,
-//                             gets 'off' written once (migrate() / enabled()), so an update never rearranges a rail somebody set.
+//   vex.sidebarGroups         'on' | 'off'. Unset means 'on' for every profile, new or old (migrate() writes it): groups are only a view,
+//                             the saved order and hidden panels are never rewritten. A saved 'off' is respected.
+//   vex.sidebarGroups.v2      marker. Before it, an older version wrote 'off' for profiles in use, which cannot be told from a choice:
+//                             once, a stored 'off' without the marker becomes 'on'; after that 'off' is the person's own.
 //   vex.sidebarGroups.folded  JSON array of folded group ids.
 //
 // A folded group shows only its heading (and the button of the panel that is open, so the rail still says where you are).
 (function () {
   const KEY = 'vex.sidebarGroups';
   const FOLDED_KEY = 'vex.sidebarGroups.folded';
+  const MARKER_KEY = 'vex.sidebarGroups.v2';
   const EVENT = 'vex:sidebar-groups';
 
   // The English names are translated by VexI18nUI (js/i18n-ui.js).
@@ -72,19 +75,18 @@
     catch (err) { throw new Error('Could not save the sidebar groups setting: ' + err.message, { cause: err }); }
   }
 
-  // A new profile gets the groups; a profile that was in use before them, or that saved its own sidebar order, keeps its rail
-  // exactly as it is. Decided once and written, so the answer does not change when the wizard finishes (which marks a profile as
-  // "done"). Same test as Simple mode's (js/simple-mode.js).
+  // Everyone gets the groups (the owner's call, 2026-11-01): unset becomes 'on', also on a profile in use or with a saved sidebar order,
+  // because nothing is rewritten, only laid out differently. The first version wrote 'off' for such profiles; that 'off' is not a
+  // choice, so it is flipped to 'on' once (the marker), and from then on 'off' stays off. A private window is always 'on'.
   function migrate() {
     const stored = readRaw(KEY);
-    if (stored === 'on' || stored === 'off') return null;
-    if (window.VexTabPolicy?.isPrivateWindow) { write(KEY, 'on'); return 'on'; }
-    if (typeof Onboarding === 'undefined') throw new Error('[SidebarGroups] Onboarding is not loaded: cannot tell a new profile from an old one');
-    const customised = readRaw('vex.sidebarOrder') != null;
-    const used = Onboarding.done() || Onboarding._usedBefore();
-    const value = (customised || used) ? 'off' : 'on';
-    write(KEY, value);
-    return value;
+    if (window.VexTabPolicy?.isPrivateWindow) { if (stored !== 'on') write(KEY, 'on'); return stored === 'on' ? null : 'on'; }
+    const marked = readRaw(MARKER_KEY) != null;
+    if (!marked) write(MARKER_KEY, '1');
+    if (stored === 'on') return null;
+    if (stored === 'off' && marked) return null;
+    write(KEY, 'on');
+    return 'on';
   }
 
   function enabled() {
@@ -264,7 +266,7 @@
   else init();
 
   window.VexSidebarGroups = {
-    KEY, FOLDED_KEY, EVENT, GROUPS, ESSENTIALS,
+    KEY, FOLDED_KEY, MARKER_KEY, EVENT, GROUPS, ESSENTIALS,
     groupOf, groupInfo, plan, pickerPlan, migrate, enabled, setEnabled, folded, isFolded, setFolded, toggleFolded, arrange, refresh,
   };
 })();

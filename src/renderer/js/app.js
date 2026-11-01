@@ -32,7 +32,7 @@ function vexOwnTextFocused(doc) {
   // Simple mode is for new profiles: one that existed before it stays Full
   // (js/simple-mode.js). Before the sidebar reads the mode.
   VexSimpleMode.migrate();
-  // The sidebar groups are for new profiles; one in use before them keeps its rail (js/sidebar-groups.js).
+  // The sidebar groups are on for every profile unless it saved 'off' itself; nothing saved is rewritten (js/sidebar-groups.js).
   VexSidebarGroups.migrate();
   // Run-once changes to what is already saved (js/vex-defaults.js): a new default
   // never overrides a choice, a removal reaches saved profiles. After the line above,
@@ -837,7 +837,7 @@ function vexOwnTextFocused(doc) {
     'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
     'vex.aiRoute', 'vex.localAIModel', 'vex.aiRouting',
     'vex.preferOnDeviceAI', 'vex.webllmModel',
-    'vex.panelOverrides', 'vex.sidebarOrder', 'vex.sidebarGroups', 'vex.sidebarGroups.folded', 'vex.userShortcuts', 'vex.layout', 'vex.toolbarShown',
+    'vex.panelOverrides', 'vex.sidebarOrder', 'vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded', 'vex.userShortcuts', 'vex.layout', 'vex.toolbarShown',
     // Written by Settings controls but missing from this list until v2.36.5.
     'vex.searchSuggest', 'vex.sponsorSkip', 'vex.streamerMode',
     'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex', 'vex.game.commitGuard',

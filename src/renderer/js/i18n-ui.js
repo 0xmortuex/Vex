@@ -10488,7 +10488,7 @@ const VexI18nUI = {
       'Security and privacy': 'Güvenlik ve gizlilik',
       'Show or hide the buttons in this group': 'Bu gruptaki düğmeleri göster veya gizle',
       'Group the sidebar buttons': 'Kenar çubuğu düğmelerini grupla',
-      '· Knowledge, Browsing, Security and privacy, Tools and Apps each get a heading you can fold. Every panel keeps its button, its shortcut and its place in Ctrl+K. Off keeps one flat list, in your own order': '· Bilgi, Gezinme, Güvenlik ve gizlilik, Araçlar ve Uygulamalar birer başlık alır ve katlanabilir. Her panel kendi düğmesini, kısayolunu ve Ctrl+K içindeki yerini korur. Kapalıyken tek bir düz liste, kendi sıralamanızla kalır',
+      '· Knowledge, Browsing, Security and privacy, Tools and Apps each get a heading you can fold. Every panel keeps its button, its shortcut and its place in Ctrl+K. Off keeps one flat list, in your own order. On by default: turn it off here': '· Bilgi, Gezinme, Güvenlik ve gizlilik, Araçlar ve Uygulamalar birer başlık alır ve katlanabilir. Her panel kendi düğmesini, kısayolunu ve Ctrl+K içindeki yerini korur. Kapalıyken tek bir düz liste, kendi sıralamanızla kalır. Varsayılan olarak açıktır: buradan kapatabilirsiniz',
       'Track Stock Status': 'Stok durumunu izle',
       'Track This Price': 'Bu fiyatı izle',
       'Tracker Receipts': 'İzleyici makbuzları',

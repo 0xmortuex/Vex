@@ -27,16 +27,16 @@
 @media (prefers-reduced-motion: reduce) { #icon-sidebar .sidebar-group-head .sgh-chev { transition: none; } }
 
 /* A rail with groups is a little wider, and its buttons keep their size when the window is short (the rail scrolls instead of
-   shrinking the icons below 20px). Classic and Glass first, the rail looks (Firefox, Netscape) below. */
+   shrinking the icons below 18px). Classic and Glass first, the rail looks (Firefox, Netscape) below. */
 body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(64px, var(--sgh-min, 0px)); min-width: max(64px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
-body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: 38px; height: 38px; }
-body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 20px; height: 20px; }
+body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: 36px; height: 36px; }
+body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 18px; height: 18px; }
 body[data-gui-style="glass"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] {
   width: max(60px, var(--sgh-min, 0px)) !important; min-width: max(60px, var(--sgh-min, 0px)) !important; padding-left: 0 !important; padding-right: 0 !important;
 }
 body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(60px, var(--sgh-min, 0px)); min-width: max(60px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
-body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: var(--b-rail-btn, 36px); height: var(--b-rail-btn, 36px); }
-body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 20px; height: 20px; }
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: var(--b-rail-btn, 34px); height: var(--b-rail-btn, 34px); }
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 18px; height: 18px; }
 
 /* A folded group shows its heading only, except the button of the panel that is open: the rail still says where you are. */
 #icon-sidebar .sidebar-icon.sb-grp-folded:not(.active) { display: none !important; }
