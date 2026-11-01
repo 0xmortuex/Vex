@@ -5,6 +5,7 @@
 // Discord and Roblox bypass modes and the passkey host lists (found 2026-10-10).
 
 import { describe, it, expect } from 'vitest';
+require('../../src/renderer/js/i18n-ui.js');   // backup.js translates its confirm text through window.vexTr
 const { VexBackup } = require('../../src/renderer/js/backup.js');
 
 describe('backup secret filter', () => {
