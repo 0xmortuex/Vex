@@ -228,7 +228,10 @@
         const pic = el('div', 'vws-pv-pic');
         const scrim = el('div', 'vws-pv-scrim');
         const sample = el('div', 'vws-pv-text');
-        sample.append(el('div', 'vws-s1', L('Good evening')), el('div', 'vws-s2', L('Search the web or type an address')), el('div', 'vws-s3', L('Recent')));
+        const plate = el('div', 'vws-pv-plate');
+        const s1 = el('div', 'vws-s1', L('Good evening')), s2 = el('div', 'vws-s2', L('Search the web or type an address')), s3 = el('div', 'vws-s3', L('Recent'));
+        plate.append(s1, s2, s3);
+        sample.append(plate);
         box.append(pic, scrim, sample);
         const read = el('div', 'vws-read');
         read.setAttribute('role', 'status');
@@ -261,7 +264,7 @@
         const autoBox = el('input');
         autoBox.type = 'checkbox'; autoBox.checked = ui.draft.auto;
         autoBox.addEventListener('change', () => { ui.draft.auto = autoBox.checked; measure(); liveApply(); });
-        auto.append(autoBox, doc.createTextNode(' ' + L('Keep text readable (adds only as much shade as the text needs)')));
+        auto.append(autoBox, doc.createTextNode(' ' + L('Keep text readable (soft glass behind the text; shade only as a last resort)')));
         sliders.append(mk(L('Dim'), 'dim', 0, 0.9, 0.01, v => Math.round(v * 100) + '%'), mk(L('Blur'), 'blur', 0, 30, 1, v => v + ' px'), auto);
         panel.append(sliders);
 
@@ -298,15 +301,18 @@
           if (!P || !previewSrc || mine !== previewToken) return;
           V.summarise(previewSrc, d.id).then((s) => {
             if (mine !== previewToken) return;
-            const { scrim: bg, inks } = P.pageColours();
-            const need = P.neededScrim({ inks, extremes: [P.hexRgb(s.lightest), P.hexRgb(s.darkest)], scrim: bg });
-            const alpha = ui.draft.auto ? Math.max(ui.draft.dim, need.alpha) : ui.draft.dim;
-            scrim.style.backgroundColor = 'rgb(' + bg.map(Math.round).join(' ') + ' / ' + alpha.toFixed(2) + ')';
+            // Exactly what the New Tab will wear: the plan the page itself makes (js/wallpaper-paint.js), plates included.
+            const p = P.plan({ summary: s, accent: P.pageColours().accent, dim: ui.draft.dim, auto: ui.draft.auto });
+            const alpha = p.shade;
+            scrim.style.backgroundColor = P.rgbCss(p.plate, alpha);
+            plate.style.background = P.rgbCss(p.plate, p.plateAlpha);
+            plate.style.borderColor = P.rgbCss(p.inks[0], 0.16);
+            s1.style.color = P.rgbCss(p.inks[0]); s2.style.color = P.rgbCss(p.inks[1]); s3.style.color = P.rgbCss(p.inks[2]);
             pic.style.filter = ui.draft.blur ? 'blur(' + Math.round(ui.draft.blur * 0.5) + 'px)' : '';
-            const { worst, ok } = P.judge(inks, [P.hexRgb(s.lightest), P.hexRgb(s.darkest)], bg, alpha);
+            const { worst, ok } = p;
             const hidden = alpha > HIDDEN_SHADE;
             read.className = 'vws-read ' + (ok && !hidden ? 'vws-good' : 'vws-bad');
-            read.textContent = (ok ? L('Text reads at') : L('Text is hard to read, only')) + ' ' + worst.toFixed(1) + ':1 · ' + L('shade') + ' ' + Math.round(alpha * 100) + '%' + (ok ? '' : ' · ' + L('turn on "Keep text readable" or raise Dim'))
+            read.textContent = (ok ? L('Text reads at') : L('Text is hard to read, only')) + ' ' + worst.toFixed(1) + ':1 · ' + (p.scheme === 'dark' ? L('dark glass') : L('light glass')) + ' ' + Math.round(p.plateAlpha * 100) + '% · ' + L('shade') + ' ' + Math.round(alpha * 100) + '%' + (ok ? '' : ' · ' + L('turn on "Keep text readable" or raise Dim'))
               + (hidden ? ' · ' + L('only') + ' ' + Math.round((1 - alpha) * 100) + '% ' + L('of the picture shows on your New Tab with this shade') : '');
           }).catch((err) => { read.textContent = err.message; read.className = 'vws-read vws-bad'; });
         }

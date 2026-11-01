@@ -20,8 +20,8 @@ beforeEach(() => {
   localStorage.clear();
   V._reset();
   pushed = [];
-  // A 96x54 picture: dark with one bright pixel, so lightest/darkest are known.
-  const px = new Uint8ClampedArray(96 * 54 * 4).fill(20);
+  // A 1280x720 picture (the size the store reads): dark with one bright pixel, so lightest/darkest are known.
+  const px = new Uint8ClampedArray(1280 * 720 * 4).fill(20);
   px.set([250, 250, 250, 255], 40);
   px.set([5, 5, 5, 255], 44);
   window.Image = class { set src(v) { this._s = v; } get src() { return this._s; } decode() { return Promise.resolve(); } };
@@ -279,15 +279,16 @@ describe('how much of the picture shows (shade)', () => {
     expect(s.shows).toBeCloseTo(0.02, 5);
     expect(s.fromPage).toBe(true);
   });
-  it('is worked out here when no New Tab is open, with dark text over a dark and bright picture needing a heavy shade', async () => {
+  it('is worked out here when no New Tab is open: the text sits on plates, so a dark picture with a bright speck is not shaded', async () => {
     const P = window.WallpaperPaint, real = P.pageColours;
-    P.pageColours = () => ({ scrim: [245, 241, 232], inks: [[26, 26, 26], [74, 74, 74], [106, 106, 106], [30, 58, 95]] });
+    P.pageColours = () => ({ scrim: [245, 241, 232], inks: [[26, 26, 26], [74, 74, 74], [106, 106, 106], [30, 58, 95]], accent: [30, 58, 95] });
     try {
       await V.apply('aurora-polar');          // the fake picture: lightest 250, darkest 5
       const s = await V.shade();
       expect(s.fromPage).toBe(false);
-      expect(s.alpha).toBeGreaterThan(0.6);
-      expect(s.shows).toBeLessThan(0.4);
+      expect(s.shows).toBeGreaterThanOrEqual(0.7);
+      expect(s.scheme).toBe('dark');
+      expect(s.textOk).toBe(true);
     } finally { P.pageColours = real; }
   });
   it('apply forgets an older measurement so a stale one is never reported', async () => {
@@ -298,7 +299,7 @@ describe('how much of the picture shows (shade)', () => {
     expect((await V.shade()).alpha).toBe(0.5);
     WebviewManager.webviews.clear();
     const P = window.WallpaperPaint, real = P.pageColours;
-    P.pageColours = () => ({ scrim: [245, 241, 232], inks: [[26, 26, 26]] });
+    P.pageColours = () => ({ scrim: [245, 241, 232], inks: [[26, 26, 26]], accent: [30, 58, 95] });
     try {
       await V.apply('grad-rose');
       expect((await V.shade()).fromPage).toBe(false);
