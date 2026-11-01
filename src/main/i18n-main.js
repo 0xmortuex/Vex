@@ -282,6 +282,12 @@ const TR = {
   'Bring back the tab you closed last': 'En son kapattığınız sekmeyi geri getir',
   'Quick capture': 'Hızlı yakalama',
   'A small box for a note, a reminder or a timer': 'Bir not, hatırlatıcı ya da zamanlayıcı için küçük bir kutu',
+  'Extract {1} here?': '{1} burada çıkarılsın mı?',
+  'Extract': 'Çıkar',
+  '{1} files, {2} when unpacked.': 'Açıldığında {1} dosya, {2}.',
+  '1 file, {1} when unpacked.': 'Açıldığında 1 dosya, {1}.',
+  'It will be unpacked into a new folder:': 'Yeni bir klasöre açılacak:',
+  'Vex refuses unsafe paths and links, never overwrites a file, and keeps the "downloaded from the internet" mark on what it writes, so Windows still checks a program that comes out of it.': 'Vex güvenli olmayan yolları ve bağlantıları reddeder, hiçbir dosyanın üzerine yazmaz ve yazdıklarında “internetten indirildi” işaretini korur; böylece Windows içinden çıkan bir programı yine denetler.',
   // --- end panels and dialogs sweep ---
 };
 
