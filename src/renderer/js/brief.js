@@ -365,6 +365,13 @@ const VexBrief = {
     'A spoken summary of today': 'Bugünün sesli özeti',
     'pages visited': 'ziyaret edilen sayfa', 'trackers blocked': 'engellenen izleyici', 'reminders fired': 'çalan hatırlatıcı',
     'Reminder': 'Hatırlatıcı',
+    // turkish sweep (agent): the cards of the New Tab page that were still English
+    'Nothing is watched. Watch a GitHub Actions run or a repository\'s releases and what happens to them appears here. Notifications and review requests need a GitHub sign-in, which Vex does not have.': 'İzlenen bir şey yok. Bir GitHub Actions çalıştırmasını ya da bir deponun sürümlerini izleyin; olanlar burada görünür. Bildirimler ve inceleme istekleri için Vex’te olmayan bir GitHub girişi gerekir.',
+    'Set your GitHub username in Settings to see your pull requests here.': 'Çekme isteklerinizi burada görmek için Ayarlar’dan GitHub kullanıcı adınızı girin.',
+    'Nothing is scheduled.': 'Planlanmış bir şey yok.',
+    'There is no stretch of 45 minutes or more left before 18:00. Use the gaps for small things.': 'Saat 18:00’e kadar 45 dakika ya da daha uzun boş bir aralık kalmadı. Boşlukları küçük işler için kullanın.',
+    'a reminder coming up': 'yaklaşan bir hatırlatıcı',
+    'No free gap left today.': 'Bugün boş aralık kalmadı.',
   },
   // Fixed words around a number or a name.
   PATTERNS: [
@@ -375,13 +382,38 @@ const VexBrief = {
     [/^and (\d+) more$/, (n) => n + ' tane daha'],
     [/^Tomorrow starts with (.+)$/, (x) => 'Yarın şununla başlıyor: ' + x],
     [/^Reminder, due (.+)$/, (x) => 'Hatırlatıcı, zamanı: ' + x],
+    // turkish sweep (agent)
+    [/^Nothing is pressing\. Ctrl\+K › Set my next step to write the very next move for (.+)\.$/, (w) => 'Acil bir şey yok. ' + w + ' için atılacak ilk adımı yazmak için Ctrl+K › “Sonraki adımımı belirle” yazın.'],
+    [/^(\d+) needs? you now, (\d+) for today(?:, (\d+) to know)?\.$/, (n, t, f) => n + ' şey şimdi sizi bekliyor, bugün için ' + t + (f ? ', bilmeniz gereken ' + f : '') + '.'],
+    [/^nothing needs you right now(?:, (\d+) for today)?(?:, (\d+) to know)?\.$/, (t, f) => 'şu an sizi bekleyen bir şey yok' + (t ? ', bugün için ' + t : '') + (f ? ', bilmeniz gereken ' + f : '') + '.'],
+    [/^(\d+) needs? you now(?:, (\d+) to know)?\.$/, (n, f) => n + ' şey şimdi sizi bekliyor' + (f ? ', bilmeniz gereken ' + f : '') + '.'],
+    [/^reminder, (today|tomorrow) (\d\d:\d\d)(?: · (.+))?$/, (d, h, why) => 'hatırlatıcı, ' + (d === 'today' ? 'bugün ' : 'yarın ') + h + (why ? ' · ' + VexBrief.translate(why) : '')],
+    [/^Your best stretch for focused work is (\d\d:\d\d) to (\d\d:\d\d) \((.+)\)\.(?: (.+))?$/, (a, b, d, rest) => 'Odaklanma için en iyi aralığınız ' + a + ' – ' + b + ' (' + VexBrief._dur(d) + ').' + (rest ? ' ' + VexBrief.translate(rest) : '')],
+    [/^Next up: (.+) at (\d\d:\d\d)\.$/, (x, h) => 'Sıradaki: ' + x + ', saat ' + h + '.'],
+    [/^Nothing booked today(?: · free (\d\d:\d\d) to (\d\d:\d\d))?$/, (a, b) => 'Bugün planlanmış bir şey yok' + (a ? ' · boş: ' + a + ' – ' + b : '')],
+    [/^Busy (.+?) · largest free gap (.+?) \((.+)\)$/, (busy, gap, d) => 'Meşgul: ' + VexBrief._dur(busy) + ' · en uzun boş aralık ' + gap + ' (' + VexBrief._dur(d) + ')'],
+    [/^Busy (.+?) · no free gap left$/, (busy) => 'Meşgul: ' + VexBrief._dur(busy) + ' · boş aralık kalmadı'],
+    [/^((?:(?:today|\d) (?:light|steady|heavy|crushed))(?: · (?:today|\d) (?:light|steady|heavy|crushed))*)$/, (all) => VexBrief._load(all)],
   ],
   translate(text) {
     const s = String(text == null ? '' : text);
     if (Object.prototype.hasOwnProperty.call(this.TR, s)) return this.TR[s];
     for (const [re, fn] of this.PATTERNS) { const m = re.exec(s); if (m) return fn(...m.slice(1)); }
+    // turkish sweep (agent): the app's own dictionary knows many of the same phrases ("just now", a card's title); a text made of
+    // several sentences is translated sentence by sentence when at least one of them is known.
+    const ui = typeof VexI18nUI !== 'undefined' ? VexI18nUI.lookup(s, 'tr') : null;
+    if (ui != null) return ui;
+    if (s.includes('. ')) {
+      let any = false;
+      const parts = s.split(/(?<=\.) /).map((p) => { const t = this.translate(p); if (t !== p) any = true; return t; });
+      if (any) return parts.join(' ');
+    }
     return s;
   },
+  // "1 h 40 min" -> "1 sa 40 dk"
+  _dur(text) { return String(text).replace(/\bh\b/g, 'sa').replace(/\bmin\b/g, 'dk'); },
+  // "today light · 2 light · 3 heavy" -> "bugün hafif · 2 hafif · 3 yoğun"
+  _load(text) { const w = { today: 'bugün', light: 'hafif', steady: 'dengeli', heavy: 'yoğun', crushed: 'ezici' }; return String(text).replace(/\b(today|light|steady|heavy|crushed)\b/g, (x) => w[x]); },
   _lang() { return typeof VexI18nUI !== 'undefined' ? VexI18nUI.locale() : 'en'; },
   // A copy of the morning snapshot with its fixed words in Turkish. English, or no brief, comes back untouched.
   localize(morning, lang) {
@@ -396,6 +428,7 @@ const VexBrief = {
       for (const it of s.items || []) {
         if (typeof it.text === 'string') it.text = this.translate(it.text);
         if (typeof it.badge === 'string') it.badge = this.translate(it.badge);
+        if (typeof it.sub === 'string') it.sub = this.translate(it.sub);
         for (const a of it.actions || []) if (a && a.label) a.label = this.translate(a.label);
       }
     }
