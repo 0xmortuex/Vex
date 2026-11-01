@@ -1168,6 +1168,15 @@
       font-family: 'Outfit', sans-serif;
     }
     .search-bar input::placeholder { color: var(--vex-text-muted); }
+    /* The pill is the focus target, not the bare input: the generic ring above would
+       draw a sharp square inside the rounded pill. The input keeps no outline of its
+       own; the pill draws one ring (rounded like the pill, accent colour) while the
+       input has keyboard/auto focus. */
+    .search-bar input:focus-visible { outline: none !important; }
+    .search-bar:has(input:focus-visible) {
+      outline: 2px solid var(--vex-accent, #7aa2ff);
+      outline-offset: 2px;
+    }
 
     .search-bar kbd {
       background: var(--vex-glass-input);
