@@ -27,6 +27,7 @@ const VexBoot = {
   KEEP: 10,
   LATE_MODULES: [
     { src: 'js/release-checklist.js', usage: ['release-check'] },
+    { src: 'js/sidebar-groups-ui.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },
@@ -37,6 +38,8 @@ const VexBoot = {
     { src: 'js/maker-repos.js', usage: [] },
     { src: 'js/faq-ui.js', usage: [] },
     { src: 'js/drm-help-tr.js', usage: [] },
+    { src: 'js/settings-sweep2-tr.js', usage: [] },
+    { src: 'js/dialogs-tr.js', usage: [] },
     { src: 'js/drm-help.js', usage: [] },
     { src: 'js/unblock-centre.js', usage: ['unblock-centre'] },
     { src: 'js/page-recorder.js', usage: [] },

@@ -11351,7 +11351,12 @@ ipcMain.handle('mail:compose', async (_e, { subject, body, to }) => {
   return { ok: true };
 });
 // The language of the native dialogs (main/i18n-main.js): the window says which one Vex is in, and what a Windows dialog shows follows it.
-ipcMain.handle('i18n:set-language', (_e, lang) => ({ ok: true, language: _i18nMain.setLanguage(lang) }));
+ipcMain.handle('i18n:set-language', (_e, lang) => {
+  const before = _i18nMain.language();
+  const language = _i18nMain.setLanguage(lang);
+  if (language !== before) _applyJumpList();   // the taskbar entries are written in the language in force
+  return { ok: true, language };
+});
 ipcMain.handle('open-external', (_e, url) => {
   try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}
   return { ok: false };
@@ -11620,10 +11625,11 @@ function _applyJumpList() {
   const saved = _readPersistString('vex.jumpList', null);
   const enabled = !(saved && typeof saved === 'object' && saved.on === false);
   const safe = { program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' };
-  app.setUserTasks(require('./main/jump-list').buildTasks({
+  const tasks = require('./main/jump-list').buildTasks({
     execPath: process.execPath, enabled, keep: [safe],
     extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)).concat(_profile.id === 'default' ? [] : ['--profile=' + _profile.id]),
-  }));
+  });
+  app.setUserTasks(tasks.map(t => ({ ...t, title: _i18nMain.t(t.title), description: _i18nMain.t(t.description) })));
 }
 // A second start from a taskbar entry while Vex runs.
 function _jumpFromSecondStart(action) {

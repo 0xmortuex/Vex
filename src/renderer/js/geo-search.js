@@ -30,7 +30,9 @@ const VexGeo = {
 
   countryName(code) {
     try {
-      const lang = (typeof navigator !== 'undefined' && navigator.language) || 'en';
+      // A Turkish Vex names the countries in Turkish whatever the system language is.
+      const turkish = typeof VexI18nUI !== 'undefined' && VexI18nUI.locale() === 'tr';
+      const lang = turkish ? 'tr' : (typeof navigator !== 'undefined' && navigator.language) || 'en';
       return new Intl.DisplayNames([lang], { type: 'region' }).of(code) || code;
     } catch { return code; }
   },

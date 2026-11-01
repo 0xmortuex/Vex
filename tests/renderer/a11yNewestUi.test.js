@@ -121,8 +121,8 @@ describe('the weather suggestion list', () => {
   });
 });
 
-describe('the sidebar group headings', () => {
-  it('are named by the word on show, and the long name is their description', async () => {
+describe('the sidebar group folders', () => {
+  it('are named by the word on show plus how many buttons they hold, and the long name is their tooltip', async () => {
     localStorage.clear();
     globalThis.VexIcons = { svg: () => '<svg></svg>' };
     globalThis.Onboarding = { done: () => false, _usedBefore: () => false };
@@ -130,21 +130,23 @@ describe('the sidebar group headings', () => {
     document.body.innerHTML = '<div id="icon-sidebar"><button class="sidebar-icon" data-panel="start"></button><button class="sidebar-icon" data-panel="authenticator"></button><button class="sidebar-icon" data-panel="library"></button><div class="sidebar-spacer"></div></div>';
     globalThis.SidebarManager = {
       _loadOrder: () => [],
-      _topButtons: () => [...document.querySelectorAll('#icon-sidebar > .sidebar-icon')],
-      applySidebarOrder() {}, applyPanelOverrides() {}, renderSidebarManager() {},
+      _topButtons: () => [...document.querySelectorAll('#icon-sidebar > .sidebar-icon, #icon-sidebar .sb-folder-inner > .sidebar-icon')],
+      applySidebarOrder() {}, applyPanelOverrides() {}, renderSidebarManager() {}, fitRail() {},
     };
     vi.resetModules();
     delete window.VexSidebarGroups;
     await import('../../src/renderer/js/sidebar-groups.js');
     window.VexSidebarGroups.arrange();
-    for (const head of document.querySelectorAll('.sidebar-group-head')) {
-      expect(head.getAttribute('aria-label'), 'the name read out is the word shown').toBe(head.querySelector('.sgh-label').textContent);
+    for (const f of document.querySelectorAll('.sb-folder')) {
+      const tile = f.querySelector('.sb-folder-btn');
+      expect(tile.getAttribute('aria-label'), 'the name read out starts with the name shown').toMatch(/, \d+ buttons?$/);
+      expect(tile.getAttribute('aria-label').startsWith(f.querySelector('.sb-folder-label').textContent) || f.dataset.group === 'security').toBe(true);
+      expect(tile.getAttribute('aria-expanded')).toBe('false');
     }
-    const sec = document.querySelector('.sidebar-group-head[data-group="security"]');
-    expect(sec.querySelector('.sgh-label').textContent).toBe('Security');
-    expect(sec.title).toBe('Security and privacy');
-    const know = document.querySelector('.sidebar-group-head[data-group="knowledge"]');
-    expect(know.title).toBe('Show or hide the buttons in this group');
+    const sec = document.querySelector('.sb-folder[data-group="security"]');
+    expect(sec.querySelector('.sb-folder-label').textContent).toBe('Security');
+    expect(sec.querySelector('.sb-folder-btn').title).toContain('Security and privacy');
+    expect(sec.querySelector('.sb-folder-btn').getAttribute('aria-label')).toBe('Security and privacy, 1 button');
   });
 });
 

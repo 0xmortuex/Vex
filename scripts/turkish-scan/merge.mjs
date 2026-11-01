@@ -4,7 +4,7 @@
 // Merge result files (dedupe by kind+text, first surface wins), print per-surface counts, write merged.json
 import fs from 'node:fs';
 import path from 'node:path';
-import { TL, OUT, lookupTr } from './lib.mjs';
+import { TL, OUT, lookupTr, trValues } from './lib.mjs';
 import { looksEnglish } from './english.mjs';
 const files = process.argv.slice(2);
 const seen = new Map();
@@ -13,7 +13,7 @@ for (const f of files) {
     const key = (it.k === 'text' ? 'text' : 'attr') + '|' + it.t;   // an attribute and a text with the same words are one string
     if (seen.has(key)) continue;
     // re-classify with the current table + detector (so reruns after a fix show the improvement)
-    if (!looksEnglish(it.t)) continue;
+    if (!looksEnglish(it.t) || trValues.has(it.t)) continue;
     const tr = lookupTr(it.t);
     it.cls = tr != null && tr !== it.t ? 'table-not-applied' : 'no-entry';
     seen.set(key, it);

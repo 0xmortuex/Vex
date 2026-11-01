@@ -13,7 +13,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+const here = path.dirname(decodeURIComponent(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'));
 const OUT = process.env.TURKISH_SCAN_OUT || path.join(os.tmpdir(), 'vex-turkish-scan');
 const port = process.argv[2] || '10040';
 const node = (f, ...a) => { const r = spawnSync(process.execPath, [path.join(here, f), ...a], { stdio: 'inherit', env: process.env }); if (r.status) console.log(f, 'exited', r.status); };
@@ -24,8 +24,8 @@ await sleep(15000);
 const run = JSON.parse(fs.readFileSync(path.join(OUT, 'run.json')));
 try {
   node('wizard.mjs', 'full');
-  for (const p of [1, 2, 3, 4, 5]) node(`surfaces${p}.mjs`);
-  node('merge.mjs', 'wizard-full.json', 'part1.json', 'part2.json', 'part3.json', 'part4.json', 'part5.json');
+  for (const p of [1, 2, 3, 4, 5, 6]) node(`surfaces${p}.mjs`);
+  node('merge.mjs', 'wizard-full.json', 'part1.json', 'part2.json', 'part3.json', 'part4.json', 'part5.json', 'part6.json');
 } finally {
   // stop only our own process: confirm its command line names our profile and port first
   const cmd = execFileSync('powershell', ['-NoProfile', '-Command', `(Get-CimInstance Win32_Process -Filter "ProcessId=${run.pid}").CommandLine`]).toString();

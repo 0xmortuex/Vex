@@ -507,7 +507,7 @@
   }
 
   const api = { KEY, PREFS_KEY, THEME_ID, STYLE_ID, AREAS, AREA_IDS, ACCENT_KEYS, keepNames, LOOK_VARS, LOOK_EXTRA, BROWSER_LINES, paletteForGenerated, paletteFor, compose, areaCss, apply, setAreas, areasFor, undo, state, canUndo: () => !!state(), clustersOf, render, newTabOverride, newTabWorn };
-  root.VexWallpaperSync = api;
+  if (typeof window !== 'undefined' && root === window) window.VexWallpaperSync = api; else root.VexWallpaperSync = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = { VexWallpaperSync: api };
 
   // The areas follow the theme worn: gone when another theme is picked, back at start-up and when
