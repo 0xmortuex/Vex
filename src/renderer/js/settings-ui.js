@@ -64,7 +64,7 @@ const SettingsUI = {
     { name: 'General',         icon: 'search',   color: '#6366f1', match: ['general', 'search engine', 'search by what you want'] },
     { name: 'Browser',         icon: 'globe',    color: '#0ea5e9', match: ['default browser', 'folder browser', 'document viewer', 'image viewer', 'video and sound player', 'documents and e-books'] },
     { name: 'Appearance',      icon: 'palette',  color: '#a855f7', match: ['appearance', 'theme', 'gui style', 'tab layout', 'vex packs', 'mouse cursor', 'click effect', 'wallpapers', 'sounds'] },
-    { name: 'Layout',          icon: 'grid',     color: '#c084fc', match: ['layout'] },
+    { name: 'Layout',          icon: 'grid',     color: '#c084fc', match: ['layout', 'customize toolbar'] },
     { name: 'Sidebar',         icon: 'panel',    color: '#818cf8', match: ['sidebar', 'links and panels', 'panels and messages'] },
     { name: 'Privacy',         icon: 'shield',   color: '#22c55e', match: ['sign-in: ', 'privacy', 'security', 'route all of vex', 'private routing', 'web safety', 'safer web', 'if something went wrong', 'signed in to', 'paste-and-run', 'containers per site', 'secure lock options', 'safer browsing', 'startup check', 'terms of service', 'encrypted profile lock', 'meeting transcript'] },
     { name: 'Autofill',        icon: 'pencil',   color: '#4ade80', match: ['autofill', 'text snippets', 'unfinished forms', 'payment card'] },
