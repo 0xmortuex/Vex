@@ -1,4 +1,12 @@
-// === Simple mode ===========================================================
+// === Simple mode (shown to the user as "Developer mode", inverted) =========
+//
+// Since 2026-11-01 Settings calls this switch Developer mode: ON is Full (every
+// setting, panel and tool), OFF is Simple (a calm Vex and only the CRITICAL
+// settings, SettingsUI.BASIC_SECTIONS). The stored key and its values did not
+// change, so no profile is migrated and nobody's visible state flips: a profile
+// that was Simple is still calm (Developer mode off), one that was Full still
+// shows everything (Developer mode on), and one that never chose gets what the
+// setup wizard picks (Simple, Developer mode off).
 //
 // Vex has a great many tools, and a newcomer meets all of them at once: twenty
 // sidebar panels, a dozen toolbar buttons, forty sections of Settings. Simple
@@ -53,6 +61,8 @@ const VexSimpleMode = {
   },
   mode() { return this.stored() === 'simple' ? 'simple' : 'full'; },
   isSimple() { return this.mode() === 'simple'; },
+  // Developer mode, as Settings names it, is Full.
+  isDeveloper() { return !this.isSimple(); },
 
   // Does Simple mode keep this rail button out of sight right now?
   hidesPanel(panel) {
@@ -96,7 +106,7 @@ const VexSimpleMode = {
   // The "All features" button: everything back, and where to find the switch.
   showAll() {
     this.set('full');
-    window.showToast?.('All features are on. Settings › General › Simple mode tucks them away again.', 'info', 6000);
+    window.showToast?.('Developer mode is on. Settings › General › Developer mode tucks the extras away again.', 'info', 6000);
   },
 
   apply() {
@@ -104,8 +114,8 @@ const VexSimpleMode = {
     document.body.dataset.uiMode = simple ? 'simple' : 'full';
     const btn = document.getElementById('btn-all-features');
     if (btn) btn.hidden = !simple;
-    const box = document.getElementById('setting-simple-mode');
-    if (box) box.checked = simple;
+    const box = document.getElementById('setting-developer-mode');
+    if (box) box.checked = !simple;
     // (The toolbar overflow menu re-fits by itself: js/toolbar-overflow.js
     // watches body[data-ui-mode].)
     if (typeof SidebarManager !== 'undefined') {
@@ -123,14 +133,14 @@ const VexSimpleMode = {
       btn.innerHTML = VexIcons.svg('grid', { size: 14 }) + '<span class="all-features-label">All features</span>';
       btn.addEventListener('click', () => this.showAll());
     }
-    const box = document.getElementById('setting-simple-mode');
+    const box = document.getElementById('setting-developer-mode');
     if (box && !box.dataset.wired) {
       box.dataset.wired = '1';
       box.addEventListener('change', () => {
-        this.set(box.checked ? 'simple' : 'full');
+        this.set(box.checked ? 'full' : 'simple');
         window.showToast?.(box.checked
-          ? 'Simple mode on — press All features in the toolbar to see everything'
-          : 'All features are on');
+          ? 'Developer mode is on: every setting, panel and tool'
+          : 'Developer mode is off — press All features in the toolbar to see everything');
       });
     }
     this.apply();

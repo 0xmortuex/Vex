@@ -472,15 +472,15 @@ const CommandBar = {
     } })),
     // Phase 7A: AI commands
     { id: 'tabs-toggle', label: 'Toggle Tabs Sidebar', hint: 'Show/hide tabs panel', shortcut: 'Ctrl+B', icon: 'sidebar', action: () => window.toggleTabsSidebar?.() },
-    { id: 'dev-mode', label: 'Developer mode', hint: 'Show the developer dashboard and its shortcuts', icon: 'terminal', action: () => {
+    { id: 'dev-mode', label: 'Developer dashboard button', hint: 'Show or hide the developer dashboard button and its shortcuts', icon: 'terminal', action: () => {
       if (typeof VexDevMode === 'undefined') { window.showToast?.('Developer mode is not available in this build', 'error'); return; }
       if (!VexDevMode.toggle()) { window.showToast?.('Could not save that preference', 'error'); return; }
       window.showToast?.(VexDevMode.isOn() ? 'Developer mode on' : 'Developer mode off');
     } },
-    { id: 'simple-mode', label: 'Simple mode', hint: 'Show only the everyday buttons, panels and settings — or all of them again', icon: 'grid', action: () => {
-      if (typeof VexSimpleMode === 'undefined') { window.showToast?.('Simple mode is not available in this build', 'error'); return; }
+    { id: 'simple-mode', label: 'Developer mode', hint: 'On: every setting, panel and tool. Off: only the critical settings and the everyday buttons and panels', icon: 'grid', action: () => {
+      if (typeof VexSimpleMode === 'undefined') { window.showToast?.('Developer mode is not available in this build', 'error'); return; }
       const mode = VexSimpleMode.toggle();
-      window.showToast?.(mode === 'simple' ? 'Simple mode on — All features in the toolbar shows everything' : 'All features are on');
+      window.showToast?.(mode === 'simple' ? 'Developer mode is off — All features in the toolbar shows everything' : 'Developer mode is on: every setting, panel and tool');
     } },
     { id: 'dev-dashboard', label: 'Developer dashboard', hint: 'Diagnostics and the quick actions for working on Vex', icon: 'terminal', action: () => {
       if (typeof VexDevMode === 'undefined') { window.showToast?.('Developer mode is not available in this build', 'error'); return; }
