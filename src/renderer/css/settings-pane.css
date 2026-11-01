@@ -1,0 +1,202 @@
+/* === Settings, one category at a time (js/settings-pane.js, js/settings-find.js) ==========
+   The list on the left picks a category; the right side shows only that category, as a few
+   cards. A card is the run of sections that belong together: the first section carries the
+   card's title (data-card-title) and the rounded top, the last the rounded bottom. A search is
+   a list of settings (.set-results). Colours come from the existing tokens. Loaded before
+   a11y.css, which stays last. */
+
+#panel-settings[data-pane] .settings-content > .set-pane-off { display: none !important; }
+
+/* --- The cards ------------------------------------------------------------------------- */
+#panel-settings[data-pane] .settings-content { padding-top: 22px; padding-bottom: 80px; }
+#panel-settings[data-pane] .settings-content > .setting-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 20px 8px;
+  margin: 0;
+  overflow: visible;
+  transform: none;
+  box-shadow: none;
+  transition: none;
+}
+#panel-settings[data-pane] .settings-content > .setting-group::before { content: none; }
+#panel-settings[data-pane] .settings-content > .setting-group:hover { transform: none; box-shadow: none; border-color: var(--border); }
+#panel-settings[data-pane] .settings-content > .setting-group.set-card-first { border-radius: 14px 14px 0 0; margin-top: 0; }
+#panel-settings[data-pane] .settings-content > .setting-group.set-card-mid { border-radius: 0; border-top: 0; box-shadow: inset 0 1px 0 var(--border); }
+#panel-settings[data-pane] .settings-content > .setting-group.set-card-last { border-radius: 0 0 14px 14px; border-top: 0; box-shadow: inset 0 1px 0 var(--border); }
+#panel-settings[data-pane] .settings-content > .setting-group.set-card-only { margin-top: 14px; }
+/* The card's title: a line of its own above its first section. */
+#panel-settings[data-pane] .settings-content > .set-card-title { margin: 26px 2px 8px; font-size: 15px; font-weight: 700; color: var(--text); }
+#panel-settings[data-pane] .settings-content > .setting-group { position: relative; }
+
+/* A section is a sub-section of its card: a small heading, no coloured badge. */
+#panel-settings[data-pane] .settings-content > .setting-group > .setting-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  gap: 0;
+  color: var(--text);
+}
+#panel-settings[data-pane] .settings-content > .setting-group > .setting-label .set-emoji { display: none; }
+#panel-settings[data-pane] .settings-content > .setting-group > .set-info-btn--corner { top: 10px; right: 12px; }
+
+/* --- Rows: label left, control right, one height ---------------------------------------- */
+#panel-settings[data-pane] .settings-content .setting-group .setting-toggle-row {
+  min-height: 44px;
+  padding: 8px 0;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+#panel-settings[data-pane] .settings-content .setting-group .setting-row { padding-top: 8px; padding-bottom: 8px; }
+#panel-settings[data-pane] .settings-content .setting-group :is(.setting-info, .setting-hint, .set-layout-hint) {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+#panel-settings[data-pane] .settings-content .setting-group .setting-row-label { font-size: 14px; color: var(--text); }
+
+/* The more-options fold stays inside the card. */
+#panel-settings[data-pane] .set-more-btn { font-size: 13px; }
+#panel-settings[data-pane] .settings-content > .set-subnav { margin: 4px 0 0; }
+
+/* --- Search ----------------------------------------------------------------------------- */
+.set-search-row { position: relative; }
+.set-search-clear {
+  flex: 0 0 28px;
+  width: 28px; height: 28px;
+  margin-left: -36px;
+  margin-right: 8px;
+  padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  z-index: 2;
+}
+.set-search-clear[hidden] { display: none; }
+.set-search-clear:hover { color: var(--text); background: var(--vex-hover-fill, transparent); }
+.set-search-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+#panel-settings[data-pane] .set-search { padding-right: 38px; }
+#panel-settings[data-pane] .set-search::-webkit-search-cancel-button { display: none; }
+
+/* While searching only the results show. */
+#panel-settings[data-pane].set-searching .settings-content > :is(.setting-group, .set-subnav, .set-advanced-toggle, .set-card-title) { display: none !important; }
+#panel-settings[data-pane] .set-results[hidden] { display: none; }
+#panel-settings[data-pane] .set-results { max-width: 860px; }
+.set-results-head { font-size: 13px; color: var(--text-muted); margin: 0 2px 10px; min-height: 18px; }
+.set-results-list { display: flex; flex-direction: column; gap: 8px; }
+.set-result-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.set-result-row:hover { border-color: var(--primary); }
+.set-result-row:focus-visible, .set-result-row[aria-selected="true"]:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+.set-result-text { flex: 1; min-width: 0; }
+.set-result-name { font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-result-crumb { font-size: 13px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-result-tag {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.set-result-open { flex-shrink: 0; }
+.set-result-control { flex-shrink: 0; }
+select.set-result-control { max-width: 220px; }
+.set-results-more { margin: 12px 0 0; }
+.set-results-more[hidden] { display: none; }
+.set-results-empty { padding: 36px 8px; text-align: center; }
+.set-results-empty-title { font-size: 16px; font-weight: 600; color: var(--text); }
+.set-results-empty-hint { margin-top: 6px; font-size: 14px; color: var(--text-muted); }
+
+/* Highlight of the row a result opened. */
+#panel-settings .set-item-hit { animation: setPaneHit 1.6s ease-out 1; border-radius: 8px; }
+@keyframes setPaneHit {
+  0%, 60% { background: color-mix(in srgb, var(--primary) 22%, transparent); outline: 2px solid var(--primary); outline-offset: 2px; }
+  100% { background: transparent; outline: 2px solid transparent; outline-offset: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #panel-settings .set-item-hit { animation: none; background: color-mix(in srgb, var(--primary) 22%, transparent); }
+}
+
+/* === Dense list (SettingsPane.densify): one row per small feature ========================= */
+#panel-settings[data-pane] .settings-content > h2 { display: none; }
+#panel-settings[data-pane] .settings-content { padding-top: 12px; }
+#panel-settings[data-pane] .settings-content > .setting-group { padding: 6px 16px; }
+#panel-settings[data-pane] .settings-content > .setting-group > .setting-label { margin-bottom: 4px; }
+#panel-settings[data-pane] .settings-content > .setting-group.set-head-off > .setting-label { display: none; }
+#panel-settings[data-pane] .settings-content > .setting-group > select,
+#panel-settings[data-pane] .settings-content > .setting-group > [data-group-body] > select { max-width: 420px; }
+
+/* A one-row section: label (and its hint) left, the switch or button right. */
+#panel-settings[data-pane] .settings-content > .setting-group.set-dense {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding-top: 6px; padding-bottom: 6px;
+}
+.set-dense > .setting-label { flex: 1 1 200px; min-width: 0; margin: 0; font-size: 14px; font-weight: 500; }
+.set-dense > [data-group-body], .set-dense > .vex-module-group-body { display: contents; }
+.set-dense .setting-toggle-row { display: contents; }
+.set-dense .setting-toggle-row > span { flex: 1 1 200px; min-width: 0; font-size: 14px; }
+.set-dense .setting-toggle-row > span.set-redundant { display: none; }
+.set-dense .toggle { flex: 0 0 auto; margin-left: auto; order: 3; }
+.set-dense > .set-info-btn--corner, .set-dense .set-info-btn { position: static; order: 2; margin: 0 0 0 auto; }
+.set-dense .set-info-btn + .toggle { margin-left: 0; }
+.set-dense button:not(.set-info-btn):not(.set-chevron) { order: 3; margin-left: auto; flex: 0 0 auto; }
+/* The hint: one line under the label, the whole text in the ? */
+.set-dense :is(.setting-info, .setting-hint):not(.set-info-folded) {
+  order: 9; flex: 1 0 100%; margin: 0 0 4px; font-size: 12.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.set-dense > .set-info-btn--line { order: 2; margin-left: auto; }
+/* The switches after the first fold behind the chevron. */
+.set-chevron {
+  order: 4; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.set-chevron:hover { color: var(--text); background: var(--vex-hover-fill, transparent); }
+.set-chevron:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.set-chevron svg { transition: transform .15s ease; }
+.set-chevron[aria-expanded="true"] svg { transform: rotate(180deg); }
+.set-dense:not([data-open]) .set-sub { display: none !important; }
+.set-dense[data-open] .set-sub { display: flex !important; flex: 1 0 100%; order: 10; padding: 6px 0 6px 16px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); align-items: center; justify-content: space-between; }
+.set-dense[data-open] .set-sub > span { flex: 1 1 auto; }
+.set-dense[data-open] .set-sub .toggle { order: 0; }
+@media (prefers-reduced-motion: reduce) { .set-chevron svg { transition: none; } }
+
+/* A section of a few rows that are a label with its menu: the label left, the menu right, on one line. */
+#panel-settings[data-pane] .settings-content > .setting-group.set-plain { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; }
+.set-plain > * { flex: 1 1 100%; min-width: 0; }
+.set-plain > label.setting-label:not(.set-info-btn) { flex: 1 1 40%; margin: 0; font-size: 14px; font-weight: 500; padding: 8px 0; }
+.set-plain > select { flex: 0 1 340px; width: auto; max-width: 50%; margin: 4px 0; }
+.set-plain > .set-info-btn--corner { position: static; flex: 0 0 auto; margin: 0 0 0 auto; }
+.set-plain > .setting-toggle-row { flex: 1 1 100%; }
+#panel-settings[data-pane] .set-info-btn--corner { position: static; }
+
+/* A tall section: its first part and "Show all". */
+#panel-settings[data-pane] .settings-content > .setting-group.set-clamped { max-height: 300px; overflow: hidden; }
+.set-clamp-btn {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 56px; padding: 18px 0 0; border: 0;
+  background: linear-gradient(to bottom, transparent, var(--surface) 55%);
+  color: var(--primary); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+}
+.set-clamp-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
