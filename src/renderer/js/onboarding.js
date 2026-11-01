@@ -1248,7 +1248,7 @@ const Onboarding = {
     const sample = tt('fontSample', 'The quick brown fox jumps over the lazy dog. 0123456789');
     const card = (f) => '<button data-font="' + f.id + '" aria-pressed="' + (f.id === cur) + '" style="display:flex;flex-direction:column;gap:2px;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:2px solid '
       + (f.id === cur ? 'var(--primary)' : 'var(--border)') + ';background:var(--bg);color:var(--text);cursor:pointer;text-align:left;font-family:' + this._esc(f.stack) + '">'
-      + '<span style="font-size:15px;font-weight:600">' + this._esc(f.name) + '</span>'
+      + '<span' + (f.id === 'system' ? '' : ' translate="no"') + ' style="font-size:15px;font-weight:600">' + this._esc(f.name) + '</span>'
       + '<span style="font-size:11.5px;color:var(--text-muted)">' + this._esc(f.note) + '</span></button>';
     body.innerHTML = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px">' + list.map(card).join('') + '</div>'
       + '<div id="ob-font-preview" aria-live="polite" style="margin-top:12px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:15px;line-height:1.5;font-family:'

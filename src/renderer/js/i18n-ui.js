@@ -10902,6 +10902,31 @@ const VexI18nUI = {
       'Open More from the creator': 'Yapımcının diğer çalışmalarını aç',
       'Lists the public projects of the person who makes Vex (0xmortuex) with their stars, forks, languages and topics, and a filter bar to search and sort them. Reach it from Ctrl+K with "More from the creator", from the top of Everything Vex Can Do, or from Settings.': 'Vex’i yapan kişinin (0xmortuex) herkese açık projelerini yıldızları, çatalları, dilleri ve konularıyla listeler; aramak ve sıralamak için bir süzgeç çubuğu vardır. Ctrl+K’da “More from the creator” yazarak, Vex’in Yapabildiği Her Şey’in üstünden ya da Ayarlar’dan açılır.',
       'The list ships inside Vex, so opening it contacts nothing. Only the Refresh from GitHub button asks GitHub for the current list: one request to api.github.com, no sign-in, no cookies, at most three pages, shown in the list of what left this computer. If it fails you see why, and when GitHub\'s limit resets. The newer copy is kept on this computer, and the button is switched off in a private window. A project that is not public can never appear.': 'Liste Vex’in içinde gelir; bu yüzden açmak hiçbir yere bağlanmaz. Yalnızca GitHub’dan yenile düğmesi GitHub’dan güncel listeyi ister: api.github.com’a tek istek, oturum açmadan, çerezsiz, en fazla üç sayfa; bilgisayardan çıkanlar listesinde görünür. Başarısız olursa nedenini ve GitHub sınırının ne zaman sıfırlandığını görürsünüz. Daha yeni kopya bu bilgisayarda saklanır ve düğme gizli pencerede kapalıdır. Herkese açık olmayan bir proje asla görünmez.',
+      // --- font step descriptions (agent) ---
+      'Your system font': 'Sistem yazı tipiniz',
+      'Vex’s old face, geometric': 'Vex’in eski yüzü, geometrik',
+      'Whatever Windows is set to': 'Windows’ta neyse o',
+      'Windows’ own': 'Windows’un kendi yazı tipi',
+      'Softer, narrower': 'Daha yumuşak, daha dar',
+      'Humanist, a little warmer': 'Hümanist, biraz daha sıcak',
+      'Clean, small numerals': 'Temiz, küçük rakamlı',
+      'Wide and very legible': 'Geniş ve çok okunaklı',
+      'Verdana, tighter': 'Verdana, daha sıkı',
+      'Rounder': 'Daha yuvarlak',
+      'The plain one': 'Sade olan',
+      'Vex’s heading face, everywhere': 'Vex’in başlık yazı tipi, her yerde',
+      'The default': 'Varsayılan',
+      'Made for screens': 'Ekranlar için tasarlandı',
+      'Sturdy at small sizes': 'Küçük boyutlarda sağlam',
+      'Bookish': 'Kitap havasında',
+      'Old-style, light': 'Eski usul, hafif',
+      'Calligraphic': 'Kaligrafik',
+      'Heavier old-style': 'Daha ağır, eski usul',
+      'Windows’ code face': 'Windows’un kod yazı tipi',
+      'Newer, from Windows Terminal': 'Daha yeni, Windows Terminal’den',
+      'Typewriter': 'Daktilo',
+      'What Vex ships with': 'Vex’in birlikte geldiği',
+      // --- end font step descriptions ---
     },
   },
 
@@ -11030,6 +11055,8 @@ const VexI18nUI = {
   // nothing but text, otherwise its first text node only. Markup is never
   // rebuilt and no event listener is disturbed.
   translateEl(el, lang) {
+    // A font's, brand's or product's name is never translated (translate="no"): "Georgia" is also the country.
+    if (el.closest && el.closest('[translate="no"]')) return false;
     let changed = false;
     for (const attr of this.ATTRS) {
       const value = el.getAttribute && el.getAttribute(attr);
