@@ -46,6 +46,10 @@ const VexI18nUI = {
   // Attributes worth translating; `title` is most of the toolbar.
   ATTRS: ['title', 'aria-label', 'placeholder'],
 
+  // Parts of the tab strip that are Vex's own words but sit among page titles: only their tooltips and labels are translated, never
+  // their text (a tab's text is a page's title). "Tab strip", and each tab's "Close tab" button.
+  ATTR_ONLY: ['#top-tab-bar', '.tab-close'],
+
   // English -> translation. Only the chrome: the words you see every day.
   // Kept deliberately small and exact rather than machine-translated wholesale,
   // because a wrong translation in a browser's own furniture is worse than
@@ -11175,6 +11179,204 @@ const VexI18nUI = {
       'Use Sounds': 'Sesleri kullan',
       'Use Open in editor and terminal': 'Düzenleyicide ve terminalde aç özelliğini kullan',
       'Stores: {}': 'Saklananlar: {}',
+      'Choose a theme': 'Bir tema seçin',
+      'Choose a Theme': 'Bir tema seçin',
+      'Start from the theme you wear now': 'Şu an kullandığınız temadan başlayın',
+      'A picture or your wallpaper': 'Bir resim ya da duvar kâğıdınız',
+      'All themes': 'Tüm temalar',
+      'Customise this theme': 'Bu temayı özelleştir',
+      'Add to favorites': 'Sık kullanılanlara ekle',
+      'Ask Vex AI about this': 'Bunu Vex AI’a sor',
+      'Ask Vex About This Image': 'Bu resmi Vex’e sor',
+      'Copy Image': 'Resmi kopyala',
+      'Copy Image Address': 'Resmin adresini kopyala',
+      'Copy Link': 'Bağlantıyı kopyala',
+      'Copy Link Exactly': 'Bağlantıyı olduğu gibi kopyala',
+      'Copy Link as Markdown': 'Bağlantıyı Markdown olarak kopyala',
+      'Copy Page URL': 'Sayfa adresini kopyala',
+      'Copy a table or list from this page…': 'Bu sayfadan bir tablo ya da liste kopyala…',
+      'Copy as Markdown link': 'Markdown bağlantısı olarak kopyala',
+      'Copy clean link': 'Temiz bağlantıyı kopyala',
+      'Copy link to selected text': 'Seçili metne bağlantıyı kopyala',
+      'No suggestions': 'Öneri yok',
+      'Open Archived Version': 'Arşivlenmiş sürümü aç',
+      'Open Image in New Tab': 'Resmi yeni sekmede aç',
+      'Open Link in New Tab': 'Bağlantıyı yeni sekmede aç',
+      'Open in New Tab': 'Yeni sekmede aç',
+      'Remind me about this': 'Bunu bana hatırlat',
+      'Reset this site’s settings': 'Bu sitenin ayarlarını sıfırla',
+      'Save Image': 'Resmi kaydet',
+      'Save Image As…': 'Resmi farklı kaydet…',
+      'Save as a note for this page': 'Bu sayfa için not olarak kaydet',
+      'Search Image with Lens': 'Resmi Lens ile ara',
+      'Select All': 'Tümünü seç',
+      'Cut': 'Kes',
+      'Inspect': 'İncele',
+      'View page source': 'Sayfa kaynağını görüntüle',
+      'Send Link to Phone': 'Bağlantıyı telefona gönder',
+      'Video transcript, chapters and loop…': 'Video dökümü, bölümler ve döngü…',
+      'Watch this page for changes…': 'Bu sayfayı değişiklikler için izle…',
+      'Watch this part of the page…': 'Sayfanın bu bölümünü izle…',
+      'Where Does This Link Go?': 'Bu bağlantı nereye gidiyor?',
+      'Zap element (hide it forever)': 'Öğeyi yok et (sonsuza dek gizle)',
+      'Zoom Image': 'Resmi yakınlaştır',
+      'More for this link': 'Bu bağlantı için daha fazlası',
+      'More for this image': 'Bu resim için daha fazlası',
+      'More for this text': 'Bu metin için daha fazlası',
+      'More for this video': 'Bu video için daha fazlası',
+      'Add "{1}" to the dictionary': '“{1}” sözcüğünü sözlüğe ekle',
+      'Pin Tab': 'Sekmeyi sabitle',
+      'Unpin Tab': 'Sekmenin sabitlemesini kaldır',
+      'Add a note to this tab…': 'Bu sekmeye not ekle…',
+      'Add to new group': 'Yeni gruba ekle',
+      'What is this using?…': 'Bu neyi kullanıyor?…',
+      'Prevent from sleeping…': 'Uyumasını engelle…',
+      'Close Others': 'Diğerlerini kapat',
+      'Close Tabs to the Right': 'Sağdaki sekmeleri kapat',
+      'Allow sleeping again': 'Yeniden uyumasına izin ver',
+      'Don\'t show again': 'Bir daha gösterme',
+      'Note on this tab': 'Bu sekmedeki not',
+      'A line to remember why it is open. Leave it empty to remove the note.': 'Neden açık olduğunu hatırlatan bir satır. Notu kaldırmak için boş bırakın.',
+      'Send to your devices…': 'Cihazlarınıza gönder…',
+      'Show my devices': 'Cihazlarımı göster',
+      'Sleep background tabs while Vex is behind another app': 'Vex başka bir uygulamanın arkasındayken arka plan sekmelerini uyut',
+      'Sleep this tab?': 'Bu sekme uyutulsun mu?',
+      'This page has text you typed that is not sent yet. Sleeping the tab loses it.': 'Bu sayfada henüz gönderilmemiş, yazdığınız bir metin var. Sekmeyi uyutmak onu kaybettirir.',
+      'The pages in this group, saved so you can open them again later.': 'Bu gruptaki sayfalar; sonra yeniden açabilmeniz için kaydedildi.',
+      'This site is back on the system default': 'Bu site yeniden sistem varsayılanına döndü',
+      'Waiting on a reply': 'Yanıt bekleniyor',
+      'Bypass settings…': 'Engel aşma ayarları…',
+      'Change link…': 'Bağlantıyı değiştir…',
+      'Choose how long': 'Ne kadar süreceğini seçin',
+      'Close beside': 'Yanındakini kapat',
+      'Open beside': 'Yanında aç',
+      'Drag to resize': 'Yeniden boyutlandırmak için sürükleyin',
+      'Drag to resize — double-click to swap sides': 'Yeniden boyutlandırmak için sürükleyin — taraf değiştirmek için çift tıklayın',
+      'Hide button': 'Düğmeyi gizle',
+      'Install / Update Vencord': 'Vencord’u yükle / güncelle',
+      'Install my Vencord build (custom plugins)': 'Kendi Vencord derlememi yükle (özel eklentiler)',
+      'Let it sleep when idle again': 'Boştayken yeniden uyumasına izin ver',
+      'Only while it is in a call': 'Yalnızca bir aramadayken',
+      'Sleep panel (frees its memory)': 'Paneli uyut (belleğini boşaltır)',
+      'Tidy up your sidebar?': 'Kenar çubuğunuz toparlansın mı?',
+      'Turn bypass off (use Zapret)': 'Engel aşmayı kapat (Zapret kullan)',
+      'No other panel to open': 'Açılacak başka panel yok',
+      'Switch to ChatGPT': 'ChatGPT’ye geç',
+      'Switch to Claude': 'Claude’a geç',
+      'Switch to Disney+': 'Disney+’a geç',
+      'Switch to Gemini': 'Gemini’ye geç',
+      'Switch to Netflix': 'Netflix’e geç',
+      'Switch to Prime Video': 'Prime Video’ya geç',
+      'Switch to Roku Channel': 'Roku Channel’a geç',
+      'Open split screen': 'Bölünmüş ekranı aç',
+      'Mute all tabs': 'Tüm sekmeleri sessize al',
+      'Reload this page': 'Bu sayfayı yeniden yükle',
+      'Sleep all background tabs': 'Tüm arka plan sekmelerini uyut',
+      'Sleep the other tabs': 'Diğer sekmeleri uyut',
+      'Keep this tab awake': 'Bu sekmeyi uyanık tut',
+      'No results found': 'Sonuç bulunamadı',
+      'Save this page': 'Bu sayfayı kaydet',
+      'Note a line': 'Bir satır not al',
+      'Note this moment': 'Bu anı not et',
+      'Action item': 'Yapılacak iş',
+      'Your question': 'Sorunuz',
+      'Model name': 'Model adı',
+      'What is it called': 'Adı ne',
+      'What needs doing': 'Ne yapılması gerekiyor',
+      'What was said': 'Ne söylendi',
+      'What is happening here': 'Burada ne oluyor',
+      'Ask both models': 'Her iki modele de sor',
+      'Small model for routine jobs': 'Rutin işler için küçük model',
+      'A number from 0 to 100.': '0 ile 100 arasında bir sayı.',
+      'Reset the command order?': 'Komut sırası sıfırlansın mı?',
+      'Ctrl+K forgets how often and when you used each command. Your shortcut words and pinned commands stay.': 'Ctrl+K her komutu ne sıklıkla ve ne zaman kullandığınızı unutur. Kısayol sözcükleriniz ve sabitlenen komutlarınız kalır.',
+      'The host only, e.g. localhost:5173. Leave empty for none.': 'Yalnızca sunucu adı, örn. localhost:5173. Hiçbiri için boş bırakın.',
+      'The host only, e.g. staging.example.com. Leave empty for none.': 'Yalnızca sunucu adı, örn. staging.example.com. Hiçbiri için boş bırakın.',
+      'Vex goes back to deciding chat or task from its own rules alone.': 'Vex, sohbet mi görev mi olduğuna yalnızca kendi kurallarıyla yeniden karar verir.',
+      'Reset settings': 'Ayarları sıfırla',
+      'Remove the PIN?': 'PIN kaldırılsın mı?',
+      'Vex can then not be locked, and will not lock when idle.': 'O zaman Vex kilitlenemez ve boştayken kilitlenmez.',
+      'Vex will close and reopen. Your tabs are restored on the way back.': 'Vex kapanıp yeniden açılacak. Sekmeleriniz geri dönüşte yüklenir.',
+      'Put every Vex setting back to its default, the theme included? Your bookmarks, notes, passwords, history, sessions and saved pages are kept, and so is the AI access token. This cannot be undone.': 'Tema dahil her Vex ayarı varsayılanına döndürülsün mü? Yer imleriniz, notlarınız, parolalarınız, geçmişiniz, oturumlarınız ve kayıtlı sayfalarınız ile yapay zekâ erişim anahtarınız korunur. Bu işlem geri alınamaz.',
+      'Clear site cookies/cache, history, Recall, saved sessions, snapshots and tab archives? Sync will be signed out. Bookmarks, passwords and settings stay. This cannot be undone.': 'Site çerezleri/önbelleği, geçmiş, Geri çağırma, kayıtlı oturumlar, anlık görüntüler ve sekme arşivleri temizlensin mi? Eşitlemenin oturumu kapatılır. Yer imleri, parolalar ve ayarlar kalır. Bu işlem geri alınamaz.',
+      'The Widevine DRM component failed to load. This clears and re-downloads it, then restarts Vex.': 'Widevine DRM bileşeni yüklenemedi. Bu işlem onu temizleyip yeniden indirir, sonra Vex’i yeniden başlatır.',
+      'A private window never sends what you type for suggestions': 'Gizli pencere, öneriler için yazdıklarınızı hiçbir zaman göndermez',
+      'Change this in a normal window — it applies to every window': 'Bunu normal bir pencerede değiştirin — her pencere için geçerlidir',
+      'Clear AI summaries': 'Yapay zekâ özetlerini temizle',
+      'Type a city or district.': 'Bir şehir ya da ilçe yazın.',
+      'Group patterns cleared — new tabs no longer join groups by themselves': 'Grup desenleri temizlendi — yeni sekmeler artık kendiliğinden gruplara katılmaz',
+      'Rejected suggestions cleared — AI will suggest all types of groups again': 'Reddedilen öneriler temizlendi — yapay zekâ yeniden her türlü grubu önerecek',
+      'About this download': 'Bu indirme hakkında',
+      'Be careful with this download': 'Bu indirmeye dikkat edin',
+      'Check on VirusTotal': 'VirusTotal’da denetle',
+      'Double-click to open': 'Açmak için çift tıklayın',
+      'Every file it moved goes back to where it was.': 'Taşıdığı her dosya eski yerine geri gider.',
+      'Into which folder?': 'Hangi klasöre?',
+      'It goes to the Recycle Bin, where you can still get it back.': 'Geri Dönüşüm Kutusu’na gider; oradan hâlâ geri alabilirsiniz.',
+      'Make its SHA-256': 'SHA-256 değerini üret',
+      'Renamed how?': 'Nasıl yeniden adlandırılsın?',
+      'Show the new folder': 'Yeni klasörü göster',
+      'Undo the last tidy-up?': 'Son toparlama geri alınsın mı?',
+      'Where downloads land': 'İndirmelerin düştüğü yer',
+      'Which downloads?': 'Hangi indirmeler?',
+      'Clear all browsing history?': 'Tüm gezinti geçmişi temizlensin mi?',
+      'Clear history': 'Geçmişi temizle',
+      'Delete from history': 'Geçmişten sil',
+      'Delete history entry': 'Geçmiş kaydını sil',
+      'Tabs from other devices': 'Diğer cihazlardaki sekmeler',
+      'Delete bookmark': 'Yer imini sil',
+      'Open all': 'Tümünü aç',
+      'No bookmarks yet — use the bookmark button in the URL bar.': 'Henüz yer imi yok — adres çubuğundaki yer imi düğmesini kullanın.',
+      'Add a tag': 'Etiket ekle',
+      'Empty note': 'Boş not',
+      'Nothing to preview yet': 'Henüz önizlenecek bir şey yok',
+      'Ask the AI instead': 'Bunun yerine yapay zekâya sor',
+      'Back to this tab': 'Bu sekmeye dön',
+      'Copy this reply': 'Bu yanıtı kopyala',
+      'Name this chat': 'Bu sohbete ad verin',
+      'Name this task': 'Bu göreve ad verin',
+      'No matching pages found in your history.': 'Geçmişinizde eşleşen sayfa bulunamadı.',
+      'No persona matches that.': 'Buna uyan bir persona yok.',
+      'Per-tab summaries': 'Sekme başına özetler',
+      'Save as a task': 'Görev olarak kaydet',
+      'Show what the agent did': 'Ajanın ne yaptığını göster',
+      'Undo this run?': 'Bu çalıştırma geri alınsın mı?',
+      'Vex is answering — click to watch': 'Vex yanıtlıyor — izlemek için tıklayın',
+      'What should it do differently?': 'Neyi farklı yapmalı?',
+      'Why did that fail?': 'Bu neden başarısız oldu?',
+      'Profile: {1}': 'Profil: {1}',
+      '{1} used {2}% of the processor time over the last {3} seconds — about {4}% of one core, held steadily.': '{1}, son {3} saniyede işlemci süresinin %{2}’sini kullandı — tek bir çekirdeğin yaklaşık %{4}’ü, sürekli olarak.',
+      'runs while a page plays or records sound, or keeps an audio context; ends when none does': 'bir sayfa ses çalarken ya da kaydederken veya bir ses bağlamı tutarken çalışır; hiçbiri kalmayınca sona erer',
+      'Interface: reading saved data {1} ms · restoring tabs {2} ms · the rest of the interface {3} ms': 'Arayüz: kayıtlı verileri okuma {1} ms · sekmeleri geri yükleme {2} ms · arayüzün geri kalanı {3} ms',
+      'Background jobs: {1} on one timer — {2} runs held back while Vex was hidden or you were gaming, {3} waiting to catch up': 'Arka plan işleri: tek bir zamanlayıcıda {1} — Vex gizliyken ya da oyun oynarken {2} çalıştırma tutuldu, {3} yetişmeyi bekliyor',
+      'Still searching: {1}': 'Hâlâ aranıyor: {1}',
+      '(full-text search of pages you\'ve read)': '(okuduğunuz sayfalarda tam metin arama)',
+      'the last week': 'son hafta',
+      'the clock while a run is going': 'bir çalıştırma sürerken saat',
+      'the timers in the second-screen window': 'ikinci ekran penceresindeki zamanlayıcılar',
+      'the last pit stop': 'son pit stop',
+      'the floating video while a game is fullscreen': 'oyun tam ekranken yüzen video',
+      'the last picture while a sleeping tab wakes': 'uyuyan sekme uyanırken son resim',
+      'a strip of panel state at the bottom': 'altta panel durumu şeridi',
+      'today\'s blocks in the Morning Brief': 'Sabah özetinde bugünün blokları',
+      'a small chip beside the address bar (reads each page on this computer when it loads)': 'adres çubuğunun yanındaki küçük etiket (her sayfayı yüklendiğinde bu bilgisayarda okur)',
+      'what would be sent for Game mode': 'Oyun modu için gönderilecekler',
+      'the watch templates and "Remind Me Before This Ends" in Ctrl+K': 'Ctrl+K’daki izleme şablonları ve “Bu bitmeden önce hatırlat”',
+      '"Phrases to copy" and "Public holidays coming up" in Ctrl+K': 'Ctrl+K’daki “Kopyalanacak kalıplar” ve “Yaklaşan resmi tatiller”',
+      'the dictionary form and gloss when I point at a word': 'bir sözcüğü işaret edince sözlük biçimi ve anlamı',
+      'the Morning Brief on the New Tab page': 'Yeni Sekme sayfasındaki Sabah özeti',
+      'features I chose never to see again': 'bir daha görmemeyi seçtiğim özellikler',
+      'Status for game': 'Oyun durumu',
+      'Status text for game': 'Oyun durum metni',
+      'Status for focus': 'Odak durumu',
+      'Status text for focus': 'Odak durum metni',
+      'Title on the card': 'Karttaki başlık',
+      'One request to api.github.com for the public projects of 0xmortuex, only when you press Refresh from GitHub; nothing about you is in it': 'Yalnızca GitHub’dan yenile düğmesine bastığınızda, 0xmortuex’in herkese açık projeleri için api.github.com’a tek bir istek; içinde sizinle ilgili hiçbir şey yok',
+      'The pages to the printer you choose, only when you press Print': 'Sayfalar, seçtiğiniz yazıcıya; yalnızca Yazdır’a bastığınızda',
+      'Never sync Not listed under a feature ({1})': 'Asla eşitleme: bir özelliğin altında listelenmemiş ({1})',
+      'Never sync Where AI runs': 'Asla eşitleme: yapay zekânın çalıştığı yer',
+      '{1}: opened {2}, held back {3}, errors {4}, switched off by Vex {5} (last 4 weeks)': '{1}: {2} açıldı, {3} tutuldu, {4} hata, Vex tarafından {5} kapatıldı (son 4 hafta)',
+      'Shown so far this week: {1} of {2}': 'Bu hafta şimdiye kadar gösterilen: {1} / {2}',
       // --- end turkish sweep ---
     },
   },
@@ -11418,7 +11620,19 @@ const VexI18nUI = {
     // The tab list's own label ("Tabs"), and only that: its tabs are pages, whose titles are never translated.
     const tabList = scope.querySelector ? scope.querySelector('#top-tabs-list') : null;
     if (tabList && !seen.has(tabList)) { seen.add(tabList); if (this.translateEl(tabList, lang)) n++; }
+    if (scope.querySelectorAll) scope.querySelectorAll(this.ATTR_ONLY.join(',')).forEach((el) => { if (this._translateAttrsOf(el, lang)) n++; });
     return n;
+  },
+
+  // The tooltip and labels of one element, and nothing else (see ATTR_ONLY).
+  _translateAttrsOf(el, lang) {
+    let changed = false;
+    for (const attr of this.ATTRS) {
+      const value = el.getAttribute && el.getAttribute(attr);
+      if (!value) continue;
+      if (this._swap(el, 'i18n' + attr.replace(/-/g, ''), value, (v) => el.setAttribute(attr, v), lang)) changed = true;
+    }
+    return changed;
   },
 
   // Re-run when the chrome changes: a panel that renders after start-up draws
@@ -11455,15 +11669,25 @@ const VexI18nUI = {
       const lang = this.locale();
       const roots = [...touched];
       touched.clear();
+      const tabParts = [...attrOnly];
+      attrOnly.clear();
       if (lang === 'en') return;
+      for (const el of tabParts) {
+        if (!el.isConnected) continue;
+        if (el.matches && el.matches(attrSel)) this._translateAttrsOf(el, lang);
+        if (el.querySelectorAll) el.querySelectorAll(attrSel).forEach((part) => this._translateAttrsOf(part, lang));
+      }
       for (const el of roots) {
         if (!el.isConnected) continue;
         try { this._translateTree(el, lang); } catch (err) { console.warn('[i18n] drawn text could not be translated:', err && err.message); }
       }
     };
+    const attrOnly = new Set();
+    const attrSel = this.ATTR_ONLY.join(',');
     const note = (node) => {
       const el = node && node.nodeType === 1 ? node : (node && node.parentElement);
       if (el && el.closest && el.closest(inScope)) touched.add(el);
+      else if (el && el.closest && el.closest('#top-tab-bar')) attrOnly.add(el);
     };
     this._observer = new MutationObserver((records) => {
       if (this.locale() === 'en') return;
