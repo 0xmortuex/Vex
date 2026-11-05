@@ -261,15 +261,7 @@ const PiPManager = {
     window.vex?.onPipClosed?.((reason, at) => {
       const source = this._source;
       this._restoreSource(at);
-      if (reason === 'back-to-tab' && source && source.panel) {
-        // The video came from a web panel: bring that panel back.
-        if (typeof SidebarManager !== 'undefined' && typeof SidebarManager.showPanel === 'function') SidebarManager.showPanel(source.panel);
-        else window.showToast?.('That panel is closed now');
-      } else if (reason === 'back-to-tab' && source && typeof TabManager !== 'undefined') {
-        const tab = TabManager.tabs.find(t => t.id === source.tabId);
-        if (tab) TabManager.switchTab(tab.id);
-        else window.showToast?.('That tab is closed now');
-      }
+      if (reason === 'back-to-tab' && source) this.returnToSource(source);
     });
 
     // The button: it floats the video of the page it is drawn on. Only the
@@ -342,7 +334,7 @@ const PiPManager = {
     const wv = panelWv || WebviewManager.webviews.get(tabId);
     // Remember the tab regardless: "Back to tab" has to work even for a tab
     // with no live webview (asleep, or discarded while the pop-out was up).
-    if (!wv) { this._source = { tabId, wasMuted: true }; return; }
+    if (!wv) { this._source = { tabId, wasMuted: true, ...(panel ? { panel } : {}) }; return; }
     let wasMuted = false;
     try { wasMuted = typeof wv.isAudioMuted === 'function' ? wv.isAudioMuted() : false; } catch { wasMuted = false; }
     this._source = { tabId, wasMuted, ...(panel ? { panel, wv } : {}) };
@@ -353,6 +345,45 @@ const PiPManager = {
       wv.executeJavaScript('document.querySelectorAll("video,audio").forEach(m=>{try{m.pause()}catch(e){}})')
         .catch(err => console.warn('[PiP] could not pause the source tab:', err && err.message));
     } catch (err) { console.warn('[PiP] could not reach the source tab:', err && err.message); }
+  },
+
+  // "Back to tab": go to where the video came from and bring Vex forward.
+  // `source` is { panel } for a web panel (Discord, Disney+...) or { tabId } for a
+  // tab. Both the pop-out window's button and Chromium's own PiP button end here
+  // (the native one reports through the page: leftNative below).
+  returnToSource(source, keepLayout) {
+    if (!source) return false;
+    if (window.vex && typeof window.vex.focusWindow === 'function') {
+      Promise.resolve(window.vex.focusWindow()).catch(err => window.VexProblems?.note('Picture-in-Picture', 'Vex could not come to the front', err));
+    }
+    if (source.panel) {
+      // The video came from a web panel: bring that panel back (Discord set to
+      // open as a tab: showPanel switches to that tab).
+      if (typeof SidebarManager === 'undefined' || typeof SidebarManager.showPanel !== 'function') {
+        window.showToast?.('That panel is closed now');
+        return false;
+      }
+      if (!keepLayout) SidebarManager.showPanel(source.panel);
+      return true;
+    }
+    if (typeof TabManager === 'undefined') return false;
+    const tab = TabManager.tabs.find(t => t.id === source.tabId);
+    if (!tab) { window.showToast?.('That tab is closed now'); return false; }
+    TabManager.switchTab(tab.id);
+    return true;
+  },
+
+  // Chromium's own floating player (native PiP) went away from a page in a web
+  // panel; the page reports it as 'vex-pip-left'. Its "Back to tab" button
+  // closes the player and does nothing else in a webview browser, so a video
+  // from the Discord panel left you where you were (owner's report, 2026-11-06).
+  // A pop-out window in flight reports through onPipClosed instead.
+  leftNative(panel) {
+    if (!panel || this._source) return false;
+    // Already in front (the video was put away from the panel itself): leave
+    // the layout alone, showPanel would redo the pairing. Vex still comes forward.
+    const front = typeof SidebarManager !== 'undefined' && (SidebarManager.activePanel === panel || SidebarManager.sidePanel === panel);
+    return this.returnToSource({ panel }, front);
   },
 
   // `at` is where the floating player got to. Without it you would come back

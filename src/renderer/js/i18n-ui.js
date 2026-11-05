@@ -13497,6 +13497,9 @@ const VexI18nUI = {
       ') from a server it no longer has the address of. Nothing syncs until the URL is back.': '); bu oturumun sunucusunun adresi artık yok. Adres geri gelene kadar hiçbir şey eşitlenmez.',
       'This erases everything synced to {1} on the sync server and signs every other device out of sync. What is on each device stays there. This device then starts a new account with a new recovery code, and your other devices can join it with that code. Without the old recovery code, the old synced data cannot be read by anyone, so it cannot be brought back.': 'Bu işlem, eşitleme sunucusunda {1} adresine eşitlenen her şeyi siler ve diğer tüm cihazların eşitleme oturumunu kapatır. Her cihazdaki veriler yerinde kalır. Bu cihaz sonra yeni bir kurtarma koduyla yeni bir hesap başlatır ve diğer cihazlarınız o kodla ona katılabilir. Eski kurtarma kodu olmadan eski eşitlenen veriler kimse tarafından okunamaz, bu yüzden geri getirilemez.',
       // --- end settings sweep 2 ---
+      // --- pip back to Discord ---
+      'Back to Discord': 'Discord’a dön',
+      // --- end pip back to Discord ---
     },
   },
 
