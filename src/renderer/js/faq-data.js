@@ -233,6 +233,10 @@ const VexFaqData = {
       kw: 'creator maker author developer github projects repositories repos stars other works yapımcı geliştirici projeler depo yıldız',
       q: "Where can I see the other projects of the person who makes Vex?",
       a: "Press Ctrl+K and choose More from the creator, or open it from the top of Everything Vex Can Do. It lists the public projects of the maker with their stars and languages, and has filters to search and sort them. The list ships with Vex, so nothing is contacted until you press Refresh from GitHub, and that button does nothing in a private window." },
+    { id: 'github-open', cat: 'apps', set: 'setting-github-open-mode', path: ['Settings', 'Personalization'],
+      kw: 'github click control center direct ask every time keep always panel tab open choice kontrol merkezi doğrudan sor her seferinde',
+      q: "What happens when I click GitHub, and can I make it always open the same way?",
+      a: "Vex asks whether you want the Control Center, which is Vex’s own GitHub panel with your profile, repositories, pull requests and Actions, or GitHub directly, which opens github.com in a tab. To stop being asked, right-click the GitHub button and choose Keep on Control Center or Keep on Direct, and choose Ask every time to be asked again. The same choice is in Settings under Personalization, and the Control Center needs your GitHub username there." },
   ],
 };
 

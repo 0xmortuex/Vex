@@ -504,8 +504,13 @@ const SidebarManager = {
     this.showPanel(panelName);
   },
 
-  showPanel(panelName) {
+  showPanel(panelName, opts) {
     panelName = this._resolveAlias(panelName);
+    // GitHub: Control Center or github.com, by the saved choice (js/github-open.js). It reopens this with { chosen: true } for the panel.
+    if (panelName === 'github' && !(opts && opts.chosen) && this.activePanel !== 'github' && this.sidePanel !== 'github') {
+      this._withGithubOpen(() => VexGithubOpen.open({}));
+      return;
+    }
     // Discord set to open as a tab (Settings › Performance): its button, Ctrl+K
     // and links open or switch to that tab instead of the panel.
     if (panelName === 'discord' && window.DiscordMemory && DiscordMemory.mode() === 'tab') { DiscordMemory.openTab(); return; }
@@ -1753,6 +1758,16 @@ const SidebarManager = {
     this.showPanel(name);
   },
 
+  // js/github-open.js loads after start-up; a click that comes first loads it now. A failure is shown, never a dead click.
+  _withGithubOpen(then) {
+    if (window.VexGithubOpen) { then(); return; }
+    if (typeof VexLazy === 'undefined') throw new Error('GitHub could not ask how to open: the lazy loader is missing');
+    VexLazy.ensure('js/github-open.js').then(then, (err) => {
+      window.VexProblems?.note('GitHub', 'The GitHub chooser could not load', err);
+      window.showToast?.('GitHub could not ask how to open: ' + err.message, 'error', 9000);
+    });
+  },
+
   // ---- One-time declutter nudge ----
   // Two weeks after install, if several app panels have never been opened,
   // offer (once, dismissible) to hide them. Complements the wizard's setup
@@ -2605,6 +2620,8 @@ const SidebarManager = {
   },
 
   showContextMenu(e, panelName) {
+    // The GitHub button's menu has the open-mode items (js/github-open.js): load it first if it is not there yet.
+    if (panelName === 'github' && !window.VexGithubOpen) { this._withGithubOpen(() => this.showContextMenu(e, panelName)); return; }
     document.querySelectorAll('.tab-context-menu, .tab-group-context-menu, .context-menu-overlay').forEach(m => m.remove());
 
     const menu = document.createElement('div');
@@ -2635,6 +2652,8 @@ const SidebarManager = {
       const pageItems = PanelToTab.menuItems(panelName);
       if (pageItems.length) items.push(...pageItems, { separator: true });
     }
+    // GitHub: open now, keep on Control Center or Direct, ask every time (js/github-open.js).
+    if (panelName === 'github' && window.VexGithubOpen) items.push(...VexGithubOpen.menuItems());
     items.push(
       { label: 'Rename…', action: () => this.renamePanel(panelName) },
       { label: 'Change icon…', action: () => this.showIconPicker(e, panelName) },
@@ -2847,6 +2866,12 @@ const SidebarManager = {
       const el = document.createElement('div');
       el.className = 'tab-context-item' + (item.danger ? ' danger' : '');
       el.textContent = item.label;
+      // A row that is one of several choices says which one is on (a check mark, and for a screen reader aria-checked).
+      if (item.checked !== undefined) {
+        el.setAttribute('role', 'menuitemradio');
+        el.setAttribute('aria-checked', String(!!item.checked));
+        el.insertAdjacentHTML('afterbegin', item.checked ? VexIcons.svg('check', { size: 14, className: 'ctx-icon' }) : '<span class="ctx-icon" aria-hidden="true"></span>');
+      }
       // Use _dismissMenu (not bare menu.remove) so the dismissal overlay is
       // torn down too — otherwise it lingers and eats the next click.
       el.addEventListener('click', () => {

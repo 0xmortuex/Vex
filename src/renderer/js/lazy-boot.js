@@ -28,6 +28,8 @@ const VexBoot = {
   LATE_MODULES: [
     { src: 'js/release-checklist.js', usage: ['release-check'] },
     { src: 'js/sidebar-groups-ui.js', usage: [] },
+    // Clicking GitHub: the Control Center or github.com, asked or kept (js/sidebar.js loads it on demand if a click comes first).
+    { src: 'js/github-open.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },

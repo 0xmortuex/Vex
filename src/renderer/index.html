@@ -1417,6 +1417,15 @@
                   <input type="text" id="setting-github-username" class="set-input" placeholder="e.g. octocat" autocomplete="off" spellcheck="false">
                 </div>
                 <div>
+                  <label for="setting-github-open-mode" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">When I click GitHub</label>
+                  <select id="setting-github-open-mode" aria-describedby="setting-github-open-mode-note">
+                    <option value="ask">Ask me every time</option>
+                    <option value="control-center">Open the Control Center (Vex's GitHub panel)</option>
+                    <option value="direct">Open github.com in a tab</option>
+                  </select>
+                  <div id="setting-github-open-mode-note" role="status" style="font-size:12px;color:var(--vex-danger);margin-top:4px"></div>
+                </div>
+                <div>
                   <label for="setting-weather-input" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Weather location (start-page weather)</label>
                   <div id="setting-weather-current" style="font-size:12px;color:var(--text-muted);margin-bottom:6px"></div>
                   <div style="display:flex;gap:8px">

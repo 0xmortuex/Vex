@@ -819,6 +819,9 @@
     // the .v2 marker lets an 'off' written by the first version (not a choice) flip to on once.
     { id: 'sidebar-groups', title: 'Sidebar groups', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded', 'vex.sidebarGroups.open', 'vex.sidebarGroupDefs'], usesKeys: ['vex.sidebarOrder', 'vex.panelOverrides'],
       permissions: { reads: ['which panels the sidebar has and in what order'], writes: ['whether the sidebar is grouped, your groups (names, descriptions, icons, colours, which buttons are in them) and which folders are open'], sends: [] } },
+    // How the GitHub button opens: ask, always the Control Center (the GitHub panel) or always github.com in a tab. A choice, not a feature: no switch.
+    { id: 'github-open', title: 'How GitHub opens', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.githubOpenMode'], usesKeys: ['vex.githubUsername'],
+      permissions: { reads: ['your GitHub username, to know whether the Control Center can open'], writes: ['how the GitHub button opens'], sends: [] } },
     // A layout choice (at most four icons on the toolbar's right, the rest in the "more" menu): no switch, it only folds.
     { id: 'toolbar-limit', title: 'Four toolbar icons', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.toolbarShown'], usesKeys: ['vex.layout'],
       permissions: { reads: ['which toolbar buttons you rearranged or hid'], writes: ['which toolbar buttons you keep in the toolbar'], sends: [] } },
