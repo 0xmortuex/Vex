@@ -9,7 +9,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const ROOT = process.cwd();
-const css = (f) => readFileSync(resolve(ROOT, 'src/renderer/css/' + f), 'utf8');
+// The checkout has CRLF line endings on Windows (and on CI): the multi-line CSS the tests look for is written with LF.
+const css = (f) => readFileSync(resolve(ROOT, 'src/renderer/css/' + f), 'utf8').replace(/\r\n/g, '\n');
 const BROWSER = css('gui-browser.css');
 const GROUPS = css('sidebar-groups.css');
 const VISIBILITY = css('sidebar-visibility.css');
