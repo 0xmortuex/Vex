@@ -99,7 +99,7 @@
   content: ''; width: 28px; height: 28px; margin: 8px 0 4px; box-sizing: border-box; border-radius: 9px; flex-shrink: 0;
   border: 1.5px dashed color-mix(in srgb, var(--sbf-tint) 60%, transparent);
 }
-body[data-sb-launcher="rail"] #icon-sidebar { --sbf-gap: 2px; }
+body[data-sb-side] #icon-sidebar { --sbf-gap: 2px; }
 @media (prefers-reduced-motion: reduce) {
   #icon-sidebar .sb-folder, #icon-sidebar .sb-folder-body { transition: none; }
 }
@@ -129,9 +129,9 @@ body:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { wi
 body[data-gui-style="glass"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] {
   width: max(54px, var(--sgh-min, 0px)) !important; min-width: max(54px, var(--sgh-min, 0px)) !important; padding-left: 0 !important; padding-right: 0 !important;
 }
-body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(54px, var(--sgh-min, 0px)); min-width: max(54px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
-body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: var(--b-rail-btn, 34px); height: var(--b-rail-btn, 34px); }
-body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 18px; height: 18px; }
+body[data-sb-side]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] { width: max(54px, var(--sgh-min, 0px)); min-width: max(54px, var(--sgh-min, 0px)); padding-left: 0; padding-right: 0; }
+body[data-sb-side]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon { width: var(--b-rail-btn, 34px); height: var(--b-rail-btn, 34px); }
+body[data-sb-side]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1"] .sidebar-icon svg { width: 18px; height: 18px; }
 
 /* Settings > Sidebar */
 .sidebar-manager-group {
@@ -180,3 +180,73 @@ body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar[data-sb-grouped="1
 #look-sb-picker :is(option, optgroup) { background-color: var(--b-menu); color: var(--b-text); }
 #look-sb-picker optgroup { color: var(--b-text-dim, var(--b-text)); }
 #look-sb-picker option:checked, #look-sb-picker option:hover { background-color: var(--b-btn-hover, var(--b-menu)); color: var(--b-text); }
+
+/* Each look draws its folders and the Start tile in its own material. The shapes come from tokens set per look in css/gui-browser.css
+   (--b-card-radius for a tile, --b-folder-radius for the open folder); the colours stay the rail's (--b-text, --vex-accent), so every
+   colour theme and "colours from the look" still apply. This file loads after gui-browser.css, hence the longer selectors. */
+body[data-gui-family="browser"] #icon-sidebar .sb-folder { border-radius: var(--b-folder-radius, 14px); }
+body[data-gui-family="browser"] #icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon,
+body[data-gui-family="browser"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label] { border-radius: var(--b-card-radius, 8px); }
+
+/* 98 and Netscape: raised grey tiles that press in when open or chosen, an open folder a sunken well. */
+body[data-gui-style="win98"] #icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon,
+body[data-gui-style="win98"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label] {
+  background: var(--b-toolbar); border-color: transparent;
+  box-shadow: inset -1px -1px var(--b-bevel-lo), inset 1px 1px var(--b-bevel-hi), inset -2px -2px var(--b-bevel-lo2), inset 2px 2px var(--b-bevel-hi2);
+}
+body[data-gui-style="win98"] #icon-sidebar .sb-folder.open > .sb-folder-btn.sidebar-icon,
+body[data-gui-style="win98"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label].active {
+  background: var(--b-toolbar); border-color: transparent;
+  box-shadow: inset 1px 1px var(--b-bevel-lo), inset -1px -1px var(--b-bevel-hi), inset 2px 2px var(--b-bevel-lo2), inset -2px -2px var(--b-bevel-hi2);
+}
+body[data-gui-style="win98"] #icon-sidebar .sb-folder.open {
+  background: transparent; border-color: var(--b-bevel-lo);
+}
+
+/* Neobrutal: ink-outlined slabs with a hard offset shadow; the open folder's tile is the flat accent block. */
+body[data-gui-style="neobrutal"] #icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon,
+body[data-gui-style="neobrutal"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label] {
+  background: var(--b-menu); border: 2px solid var(--b-nb-ink); box-shadow: 2px 2px 0 var(--b-nb-ink);
+}
+body[data-gui-style="neobrutal"] #icon-sidebar .sb-folder.open > .sb-folder-btn.sidebar-icon,
+body[data-gui-style="neobrutal"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label].active {
+  background: var(--b-nb-fill, var(--b-accent)); color: var(--b-nb-on-accent) !important; border: 2px solid var(--b-nb-ink); box-shadow: 2px 2px 0 var(--b-nb-ink);
+}
+body[data-gui-style="neobrutal"] #icon-sidebar .sb-folder.open { background: transparent; border: 2px solid var(--b-nb-ink); }
+body[data-gui-style="neobrutal"] #icon-sidebar .sb-folder-label { font-weight: 800; }
+
+/* Terminal: boxes with a one-line border, no fills; the open folder and the chosen tile take the accent. */
+body[data-gui-style="terminal"] #icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon,
+body[data-gui-style="terminal"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label] {
+  background: transparent; border: var(--b-t-line) solid var(--b-toolbar-border);
+}
+body[data-gui-style="terminal"] #icon-sidebar .sb-folder.open > .sb-folder-btn.sidebar-icon,
+body[data-gui-style="terminal"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label].active {
+  background: var(--b-btn-hover); border-color: var(--b-accent); color: var(--vex-accent-fg, var(--b-accent)) !important;
+}
+body[data-gui-style="terminal"] #icon-sidebar .sb-folder.open { background: transparent; border: var(--b-t-line) solid var(--b-toolbar-border); }
+
+/* Internet Explorer on XP: white cards with the blue-grey edge, like the Explorer bar's panels. */
+body[data-gui-style="xp"] #icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon,
+body[data-gui-style="xp"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label] {
+  background: var(--b-menu); border-color: var(--b-tab-border, var(--b-toolbar-border));
+}
+body[data-gui-style="xp"] #icon-sidebar .sb-folder.open { background: color-mix(in srgb, var(--b-menu) 45%, transparent); border-color: var(--b-tab-border, var(--b-toolbar-border)); }
+
+/* Glossy: the same glass gloss the look's buttons carry. */
+body[data-gui-style="glossy"] #icon-sidebar .sb-folder > .sb-folder-btn.sidebar-icon,
+body[data-gui-style="glossy"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label] {
+  background: var(--b-rail-gloss), var(--b-tab); border-color: var(--b-tab-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+body[data-gui-style="glossy"] #icon-sidebar .sb-folder.open { border-color: var(--b-btn-hover-border); }
+
+/* XP and Aero: the chosen tile or open folder takes the look's "pressed" / "lit" state, as their rail buttons do. */
+body[data-gui-style="xp"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label].active,
+body[data-gui-style="xp"] #icon-sidebar .sb-folder.open > .sb-folder-btn.sidebar-icon {
+  background: var(--b-tab-active); box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.2), inset -1px -1px 0 rgba(255, 255, 255, 0.7);
+}
+body[data-gui-style="glossy"] #icon-sidebar[data-sb-grouped="1"] > .sidebar-icon[data-sb-lead-label].active,
+body[data-gui-style="glossy"] #icon-sidebar .sb-folder.open > .sb-folder-btn.sidebar-icon {
+  background: var(--b-rail-gloss), var(--b-tab-active); border-color: var(--b-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -8px 10px color-mix(in srgb, var(--b-accent) 22%, transparent);
+}

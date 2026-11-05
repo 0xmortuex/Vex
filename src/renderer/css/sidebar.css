@@ -187,7 +187,7 @@
 .sidebar-icon .icon-badge.discord-call[data-tone="off"] { background: var(--vex-danger); }
 .sidebar-icon .icon-badge.discord-call svg { width: 9px; height: 9px; }
 /* The browser looks' rail hangs badges off the top corner; this one stays low. */
-body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon .icon-badge.discord-call { top: auto; bottom: -3px; }
+body[data-sb-side] #icon-sidebar .sidebar-icon .icon-badge.discord-call { top: auto; bottom: -3px; }
 
 /* === Fitting the icons in a short window (SidebarManager.fitRail) =========
    The rail has no scrollbar by design, so anything past the bottom edge was
