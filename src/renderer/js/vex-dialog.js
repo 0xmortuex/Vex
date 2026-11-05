@@ -105,6 +105,17 @@
     const t = e.target;
     if (t && t.nodeType === 1 && t !== document.body && !t.closest('[aria-modal="true"]')) FocusTrap.lastOutside = t;
   }, true);
+  // css/accessibility-ui.css caps every [role=dialog] at 95vw x 90vh so a dialog never outgrows the window. A role=dialog element that IS
+  // the dimming layer (fixed, all four edges at 0) was capped too, and left a strip along the right and bottom edge undimmed (the Toolbox,
+  // AI news and others, seen 2026-11-06). A layer that covers the window is exempt; the panel inside it keeps the cap.
+  const uncapScrim = (el) => {
+    const c = getComputedStyle(el);
+    if (c.position === 'fixed' && c.top === '0px' && c.left === '0px' && c.right === '0px' && c.bottom === '0px') {
+      el.style.maxWidth = 'none';
+      el.style.maxHeight = 'none';
+    }
+  };
+  const SCRIM_ROLES = '[role="dialog"],[role="alertdialog"],[aria-modal="true"]';
   const watchModals = () => {
     new MutationObserver((records) => {
       for (const rec of records) {
@@ -112,6 +123,8 @@
           if (n.nodeType !== 1) continue;
           const modal = n.matches('[aria-modal="true"]') ? n : n.querySelector('[aria-modal="true"]');
           if (modal) FocusTrap.adopt(modal);
+          if (n.matches(SCRIM_ROLES)) uncapScrim(n);
+          for (const d of n.querySelectorAll(SCRIM_ROLES)) uncapScrim(d);
         }
       }
     }).observe(document.body, { childList: true, subtree: true });

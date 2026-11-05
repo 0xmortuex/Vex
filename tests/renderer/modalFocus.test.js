@@ -73,6 +73,29 @@ describe('VexFocusTrap.adopt: a hand-built modal', () => {
     expect(document.activeElement).toBe(opener);
   });
 
+  it('a role=dialog that is the dimming layer of the whole window is not capped at 95vw x 90vh, a dialog panel still is', async () => {
+    const scrim = document.createElement('div');
+    scrim.setAttribute('role', 'dialog');
+    scrim.setAttribute('aria-modal', 'true');
+    scrim.setAttribute('aria-label', 'Tools');
+    scrim.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0';
+    scrim.innerHTML = '<div id="panel" role="dialog" aria-label="Panel" style="position:relative"><button>x</button></div>';
+    document.body.appendChild(scrim);
+    await new Promise(r => setTimeout(r, 0));          // the observer
+    expect(scrim.style.maxWidth).toBe('none');
+    expect(scrim.style.maxHeight).toBe('none');
+    // a dialog that is not a window-wide layer keeps the cap from css/accessibility-ui.css
+    const panel = document.getElementById('panel');
+    expect(panel.style.maxWidth).toBe('');
+    expect(panel.style.maxHeight).toBe('');
+    const centred = document.createElement('div');
+    centred.setAttribute('role', 'dialog');
+    centred.style.cssText = 'position:fixed;top:50%;left:50%;width:400px';
+    document.body.appendChild(centred);
+    await new Promise(r => setTimeout(r, 0));
+    expect(centred.style.maxWidth).toBe('');
+  });
+
   it('a modal that took focus by itself still gives it back to what had it before', async () => {
     document.body.innerHTML = '<button id="opener">Open</button>';
     const opener = document.getElementById('opener');
