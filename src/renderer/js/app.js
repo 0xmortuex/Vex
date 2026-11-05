@@ -1616,6 +1616,7 @@ function vexOwnTextFocused(doc) {
   // Quick slots: Ctrl+Alt+1..3 run your first three command chains.
   window.addEventListener('keydown', (e) => {
     if (!e.ctrlKey || !e.altKey || !['1', '2', '3'].includes(e.key)) return;
+    if (typeof VexLock !== 'undefined' && VexLock.locked()) return;   // like every other key: nothing runs behind the lock screen
     const ch = typeof CommandChains !== 'undefined' && CommandChains.chains[parseInt(e.key, 10) - 1];
     if (ch) { e.preventDefault(); CommandChains.run(ch); window.showToast?.('' + ch.name); }
   });
@@ -1783,6 +1784,9 @@ function vexOwnTextFocused(doc) {
     // A tab or panel kept awake by choice that grows past 1.5 GB says so once,
     // even with the memory notice off (js/kept-awake-memory.js).
     if (typeof KeptAwakeMemory !== 'undefined') KeptAwakeMemory.init();
+    // Main fires Ctrl+Shift+O itself (toggle-sessions); this is the same action for the list: with no
+    // handler here, the editor and the shortcut sheet treated the key as doing nothing.
+    ShortcutsRegistry.register('sessions',       () => SessionManager.toggle());
     ShortcutsRegistry.register('schedules',      () => SidebarManager?.openPanel('schedules'));
     ShortcutsRegistry.register('tabs-sidebar',   () => window.toggleTabsSidebar?.());
     ShortcutsRegistry.register('split-screen',   () => SplitScreen?.toggle?.());

@@ -163,8 +163,15 @@ function shortcutFor(input, { ownsFind = false, ownsZoom = false, wanted = null 
   const key = String(input.key || '');
   const lk = key.toLowerCase();
 
+  // Ctrl+Tab and Ctrl+Shift+Tab are rebindable, so once the window has said
+  // which keys it answers (`wanted`, handled above when these are among them),
+  // a key it no longer lists is the page's. Until then they do what they always did.
+  const windowSaidKeys = !!(wanted && wanted.size);
   if (input.shift) {
-    if (key === 'Tab') return { channel: 'prev-tab' };
+    // Ctrl++ is Ctrl+Shift+= on most keyboards, and Ctrl+_ is Ctrl+Shift+-: the shifted zoom keys.
+    if (key === '+') return { channel: 'zoom-in' };
+    if (key === '_') return { channel: 'zoom-out' };
+    if (key === 'Tab') return windowSaidKeys ? null : { channel: 'prev-tab' };
     if (PASS_UP.shift.includes(lk)) return { channel: 'guest-shortcut', args: [{ key, ctrl: true, shift: true, alt: false }] };
     return SHIFTED[lk] ? { channel: SHIFTED[lk] } : null;
   }
@@ -172,7 +179,7 @@ function shortcutFor(input, { ownsFind = false, ownsZoom = false, wanted = null 
   // Ctrl+F: a site with a find of its own (a code host, a spreadsheet) keeps
   // it — Vex's find bar cannot search what that page has not rendered.
   if (lk === 'f') return ownsFind ? null : { channel: 'find-in-page' };
-  if (lk === 'tab') return { channel: 'next-tab' };
+  if (lk === 'tab') return windowSaidKeys ? null : { channel: 'next-tab' };
   if (PASS_UP.plain.includes(lk)) return { channel: 'guest-shortcut', args: [{ key: lk, ctrl: true, shift: false, alt: false }] };
   if (PLAIN[lk]) return { channel: PLAIN[lk] };
   if (lk >= '1' && lk <= '9') return { channel: 'jump-to-tab', args: [parseInt(lk, 10)] };
