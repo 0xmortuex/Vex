@@ -895,8 +895,11 @@ contextBridge.exposeInMainWorld('vex', {
   readWallpaper: () => ipcRenderer.invoke('theme:read-wallpaper'),
   // The Wallpaper Store (js/wallpaper-store.js): the optional photo list and the pictures Vex keeps for it.
   wallpaperCatalogue: (url, force) => ipcRenderer.invoke('wallpaper:catalogue', url, !!force),
-  wallpaperDownload: (url, kind) => ipcRenderer.invoke('wallpaper:download', url, kind),
-  wallpaperSave: (id, kind, bytes) => ipcRenderer.invoke('wallpaper:save', id, kind, bytes),
+  wallpaperBuiltin: () => ipcRenderer.invoke('wallpaper:builtin'),
+  wallpaperDownload: (url, kind, ticket) => (ticket ? ipcRenderer.invoke('wallpaper:download', url, kind, ticket) : ipcRenderer.invoke('wallpaper:download', url, kind)),
+  wallpaperCancel: (ticket) => ipcRenderer.invoke('wallpaper:cancel', ticket),
+  onWallpaperProgress: (cb) => { const h = (_e, p) => cb(p); ipcRenderer.on('wallpaper:progress', h); return () => ipcRenderer.removeListener('wallpaper:progress', h); },
+  wallpaperSave: (id, kind, bytes, protect) => (protect ? ipcRenderer.invoke('wallpaper:save', id, kind, bytes, protect) : ipcRenderer.invoke('wallpaper:save', id, kind, bytes)),
   wallpaperRead: (id, kind) => ipcRenderer.invoke('wallpaper:read', id, kind),
   wallpaperRemove: (id, kind) => (kind ? ipcRenderer.invoke('wallpaper:remove', id, kind) : ipcRenderer.invoke('wallpaper:remove', id)),
   wallpaperStats: () => ipcRenderer.invoke('wallpaper:stats'),
