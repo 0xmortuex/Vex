@@ -11478,7 +11478,14 @@ require('./main/wallpaper').registerWallpaper({
   execFile: require('child_process').execFile, fs, nativeImage,
 });
 // The Wallpaper Store's files (userData/wallpapers) and its one optional list fetch (src/main/wallpaper-store.js).
-require('./main/wallpaper-store').registerWallpaperStore({ ipcMain, dir: path.join(app.getPath('userData'), 'wallpapers'), fs, path, fetch: boundedPublicFetch });
+// The built-in catalogue (src/main/data/wallpaper-catalogue*.json) is read through a public-only fetch with no size wrapper: the store counts the bytes
+// itself, while they arrive, and checks every address (every redirect too) against the host list in the data folder.
+// Test seam, source runs only (never a packaged build): VEX_WALLPAPER_DATA_DIR reads the catalogue files from another folder, and
+// VEX_WALLPAPER_TEST_HOSTS ("a.example,b.example") makes those exact names look public to the private-address check, so a test can
+// map them to a local server with --host-resolver-rules. Everything else about the fetch (https, host list, size cap) is unchanged.
+const wpTestHosts = !app.isPackaged && process.env.VEX_WALLPAPER_TEST_HOSTS ? process.env.VEX_WALLPAPER_TEST_HOSTS.split(',') : [];
+const wallpaperStreamFetch = _egressFetch(require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => (wpTestHosts.includes(h) ? { endpoints: [{ address: '93.184.216.34' }] } : net.resolveHost(h)) }), { feature: 'Wallpaper store', kind: 'fetch' });
+require('./main/wallpaper-store').registerWallpaperStore({ ipcMain, dir: path.join(app.getPath('userData'), 'wallpapers'), fs, path, fetch: boundedPublicFetch, streamFetch: wallpaperStreamFetch, dataDir: (!app.isPackaged && process.env.VEX_WALLPAPER_DATA_DIR) || path.join(__dirname, 'main', 'data') });
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
 // Settings > Video and music playback (DRM), and the "Why isn't this playing?" banner (src/main/drm-health.js): the
 // diagnosis, the two repairs that need no restart, and clearing one tab's site. A failed repair throws to the caller.

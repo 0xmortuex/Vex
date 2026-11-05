@@ -33,6 +33,7 @@ beforeEach(() => {
     wallpaperRemove: vi.fn(async () => ({ ok: true })),
     wallpaperDownload: vi.fn(async () => ({ bytes: new ArrayBuffer(8), mime: 'image/jpeg' })),
     wallpaperCatalogue: vi.fn(),
+    wallpaperBuiltin: vi.fn(async () => ({ name: '', updated: '', entries: [], categories: [], hosts: [], problems: [] })),
     wallpaperStats: vi.fn(async () => ({})),
     wallpaperClearCache: vi.fn(async () => ({ ok: true })),
   };
@@ -310,7 +311,7 @@ describe('how much of the picture shows (shade)', () => {
 describe('the photo list address', () => {
   it('is empty by default, and nothing is asked for', async () => {
     expect(V.catalogueUrl()).toBe('');
-    expect(await V.loadCatalogue()).toEqual({ entries: 0, configured: false });
+    expect(await V.loadCatalogue()).toMatchObject({ entries: 0, configured: false });
     expect(vex.wallpaperCatalogue).not.toHaveBeenCalled();
   });
   it('takes only an https address (or empty to clear it)', () => {
@@ -337,8 +338,8 @@ describe('the photo list address', () => {
     window.createImageBitmap = vi.fn(async () => ({ width: 10, height: 10, close() {} }));
     window.OffscreenCanvas = class { getContext() { return { drawImage() {} }; } async convertToBlob() { return new Blob([new Uint8Array(100)], { type: 'image/jpeg' }); } };
     await V.apply('photo-mist');
-    expect(vex.wallpaperDownload).toHaveBeenCalledWith('https://e.example/f', 'full');
-    expect(vex.wallpaperSave).toHaveBeenCalledWith('photo-mist', 'full', expect.any(ArrayBuffer));
+    expect(vex.wallpaperDownload).toHaveBeenCalledWith('https://e.example/f', 'full', expect.stringMatching(/^dl-/));
+    expect(vex.wallpaperSave).toHaveBeenCalledWith('photo-mist', 'full', expect.any(ArrayBuffer), expect.any(Array));
     await V.apply('photo-mist', { dim: 0.1 });
     expect(vex.wallpaperDownload).toHaveBeenCalledTimes(1);
   });

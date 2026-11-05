@@ -455,8 +455,12 @@ const wallpaperId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{1,
 const wallpaperKind = oneOf(['thumb', 'full', 'mine']);
 const wallpaperBytes = value => value instanceof ArrayBuffer && value.byteLength <= 4 * 1024 * 1024;
 define('wallpaper:catalogue', [value => typeof value === 'string' && value.length <= 2048, optional(boolean)]);
-define('wallpaper:download', [value => typeof value === 'string' && value.length <= 2048, oneOf(['thumb', 'full'])]);
-define('wallpaper:save', [wallpaperId, wallpaperKind, wallpaperBytes]);
+const wallpaperTicket = value => typeof value === 'string' && /^[a-z0-9-]{4,40}$/.test(value);
+define('wallpaper:download', [value => typeof value === 'string' && value.length <= 2048, oneOf(['thumb', 'full']), optional(wallpaperTicket)]);
+define('wallpaper:cancel', [wallpaperTicket]);
+define('wallpaper:builtin', []);
+// The 4th argument of save: ids of pictures the cache must not evict (the wallpaper on now and the favourites).
+define('wallpaper:save', [wallpaperId, wallpaperKind, wallpaperBytes, optional(value => Array.isArray(value) && value.length <= 600 && value.every(wallpaperId))]);
 define('wallpaper:read', [wallpaperId, wallpaperKind]);
 define('wallpaper:remove', [wallpaperId, optional(wallpaperKind)]);
 define('wallpaper:stats wallpaper:clear-cache', []);
