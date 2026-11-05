@@ -13516,7 +13516,7 @@ const VexI18nUI = {
       'Mine': 'Benimkiler',
       'Online wallpapers are off. Turn on "Show online wallpapers" to see them.': 'Çevrimiçi duvar kâğıtları kapalı. Görmek için “Çevrimiçi duvar kâğıtlarını göster”i açın.',
       'Offline': 'Çevrimdışı',
-      'Switched off': 'Kapalı',
+      'Online is off': 'Çevrimiçi kapalı',
       'No preview': 'Önizleme yok',
       'Artwork by': 'Eser sahibi:',
       'Colours Vex takes from this wallpaper': 'Vex’in bu duvar kâğıdından aldığı renkler',

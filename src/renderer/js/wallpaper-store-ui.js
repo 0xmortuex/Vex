@@ -215,7 +215,7 @@
                     img.dataset.state = 'idle';
                     if (tagOf(err) === 'skipped') return;
                     // An honest card: the picture's colour stays, and a line says why there is no preview (never an endless spinner).
-                    const why = tagOf(err) === 'offline' ? L('Offline') : tagOf(err) === 'off' ? L('Switched off') : L('No preview');
+                    const why = tagOf(err) === 'offline' ? L('Offline') : tagOf(err) === 'off' ? L('Online is off') : L('No preview');
                     card.classList.add(tagOf(err) === 'offline' ? 'vws-offline' : 'vws-broken');
                     const note = card.querySelector('.vws-card-note') || card.insertBefore(el('span', 'vws-card-note'), card.querySelector('.vws-name'));
                     note.textContent = why;
