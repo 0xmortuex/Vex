@@ -7827,7 +7827,7 @@ app.on('web-contents-created', (_event, contents) => {
     if (_agreementBlocks(contents) || _agreementGate.blocks(mainWindow)) return;
     if (handleFullscreenShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
-    if (handleDictateShortcut(event, input)) return;
+    if (handleDictateShortcut(event, input, contents)) return;
     if (handleCommandBarShortcut(event, input, contents)) return;
     // An extension's shortcut (chrome.commands), before the page hears it.
     if (handleExtensionCommandKey(event, input, contents)) return;
@@ -7892,15 +7892,20 @@ function handleCommandBarShortcut(event, input, contents) {
   let url;
   try { url = contents.getURL(); } catch { url = ''; }
   if (!isCommandBarKey(input, url)) return false;
-  mainWindow.webContents.send('toggle-command-bar');
+  // The page's own window (a private window has its own command bar); none while locked.
+  const win = _shortcutWindow(contents);
+  if (!win) return false;
+  win.webContents.send('toggle-command-bar');
   event.preventDefault();
   return true;
 }
 
 const { isDictateKey } = require('./main/dictate-key');
-function handleDictateShortcut(event, input) {
-  if (!mainWindow || mainWindow.isDestroyed() || !isDictateKey(input)) return false;
-  mainWindow.webContents.send('dictate-toggle');
+function handleDictateShortcut(event, input, contents) {
+  if (!isDictateKey(input)) return false;
+  const win = _shortcutWindow(contents);
+  if (!win) return false;
+  win.webContents.send('dictate-toggle');
   event.preventDefault();
   return true;
 }
@@ -9501,6 +9506,9 @@ app.whenReady().then(async () => {
     // Ctrl alone, on the key going down. Nothing checked that Alt was up, so
     // Ctrl+Alt+W (Watch page) closed the tab, Ctrl+Alt+T opened one and
     // Ctrl+Alt+M muted it (found 2026-09-29).
+    // Behind the lock screen none of Vex's keys act (Ctrl+T opened tabs and Ctrl+W closed them under it).
+    // F11 stays: it only changes the size of the window.
+    if (_vexLocked) { handleFullscreenShortcut(event, input); return; }
     const down = input.type === 'keyDown';
     const ctrlOnly = down && input.control && !input.alt;
     if (ctrlOnly && input.key === 'k') {
@@ -9527,7 +9535,7 @@ app.whenReady().then(async () => {
       mainWindow.webContents.send('zoom-in');
       event.preventDefault();
     }
-    if (ctrlOnly && input.key === '-') {
+    if (ctrlOnly && (input.key === '-' || input.key === '_')) {
       mainWindow.webContents.send('zoom-out');
       event.preventDefault();
     }
