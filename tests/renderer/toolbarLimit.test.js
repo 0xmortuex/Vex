@@ -44,7 +44,8 @@ beforeEach(() => {
 describe('the default four', () => {
   it('keeps Downloads, Profiles, Inbox and Settings in the toolbar; everything else is folded', () => {
     const L = loadLimit();
-    expect(L.DEFAULT_SHOWN).toEqual(['btn-downloads-top', 'btn-profile', 'btn-attention', 'btn-settings-top']);
+    // The default four, in the order the bar draws them. Four is the default, not a cap: see toolbarCustomize.test.js.
+    expect(L.DEFAULT_SHOWN).toEqual(['btn-attention', 'btn-downloads-top', 'btn-settings-top', 'btn-profile']);
     expect(L.foldedIds()).not.toContain('btn-profile');
     expect(L.foldedIds().sort()).toEqual(ids.filter(i => !L.DEFAULT_SHOWN.includes(i)).sort());
   });
@@ -132,7 +133,10 @@ describe('existing profiles', () => {
   it('an order or region change counts as customised too', () => {
     localStorage.setItem('vex.layout', JSON.stringify({ order: { 'top-bar-right': ['btn-tor'] } }));
     const L = loadLimit();   // migrates as it loads, like the app
-    expect(JSON.parse(localStorage.getItem('vex.toolbarShown'))).toEqual(L.IDS);
+    // every button stays, in the layout editor's order, so drawing the saved order does not undo it
+    const saved = JSON.parse(localStorage.getItem('vex.toolbarShown'));
+    expect(saved[0]).toBe('btn-tor');
+    expect([...saved].sort()).toEqual([...L.IDS].sort());
   });
   it('a profile with an empty or default layout gets the four-icon default', () => {
     localStorage.setItem('vex.layout', JSON.stringify({ hidden: {}, order: {} }));
@@ -170,7 +174,11 @@ describe('reset', () => {
     const app = fs.readFileSync(path.join(ROOT, 'src/renderer/js/app.js'), 'utf8');
     expect(app).toMatch(/SETTINGS_PREF_KEYS = \[[\s\S]*'vex\.toolbarShown'/);
     const man = fs.readFileSync(path.join(ROOT, 'src/renderer/js/feature-manifests.js'), 'utf8');
-    expect(man).toContain("storageKeys: ['vex.toolbarShown']");
+    expect(man).toContain("storageKeys: ['vex.toolbarShown', 'vex.toolbarMenu']");
+    expect(app).toMatch(/SETTINGS_PREF_KEYS = \[[\s\S]*'vex\.toolbarMenu'/);
+    const sync = fs.readFileSync(path.join(ROOT, 'src/renderer/js/sync-engine.js'), 'utf8');
+    expect(sync.match(/'vex\.toolbarShown', 'vex\.toolbarMenu'/g).length).toBe(3);   // the key list, the Look category and the live look keys
+    expect(fs.readFileSync(path.join(ROOT, 'docs/SYNC_PROTOCOL.md'), 'utf8')).toContain('`vex.toolbarShown`, `vex.toolbarMenu`');
     const html = fs.readFileSync(path.join(ROOT, 'src/renderer/index.html'), 'utf8');
     expect(html.indexOf('js/toolbar-limit.js')).toBeGreaterThan(-1);
     expect(html.indexOf('js/toolbar-limit.js')).toBeLessThan(html.indexOf('js/toolbar-overflow.js'));
