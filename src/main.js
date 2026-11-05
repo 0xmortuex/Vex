@@ -7637,6 +7637,24 @@ app.on('web-contents-created', (_event, contents) => {
         });
         win.on('unresponsive', () => { console.error('[discord-popout] window unresponsive'); });
 
+        // A way back: the window had none, closing it left you where you were.
+        require('./main/discord-popout-back').attach(win, {
+          label: async () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return 'Back to Discord';
+            return mainWindow.webContents.executeJavaScript('window.vexTr ? window.vexTr("Back to Discord") : "Back to Discord"');
+          },
+          // User-driven, like pip:back-to-tab: the person pressed the pop-out's own button.
+          onBack: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              if (mainWindow.isMinimized()) mainWindow.restore();
+              mainWindow.show();
+              mainWindow.focus();
+              mainWindow.webContents.send('vex:discord-popout-back');
+            }
+            if (!win.isDestroyed()) win.close();
+          },
+        });
+
         // Let the renderer surface a one-line discoverability hint.
         try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:discord-popout-open'); } catch {}
       } catch (err) { console.error('[discord-popout] setup failed:', err.message); }

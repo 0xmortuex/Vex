@@ -13522,6 +13522,9 @@ const VexI18nUI = {
       'Vex AI found no tabs that belong together, so nothing was grouped. {1}': 'Vex yapay zekâ birbirine ait sekme bulamadı, bu yüzden hiçbir şey gruplanmadı. {1}',
       'Vex AI did not answer within {1} minutes, so no tabs were grouped. If Ollama is loading its model or a game is running, try again in a moment.': 'Vex yapay zekâ {1} dakika içinde yanıt vermedi, bu yüzden hiçbir sekme gruplanmadı. Ollama modelini yüklüyorsa ya da bir oyun açıksa biraz sonra yeniden deneyin.',
       // --- end Organize My Tabs ---
+      // --- pip back to Discord ---
+      'Back to Discord': 'Discord’a dön',
+      // --- end pip back to Discord ---
     },
   },
 

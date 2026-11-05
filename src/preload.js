@@ -154,6 +154,8 @@ contextBridge.exposeInMainWorld('vex', {
   onToast: (cb) => subscribe('vex:toast', cb),
   // Fires once when a Discord stream pop-out window opens (discoverability hint).
   onDiscordPopoutOpen: (cb) => subscribe('vex:discord-popout-open', cb),
+  // The pop-out's "Back to Discord" button was pressed: show Discord.
+  onDiscordPopoutBack: (cb) => subscribe('vex:discord-popout-back', cb),
 
   // RSS feeds (fetched in main to dodge CORS)
   rssFetch: (url) => ipcRenderer.invoke('rss:fetch', url),

@@ -1436,6 +1436,10 @@ function vexOwnTextFocused(doc) {
       window.showToast?.('Pop-out floats on top · Ctrl+Shift+P to toggle');
     });
   } catch {}
+  // Its "Back to Discord" button: Discord's panel (or its tab), as for a PiP "Back to tab".
+  window.vex?.onDiscordPopoutBack?.(() => {
+    if (typeof PiPManager !== 'undefined') PiPManager.returnToSource({ panel: 'discord' });
+  });
 
   // AI Skills (saved prompts) + Boosts (per-site customization)
   if (typeof VexSkills !== 'undefined') VexSkills.init();
