@@ -14,6 +14,9 @@
 }
 .tb-panel-badge.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; top: 2px; right: 2px; }
 
+/* The browser looks hide the Notes button because Notes is on the rail; put in the toolbar on purpose, it shows (Simple mode still hides it). */
+body[data-gui-family="browser"] #top-bar-right > #btn-notes-top[data-tb-placed] { display: inline-flex !important; }
+
 /* A finger drags a button instead of scrolling the bar. */
 #top-bar-right > [data-tb-id], .tb-overflow-item[data-tb-id] { touch-action: none; }
 .tb-overflow-item[data-tb-id] { cursor: grab; }

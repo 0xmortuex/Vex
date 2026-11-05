@@ -60,11 +60,14 @@ const ToolbarCustomize = (() => {
       const svg = el && el.querySelector('svg');
       out.push({ id: it.id, kind: 'button', group: 'Toolbar buttons', label: it.label, iconHtml: svg ? svg.outerHTML : '' });
     }
+    const taken = new Set(out.map(o => o.label));
     for (const b of railButtons()) {
       const panel = b.dataset.panel;
       const url = typeof SidebarManager !== 'undefined' && SidebarManager._isUrlPanel ? SidebarManager._isUrlPanel(panel) : false;
       const group = panel.startsWith('site_') ? 'Pinned sites' : url ? 'Apps' : 'Sidebar panels';
-      out.push({ id: L().panelId(panel), kind: 'panel', group, label: panelLabel(panel, b), iconHtml: iconHtml(b) });
+      // Notes and Downloads are a toolbar button and a sidebar panel: told apart by "(sidebar)".
+      const label = panelLabel(panel, b);
+      out.push({ id: L().panelId(panel), kind: 'panel', group, label: taken.has(label) ? label + ' (sidebar)' : label, iconHtml: iconHtml(b) });
     }
     return out;
   }
@@ -148,7 +151,15 @@ const ToolbarCustomize = (() => {
       if (document.getElementById(L().elementId(id)) || !sourceOf(L().panelOf(id))) continue;
       r.insertBefore(makeProxy(id), more);
     }
-    for (const id of L().IDS) { const el = document.getElementById(id); if (el) el.dataset.tbId = id; }
+    // A look that hides a toolbar button on its own (the browser looks hide Notes, "it is on the rail") shows it once the person
+    // has put it in the toolbar: css/toolbar-customize.css reads data-tb-placed.
+    const custom = L().isCustom();
+    for (const id of L().IDS) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.dataset.tbId = id;
+      el.toggleAttribute('data-tb-placed', custom && bar.includes(id) && !L().DEFAULT_SHOWN.includes(id));
+    }
     refreshAll();
     watchRail(wanted.size > 0);
     order(r, bar);

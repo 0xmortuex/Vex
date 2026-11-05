@@ -80,6 +80,8 @@
   }
 
   function shownIds() { return readList(KEY) || DEFAULT_SHOWN.slice(); }
+  // Has the person (or an update that kept their layout) set the toolbar? Until then it is the default four.
+  function isCustom() { return localStorage.getItem(KEY) !== null; }
   function isShown(id) { return shownIds().includes(id); }
   // The ids in the more menu, in menu order: the saved order first, then every
   // folded toolbar button the saved order does not name, in toolbar order.
@@ -241,7 +243,7 @@
   const api = {
     KEY, MENU_KEY, ITEMS, IDS, DEFAULT_SHOWN, PANEL, PROXY_PREFIX,
     isPanel, isBuiltin, isKnown, panelOf, panelId, elementId,
-    shownIds, isShown, menuIds, foldedIds, where,
+    shownIds, isShown, isCustom, menuIds, foldedIds, where,
     place, setShown, move, moveNextTo, swap, reset, migrate, init, renderSettings,
   };
   if (typeof window !== 'undefined') window.ToolbarLimit = api;
