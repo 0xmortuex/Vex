@@ -24,6 +24,9 @@ define('captive:pause-secure-dns', [integer]);
 define('streamskip:get', []);
 define('streamskip:set', [string(20), boolean]);
 define('streamskip:matched', [string(20), string(20)]);
+// Lyrics for the song that is playing (main/lyrics.js): the song is checked and cleaned again in main.
+define('lyrics:get', [shape({ artist: string(400), track: string(400), album: optional(string(400)), duration: optional(finiteNumber) })]);
+define('lyrics:clear', []);
 // "Was Vex uninstalled by hand?" (setup wizard, js/onboarding.js): no arguments, the answer is read once and the note is removed.
 define('setup:take-uninstall-marker', []);
 // Feature isolation in safe mode (main/safe-mode.js) and the ledger of what left this computer (main/egress-ledger.js).

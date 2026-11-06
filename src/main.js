@@ -8127,6 +8127,14 @@ ipcMain.handle('sources:resolve-id', async (_event, which, id) => {
 });
 // DOI lookup for the sources list (main/doi-resolve.js): one Crossref request, only when the person presses the button.
 const _doiResolver = require('./main/doi-resolve').createDoiResolver({ fetch: boundedNetFetch });
+// Lyrics for the song that is playing (main/lyrics.js): one lrclib.net request per song, only while the person has the lyrics card open and has turned
+// lyrics on; the answers are kept in lyrics-cache.json (500 songs). The window never asks for a private, Tor or routed tab (and a private window is refused here).
+const _lyrics = require('./main/lyrics').createLyricsService({ fetch: boundedNetFetch, isOnline: () => net.isOnline(), fs, file: path.join(userDataPath, 'lyrics-cache.json'), version: app.getVersion() });
+ipcMain.handle('lyrics:get', async (_event, query) => {
+  try { return await _lyrics.get(query); }
+  catch (err) { return { status: 'error', message: err.message }; }
+});
+ipcMain.handle('lyrics:clear', () => _lyrics.clear());
 ipcMain.handle('sources:resolve-doi', async (_event, doi) => {
   try { return { ok: true, record: await _doiResolver.resolve(doi) }; }
   catch (err) { return { ok: false, error: err.message }; }

@@ -990,6 +990,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Skip intro / next episode on streaming sites, per site, off until turned on (main/streaming-skip.js).
   streamingSkipGet: () => ipcRenderer.invoke('streamskip:get'),
   streamingSkipSet: (site, on) => ipcRenderer.invoke('streamskip:set', site, on),
+  // Lyrics for the song that is playing, from lrclib.net, only while the lyrics card is open (main/lyrics.js).
+  lyricsGet: (song) => ipcRenderer.invoke('lyrics:get', song),
+  lyricsClear: () => ipcRenderer.invoke('lyrics:clear'),
   setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
   // Start with Windows: what Windows holds, and changing it (main/login-item.js)

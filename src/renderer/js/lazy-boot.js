@@ -37,6 +37,8 @@ const VexBoot = {
     { src: 'js/captive-portal.js', usage: [] },
     // Skip intro / next episode switches for streaming sites: only read when its Ctrl+K command is used.
     { src: 'js/streaming-skip.js', usage: [] },
+    // Lyrics card: only read when its Ctrl+K command or the Lyrics button on Now Playing is used.
+    { src: 'js/lyrics-card.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },
