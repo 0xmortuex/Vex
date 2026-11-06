@@ -27,7 +27,7 @@
     'Esc hides this window. Drag the top bar to move it.': 'Esc bu pencereyi gizler. Taşımak için üst çubuğu sürükle.',
     'Overlay ready. Press {key} to open it.': 'Katman hazır. Açmak için {key} tuşlarına bas.',
     'No guide address is set for this game. Add one in Settings, Game overlay.': 'Bu oyun için rehber adresi yok. Ayarlar, Oyun katmanı bölümünden ekle.',
-    'Loading...': 'Yükleniyor...', 'Search': 'Ara', 'Search...': 'Ara...',
+    'min': 'dk', 'Loading...': 'Yükleniyor...', 'Search': 'Ara', 'Search...': 'Ara...',
   };
   let lang = 'en';
   const t = (s) => (lang === 'tr' && TR[s]) || s;
@@ -197,7 +197,7 @@
     if (!p.childElementCount) {
       for (const min of [5, 10, 15, 25, 45]) {
         const b = document.createElement('button');
-        b.type = 'button'; b.className = 'btn'; b.textContent = min + ' min';
+        b.type = 'button'; b.className = 'btn'; b.textContent = min + ' ' + t('min');
         b.addEventListener('click', () => { timer = { mode: 'timer', running: false, startedAt: 0, elapsedMs: 0, durationMs: min * 60000 }; saveTimer(); paintTimer(); paintTimerButtons(); });
         p.appendChild(b);
       }
