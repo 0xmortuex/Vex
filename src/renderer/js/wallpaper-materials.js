@@ -105,14 +105,14 @@
         const t = tones(c), s = o.s || 1, n = o.n || 9, mode = o.mode || 'onyx';
         if (mode === 'onyx') {
           const inner = turb('a', 'fractalNoise', 0.0016 * s, 0.0021 * s, 3, seedOf(r)) + gray('a', 'g', 1.9, -0.45)
-            + curve('g', 'z', wave(n, 12)) + tint('z', 'col', [t[0], t[1], t[2], t[3], t[4]])
+            + curve('g', 'z', wave(n, 12)) + tint('z', 'col', [mix(t[0], t[1], 0.5), t[1], t[2], t[3], mix(t[3], t[4], 0.5)])
             + turb('b', 'fractalNoise', 0.2, 0.2, 2, seedOf(r)) + gray('b', 'gb', 1, 0)
             + lit('col', 'gb', 'out', 0.8, 235, 58);
           return '<defs>' + fil('o', inner) + '</defs>' + sheet('o') + sheen('sh', 0.24) + vig('vg', 0.28);
         }
         if (mode !== 'relief') throw new Error('Unknown bands mode: ' + mode);
         // Stepped height colours, like the tints of a relief map; the edges of the steps are lit a little.
-        const inner = turb('a', 'fractalNoise', 0.0016 * s, 0.002 * s, 3, seedOf(r)) + gray('a', 'g', 2.2, -0.55) + tint('g', 'steps', [t[0], t[1], t[2], t[3], t[4]], 'discrete')
+        const inner = turb('a', 'fractalNoise', 0.0016 * s, 0.002 * s, 3, seedOf(r)) + gray('a', 'g', 2.2, -0.55) + tint('g', 'steps', [mix(t[0], t[1], 0.4), t[1], t[2], t[3], mix(t[3], t[4], 0.5)], 'discrete')
           + turb('p', 'fractalNoise', 0.004, 0.004, 3, seedOf(r)) + gray('p', 'pg', 0.5, 0.6) + arith('steps', 'pg', 'out', 1.1, 0, 0, 0);
         return '<defs>' + fil('o', inner) + '</defs>' + sheet('o') + vig('vg', 0.2);
       },
