@@ -271,6 +271,10 @@ contextBridge.exposeInMainWorld('vex', {
   onSiteRulesChanged: (callback) => subscribe('siterules:changed', callback),
   // A real click or key press in a page of a site that has a session-timeout warning (js/session-timeout.js): { pageId }.
   onTabActivity: (callback) => subscribe('session-timeout:activity', callback),
+  // Lite mode and the other global page switches (main/nav-privacy.js): read, change, and hear of a change made in another window.
+  navPrivacyGet: () => ipcRenderer.invoke('navprivacy:get'),
+  navPrivacySet: (change) => ipcRenderer.invoke('navprivacy:set', change),
+  onNavPrivacyChanged: (callback) => subscribe('navprivacy:changed', callback),
   // How long a few well-known services take to answer, and yours for comparison.
   netLatency: () => ipcRenderer.invoke('net:latency'),
   // What a word means, asked of a dictionary from the main process.

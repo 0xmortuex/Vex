@@ -30,7 +30,7 @@ function createAdVerdict(deps) {
   }
 
   // null (let it through), 'third-party' (the site's third-party switch),
-  // 'images' (the site's pictures switch) or 'ad' (the blocker).
+  // 'images' (the site's pictures switch), 'lite' (Lite mode) or 'ad' (the blocker).
   // opts.thirdParty / opts.images: whether this session honours those
   // switches.
   function judge(details, ses, opts = {}) {
@@ -48,6 +48,8 @@ function createAdVerdict(deps) {
     // session that opts out (Tor: a page that is told "no images" is a
     // different page from the one every other Tor user gets).
     if (opts.images !== false && details.resourceType === 'image' && deps.blocksImages && deps.blocksImages(page, ses)) return 'images';
+    // Lite mode: the same hook, for every page, for pictures and web fonts (src/main/nav-privacy.js); a site marked as left alone is spared.
+    if (opts.images !== false && deps.liteBlocks && deps.liteBlocks(page, details.resourceType)) return 'lite';
     if (!deps.enabled()) return null;
     if (!(deps.engineBlocks(details) === true || deps.shouldBlock(details.url))) return null;
     if (deps.repairAllows(details.url, page)) return null;

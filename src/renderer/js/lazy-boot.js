@@ -37,6 +37,8 @@ const VexBoot = {
     { src: 'js/captive-portal.js', usage: [] },
     // Sign-out warning for sites that log you out: does nothing unless a site has a timeout saved (site panel).
     { src: 'js/session-timeout.js', usage: [] },
+    // Lite mode (slow Wi-Fi): the toolbar badge, its Settings section and the switch. The tabs' autoplay policy is read from site-rules-ui.js.
+    { src: 'js/lite-mode.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },

@@ -3292,7 +3292,7 @@ function wireAdblockerOnSession(ses, tag) {
     // A site whose third-party content is switched off (js/site-rules.js),
     // then the blocker (src/main/ad-verdict.js).
     const verdict = _adVerdict.judge(details, ses);
-    if (verdict === 'third-party' || verdict === 'images') {
+    if (verdict === 'third-party' || verdict === 'images' || verdict === 'lite') {
       callback({ cancel: true });
       return;
     }
@@ -3879,6 +3879,20 @@ ipcMain.handle('siterules:set', (_e, rules) => {
   return { ok: true, rules: _siteRules };
 });
 ipcMain.handle('siterules:get', () => ({ ok: true, rules: _siteRules }));
+// Lite mode (and the other global switches in main/nav-privacy.js): one flag the request hook reads at once.
+const NavPrivacy = require('./main/nav-privacy');
+const _navPrivacyFile = path.join(userDataPath, 'nav-privacy.json');
+let _navPrivacy = NavPrivacy.load(fs, _navPrivacyFile);
+ipcMain.handle('navprivacy:get', () => ({ ok: true, ..._navPrivacy }));
+ipcMain.handle('navprivacy:set', (_e, change) => {
+  try {
+    const next = NavPrivacy.apply(_navPrivacy, change);
+    NavPrivacy.save(fs, _navPrivacyFile, next);
+    _navPrivacy = next;
+    _broadcastDownloadEvent('navprivacy:changed', _navPrivacy);
+    return { ok: true, ..._navPrivacy };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
 // A watched page read as a hidden tab would show it (src/main/page-render.js):
 // for pages built by JavaScript. Only Vex's own main window may ask; the
 // window's own routing refusal (Tor, proxy, container) comes first, and the
@@ -4056,6 +4070,8 @@ const _adVerdict = require('./main/ad-verdict').createAdVerdict({
   blocksThirdParty: (page, url) => Object.keys(_siteRules).length > 0 && SiteRules.blocksThirdParty(_siteRules, page, url),
   // The 'images' switch; never in a Tor session (src/main/ad-verdict.js).
   blocksImages: (page, ses) => !(ses && ses.__vexTor) && Object.keys(_siteRules).length > 0 && !!page && SiteRules.blocksImages(_siteRules, page),
+  // Lite mode, global (main/nav-privacy.js), through the same hook and not in a Tor session (images: false in its handler).
+  liteBlocks: (page, resourceType) => _navPrivacy.lite && SiteRules.liteBlocks(_siteRules, true, page, resourceType),
   onBlockedPage: (id, url) => setTimeout(() => _adBlockedPage(id, url), 0),
 });
 // A page the ad blocker refused (a click on an ad or sponsored link) says so,

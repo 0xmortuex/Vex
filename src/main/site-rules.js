@@ -31,6 +31,9 @@
 //                at creation: it cannot be changed on a live page). Vex allows
 //                autoplay everywhere else, because Master Volume's boost needs
 //                a running AudioContext (main.js).
+//   lite         Lite mode (slow Wi-Fi) leaves this site alone: its pictures and
+//                fonts load and its tabs may autoplay. Only means something while
+//                Lite mode is on (src/main/nav-privacy.js).
 //   sessionMin   not a switch: the site logs you out after this many idle
 //                minutes (1 to 720), and Vex warns before. keepAlive (true) is the
 //                separate opt-in to a same-origin request that keeps it signed in.
@@ -38,7 +41,7 @@
 //                typed User-Agent string (the desktop one is the normal
 //                thing, so it is never stored). Never in a Tor tab.
 const OFF = 'off';
-const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer', 'autoplay'];
+const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer', 'autoplay', 'lite'];
 const SESSION_MIN_MAX = 720;
 const UA_MOBILE = 'mobile';
 const UA_MAX = 512;
@@ -102,6 +105,14 @@ function sessionTimeoutFor(rules, url) {
   return { minutes: rule.sessionMin, keepAlive: rule.keepAlive === true };
 }
 
+// Lite mode refuses the pictures and web fonts of a web page; a site marked 'lite' off is left alone. Never for a page that is not http(s)
+// (Vex's own pages and local files keep their pictures).
+function liteBlocks(rules, on, pageUrl, resourceType) {
+  if (!on || (resourceType !== 'image' && resourceType !== 'font')) return false;
+  if (!/^https?:/i.test(String(pageUrl || ''))) return false;
+  return !isOff(rules, pageUrl, 'lite');
+}
+
 // A User-Agent a person typed: printable ASCII on one line, nothing else.
 function validUserAgent(ua) {
   return typeof ua === 'string' && ua.length >= 8 && ua.length <= UA_MAX && /^[ -~]+$/.test(ua) && ua.trim() === ua;
@@ -138,4 +149,4 @@ function clean(rules) {
   return out;
 }
 
-module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, allowsAds, blocksImages, sendsGpc, keepsReferrer, sessionTimeoutFor, SESSION_MIN_MAX, userAgentFor, validUserAgent, UA_MOBILE, clean };
+module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, allowsAds, blocksImages, sendsGpc, keepsReferrer, sessionTimeoutFor, liteBlocks, SESSION_MIN_MAX, userAgentFor, validUserAgent, UA_MOBILE, clean };

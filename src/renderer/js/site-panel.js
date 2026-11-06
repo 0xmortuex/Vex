@@ -341,6 +341,7 @@ const SitePanel = {
       body += this._behaviourHtml(c);
       body += this._blockingHtml(c);
       body += this._switchesHtml(c);
+      body += this._liteHtml(c);
       body += this._sessionHtml(c);
       body += this._identityHtml(c);
       body += this._opensHtml(c);
@@ -530,6 +531,15 @@ const SitePanel = {
     }
     return this._section('switches', 'What this site is allowed', rows
       + `<p class="sp-note">${this._after ? 'The page reloads when you close this panel.' : 'Every page of this site, in every window.'}</p>` + broken);
+  },
+
+  // Lite mode (js/lite-mode.js): this site can be left out of it. A site rule ('lite' off), main/site-rules.js.
+  _liteHtml(c) {
+    if (typeof SiteRulesUI === 'undefined' || !c.web) return '';
+    const tor = !!(c.tor || c.torRoute);
+    return this._section('lite', 'Lite mode', this._switch('lite-exempt', 'Leave Lite mode off for this site', {
+      checked: SiteRulesUI.isOff(c.url, 'lite'), disabled: !c.canSave || tor,
+      note: tor ? 'Lite mode never changes a Tor tab.' : SiteRulesUI.liteOn() ? 'Lite mode is on: this site keeps its pictures, fonts and autoplay.' : 'Only matters while Lite mode (the slow Wi-Fi saver) is on.' }));
   },
 
   // The idle timeout the site logs you out at (a site rule, main/site-rules.js); these rows change nothing about the page in front.
@@ -811,6 +821,14 @@ const SitePanel = {
         await SiteRulesUI.set(c.url, 'referrer', el.checked);
         this._after = this._after || 'reload';
         window.showToast?.(el.checked ? c.host + ' gets the full referrer' : c.host + ' is trimmed like every other site again');
+        this._paint();
+        return;
+      case 'lite-exempt':
+        this._mustSave(c);
+        await SiteRulesUI.set(c.url, 'lite', el.checked);
+        // Pictures and fonts take the change on the next load; autoplay is fixed when the tab is built.
+        this._after = 'rebuild';
+        window.showToast?.(this._tr(el.checked ? '{1} is left alone by Lite mode' : '{1} follows Lite mode again', c.host));
         this._paint();
         return;
       case 'sess-min': {

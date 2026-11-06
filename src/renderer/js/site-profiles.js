@@ -68,6 +68,7 @@ const SiteProfiles = {
         if (rule.gpc === 'off') opts.push('no Global Privacy Control');
         if (rule.referrer === 'off') opts.push('sends the full referrer');
         if (typeof rule.ua === 'string') opts.push(rule.ua === 'mobile' ? 'asked for as a mobile site' : 'its own User-Agent');
+        if (rule.lite === 'off') opts.push('left alone by Lite mode');
         if (Number.isInteger(rule.sessionMin)) opts.push('sign-out warning after ' + rule.sessionMin + ' min' + (rule.keepAlive ? ', kept signed in' : ''));
         if (opts.length) s.siteOptions = opts;
       }

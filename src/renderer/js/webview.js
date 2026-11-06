@@ -366,8 +366,8 @@ const WebviewManager = {
   },
 
   // Is this address held to the other autoplay setting than the guest a tab was built with? Pure.
-  autoplayDiffers(url, builtOff) {
-    return !!(window.SiteRulesUI && window.SiteRulesUI.autoplayOff && window.SiteRulesUI.autoplayOff(url)) !== !!builtOff;
+  autoplayDiffers(url, builtOff, partition) {
+    return !!(window.SiteRulesUI && window.SiteRulesUI.autoplayOff && window.SiteRulesUI.autoplayOff(url, partition)) !== !!builtOff;
   },
 
   createWebview(tab) {
@@ -430,9 +430,9 @@ const WebviewManager = {
       carried = 'c' + (++this._historySeq);
       window.vex.carryTabHistory(carried, tab.partition || 'persist:main', tab.history);
     }
-    // A site held to "autoplay only when I click" (Site settings): Vex allows autoplay everywhere else (main.js), so
+    // A site held to "autoplay only when I click" (Site settings), or any web page while Lite mode is on (js/lite-mode.js): Vex allows autoplay everywhere else (main.js), so
     // this one tab's guest is built to refuse it. Like JavaScript, it cannot be changed on a live page.
-    const noAutoplay = !!(window.SiteRulesUI && window.SiteRulesUI.autoplayOff && window.SiteRulesUI.autoplayOff(tab.url));
+    const noAutoplay = !!(window.SiteRulesUI && window.SiteRulesUI.autoplayOff && window.SiteRulesUI.autoplayOff(tab.url, tab.partition));
     webview._noAutoplay = noAutoplay;
     webview.setAttribute('webpreferences', this.webPreferencesFor({ keptAwake, noScripts, noAutoplay, historyFrom, carried }));
     webview.dataset.tabId = tab.id;
@@ -458,7 +458,7 @@ const WebviewManager = {
     if (window.SiteRulesUI && typeof window.SiteRulesUI.autoplayOff === 'function') {
       const changeAutoplay = (event) => {
         if (event.isMainFrame === false || event.isInPlace || !/^https?:/i.test(event.url || '')) return;
-        if (!this.autoplayDiffers(event.url, webview._noAutoplay)) return;
+        if (!this.autoplayDiffers(event.url, webview._noAutoplay, tab.partition)) return;
         try { webview.stop(); } catch { /* going anyway */ }
         tab.url = event.url;
         tab._historyFrom = webview.getWebContentsId();

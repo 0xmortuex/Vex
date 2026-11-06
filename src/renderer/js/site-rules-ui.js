@@ -77,7 +77,27 @@ const SiteRulesUI = {
   isOff(url, what) { const rule = this.forUrl(url); return !!(rule && rule[what] === 'off'); },
   scriptsOff(url) { return this.isOff(url, 'js'); },
   // A site held to "only when I click": its tabs are built with autoplayPolicy=user-gesture-required (webview.js).
-  autoplayOff(url) { return this.isOff(url, 'autoplay'); },
+  // Lite mode (js/lite-mode.js) holds every web page to the same, unless the site is marked 'lite' off; a Tor tab is never changed.
+  autoplayOff(url, partition) {
+    if (this.isOff(url, 'autoplay')) return true;
+    return this.liteApplies(url, partition);
+  },
+
+  // ---- Lite mode (slow Wi-Fi) -----------------------------------------------------------------------------
+  // Lite mode itself is one flag kept by main (main/nav-privacy.js); this is the window's copy, so a tab can be built with the
+  // right autoplay policy at once. A normal window also keeps it in storage so the first tabs of the next start are right.
+  _liteOn: (() => { try { return typeof localStorage !== 'undefined' && localStorage.getItem('vex.liteMode') === '1'; } catch { return false; } })(),
+  liteOn() { return !!this._liteOn; },
+  setLiteOn(on) {
+    this._liteOn = !!on;
+    if (!this._isPrivate()) { try { localStorage.setItem('vex.liteMode', on ? '1' : '0'); } catch (err) { window.VexProblems?.note('Lite mode', 'Could not remember Lite mode for the next start', err); } }
+  },
+  // Does Lite mode hold this page? Web pages only, not a site marked as left alone, not a Tor tab (as the 'images' switch).
+  liteApplies(url, partition) {
+    if (!this._liteOn || !/^https?:/i.test(String(url || ''))) return false;
+    if (/^tor-/.test(String(partition || '')) || partition === 'persist:route-tor') return false;
+    return !this.isOff(url, 'lite');
+  },
   // The idle timeout (minutes) the person gave for the site, or 0; whether keep-alive is on.
   sessionMinutes(url) { const r = this.forUrl(url); return r && Number.isInteger(r.sessionMin) ? r.sessionMin : 0; },
   keepAliveOn(url) { const r = this.forUrl(url); return !!(r && r.sessionMin && r.keepAlive === true); },
