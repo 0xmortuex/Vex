@@ -158,6 +158,10 @@ const VexSafeDownload = {
       render: (body) => this.render(body),
     });
     if (window.VexModuleCommands) VexModuleCommands.set('safedl:', this._commands());
+    // The reasons are drawn in the language of the moment, so a change of language redraws the list.
+    window.addEventListener('vex-lang-changed', () => {
+      if (window.DownloadsPanel && typeof window.DownloadsPanel.renderList === 'function') window.DownloadsPanel.renderList();
+    });
     // Rows drawn before this file arrived get their mark now.
     if (window.DownloadsPanel && typeof window.DownloadsPanel.renderList === 'function' && window.DownloadsPanel.downloads && window.DownloadsPanel.downloads.some(d => d.safe)) {
       try { window.DownloadsPanel.renderList(); } catch (err) { window.VexProblems?.note('Downloads', 'Could not redraw the list with safety marks', err); }

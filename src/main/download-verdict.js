@@ -227,7 +227,8 @@ function judge(facts, settings) {
       const hasRead = (list) => list.length ? shortName(list[0].name.replace(/^.*[\\/]/, ''), 50) : '';
       if (!lockedRisky.length && !decoy && !climb) {
         const scripts = risky.filter(e => SHORTCUT_OR_SCRIPT.has(entryExt(e.name)));
-        if (files.length === 1 && risky.length === 1) {
+        // A lone .js is source code far more often than a Windows script dropper; it stays a plain note below.
+        if (files.length === 1 && risky.length === 1 && entryExt(risky[0].name) !== 'js') {
           add('single-program', 'amber',
             'The archive holds just one thing, a program (' + hasRead(risky) + '). That is a common way to hand out malware; real software usually comes with other files or from its own site.',
             'Arşivde yalnızca tek bir şey var, bir program (' + hasRead(risky) + '). Zararlı yazılım sık sık böyle dağıtılır; gerçek yazılım genelde başka dosyalarla ya da kendi sitesinden gelir.', { weak: true });
@@ -241,7 +242,8 @@ function judge(facts, settings) {
             'Arşivde bir program var (' + hasRead(risky) + '). Yazılım için bu normaldir; yalnızca geldiği yere güveniyorsanız çalıştırın.', { up: 'amber' });
         }
       }
-      if (files.length > 50000) {
+      // (A .jar, .apk or other package legitimately holds tens of thousands of files.)
+      if (files.length > 50000 && !OFFICE_ZIP.has(ext)) {
         add('many-files', 'amber', 'The archive lists ' + files.length.toLocaleString('en-US') + ' files, far more than a normal download. Unpacking it could be very slow.', 'Arşivde ' + files.length.toLocaleString('en-US') + ' dosya var; normal bir indirmeden çok fazla. Açmak çok yavaş olabilir.', { weak: true });
       }
       if (arch.truncated) add('archive-truncated', 'info', 'Only the first part of the archive\'s file list was read.', 'Arşivin dosya listesinin yalnızca ilk kısmı okundu.');

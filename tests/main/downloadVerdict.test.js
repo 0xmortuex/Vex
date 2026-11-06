@@ -163,6 +163,15 @@ describe('archives', () => {
     const v = judge(f({ name: 'p.zip', detected: 'zip', archive: { kind: 'zip', listed: false, entries: [], truncated: false, note: 'the end of the zip is missing or damaged', encryptedNames: false } }));
     expect(ids(v)).toContain('archive-unlisted');
   });
+  it('a zip holding one .js file is source code, not a dropper; one .exe or .vbs still is', () => {
+    expect(judge(f({ name: 'p.zip', detected: 'zip', archive: zip([e('index.js')]) })).level).toBe('green');
+    expect(judge(f({ name: 'p.zip', detected: 'zip', archive: zip([e('run.vbs')]) })).level).toBe('amber');
+    expect(judge(f({ name: 'p.zip', detected: 'zip', archive: zip([e('run.exe')]) })).level).toBe('amber');
+  });
+  it('a .jar with tens of thousands of files is normal', () => {
+    const entries = Array.from({ length: 60000 }, (_v, i) => e('c/F' + i + '.class', 10, 10));
+    expect(ids(judge(f({ name: 'app.jar', detected: 'zip', archive: zip(entries) })))).not.toContain('many-files');
+  });
   it('an absurd number of files is amber', () => {
     const entries = Array.from({ length: 60000 }, (_v, i) => e('f' + i + '.txt', 10, 10));
     expect(ids(judge(f({ name: 'p.zip', detected: 'zip', archive: zip(entries) })))).toContain('many-files');

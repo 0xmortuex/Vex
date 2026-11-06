@@ -131,6 +131,20 @@ describe('the mark on the row and in the card', () => {
   });
 });
 
+describe('nothing opens by itself on an amber or red file', () => {
+  it('a PDF that would open in a tab does not when the verdict is red, but does when it is green', async () => {
+    globalThis.VexTabsNav = { downloadAction: () => 'tab', openDownloadInTab: vi.fn(), rateStep: () => ({}) };
+    start(); finish(red());
+    await new Promise(r => setTimeout(r, 20));
+    expect(globalThis.VexTabsNav.openDownloadInTab).not.toHaveBeenCalled();
+    expect(globalThis.vexConfirm).not.toHaveBeenCalled();
+    shell(); start({ fileName: 'a.pdf', path: 'C:/dl/a.pdf' }); finish(green(), { path: 'C:/dl/a.pdf' });
+    await new Promise(r => setTimeout(r, 20));
+    expect(globalThis.VexTabsNav.openDownloadInTab).toHaveBeenCalledWith('C:/dl/a.pdf');
+    delete globalThis.VexTabsNav;
+  });
+});
+
 describe('Open anyway...', () => {
   it('asks, repeating the top reason, and opens only after Open anyway', async () => {
     start(); finish(red());
