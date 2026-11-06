@@ -426,9 +426,9 @@ describe('tab UI carries no emoji', () => {
     const menu = document.querySelector('.tab-group-context-menu');
 
     expect(menu.textContent).not.toMatch(EMOJI_RE);
-    // Rename, colour, stack, sleep, reload, mute, save, close, ungroup, delete.
-    expect(menu.querySelectorAll('.tab-context-item')).toHaveLength(10);
-    expect(menu.querySelectorAll('.tab-context-item > svg.ctx-icon')).toHaveLength(10);
+    // Rename, colour, stack, sleep, reload, mute, save, share, close, ungroup, delete.
+    expect(menu.querySelectorAll('.tab-context-item')).toHaveLength(11);
+    expect(menu.querySelectorAll('.tab-context-item > svg.ctx-icon')).toHaveLength(11);
   });
 
   it('renders the stack context menu with SVG icons and no emoji', async () => {

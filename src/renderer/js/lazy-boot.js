@@ -34,6 +34,8 @@ const VexBoot = {
     { src: 'js/this-site.js', usage: [] },
     { src: 'js/share-look.js', usage: [] },
     { src: 'js/share-look-ui.js', usage: [] },
+    { src: 'js/share-space.js', usage: ['share-space'] },
+    { src: 'js/share-space-ui.js', usage: [] },
     { src: 'js/diagnostics-bundle.js', usage: [] },
     { src: 'js/your-data.js', usage: [] },
     { src: 'js/maker-repos.js', usage: [] },

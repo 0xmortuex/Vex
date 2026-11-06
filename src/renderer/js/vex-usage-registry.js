@@ -362,6 +362,7 @@ const VexUsageRegistry = {
       VexErrorMemory: () => (typeof VexErrorMemory !== 'undefined' ? VexErrorMemory : null),
       VexDocsPin: () => (typeof VexDocsPin !== 'undefined' ? VexDocsPin : null),
       VexPkgCard: () => (typeof VexPkgCard !== 'undefined' ? VexPkgCard : null),
+      VexShareSpace: () => (typeof VexShareSpace !== 'undefined' ? VexShareSpace : null),
       VexCodeLibrary: () => (typeof VexCodeLibrary !== 'undefined' ? VexCodeLibrary : null),
       VexTrParse: () => (typeof VexTrParse !== 'undefined' ? VexTrParse : null),
       VexLocaleTranslate: () => (typeof VexLocaleTranslate !== 'undefined' ? VexLocaleTranslate : null),
@@ -679,6 +680,7 @@ const VexUsageRegistry = {
       ['error-memory', A.api(G.VexErrorMemory, 'enabled', 'setEnabled')],
       ['docs-pin', A.api(G.VexDocsPin, 'enabled', 'setEnabled')],
       ['pkg-card', A.api(G.VexPkgCard, 'enabled', 'setEnabled')],
+      ['share-space', A.api(G.VexShareSpace, 'enabled', 'setEnabled')],
       ['code-library', A.api(G.VexCodeLibrary, 'enabled', 'setEnabled')],
       // Study and Turkish (Wave 2)
       ['turkish-parse', A.api(G.VexTrParse, 'enabled', 'setEnabled')],

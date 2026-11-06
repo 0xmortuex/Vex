@@ -175,6 +175,8 @@ const UI_ONLY_CHANNELS = new Set([
   // The Safe Download Assistant (main/safe-download.js): its settings and moving a downloaded file to quarantine are never a page's call.
   'safedl:get', 'safedl:set', 'safedl:quarantine',
   'websafety:third-party-count', 'downloads:explain',
+  // Share a space's address check (main/space-check.js): read-only, but only the interface asks.
+  'space:check',
   // Quick look at a finished download (main/download-peek.js): reads a file's contents, so only the interface asks, and main serves only files Vex downloaded.
   'downloads:peek', 'downloads:peek-hash',
   // An AI news toast and the clicks waiting for the interface (js/ai-news.js):

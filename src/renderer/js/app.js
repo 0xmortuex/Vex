@@ -2013,6 +2013,17 @@ function vexOwnTextFocused(doc) {
     // While the agreement is outstanding the link waits, and opens right
     // after "I agree" (js/legal.js).
     const held = !VexLegal.openFromOutside(url, (link) => {
+      // A shared space opens its review, never a tab (js/share-space-ui.js is a late module: wait for it, then say so if it never came).
+      if (/^vex:\/\/space\?d=/i.test(link)) {
+        const since = Date.now();
+        const open = () => {
+          if (window.VexShareSpaceUI) window.VexShareSpaceUI.openText(link, 'link').catch((err) => window.VexShareSpaceUI._fail(err));
+          else if (Date.now() - since < 20000) setTimeout(open, 300);
+          else window.showToast?.('Share a space did not load, so that link was not opened', 'error', 6000);
+        };
+        open();
+        return;
+      }
       if (typeof LinkRouting !== 'undefined' && LinkRouting.intercept(link, null)) return;
       try {
         const tab = TabManager.createTab(link, true);

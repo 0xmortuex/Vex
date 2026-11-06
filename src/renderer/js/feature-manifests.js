@@ -180,6 +180,9 @@
     // Share my look (js/share-look.js, js/share-look-ui.js): the look as a small .vexlook file or vex://look link, and the review before wearing one. Part of how the window looks.
     { id: 'share-look', title: 'Share my look', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.shareLook.undo'], commands: ['share-look', 'open-shared-look', 'undo-shared-look'],
       permissions: { reads: ['the theme, pack, design, icons, look, skin, fonts and wallpaper choice you use now, and the file or link you open'], writes: ['the look you put on, and the look you had before so Undo can give it back'], sends: [] } },
+    // Share a space (js/share-space.js, js/share-space-ui.js, main/space-check.js): a workspace's tabs as a .vexspace file or vex://space link, and the review before adding one.
+    { id: 'share-space', title: 'Share a space', group: 'Workspaces', maturity: 'new', storageKeys: ['vex.shareSpace.enabled', 'vex.shareSpace.undo'], commands: ['share-space', 'open-space', 'undo-shared-space'],
+      permissions: { reads: ['the addresses and titles of the tabs you choose to share (never private, Tor, container or essential tabs), your tab groups, and the file or link you open'], writes: ['a new workspace, and the sidebar folders or look only if you tick them; what you had before, so Undo can give it back'], sends: [] } },
     // Dark mode for websites (js/dark-mode.js, src/dark-mode-preload.js, main/dark-mode.js): a choice in Settings > Appearance whose "Off" is its own
     // switch, not an extra to hold back. It owns the per-site list the page menu always kept (vex.forceDarkHosts) and the old everywhere flag.
     { id: 'dark-mode-websites', title: 'Dark mode for websites', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.darkMode.', 'vex.forceDarkHosts', 'vex.forceDarkSites'],

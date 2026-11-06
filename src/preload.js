@@ -856,6 +856,10 @@ contextBridge.exposeInMainWorld('vex', {
     set: (patch) => ipcRenderer.invoke('safedl:set', patch),
     quarantine: (filePath) => ipcRenderer.invoke('safedl:quarantine', filePath),
   },
+  // Share a space (main/space-check.js): which addresses of a shared space are look-alikes or reported dangerous. Nothing is loaded.
+  space: {
+    check: (urls) => ipcRenderer.invoke('space:check', urls),
+  },
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
   reminders: {
