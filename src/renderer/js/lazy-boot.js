@@ -113,6 +113,8 @@ const VexBoot = {
     { src: 'js/media-control.js', usage: ['media-control'] },
     // Sleep timer for media: reads nothing and runs nothing until a press (Ctrl+K, or its row in Now Playing).
     { src: 'js/sleep-timer.js', usage: [] },
+    // One sound at a time and quiet during calls: attaches its listeners only if one of the two rules was switched on.
+    { src: 'js/sound-policy.js', usage: [] },
     { src: 'js/media-viewer-host.js', usage: ['media-viewer'] },
     { src: 'js/pdf-highlights.js', usage: ['pdf-highlights'] },
     { src: 'js/pdf-tools-ui.js', usage: ['pdf-tools'] },

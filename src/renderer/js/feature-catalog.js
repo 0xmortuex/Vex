@@ -485,6 +485,8 @@ const VexFeatures = {
       what: 'Whatever is making sound, in one place, with the controls for it.' },
     { id: 'sleep-timer', phrases: 'sleep timer stop playing after minutes fall asleep to music video turn off sound fade out when video ends bedtime', cat: 'media', cmd: 'sleep-timer', name: 'Sleep timer',
       what: 'Stops everything that is playing after 15, 30, 60 or 90 minutes, or when the video ends, fading the sound out over the last 15 seconds. Ctrl+K, "Sleep Timer". It starts only when you start it.' },
+    { id: 'sound-policy', phrases: 'one sound at a time pause other tabs when one plays auto pause music during calls discord meet zoom teams microphone in use resume after call exempt', cat: 'media', cmd: 'sound-policy', name: 'One sound at a time', setting: { section: 'vex-sg-sound-policy', label: 'One sound at a time' },
+      what: 'When a tab starts playing, pauses the other playing tabs (with an Undo), and during a call (the microphone in use) pauses everything else and plays it again when the call ends. Both rules are off until you switch them on; Ctrl+K, "Why Did That Stop Playing?" says why something stopped.' },
     { id: 'mute', phrases: 'mute silence sound audio', cat: 'media', cmd: 'mute',
       what: 'Silence one tab, or every tab except this one.' },
     { id: 'screenshot', phrases: 'screen grab capture picture of the page snip', cat: 'media', cmd: 'screenshot',
@@ -1361,7 +1363,7 @@ const VexFeatures = {
       { name: 'This machine', ids: ['resmon', 'downloads', 'backup'] },
     ],
     media: [
-      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'sleep-timer', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
+      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'sleep-timer', 'sound-policy', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
       { name: 'Capturing what is on screen', ids: ['screenshot', 'screenshot-full', 'record-screen', 'clips', 'markup', 'whiteboard', 'page-images', 'qr'] },
       { name: 'Games and calls', ids: ['gaming', 'game-mode', 'game-guide', 'game-dossier', 'game-patch-radar', 'game-control-center', 'screenshare'] },
     ],
