@@ -24,6 +24,9 @@ const fakeSafeStorage = {
   decryptString: (b) => Buffer.from(Buffer.from(b).map(x => x ^ 0x5a)).toString('utf8'),
 };
 
+// Waits until no run is going, polling (a fixed pause flaked on a busy runner).
+async function settled(svc) { for (let i = 0; i < 500; i++) { await new Promise(r => setTimeout(r, 10)); if (!svc.hasActive()) { await new Promise(r => setTimeout(r, 10)); if (!svc.hasActive()) return; } } throw new Error('the run did not end'); }
+
 function build({ answers = [], route = 'direct', focused = true, startTime = new Date(2026, 5, 3, 8, 0, 0).getTime() } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-auto-'));
   const file = path.join(dir, 'automations.enc');
@@ -113,7 +116,7 @@ describe('switches', () => {
     const svc = t.svc;
     // do not auto-answer: replace decide
     const { done } = await svc.startNow(rec.id);
-    await new Promise(r => setTimeout(r, 30));   // let it reach the prompt (the helper answers with an unknown word, which throws and is ignored)
+    for (let i = 0; i < 200 && !events.some(e => e.type === 'approval'); i++) await new Promise(r => setTimeout(r, 10));   // wait for the prompt (the helper answers with an unknown word, which throws and is ignored)
     expect(events.some(e => e.type === 'approval')).toBe(true);
     await svc.kill('test');
     const run = await done;
@@ -223,7 +226,7 @@ describe('the schedule (fake clock)', () => {
     expect(await t.svc.checkDue()).toBe(0);
     t.clock.t = at(2026, 5, 3, 9, 0) + 5000;
     expect(await t.svc.checkDue()).toBe(1);
-    await new Promise(r => setTimeout(r, 50));
+    await settled(t.svc);
     const st = await t.svc.state();
     expect(st.recs[0].nextAt).toBe(at(2026, 5, 4, 9, 0));
     expect(t.osCalls.at(-1)).toEqual(['register', 'auto-' + rec.id, at(2026, 5, 4, 9, 0)]);
@@ -239,7 +242,7 @@ describe('the schedule (fake clock)', () => {
     const rec = await t.svc.save(recording(RUN, { name: 'Morning', schedule: { kind: 'daily', time: '09:00', missed: 'run' } }));
     t.clock.t = at(2026, 5, 7, 14, 0);           // four days later
     expect(await t.svc.checkDue()).toBe(1);
-    await new Promise(r => setTimeout(r, 50));
+    await settled(t.svc);
     const runs = await t.svc.runs(rec.id);
     expect(runs).toHaveLength(1);
     expect(runs[0].trigger).toBe('missed');

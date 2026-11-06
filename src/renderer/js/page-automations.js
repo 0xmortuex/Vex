@@ -346,7 +346,15 @@ const VexAutomations = {
     const rec = this._rec; if (!rec || rec.busy) return;
     rec.busy = true;
     try {
-      const events = await rec.wv.executeJavaScript(this.G().call('recDrain', []));
+      let events;
+      try { events = await rec.wv.executeJavaScript(this.G().call('recDrain', [])); rec.fails = 0; }
+      catch (err) {
+        // A page that is navigating refuses a script for a moment; six refusals in a row (three seconds) are a real problem and are shown.
+        rec.fails = (rec.fails || 0) + 1;
+        if (rec.fails < 6) return;
+        rec.fails = 0;
+        throw err;
+      }
       if (!Array.isArray(events) || !events.length) return;
       if (events.some(e => e.t === 'click' || e.t === 'enter')) this._lastAction = Date.now();
       if (rec.paused) return;   // taken from the page and thrown away: a paused recording writes nothing
