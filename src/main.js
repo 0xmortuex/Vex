@@ -7645,13 +7645,26 @@ app.on('web-contents-created', (_event, contents) => {
           },
           // User-driven, like pip:back-to-tab: the person pressed the pop-out's own button.
           onBack: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
+            // The pop-out goes FIRST, Vex comes forward after it (as pip:back-to-tab does):
+            // closing the window afterwards hands the focus to whatever Windows picks,
+            // and measured in a real window Vex was restored but left behind another
+            // program. The renderer is told (Discord shown, and its own focus request)
+            // at the same moment, for the same reason.
+            let done = false;
+            const bringForward = () => {
+              if (done) return;
+              done = true;
+              if (!mainWindow || mainWindow.isDestroyed()) return;
               if (mainWindow.isMinimized()) mainWindow.restore();
               mainWindow.show();
               mainWindow.focus();
               mainWindow.webContents.send('vex:discord-popout-back');
-            }
-            if (!win.isDestroyed()) win.close();
+            };
+            if (win.isDestroyed()) { bringForward(); return; }
+            win.once('closed', bringForward);
+            // A page can hold its window open (beforeunload): do not leave the person with nothing.
+            setTimeout(bringForward, 1500);
+            win.close();
           },
         });
 

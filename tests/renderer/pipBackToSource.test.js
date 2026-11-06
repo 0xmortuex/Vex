@@ -116,4 +116,11 @@ describe('the Discord pop-out window\'s Back to Discord button', () => {
     expect(MAIN).toContain("send('vex:discord-popout-back')");
     expect(APP).toMatch(/onDiscordPopoutBack[\s\S]*?returnToSource\(\{ panel: 'discord' \}\)/);
   });
+
+  it('brings Vex forward again once the pop-out has closed (closing the focused window hands the focus elsewhere)', () => {
+    const MAIN = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
+    expect(MAIN).toMatch(/win\.once\('closed', bringForward\);[\s\S]*?win\.close\(\);/);
+    // ...and the renderer is told from inside bringForward, not before the window is gone
+    expect(MAIN).toMatch(/const bringForward = \(\) => \{[\s\S]*?mainWindow\.focus\(\);\s*mainWindow\.webContents\.send\('vex:discord-popout-back'\);/);
+  });
 });
