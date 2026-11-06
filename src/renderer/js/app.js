@@ -1799,6 +1799,7 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('screenshot',     () => ScreenshotTool?.capture?.());
     ShortcutsRegistry.register('group-tabs',     () => TabGrouper?.analyzeAndPropose?.());
     ShortcutsRegistry.register('do-again',       () => CommandBar.doAgain());
+    ShortcutsRegistry.register('voice-control',  (e) => { if (typeof VexVoice !== 'undefined') VexVoice.hotkeyDown(e); });   // js/voice-control.js loads after start-up
     ShortcutsRegistry.register('dictate',        () => Dictation.toggle().catch(e => window.showToast?.(e.message, 'error')));
     ShortcutsRegistry.register('toggle-theme',   () => {
       // Opens the visual theme picker (grid of previews). Falls back to a

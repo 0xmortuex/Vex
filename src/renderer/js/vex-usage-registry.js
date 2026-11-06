@@ -262,6 +262,7 @@ const VexUsageRegistry = {
       VexSecureLock: () => (typeof VexSecureLock !== 'undefined' ? VexSecureLock : null),
       VexProfileLock: () => (typeof VexProfileLock !== 'undefined' ? VexProfileLock : null),
       VexMeetingTranscribe: () => (typeof VexMeetingTranscribe !== 'undefined' ? VexMeetingTranscribe : null),
+      VexVoice: () => (typeof VexVoice !== 'undefined' ? VexVoice : null),
       VexSlotWatcher: () => (typeof VexSlotWatcher !== 'undefined' ? VexSlotWatcher : null),
       VexPhotoPrep: () => (typeof VexPhotoPrep !== 'undefined' ? VexPhotoPrep : null),
       VexFormAssist: () => (typeof VexFormAssist !== 'undefined' ? VexFormAssist : null),
@@ -736,6 +737,8 @@ const VexUsageRegistry = {
       ['profile-lock', A.api(G.VexProfileLock, 'enabled', 'setEnabled')],
       // Off, the button and the settings go away and a running microphone is stopped; what was transcribed stays in its notes.
       ['meeting-transcribe', A.api(G.VexMeetingTranscribe, 'enabled', 'setEnabled')],
+      // Off, the toolbar button goes away, a recording in progress is cancelled and the key does nothing; the downloaded files stay until "Delete voice model".
+      ['voice-control', A.api(G.VexVoice, 'enabled', 'setEnabled')],
       ['slot-watcher', A.api(G.VexSlotWatcher, 'enabled', 'setEnabled')],
       ['photo-prep', A.api(G.VexPhotoPrep, 'enabled', 'setEnabled')],
       ['form-assist', A.api(G.VexFormAssist, 'enabled', 'setEnabled')],

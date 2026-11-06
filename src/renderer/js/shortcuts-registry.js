@@ -71,6 +71,8 @@ const ShortcutsRegistry = (() => {
     'free-memory':    { default: 'Ctrl+Alt+M',   label: 'Free memory now',            category: 'Tools' },
     'toggle-theme':   { default: 'Ctrl+Shift+Y', label: 'Open Theme Picker',           category: 'Tools' },
     'dictate':        { default: 'Ctrl+Alt+D',   label: 'Dictate (speak, and it is typed)', category: 'Tools' },
+    // Every Ctrl+Alt letter is taken (V is "Next project space"), so Voice control takes three modifiers. Hold it to talk (js/voice-control.js).
+    'voice-control':  { default: 'Ctrl+Alt+Shift+V', label: 'Voice control (hold to talk)', category: 'Tools' },
     'do-again':       { default: 'Ctrl+Alt+A',   label: 'Do the last Ctrl+K command again', category: 'Tools' },
 
     // Window
