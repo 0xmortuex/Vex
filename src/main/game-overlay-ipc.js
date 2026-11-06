@@ -92,26 +92,25 @@ function install(deps) {
     if (!w || w.isDestroyed() || event.sender !== w.raw.webContents) throw new Error('Only the overlay window can do this');
     return w;
   }
-  const h = (channel, fn) => ipcMain.handle(channel, (event, ...args) => fn(event, ...args));
 
-  h('gameoverlay:get', (event) => {
+  ipcMain.handle('gameoverlay:get', (event) => {
     fromOverlay(event);
     return { ...ctl.state(), tokens, lang, panels: config.panels, hasSearch: searchTemplate.includes('%s'),
       notes: ctl.notes(), timer, guide: overlay.guideFor(config, ctl.state().game) };
   });
-  h('gameoverlay:hide', (event) => { fromOverlay(event); return ctl.hide(); });
-  h('gameoverlay:click-through', (event, on) => { fromOverlay(event); return ctl.setClickThrough(on); });
-  h('gameoverlay:interactive', (event, on) => {
+  ipcMain.handle('gameoverlay:hide', (event) => { fromOverlay(event); return ctl.hide(); });
+  ipcMain.handle('gameoverlay:click-through', (event, on) => { fromOverlay(event); return ctl.setClickThrough(on); });
+  ipcMain.handle('gameoverlay:interactive', (event, on) => {
     const w = fromOverlay(event);
     // Only meaningful while the window is click-through: a hovered button lets the mouse in.
     if (ctl.state().clickThrough) w.setInteractive(on);
     return { ok: true };
   });
-  h('gameoverlay:opacity', (event, level) => { fromOverlay(event); return ctl.setOpacity(level); });
-  h('gameoverlay:compact', (event, on) => { fromOverlay(event); closeView(); return ctl.setCompact(on); });
-  h('gameoverlay:save-notes', (event, text) => { fromOverlay(event); ctl.saveNotes(text); return { ok: true }; });
-  h('gameoverlay:timer', (event, t) => { fromOverlay(event); timer = { mode: t.mode, running: t.running, startedAt: t.startedAt, elapsedMs: t.elapsedMs, durationMs: t.durationMs }; return { ok: true }; });
-  h('gameoverlay:search', (event, query) => {
+  ipcMain.handle('gameoverlay:opacity', (event, level) => { fromOverlay(event); return ctl.setOpacity(level); });
+  ipcMain.handle('gameoverlay:compact', (event, on) => { fromOverlay(event); closeView(); return ctl.setCompact(on); });
+  ipcMain.handle('gameoverlay:save-notes', (event, text) => { fromOverlay(event); ctl.saveNotes(text); return { ok: true }; });
+  ipcMain.handle('gameoverlay:timer', (event, t) => { fromOverlay(event); timer = { mode: t.mode, running: t.running, startedAt: t.startedAt, elapsedMs: t.elapsedMs, durationMs: t.durationMs }; return { ok: true }; });
+  ipcMain.handle('gameoverlay:search', (event, query) => {
     fromOverlay(event);
     searchUrlNow = overlay.searchUrl(searchTemplate, query);
     return { ok: true };
@@ -124,7 +123,7 @@ function install(deps) {
   }
 
   // A page view laid over the card: the guide, Discord or the search results.
-  h('gameoverlay:view', (event, req) => {
+  ipcMain.handle('gameoverlay:view', (event, req) => {
     const w = fromOverlay(event);
     if (req.panel === 'none') { closeView(); return { ok: true }; }
     const state = ctl.state();
@@ -158,7 +157,7 @@ function install(deps) {
 
   // Music: the buttons act on the Spotify panel inside Vex's main window, which
   // is already signed in. The overlay never plays anything by itself.
-  h('gameoverlay:music', (event, action) => {
+  ipcMain.handle('gameoverlay:music', (event, action) => {
     fromOverlay(event);
     if (!MUSIC_ACTIONS.includes(action)) throw new Error('Unknown music action');
     const main = getMainWindow();
@@ -186,7 +185,7 @@ function install(deps) {
     const m = getMainWindow();
     if (!m || m.isDestroyed() || event.sender !== m.webContents) throw new Error('Only the main Vex window can do this');
   };
-  h('gameoverlay:config', (event, req) => {
+  ipcMain.handle('gameoverlay:config', (event, req) => {
     fromMain(event);
     config = overlay.cleanConfig(req.config);
     if (req.tokens) tokens = cleanTokens(req.tokens);
@@ -195,12 +194,12 @@ function install(deps) {
     const hotkey = ctl.applyConfig();
     return { hotkey, state: ctl.state() };
   });
-  h('gameoverlay:toggle', (event) => {
+  ipcMain.handle('gameoverlay:toggle', (event) => {
     fromMain(event);
     if (!config.on) throw new Error('The overlay is switched off. Turn it on in Settings, Game overlay.');
     return ctl.toggle();
   });
-  h('gameoverlay:status', (event) => { fromMain(event); return { state: ctl.state(), hotkey: ctl.state().hotkey }; });
+  ipcMain.handle('gameoverlay:status', (event) => { fromMain(event); return { state: ctl.state(), hotkey: ctl.state().hotkey }; });
 
   return {
     ctl,
