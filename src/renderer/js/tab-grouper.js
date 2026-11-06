@@ -89,7 +89,7 @@ function _failureText(err) {
   }
   return `Grouping failed: ${reason}`;
 }
-function _applyLabel(n) { return `Apply ${n} group${n === 1 ? '' : 's'}`; }
+function _applyLabel(n) { return `Apply ${n} group${VexPlural.s(n)}`; }
 function _tooFewText(n) {
   return `Organize My Tabs needs at least 3 ungrouped tabs with a page open; you have ${n}.`;
 }
