@@ -117,6 +117,8 @@ const VexBoot = {
     { src: 'js/sound-policy.js', usage: [] },
     // Copy video link at this time: reads the video's time only when the command, the key or the video's menu item is used.
     { src: 'js/video-link.js', usage: [] },
+    // Bass, treble, mono and balance per site: read in when the volume box opens or a page with kept settings loads.
+    { src: 'js/site-eq.js', usage: [] },
     { src: 'js/media-viewer-host.js', usage: ['media-viewer'] },
     { src: 'js/pdf-highlights.js', usage: ['pdf-highlights'] },
     { src: 'js/pdf-tools-ui.js', usage: ['pdf-tools'] },

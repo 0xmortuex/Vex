@@ -449,6 +449,8 @@ const CommandBar = {
     { id: 'sound-why', label: 'Why Did That Stop Playing?', hint: 'What the one-sound-at-a-time and call rules paused in this window, and why', icon: 'clock', action: async () => { try { if (!window.VexSoundPolicy) await VexLazy.ensure('js/sound-policy.js'); await VexSoundPolicy.openLog(); } catch (err) { _commandFailed(err); } } },
     // A link to this video at the second it is on (js/video-link.js, loaded after start-up).
     { id: 'copy-video-time', label: 'Copy Video Link at This Time', hint: 'Copies a link that opens this video at the second it is on now: YouTube, Twitch, Vimeo or any page with a video', icon: 'link', action: async () => { try { if (!window.VexVideoLink) await VexLazy.ensure('js/video-link.js'); await VexVideoLink.copyActive(); } catch (err) { _commandFailed(err); } } },
+    // Bass, treble, mono and balance for the site in front live in the Master Volume box (js/site-eq.js, read in when it opens).
+    { id: 'site-eq', label: 'Bass, Treble and Balance for This Site', hint: 'Opens the volume box, where bass, treble, mono and left/right balance are kept for the site you are on', icon: 'sliders', action: () => { try { if (typeof MasterVolume === 'undefined') throw new Error('Master Volume is not available in this window'); MasterVolume.show(); } catch (err) { _commandFailed(err); } } },
     // The same slider as Quick Tools > Master Volume (js/master-volume.js); it
     // had no command, so the Library could only describe it.
     { id: 'master-volume', label: 'Master Volume', hint: 'One slider, 0 to 500%, for the sound of every tab', icon: 'sliders', action: () => { if (typeof MasterVolume === 'undefined') throw new Error('Master Volume is not available in this window'); MasterVolume.show(); } },

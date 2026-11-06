@@ -939,6 +939,7 @@ const WebviewManager = {
     // enforced as media loads). Re-checked per navigation; no-op at 100%.
     onWebview('dom-ready', () => {
       if (typeof MasterVolume !== 'undefined' && MasterVolume.needsApply(webview)) MasterVolume.applyToWebview(webview);
+      if (typeof MasterVolume !== 'undefined') MasterVolume.applyEq(webview);
     });
     // Text snippets (js/text-snippets.js): a fixed script, only into pages that may be read.
     onWebview('dom-ready', () => {

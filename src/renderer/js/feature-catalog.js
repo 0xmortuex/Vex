@@ -489,6 +489,8 @@ const VexFeatures = {
       what: 'When a tab starts playing, pauses the other playing tabs (with an Undo), and during a call (the microphone in use) pauses everything else and plays it again when the call ends. Both rules are off until you switch them on; Ctrl+K, "Why Did That Stop Playing?" says why something stopped.' },
     { id: 'video-link-time', phrases: 'copy video link at current time timestamp youtube link share video at this moment start at seconds twitch vod vimeo time link', cat: 'media', cmd: 'copy-video-time', name: 'Copy video link at this time',
       what: 'Copies a link that opens the video at the second it is on now: YouTube, Twitch VODs, Vimeo, and a #t= link for any other page. Ctrl+K, the Ctrl+Alt+Shift+C key, or right-click the video.' },
+    { id: 'site-eq', phrases: 'equalizer eq bass treble mono balance left right ear one earphone sound shaping per site audio tone', cat: 'media', cmd: 'site-eq', name: 'Bass, treble, mono and balance',
+      what: 'Bass and treble sliders, a mono switch and a left/right balance in the volume box, kept for each site. Works on players Vex can reach (not protected video or a site that refuses) and says so when it cannot. Nothing changes until you move a slider.' },
     { id: 'mute', phrases: 'mute silence sound audio', cat: 'media', cmd: 'mute',
       what: 'Silence one tab, or every tab except this one.' },
     { id: 'screenshot', phrases: 'screen grab capture picture of the page snip', cat: 'media', cmd: 'screenshot',
@@ -1365,7 +1367,7 @@ const VexFeatures = {
       { name: 'This machine', ids: ['resmon', 'downloads', 'backup'] },
     ],
     media: [
-      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'sleep-timer', 'sound-policy', 'video-link-time', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
+      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'sleep-timer', 'sound-policy', 'video-link-time', 'volume', 'site-eq', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
       { name: 'Capturing what is on screen', ids: ['screenshot', 'screenshot-full', 'record-screen', 'clips', 'markup', 'whiteboard', 'page-images', 'qr'] },
       { name: 'Games and calls', ids: ['gaming', 'game-mode', 'game-guide', 'game-dossier', 'game-patch-radar', 'game-control-center', 'screenshare'] },
     ],
