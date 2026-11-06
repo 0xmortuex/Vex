@@ -1077,7 +1077,7 @@ const _permHygiene = require('./main/permission-hygiene').createPermissionHygien
   },
 });
 const { savedDecision } = require('./main/permissions');
-const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id), hygiene: _permHygiene });
+const { setUiCamera, setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id), hygiene: _permHygiene });
 require('./main/permission-hygiene').registerPermissionHygiene({ ipcMain, hygiene: _permHygiene, loadDecisions: loadPermissionDecisions, saveDecisions: savePermissionDecisions, setPageDecision,
   getContents: (id) => { const c = webContents.fromId(id); return c && !c.isDestroyed() ? c : null; }, ownerOf: (c) => secureSessions.owner(c), isLocked: () => _vexLocked });
 
@@ -8159,6 +8159,16 @@ ipcMain.handle('sources:resolve-id', async (_event, which, id) => {
 });
 // DOI lookup for the sources list (main/doi-resolve.js): one Crossref request, only when the person presses the button.
 const _doiResolver = require('./main/doi-resolve').createDoiResolver({ fetch: boundedNetFetch });
+// "Check my devices" (js/device-check.js): Vex's own window may open the camera while that card is open, and only then (main/permissions.js).
+ipcMain.handle('devicecheck:camera', (event, on) => setUiCamera(event.sender, on));
+// Lyrics for the song that is playing (main/lyrics.js): one lrclib.net request per song, only while the person has the lyrics card open and has turned
+// lyrics on; the answers are kept in lyrics-cache.json (500 songs). The window never asks for a private, Tor or routed tab (and a private window is refused here).
+const _lyrics = require('./main/lyrics').createLyricsService({ fetch: boundedNetFetch, isOnline: () => net.isOnline(), fs, file: path.join(userDataPath, 'lyrics-cache.json'), version: app.getVersion() });
+ipcMain.handle('lyrics:get', async (_event, query) => {
+  try { return await _lyrics.get(query); }
+  catch (err) { return { status: 'error', message: err.message }; }
+});
+ipcMain.handle('lyrics:clear', () => _lyrics.clear());
 ipcMain.handle('sources:resolve-doi', async (_event, doi) => {
   try { return { ok: true, record: await _doiResolver.resolve(doi) }; }
   catch (err) { return { ok: false, error: err.message }; }
@@ -12634,13 +12644,27 @@ ipcMain.on('privacy:config-sync', (e) => {
   const pageUrl = e.sender.getURL() || (e.senderFrame && e.senderFrame.url) || '';
   e.returnValue = { farble: _mainHelpers.farbleFor(privacyCfg.farble, partition, e.sender.session, pageUrl), seed: _mainHelpers.farbleSeed(FARBLE_KEY, partition, pageUrl), gpc: _gpcFor(e.sender.session, pageUrl) };
 });
+// Skip intro / recap / next episode on streaming sites (main/streaming-skip.js): off per site until turned on; the selector table is site-tweaks.js.
+const _streamingSkipTable = require('./site-tweaks').STREAMING_SKIP;
+const _streamSkip = require('./main/streaming-skip').createStreamingSkipStore({ fs, file: path.join(userDataPath, 'streaming-skip.json'), table: _streamingSkipTable });
+ipcMain.handle('streamskip:get', () => _streamSkip.state());
+ipcMain.handle('streamskip:set', (_event, site, on) => _streamSkip.set(site, on));
+ipcMain.on('streamskip:matched', (e, site, kind) => {
+  try {
+    // The page says which button; main checks the page really is that site, and that the site is on and not private.
+    const url = new URL(e.senderFrame.url);
+    if (require('./site-tweaks').streamingSiteFor(url.hostname, url.pathname) !== site || _passkeys.whyRefused(e.sender)) return;
+    _streamSkip.recordMatch(site, kind);
+  } catch (err) { console.error('[StreamingSkip] could not note a pressed button:', err.message); }
+});
 ipcMain.on('compatibility:get', e => {
   try {
     // 'off': the site is on the "don't offer passkeys" list (the old refusal
     // applies); 'refused': a private, Tor or burner tab, where the page is told
     // no passkey is available; otherwise Vex answers passkey requests itself.
     const off = _passkeySuppressed(new URL(e.senderFrame.url).hostname);
-    e.returnValue = { suppressPasskeys: off, passkeys: off ? 'off' : (_passkeys.whyRefused(e.sender) ? 'refused' : 'vex') };
+    // streamingSkip: the streaming sites the person turned on, and none in a private, Tor or burner tab (main/streaming-skip.js).
+    e.returnValue = { suppressPasskeys: off, passkeys: off ? 'off' : (_passkeys.whyRefused(e.sender) ? 'refused' : 'vex'), streamingSkip: _passkeys.whyRefused(e.sender) ? [] : _streamSkip.enabledSites() };
   }
   catch { e.returnValue = { suppressPasskeys: false }; }
 });

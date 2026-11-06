@@ -997,6 +997,14 @@ contextBridge.exposeInMainWorld('vex', {
   captiveCheck: () => ipcRenderer.invoke('captive:check'),
   captiveAllowHttp: (hosts) => ipcRenderer.invoke('captive:allow-http', hosts),
   captivePauseSecureDns: (minutes) => ipcRenderer.invoke('captive:pause-secure-dns', minutes),
+  // Skip intro / next episode on streaming sites, per site, off until turned on (main/streaming-skip.js).
+  streamingSkipGet: () => ipcRenderer.invoke('streamskip:get'),
+  streamingSkipSet: (site, on) => ipcRenderer.invoke('streamskip:set', site, on),
+  // Vex's own window may open the camera while the "Check my devices" card is open, and not otherwise (main/permissions.js).
+  deviceCheckCamera: (on) => ipcRenderer.invoke('devicecheck:camera', on),
+  // Lyrics for the song that is playing, from lrclib.net, only while the lyrics card is open (main/lyrics.js).
+  lyricsGet: (song) => ipcRenderer.invoke('lyrics:get', song),
+  lyricsClear: () => ipcRenderer.invoke('lyrics:clear'),
   setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
   // Start with Windows: what Windows holds, and changing it (main/login-item.js)

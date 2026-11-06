@@ -321,7 +321,7 @@ function createSessionSecurity({ session, webContents, root, isPipContents, befo
   // those; page-dialogs.js answers it with the window's own box.
   const webWindows = new Set();
   const WEB_WINDOW_CHANNELS = new Set(['@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled',
-    'privacy:config-sync', 'compatibility:get', 'page-dialog']);
+    'privacy:config-sync', 'compatibility:get', 'streamskip:matched', 'page-dialog']);
   function registerWebWindow(contents) {
     const id = contents.id;
     webWindows.add(id);

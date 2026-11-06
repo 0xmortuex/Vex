@@ -20,6 +20,15 @@ define('app:quit', []);
 define('captive:check', []);
 define('captive:allow-http', [value => Array.isArray(value) && value.length > 0 && value.length <= 4 && value.every(h => typeof h === 'string' && h.length <= 253)]);
 define('captive:pause-secure-dns', [integer]);
+// Streaming-site skip buttons (main/streaming-skip.js, site-tweaks.js): the site and the kind are checked again in main.
+define('streamskip:get', []);
+define('streamskip:set', [string(20), boolean]);
+define('streamskip:matched', [string(20), string(20)]);
+// The device check card may open the camera for its own window while it is open (main/permissions.js).
+define('devicecheck:camera', [boolean]);
+// Lyrics for the song that is playing (main/lyrics.js): the song is checked and cleaned again in main.
+define('lyrics:get', [shape({ artist: string(400), track: string(400), album: optional(string(400)), duration: optional(finiteNumber) })]);
+define('lyrics:clear', []);
 // "Was Vex uninstalled by hand?" (setup wizard, js/onboarding.js): no arguments, the answer is read once and the note is removed.
 define('setup:take-uninstall-marker', []);
 // Feature isolation in safe mode (main/safe-mode.js) and the ledger of what left this computer (main/egress-ledger.js).

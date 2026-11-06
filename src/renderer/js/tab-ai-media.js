@@ -153,6 +153,10 @@ const NowPlaying = {
     }
     bar.innerHTML = '';
     const esc = (s) => window.escapeHtml(s);
+    // The Lyrics button only exists once lyrics are turned on (js/lyrics-card.js keeps that switch).
+    let lyricsOn = false;
+    try { const prefs = JSON.parse(localStorage.getItem('vex.lyrics.prefs') || 'null'); lyricsOn = !!prefs && prefs.enabled === true; }
+    catch (err) { console.error('[NowPlaying] the lyrics setting could not be read:', err.message); }
     shown.forEach((title, tabId) => {
       const t = TabManager.tabs.find(x => x.id === tabId);
       const row = document.createElement('div');
@@ -160,6 +164,7 @@ const NowPlaying = {
       row.innerHTML = `<span style="display:inline-flex;color:var(--text-muted)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M6 12.2V3.4l7-1.4v8.8" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="4.3" cy="12.3" r="1.9" stroke="currentColor" stroke-width="1.3"/><circle cx="11.3" cy="10.8" r="1.9" stroke="currentColor" stroke-width="1.3"/></svg></span>
         <span style="flex:1;min-width:0;font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((t && t.title) || title)}</span>
         <button data-pp style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M2.5 3.5v9l5-4.5z" fill="currentColor"/><path d="M10 3.5v9M13 3.5v9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+        ${lyricsOn ? '<button data-lyrics aria-label="Lyrics" title="Lyrics" style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px">♪</button>' : ''}
         <button data-mute style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M2.5 6h2L7.5 3.5v9L4.5 10h-2z" fill="currentColor"/><path d="M10 6.2l3.5 3.6M13.5 6.2L10 9.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
         <button data-dismiss aria-label="Hide this" title="Hide this" style="border:none;background:var(--bg);color:var(--text);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>`;
       row.addEventListener('click', (e) => { if (e.target.closest('button')) return; TabManager.switchTab(tabId); });
@@ -167,6 +172,11 @@ const NowPlaying = {
         e.stopPropagation();
         const wv = WebviewManager.webviews.get(tabId);
         try { wv?.executeJavaScript('document.querySelectorAll("video,audio").forEach(m=>m.paused?m.play():m.pause())'); } catch {}
+      });
+      row.querySelector('[data-lyrics]')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try { if (!window.VexLyrics) await VexLazy.ensure('js/lyrics-card.js'); await window.VexLyrics.open({ tabId }); }
+        catch (err) { window.showToast?.(err.message, 'error'); }
       });
       row.querySelector('[data-mute]').addEventListener('click', (e) => {
         e.stopPropagation();

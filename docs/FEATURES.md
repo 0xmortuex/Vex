@@ -799,6 +799,8 @@ Notes, sessions, monitoring, automation.
   - Open: Ctrl+K: "Meeting Mode".
 - **What your inbox actually wants** (`triage`): Sorts unread mail into what wants an answer, what is worth a look, and bulk grouped by sender — with a line saying why each landed there. Opens the ones that matter where you can reply.
   - Open: Ctrl+K: "What My Inbox Actually Wants".
+- **Check my devices** (`device-check`): Before a call: a live picture from your camera, a level meter for your microphone, a soft test tone on the speakers you pick, and the speed of your connection, each marked as looking good or needing a look. Nothing is recorded or sent.
+  - Open: Ctrl+K: "Check My Devices".
 - **notes** (`notes`): Markdown notes with tags, pinning and search, beside the page instead of in another app.
   - Open: Ctrl+K: "Notes"; sidebar panel: notes.
 - **stickynote** (`stickynote`): A note pinned to one specific page, which reappears every time you return to it.
@@ -970,6 +972,10 @@ Video, audio, screen sharing, streaming services.
   - Open: Ctrl+K: "My Clips".
 - **Who is live** (`live`): The Twitch and YouTube channels you follow, and which are streaming right now — read from their own public pages, with no account. Vex says something once when one goes live.
   - Open: Ctrl+K: "Who Is Live".
+- **Lyrics for what is playing** (`lyrics`): Shows the lyrics of the song that is playing in Spotify, YouTube Music or a tab, highlighting the line being sung. Looked up on lrclib.net with the artist, title, album and length only. Off until you turn it on.
+  - Open: Ctrl+K: "Show Lyrics for What Is Playing".
+- **Skip intro and next episode** (`streaming-skip`): On Netflix, Prime Video and Disney+, presses the Skip Intro, Skip Recap, Next Episode and Continue Watching buttons for you. Off for every site until you turn that site on.
+  - Open: Ctrl+K: "Skip Intro and Next Episode on Streaming Sites".
 - **Gets out of a game’s way** (`gaming`): When a full-screen game starts, Vex frees the graphics card, sleeps background tabs and holds background AI — and tells you what it did when you come back. Settings › Privacy Hardening › Gaming and streaming.
   - Open: Settings > Gaming and streaming.
 - **Game mode** (`game-mode`): While one of your games runs, Vex sleeps background tabs, holds sync, AI tasks and indexing, stops its animations and runs quieter — then puts everything back when the game ends. A chip in the toolbar turns it off for now.
