@@ -251,6 +251,18 @@ describe('Settings and the fold', () => {
     await new Promise(r => setTimeout(r, 0));
     expect(set).toHaveBeenLastCalledWith({ checks: { signature: false } });
   });
+  it('the mark colours are pulled toward the look’s own text colour, not left at the light-look tokens (real window: red 1.86:1 on Firefox dark)', () => {
+    VexSafeDownload._css();
+    const css = document.getElementById('vex-sd-css').textContent;
+    for (const [cls, token] of [['green', 'success'], ['amber', 'warning'], ['red', 'danger']]) {
+      expect(css).toMatch(new RegExp('\\.vex-sd-' + cls + ' \\{ --vex-sd-c: color-mix\\(in srgb, var\\(--' + token + ',[^)]*\\) \\d+%, var\\(--text\\)\\); \\}'));
+    }
+    expect(css).toMatch(/\.vex-sd-r-red b \{ color: color-mix\(in srgb, var\(--danger, #dc2626\) \d+%, var\(--text\)\); \}/);
+  });
+  it('the Open anyway... and Quarantine buttons never wrap into the next button (real window: they overlapped)', () => {
+    const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../src/renderer/css/downloads-panel.css'), 'utf8');
+    expect(css).toMatch(/\.dl-btn\[data-action="open-file"\], \.dl-btn\[data-action="quarantine"\] \{ width: auto; min-width: 28px; padding: 4px 8px; white-space: nowrap; flex-shrink: 0; \}/);
+  });
   it('a quick look at a zip bomb is refused in words', () => {
     const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../src/renderer/js/download-quicklook.js'), 'utf8');
     expect(src).toContain('dl.safe.noPreview');
