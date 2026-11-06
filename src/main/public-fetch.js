@@ -88,8 +88,11 @@ function createPublicFetch({ request, resolveHost }) {
     const extra = typeof opts.checkUrl === 'function' ? opts.checkUrl : null;
     delete opts.checkUrl;
     for (let n = 0; ; n++) {
+      // The caller's own check comes first: an address it refuses (a redirect to a host that is not on its list) is
+      // named as that, and its name is never looked up (a name that does not resolve would otherwise read as "unreachable").
+      // (An address that is not a URL at all goes on to checkUrl, which says so.)
+      if (extra && URL.canParse(href)) extra(new URL(href));
       const u = await checkUrl(href);
-      if (extra) extra(u);
       const out = await hop(u.href, opts);
       if (out.response) return out.response;
       if (n >= MAX_REDIRECTS) throw new Error('Too many redirects from ' + u.hostname);
