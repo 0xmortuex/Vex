@@ -20,7 +20,7 @@ const AIKeys = (() => {
   const SOURCE_KEY = 'vex.aiCloudSource';
   // Which of the chosen models a feature needs: the agent and a question over many tabs get the best one, the
   // jobs nobody watches the fast one, everything else the balanced default.
-  const TIER = { agent: 'best', multiTab: 'best', groupTabs: 'fast', historyIndex: 'fast', historySearch: 'fast', digest: 'fast' };
+  const TIER = { agent: 'best', multiTab: 'best', research: 'best', groupTabs: 'fast', historyIndex: 'fast', historySearch: 'fast', digest: 'fast' };
 
   let _status = null;
   const _models = new Map();              // provider id -> the last list main returned (this session)

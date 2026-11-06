@@ -175,6 +175,11 @@ const AIPanel = {
         } else if (action === 'translate') this.sendMessage('translate', { targetLanguage: this.translateTarget() });
         else if (action === 'ask') document.getElementById('ai-input')?.focus();
         else if (action === 'group-tabs') { if (typeof TabGrouper !== 'undefined') TabGrouper.analyzeAndPropose(); }
+        else if (action === 'research') {
+          if (typeof VexResearch === 'undefined') { window.showToast?.('Research mode is still loading. Try again in a moment.', 'info'); return; }
+          const sel = typeof TabSelector !== 'undefined' ? TabSelector.getSelectedTabs() : [];
+          VexResearch.start({ tabs: sel.length > 1 ? sel : undefined }).catch(err => window.showToast?.(err.message, 'error'));
+        }
       });
     });
   },
