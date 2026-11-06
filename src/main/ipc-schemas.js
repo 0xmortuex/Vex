@@ -494,6 +494,17 @@ define('siterules:get', []);
 // A watched page read through a hidden tab (src/main/page-render.js): the
 // address and, for one part of it, a selector and the words it began with.
 define('pagewatch:render', [shape({ url: web, selector: optional(string(200)), anchor: optional(string(200)) })]);
+// Page automations (main/automations.js): recordings are checked again in main (the schema only bounds their size), ids are
+// the short ones main makes, a decision is one of three words.
+const autoId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value);
+define('automations:state automations:kill automations:rearm automations:stop automations:reveal', []);
+define('automations:set-enabled', [boolean]);
+define('automations:save', [value => object(value) && JSON.stringify(value).length <= 700000]);
+define('automations:delete automations:run automations:run-get automations:export', [autoId]);
+define('automations:decide', [autoId, oneOf(['approve', 'skip', 'stop'])]);
+define('automations:runs', [optional(autoId)]);
+define('automations:ack', [value => Array.isArray(value) && value.length <= 200 && value.every(autoId)]);
+define('automations:import', [string(700000)]);
 // Settings > Start Vex when I sign in to Windows (main/login-item.js): read
 // what Windows holds; set it on or off, minimised or not.
 define('login-item:get', []);

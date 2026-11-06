@@ -872,6 +872,10 @@
     { id: 'page-watch-templates', title: 'Watch templates (seats, fares, wishlist, sale dates)', group: 'Watch templates', maturity: 'new', storageKeys: ['vex.pageWatchTemplates.enabled'],
       commands: ['watch-seats', 'watch-fare', 'watch-wishlist-low', 'watch-sale-date', 'claim-reminder'],
       permissions: { reads: ['the address and title of the page you are on'], writes: ['a page watch, or a reminder with a link back to the page, only when you confirm'], sends: ['A watch asks its own page from this computer, as a visitor would (the page watcher\'s rules)'] } },
+    // ---- Page automations (js/page-automations.js, main/automations*.js) ---------------------------------
+    { id: 'page-automations', title: 'Page automations (record and replay)', group: 'Page automations', maturity: 'new', storageKeys: ['vex.automations.enabled'], jobs: ['Automation recorder'],
+      commands: ['automations:record', 'automations:open', 'automations:stop', 'automations:kill'],
+      permissions: { reads: ['the page you record on, and the pages a run opens in a window of its own'], writes: ['your recordings and run logs, encrypted on this computer and never synced', 'Inbox rows that say what happened but never a value that was read', 'a note with the values read, only if you ask for it'], sends: ['Nothing, unless you add the AI summary step: then the values a run read go to your AI backend'] } },
     { id: 'game-holds', title: 'Held while you played', group: 'Held while you played', maturity: 'new', storageKeys: ['vex.gameHolds.enabled', 'vex.gameHolds.log', 'vex.gameHolds.rules'], commands: ['game-holds'], usesKeys: ['vex.attention.denied'],
       permissions: { reads: ['the toasts Vex shows during Game mode', 'what the Attention Budget and the main process held back', 'the Attention Inbox'], writes: ['the list of the last game session (200 messages at most) and your word rules'], sends: [] } },
     { id: 'brief-cards', title: 'Brief cards (permissions, service status, old highlight, flagged pages)', group: 'Brief cards', maturity: 'new', storageKeys: ['vex.briefCards.enabled', 'vex.briefCards.prefs', 'vex.briefCards.status'],

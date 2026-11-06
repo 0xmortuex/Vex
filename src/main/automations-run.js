@@ -55,7 +55,6 @@ function createRunner({ now = () => Date.now(), sleep = (ms) => new Promise(r =>
     const reads = [];
     let waited = 0;        // time spent waiting for a person: not part of the budget
     let executed = 0;
-    let approvedLevel = 0;
     const budget = rec.maxRunMs || Model.LIMITS.maxRunMs;
     const result = { runId, recId: rec.id, name: rec.name, trigger, startedAt, endedAt: null, status: 'ok', log, reads, failure: null, summariseRequested: false, stepsRun: 0, finalUrl: null };
 
@@ -66,9 +65,8 @@ function createRunner({ now = () => Date.now(), sleep = (ms) => new Promise(r =>
     };
     const finish = (status) => { result.status = status; result.endedAt = now(); result.stepsRun = executed; return result; };
     const fail = async (i, step, reason, message, extra) => {
-      let shot = null;
-      try { shot = await driver.screenshot(); } catch (err) { console.error('[Automations] could not take the failure screenshot:', err.message); }
-      let url = null; try { url = driver.currentUrl(); } catch { url = null; }   // vex-allow-empty-catch: the address is only for the log
+      const shot = await driver.screenshot().catch(err => { console.error('[Automations] could not take the failure screenshot:', err.message); return null; });
+      const url = (() => { try { return driver.currentUrl(); } catch { return null; } })();   // vex-allow-empty-catch: the address is only for the log
       result.failure = { index: i, stepId: step ? step.id : null, label: step ? (step.label || Model.describeStep(step)) : '', reason, message: Model.redact(message || REASON_TEXT[reason] || reason), url, screenshot: shot, ...(extra || {}) };
       add(i, step, 'failed', result.failure.message, { reason });
       return finish(reason === 'captcha' ? 'needs-you' : (reason === 'duration' || reason === 'steps') ? 'limit' : 'failed');
@@ -99,8 +97,7 @@ function createRunner({ now = () => Date.now(), sleep = (ms) => new Promise(r =>
 
       // Waits for a person: returns 'approve' | 'skip' | 'stop' | 'timeout'.
       const ask = async (kind, why, extra) => {
-        let shot = null;
-        try { shot = await driver.screenshot(); } catch { shot = null; }   // vex-allow-empty-catch: the prompt is shown without a picture
+        const shot = await driver.screenshot().catch(err => { console.error('[Automations] no picture for the prompt:', err.message); return null; });
         const t0 = now();
         add(i, step, 'asking', why);
         let decision;
@@ -172,14 +169,13 @@ function createRunner({ now = () => Date.now(), sleep = (ms) => new Promise(r =>
         }
 
         const needAsk = locked || step.confirm === 'ask' || (level.level === 'soft' && step.confirm !== 'run');
-        approvedLevel = 0;
         if (needAsk) {
           const d = await ask('consequence', level.why || 'You set this step to ask first', { consequence: level.kind || null, locked, how: probe.how, control: probe.desc && probe.desc.name });
           if (d === 'stop') { add(i, step, 'stopped', 'You stopped the run'); return finish('stopped'); }
           if (d === 'timeout') { add(i, step, 'needs-approval', 'Not done: waiting for your approval'); return finish('needs-approval'); }
           if (d === 'skip') { add(i, step, 'skipped', 'You skipped this step'); continue; }
-          approvedLevel = LEVEL[level.level];
-        } else approvedLevel = LEVEL[level.level];   // a soft step the person set to "run"
+        }
+        const approvedLevel = LEVEL[level.level];   // asked and approved, or a step the person set to "run"
 
         if (isStopped()) { add(i, step, 'stopped', 'Stopped'); return finish('stopped'); }
         const act = await driver.evaluate(Guest.call('act', [{ ...step, exact: exactNeeded }, { approvedLevel }]));

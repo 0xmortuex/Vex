@@ -437,6 +437,7 @@ const VexUsageRegistry = {
       StorageCeilings: () => (typeof StorageCeilings !== 'undefined' ? StorageCeilings : null),
       GameHolds: () => (typeof GameHolds !== 'undefined' ? GameHolds : null),
       VexBriefCards: () => (typeof VexBriefCards !== 'undefined' ? VexBriefCards : null),
+      VexAutomations: () => (typeof VexAutomations !== 'undefined' ? VexAutomations : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -703,6 +704,8 @@ const VexUsageRegistry = {
       ['orders-hub', A.api(G.OrdersHub, 'enabled', 'setEnabled')],
       ['exam-calendar', A.api(G.ExamCalendar, 'enabled', 'setEnabled')],
       ['receipt-locker', A.api(G.ReceiptLocker, 'enabled', 'setEnabled')],
+      // Page automations (main/automations.js): the switch is mirrored in vex.automations.enabled; main holds the truth.
+      ['page-automations', A.api(G.VexAutomations, 'enabled', 'setEnabled')],
       // Wave 2, daily planning: new features, staged off on a profile that already existed.
       ['carry-forward', A.api(G.VexCarry, 'enabled', 'setEnabled')],
       ['snooze-syntax', A.api(G.VexWhen, 'enabled', 'setEnabled')],

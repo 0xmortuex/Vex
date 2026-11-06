@@ -854,6 +854,25 @@ contextBridge.exposeInMainWorld('vex', {
     // A Snooze button on the Windows toast was pressed (handled in main).
     onSnoozed: (cb) => subscribe('reminders:snoozed', cb),
   },
+  // Page automations (main/automations.js): record once, replay on demand or on a schedule. Recordings live encrypted in main.
+  automations: {
+    state: () => ipcRenderer.invoke('automations:state'),
+    setEnabled: (on) => ipcRenderer.invoke('automations:set-enabled', !!on),
+    kill: () => ipcRenderer.invoke('automations:kill'),
+    rearm: () => ipcRenderer.invoke('automations:rearm'),
+    save: (recording) => ipcRenderer.invoke('automations:save', recording),
+    remove: (id) => ipcRenderer.invoke('automations:delete', id),
+    run: (id) => ipcRenderer.invoke('automations:run', id),
+    stop: () => ipcRenderer.invoke('automations:stop'),
+    decide: (runId, decision) => ipcRenderer.invoke('automations:decide', runId, decision),
+    runs: (id) => ipcRenderer.invoke('automations:runs', id),
+    runGet: (runId) => ipcRenderer.invoke('automations:run-get', runId),
+    ack: (ids) => ipcRenderer.invoke('automations:ack', ids),
+    exportOne: (id) => ipcRenderer.invoke('automations:export', id),
+    importText: (text) => ipcRenderer.invoke('automations:import', text),
+    reveal: () => ipcRenderer.invoke('automations:reveal'),
+    onEvent: (cb) => subscribe('automations:event', cb),
+  },
   // Save a small text file where the user chooses (a calendar entry, an export).
   saveTextFile: (name, text, kind) => ipcRenderer.invoke('file:save-text', { name, text, kind }),
   saveEpub: (book) => ipcRenderer.invoke('page:save-epub', book),

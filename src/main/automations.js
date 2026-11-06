@@ -155,8 +155,8 @@ function createAutomations({ store, notifier, osScheduler, now = () => Date.now(
     const done = new Promise((res, rej) => { resolveDone = res; rejectDone = rej; });
     // `started` settles when the run has been accepted (or refused, with the reason); `done` when it has ended.
     const started = new Promise((res, rej) => { resolveStarted = res; rejectStarted = rej; });
-    done.catch(() => {});      // a caller that only cares about `started` is not left with an unhandled rejection
-    started.catch(() => {});
+    done.catch(() => { /* vex-allow-empty-catch: the refusal is reported through started/done to whoever waits */ });      // a caller that only cares about `started` is not left with an unhandled rejection
+    started.catch(() => { /* vex-allow-empty-catch: same refusal, seen by whoever waits on started */ });
     const fn = async () => {
       await load();
       const rec = findRec(id);
@@ -219,7 +219,7 @@ function createAutomations({ store, notifier, osScheduler, now = () => Date.now(
       if (next) start(next.id, { trigger: next.trigger }).done.catch(err => note('[Automations] queued run failed to start: ' + err.message));
       return run;
     })();
-    body.catch(() => {});   // a refusal is reported through `started` and `done`
+    body.catch(() => { /* vex-allow-empty-catch: the error went to started/done above */ });   // a refusal is reported through `started` and `done`
     return { started, done };
   }
 

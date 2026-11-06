@@ -26,9 +26,11 @@
   // agent-safety.js is loaded before this file in the interface and required
   // from main; it has no DOM and exports the same function both ways.
   const globalScope = typeof globalThis !== 'undefined' ? globalThis : {};
-  const safetyMod = (globalScope.AgentSafety && globalScope.agentIsSensitiveField) ? globalScope : require('./agent-safety.js');
-  const baseSensitive = globalScope.agentIsSensitiveField || safetyMod.agentIsSensitiveField;
-  const baseSecretValue = globalScope.agentLooksLikeSecretValue || safetyMod.agentLooksLikeSecretValue;
+  // In the window, agent-safety.js has put AgentSafety on window (a bundled script does not leave its functions global);
+  // in main and in tests it is required.
+  const safety = globalScope.AgentSafety || require('./agent-safety.js').AgentSafety;
+  const baseSensitive = safety.isSensitiveField;
+  const baseSecretValue = safety.looksLikeSecretValue;
   if (typeof baseSensitive !== 'function' || typeof baseSecretValue !== 'function') throw new Error('Page automations need agent-safety.js to be loaded first');
   // The name autoIsSensitive calls, in this scope and (by toString) in the page.
   const agentIsSensitiveField = baseSensitive;
@@ -372,26 +374,26 @@
       if (ev.t === 'open') {
         let c;
         try { c = cleanUrl(ev.url); } catch (e) { continue; }
-        step = { type: 'open', url: c.url, urlTrimmed: c.trimmed, label: 'Open ' + new URL(c.url).hostname };
+        step = { type: 'open', url: c.url, urlTrimmed: c.trimmed, label: `Open ${new URL(c.url).hostname}` };
       } else if (ev.t === 'click') {
-        step = { type: 'click', target, label: 'Click "' + clip(label(), 40) + '"' };
+        step = { type: 'click', target, label: `Click "${clip(label(), 40)}"` };
       } else if (ev.t === 'type' || ev.t === 'ask') {
         const secret = ev.t === 'ask' || isSensitive(target || {});
-        step = { type: 'type', target, ask: secret || undefined, secret: secret ? 'secret' : undefined, value: secret ? undefined : ev.value, label: 'Type in "' + clip(label(), 40) + '"' };
+        step = { type: 'type', target, ask: secret || undefined, secret: secret ? 'secret' : undefined, value: secret ? undefined : ev.value, label: `Type in "${clip(label(), 40)}"` };
         const prev = steps[steps.length - 1];
         if (prev && prev.type === 'type' && prev.target && target && prev.target.css === target.css && prev.target.name === target.name) {
           try { steps[steps.length - 1] = cleanStep({ ...step, id: prev.id }, steps.length - 1); } catch (e) { steps.pop(); }   // vex-allow-empty-catch: an unsafe retype removes the earlier step as well
           continue;
         }
       } else if (ev.t === 'select') {
-        step = { type: 'select', target, value: ev.value, label: 'Choose in "' + clip(label(), 40) + '"' };
+        step = { type: 'select', target, value: ev.value, label: `Choose in "${clip(label(), 40)}"` };
       } else if (ev.t === 'check') {
         step = { type: 'check', target, checked: ev.checked !== false, label: (ev.checked === false ? 'Untick' : 'Tick') + ' "' + clip(label(), 40) + '"' };
       } else if (ev.t === 'enter') {
-        step = { type: 'enter', target, label: 'Press Enter in "' + clip(label(), 40) + '"' };
+        step = { type: 'enter', target, label: `Press Enter in "${clip(label(), 40)}"` };
       } else if (ev.t === 'read') {
         if (isSensitive(target || {})) continue;   // a secret field is never read
-        step = { type: 'read', target, as: clip(ev.as || label() || 'value', 40), label: 'Read "' + clip(label() || 'the page', 40) + '"' };
+        step = { type: 'read', target, as: clip(ev.as || label() || 'value', 40), label: `Read "${clip(label() || 'the page', 40)}"` };
       }
       if (!step) continue;
       try { steps.push(cleanStep(step, steps.length)); } catch (e) { /* a step that cannot be made safe is left out; the bar shows the count */ continue; }   // vex-allow-empty-catch: the recorder shows how many events were not turned into steps

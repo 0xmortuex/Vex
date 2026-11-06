@@ -123,7 +123,7 @@
     }
     var PM_ATTRS = ['data-lpignore', 'data-1p-ignore', 'data-bwautofill', 'data-dashlane-rid', 'data-kwimpalaid', 'data-com-onepassword-filled', 'data-lastpass-icon-root', 'data-np-autofill-field-type'];
     function autofilled(el) {
-      try { if (el.matches(':-webkit-autofill') || el.matches(':autofill')) return true; } catch (e) { /* the pseudo-class is unknown in this engine */ }
+      try { if (el.matches(':-webkit-autofill') || el.matches(':autofill')) return true; } catch (e) { /* vex-allow-empty-catch: the pseudo-class is unknown in this engine, so it is not autofilled */ }
       return false;
     }
     function describe(el) {
@@ -244,10 +244,10 @@
       if (res.status !== 'found') return Object.assign({ ok: false, reason: res.status === 'none' ? 'not-found' : res.status }, brief(res));
       var el = res.el, p = livePlan(el), info = brief(res);
       var order = { none: 0, soft: 1, locked: 2 };
-      if (order[p.cls.level] > (opts.approvedLevel == null ? 0 : opts.approvedLevel)) return Object.assign({ ok: false, reason: 'not-approved', message: 'The control became a ' + p.cls.level + ' step since it was checked' }, info);
+      if (order[p.cls.level] > (opts.approvedLevel == null ? 0 : opts.approvedLevel)) return Object.assign({ ok: false, reason: 'not-approved' }, info);
       if (info.disabled) return Object.assign({ ok: false, reason: 'disabled' }, info);
       if (step.type !== 'click' && step.type !== 'check' && step.type !== 'enter' && p.sensitive) return Object.assign({ ok: false, reason: 'sensitive-field' }, info);
-      try { el.scrollIntoView({ block: 'center' }); } catch (e) { /* the control stays where it is */ }
+      try { el.scrollIntoView({ block: 'center' }); } catch (e) { /* vex-allow-empty-catch: scrolling is a courtesy; the action itself is checked next */ }
       if (step.type === 'click') { el.click(); return Object.assign({ ok: true }, info); }
       if (step.type === 'type') {
         el.focus(); setValue(el, ''); fire(el, 'input'); setValue(el, String(step.value == null ? '' : step.value)); fire(el, 'input'); fire(el, 'change');
@@ -257,7 +257,7 @@
         if (el.tagName !== 'SELECT') return Object.assign({ ok: false, reason: 'not-a-list' }, info);
         var want = autoFold(step.value), idx = -1, i;
         for (i = 0; i < el.options.length; i++) if (autoFold(el.options[i].text) === want || autoFold(el.options[i].value) === want) { idx = i; break; }
-        if (idx < 0) return Object.assign({ ok: false, reason: 'option-not-found', message: 'The list has no choice "' + String(step.value).slice(0, 40) + '"' }, info);
+        if (idx < 0) return Object.assign({ ok: false, reason: 'option-not-found' }, info);
         el.selectedIndex = idx; fire(el, 'input'); fire(el, 'change');
         return Object.assign({ ok: true }, info);
       }
