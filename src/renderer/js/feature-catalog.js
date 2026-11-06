@@ -885,6 +885,8 @@ const VexFeatures = {
       what: 'For a site that turns Vex away (some banks, e-Devlet, streaming with DRM): right-click the page (Page menu) or a link and choose Open in default browser, or Open in Edge, Chrome, Firefox or Brave when they are installed. Ctrl+K also has Open this page in my default browser. A private, Tor, routed or disposable tab asks first, because the other browser would load the address from your real connection.' },
     { id: 'link-open-extras', feature: 'link-open-extras', newer: true, cat: 'tabs', name: 'More ways to open a link', phrases: 'open link in split view container private window background tab right click link', manual: true,
       what: 'Right-click a link for Open Link in Container (any other container, with its own cookies), Open Link in Split View (beside the tab in front), Open Link in Private Window and Open Link in Background (a tab that does not take the focus). Opening a link from a Tor, proxy or disposable tab into another container or a private window asks first.' },
+    { id: 'page-nav', feature: 'page-nav', newer: true, cat: 'reading', name: 'Next and previous page', phrases: 'next page previous page pagination older newer sonraki sayfa onceki sayfa ileri geri results thread chapter gallery key alt pagedown', cmd: 'page-next', keys: 'Alt+PageDown',
+      what: 'One key (Alt+PageDown, and Alt+PageUp for the way back) goes to the next or previous page of search results, a forum thread, a documentation chapter or a gallery. It uses the page’s own rel=next link first, then links worded Next, Previous, Older, Newer, Sonraki, Önceki, İleri or Geri (or with » › « ‹), then the number after the current one in numbered pagination. If there is none it says so. Both keys can be changed in Settings > Shortcuts, and Ctrl+K has Go to the next page and Go to the previous page.' },
     { id: 'unblock-centre', feature: 'unblock-centre', newer: true, cat: 'privacy', name: 'Unblock centre', phrases: 'unblock blocked site blocked website censorship bypass dns doh byedpi zapret turkey cannot open site engel erisim', cmd: 'unblock-centre', setting: { section: 'setting-unblock-centre', label: 'Unblock centre' },
       what: 'When a site fails to load in a way that looks like a block, a bar offers to open just that site by encrypted DNS, a split handshake or the ByeDPI helper, none of which needs administrator rights, and remembers which worked. The Unblock centre lists the sites, with a switch, Test now and Forget for each, and one switch for all of it.' },
     { id: 'watch-alerts', feature: 'watch-alerts', newer: true, cat: 'work', name: 'One alert per change, digest first', phrases: 'watch alerts digest page changed one alert', setting: { section: 'vex-sg-watch-alerts', label: 'Watcher alerts' },
@@ -1347,7 +1349,7 @@ const VexFeatures = {
       { name: 'Your passwords', ids: ['pwhealth'] },
     ],
     reading: [
-      { name: 'Getting to the words', ids: ['reading-mode', 'readfree', 'copyunlock', 'doctext', 'find-in-page'] },
+      { name: 'Getting to the words', ids: ['reading-mode', 'readfree', 'copyunlock', 'doctext', 'find-in-page', 'page-nav'] },
       { name: 'Getting through them', ids: ['readaloud', 'speedread', 'bionic', 'accessibility', 'zoom', 'dictionary'] },
       { name: 'In another language', ids: ['translate', 'translate-side'] },
       { name: 'Keeping what you read', ids: ['save-pdf', 'save-page', 'archive-page', 'archive-library', 'annotations', 'cards', 'cite', 'pagediff'] },

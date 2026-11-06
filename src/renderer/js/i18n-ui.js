@@ -292,6 +292,18 @@ const VexI18nUI = {
       'Right-click a link for Open Link in Container (any other container, with its own cookies), Open Link in Split View (beside the tab in front), Open Link in Private Window and Open Link in Background (a tab that does not take the focus). Opening a link from a Tor, proxy or disposable tab into another container or a private window asks first.': 'Bir bağlantıya sağ tıklayın: Bağlantıyı kapsayıcıda aç (kendi çerezleri olan başka bir kapsayıcı), Bağlantıyı bölünmüş görünümde aç (öndeki sekmenin yanında), Bağlantıyı gizli pencerede aç ve Bağlantıyı arka planda aç (odağı almayan bir sekme). Tor, vekil sunucu ya da tek kullanımlık bir sekmeden başka bir kapsayıcıya veya gizli pencereye açmak önce sorar.',
       // --- link menu help ---
       'Right-click a link on a page. Open Link in Container lists your other containers, Open Link in Another Browser the browsers found on this PC, and More for this link holds Open Link in Split View, Open Link in Private Window and Open Link in Background. There is nothing to switch on or off.': 'Sayfadaki bir bağlantıya sağ tıklayın. Bağlantıyı kapsayıcıda aç diğer kapsayıcılarınızı, Bağlantıyı başka bir tarayıcıda aç bu bilgisayarda bulunan tarayıcıları listeler; Bu bağlantı için daha fazlası içinde Bağlantıyı bölünmüş görünümde aç, Bağlantıyı gizli pencerede aç ve Bağlantıyı arka planda aç var. Açılacak ya da kapatılacak bir şey yok.',
+      // --- Next and previous page ---
+      'Go to the next page': 'Sonraki sayfaya git',
+      'Go to the previous page': 'Önceki sayfaya git',
+      'The next page of search results, a thread, a chapter or a gallery': 'Arama sonuçlarının, bir konunun, bir bölümün ya da bir galerinin sonraki sayfası',
+      'The previous page of search results, a thread, a chapter or a gallery': 'Arama sonuçlarının, bir konunun, bir bölümün ya da bir galerinin önceki sayfası',
+      'Go to the next page (results, thread, chapter)': 'Sonraki sayfaya git (sonuçlar, konu, bölüm)',
+      'No next page found': 'Sonraki sayfa bulunamadı',
+      'No previous page found': 'Önceki sayfa bulunamadı',
+      'There is no page open': 'Açık bir sayfa yok',
+      'This page could not be searched for a next page': 'Bu sayfada sonraki sayfa aranamadı',
+      'Next and previous page': 'Sonraki ve önceki sayfa',
+      'One key (Alt+PageDown, and Alt+PageUp for the way back) goes to the next or previous page of search results, a forum thread, a documentation chapter or a gallery. It uses the page’s own rel=next link first, then links worded Next, Previous, Older, Newer, Sonraki, Önceki, İleri or Geri (or with » › « ‹), then the number after the current one in numbered pagination. If there is none it says so. Both keys can be changed in Settings > Shortcuts, and Ctrl+K has Go to the next page and Go to the previous page.': 'Tek bir tuş (Alt+PageDown; geri için Alt+PageUp) arama sonuçlarının, bir forum konusunun, bir belge bölümünün ya da bir galerinin sonraki veya önceki sayfasına gider. Önce sayfanın kendi rel=next bağlantısını, sonra Sonraki, Önceki, Daha eski, Daha yeni, İleri, Geri (ya da » › « ‹) yazan bağlantıları, en sonunda numaralı sayfalamada geçerli numaradan sonrakini kullanır. Bulamazsa söyler. İki tuş da Ayarlar > Kısayollar\'dan değiştirilebilir; Ctrl+K\'de Sonraki sayfaya git ve Önceki sayfaya git var.',
       // --- This site (js/this-site.js) ---
       'Settings for this site': 'Bu sitenin ayarları',
       'Site settings': 'Site ayarları',

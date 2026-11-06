@@ -42,6 +42,8 @@ const VexBoot = {
     { src: 'js/open-in-browser.js', usage: [] },
     // More ways to open a link (split view, container, private window, background): the link menu asks with typeof.
     { src: 'js/link-open-extras.js', usage: [] },
+    // Next / previous page key and its Ctrl+K commands (the key is in js/shortcuts-registry.js and runs the command by id).
+    { src: 'js/page-nav.js', usage: [] },
     { src: 'js/share-look.js', usage: [] },
     { src: 'js/share-look-ui.js', usage: [] },
     { src: 'js/share-space.js', usage: ['share-space'] },

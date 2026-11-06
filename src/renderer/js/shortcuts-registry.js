@@ -112,6 +112,10 @@ const ShortcutsRegistry = (() => {
     // Wave 3: split view panes, and keyboard hints for links and tabs (Ctrl+Alt letters with no Turkish AltGr character).
     'split-focus':    { default: 'Ctrl+Alt+O',   label: 'Split view: next pane',      category: 'Tabs',       cmd: 'split-focus-next' },
     'split-swap':     { default: 'Ctrl+Alt+Y',   label: 'Split view: swap panes',     category: 'Tabs',       cmd: 'split-swap-panes' },
+    // Next / previous page of results, a thread, a chapter, a gallery (js/page-nav.js). Alt+Left/Right is Back/Forward, so these take
+    // Alt+PageDown / Alt+PageUp: no Ctrl+Alt letter (those are AltGr characters on a Turkish keyboard) and nothing else uses them.
+    'page-next':      { default: 'Alt+PageDown', label: 'Go to the next page (results, thread, chapter)', category: 'Navigation', cmd: 'page-next' },
+    'page-prev':      { default: 'Alt+PageUp',   label: 'Go to the previous page',    category: 'Navigation', cmd: 'page-prev' },
     'link-hints':     { default: 'Ctrl+Alt+I',   label: 'Hints: click with the keyboard', category: 'Navigation', cmd: 'link-hints' },
     'tab-hints':      { default: 'Ctrl+Alt+Q',   label: 'Hints: go to a tab',         category: 'Tabs',       cmd: 'tab-hints' },
     // Every Ctrl+Alt letter is taken, so the selection search takes three modifiers (Address bar extras, js/tabs-nav.js).
