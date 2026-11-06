@@ -271,7 +271,7 @@ const VexGameOverlaySettings = {
     def.setAttribute('aria-label', 'Guide page address used when the game has none of its own');
     def.addEventListener('change', () => apply({ defaultGuide: def.value.trim() }, () => { def.value = G.prefs().defaultGuide; }));
     body.appendChild(def);
-    info('A guide page for one game, by its program name (for example RobloxPlayerBeta):');
+    info('A guide page for one game, by its name in the Game mode list (for example Roblox):');
     const list = el('div', 'setting-list');
     for (const [game, url] of Object.entries(prefs.guides)) {
       const row = el('div', 'setting-toggle-row');
@@ -283,7 +283,7 @@ const VexGameOverlaySettings = {
       list.appendChild(row);
     }
     body.appendChild(list);
-    const gameIn = el('input', 'set-input'); gameIn.type = 'text'; gameIn.placeholder = 'Program name'; gameIn.setAttribute('aria-label', 'Program name of the game');
+    const gameIn = el('input', 'set-input'); gameIn.type = 'text'; gameIn.placeholder = 'Game name'; gameIn.setAttribute('aria-label', 'Name of the game in the Game mode list');
     const urlIn = el('input', 'set-input'); urlIn.type = 'url'; urlIn.placeholder = 'https://'; urlIn.setAttribute('aria-label', 'Guide page address for that game');
     const add = el('button', 'btn-secondary', 'Add guide page');
     add.type = 'button';

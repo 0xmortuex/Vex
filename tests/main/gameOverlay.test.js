@@ -295,6 +295,19 @@ describe('the hint when a game starts', () => {
     expect(ctl.state().status).toBe('shown');
     expect(makeWindow.made[0].clickThrough).toBe(false);
   });
+  it('the hotkey AFTER the hint timed out still restores the full size and the click-through setting (real-window bug)', () => {
+    const { ctl, t, makeWindow } = build({ hint: true, clickThrough: false });
+    ctl.registerHotkey();
+    ctl.onGame({ game: true, app: 'g' });
+    const w = makeWindow.made[0];
+    t.advance(9001);
+    expect(ctl.state().status).toBe('hidden');
+    expect(w.clickThrough).toBe(true);
+    ctl.toggle();
+    expect(ctl.state().status).toBe('shown');
+    expect(w.clickThrough).toBe(false);
+    expect(w.mode).toBe('expanded');
+  });
   it('does nothing when it is off, when no hotkey is registered, or when no game runs', () => {
     const a = build({ hint: false }); a.ctl.registerHotkey(); a.ctl.onGame({ game: true, app: 'g' });
     const b = build({ hint: true }); b.ctl.onGame({ game: true, app: 'g' });
@@ -422,6 +435,16 @@ describe('IPC', () => {
     await expect(call('vault:get', 'file:///C:/vex/src/renderer/game-overlay.html', 'x')).rejects.toThrow();
     await expect(call('gameoverlay:hide', 'https://evil.example/')).rejects.toThrow('Untrusted IPC sender');
     await expect(call('gameoverlay:hide', 'file:///C:/elsewhere/game-overlay.html')).rejects.toThrow('Untrusted IPC sender');
+  });
+});
+
+describe('the overlay page in Turkish', () => {
+  it('every literal t(\'...\') string has a Turkish entry, including the timer’s "N min" buttons (real-window bug)', () => {
+    const code = fs.readFileSync('src/renderer/js/game-overlay-page.js', 'utf8');
+    const table = code.slice(code.indexOf('const TR = {'), code.indexOf('let lang'));
+    const missing = [...code.matchAll(/\bt\('((?:[^'\\]|\\.)*)'\)/g)].map(m => m[1].replace(/\\'/g, '\'')).filter(k => !table.includes('\'' + k.replace(/'/g, '\\\'') + '\':'));
+    expect(missing).toEqual([]);
+    expect(code).toMatch(/min \+ ' ' \+ t\('min'\)/);
   });
 });
 

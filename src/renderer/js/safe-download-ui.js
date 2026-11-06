@@ -127,9 +127,11 @@ const VexSafeDownload = {
     st.id = 'vex-sd-css';
     st.textContent = `
 .vex-sd { margin-top: 4px; font-size: 11.5px; line-height: 1.4; border-left: 3px solid var(--vex-sd-c, var(--text-muted)); padding: 2px 0 2px 8px; color: var(--text); }
-.vex-sd-green { --vex-sd-c: var(--success, #16a34a); }
-.vex-sd-amber { --vex-sd-c: var(--warning, #d97706); }
-.vex-sd-red { --vex-sd-c: var(--danger, #dc2626); }
+/* The danger / warning / success tokens keep their light-look values in the dark looks (measured: red 1.86:1, green 2.22:1 on Firefox dark),
+   so each is pulled toward --text, which every look sets for its own background. */
+.vex-sd-green { --vex-sd-c: color-mix(in srgb, var(--success, #16a34a) 55%, var(--text)); }
+.vex-sd-amber { --vex-sd-c: color-mix(in srgb, var(--warning, #d97706) 55%, var(--text)); }
+.vex-sd-red { --vex-sd-c: color-mix(in srgb, var(--danger, #dc2626) 55%, var(--text)); }
 .vex-sd-gray { --vex-sd-c: var(--text-muted, #6b7280); }
 .vex-sd-head { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
 .vex-sd-ic { display: inline-flex; color: var(--vex-sd-c); }
@@ -138,7 +140,7 @@ const VexSafeDownload = {
 .vex-sd-why[open] { display: block; margin: 4px 0 0; }
 .vex-sd-list { margin: 4px 0 0; padding-left: 16px; }
 .vex-sd-r { margin: 2px 0; }
-.vex-sd-r-red b { color: var(--danger, #dc2626); }
+.vex-sd-r-red b { color: color-mix(in srgb, var(--danger, #dc2626) 55%, var(--text)); }
 .vex-sd-why summary:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: 2px; }
 .download-toast .vex-sd { margin-top: 6px; max-width: 320px; }
 @media (prefers-reduced-motion: no-preference) { .vex-sd-why summary { transition: color .15s; } }`;

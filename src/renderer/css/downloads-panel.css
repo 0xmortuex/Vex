@@ -135,6 +135,9 @@
 .dl-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 24px; }
 .dl-btn svg { display: block; width: 12px; height: 12px; }
 .dl-btn[data-action="show-in-folder"] svg { width: 13px; height: 13px; }
+/* The text buttons (Open anyway..., Quarantine) sit in a row whose buttons are 28px squares (.download-actions button), so they
+   overlapped the next button in English and Turkish (real window). They size to their words instead. */
+.dl-btn[data-action="open-file"], .dl-btn[data-action="quarantine"] { width: auto; min-width: 28px; padding: 4px 8px; white-space: nowrap; flex-shrink: 0; }
 .dl-btn[data-action="cancel"]:hover,
 .dl-btn[data-action="remove"]:hover { border-color: var(--vex-border-accent); color: var(--danger, #e5556a); }
 

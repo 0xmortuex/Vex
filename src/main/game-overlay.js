@@ -239,6 +239,7 @@ function createOverlayController(deps) {
   let saveTimer = null;
   let hintTimer = null;
   let hinting = false;            // the short "press X to open" box after a game starts
+  let hintShape = false;          // the window still has the hint box's size and click-through
   let hotkey = { accelerator: '', registered: false, error: '' };
 
   const cfg = () => getConfig();
@@ -278,7 +279,7 @@ function createOverlayController(deps) {
     win = makeWindow({
       mode: mode(), bounds: pickBounds(), clickThrough: isClickThrough(), opacity: currentOpacity(), game,
       onBounds: scheduleRemember,
-      onClosed: () => { win = null; if (status !== 'none') { status = 'none'; log('[GameOverlay] the window was closed'); } },
+      onClosed: () => { win = null; hintShape = false; if (status !== 'none') { status = 'none'; log('[GameOverlay] the window was closed'); } },
     });
     return win;
   }
@@ -291,10 +292,11 @@ function createOverlayController(deps) {
     if (why) throw new Error(why);
     cancelDestroy();
     if (hintTimer) { clearTimer(hintTimer); hintTimer = null; }
-    const wasHinting = hinting;
     hinting = false;
     const w = ensureWindow();
-    if (wasHinting) { w.setMode(mode(), pickBounds()); w.setClickThrough(isClickThrough()); }
+    // The hint's box (small, click-through, no focus) outlives the hint itself when the
+    // 9 s timer hid it, so the shape is tracked on its own, not through `hinting`.
+    if (hintShape) { hintShape = false; w.setMode(mode(), pickBounds()); w.setClickThrough(isClickThrough()); }
     w.show();                      // shows WITHOUT taking the focus (handle uses showInactive)
     status = 'shown';
     push();
@@ -322,7 +324,8 @@ function createOverlayController(deps) {
     win = null;
     const wasHinting = hinting;
     hinting = false;
-    if (w && !w.isDestroyed()) { if (status === 'shown' && !wasHinting) { mem = rememberBounds(mem, mode(), game, w.getBounds()); persist(); } w.destroy(); }
+    hintShape = false;
+    if (w &&!w.isDestroyed()) { if (status === 'shown' && !wasHinting) { mem = rememberBounds(mem, mode(), game, w.getBounds()); persist(); } w.destroy(); }
     status = 'none';
     return snapshot();
   }
@@ -375,6 +378,7 @@ function createOverlayController(deps) {
     if (deps.canShow && deps.canShow()) return;     // locked: no hint either
     const w = ensureWindow();
     hinting = true;
+    hintShape = true;
     w.showHint(boundsFor(mem, 'compact', game, usableOn(workAreas())) || defaultBounds(primaryWorkArea(), 'compact'));
     status = 'shown';
     push();
