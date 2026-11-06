@@ -834,6 +834,10 @@ contextBridge.exposeInMainWorld('vex', {
     forgetHost: (host) => ipcRenderer.invoke('threat:forget-host', host),
     continueLog: () => ipcRenderer.invoke('threat:continue-log'),
   },
+  // Share a space (main/space-check.js): which addresses of a shared space are look-alikes or reported dangerous. Nothing is loaded.
+  space: {
+    check: (urls) => ipcRenderer.invoke('space:check', urls),
+  },
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
   reminders: {

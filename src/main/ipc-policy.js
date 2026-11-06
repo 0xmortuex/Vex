@@ -166,6 +166,8 @@ const UI_ONLY_CHANNELS = new Set([
   // The dangerous-site list (main/threat-list.js): its switch, status, update and the sites you said to go on to are never a page's call.
   'threat:status', 'threat:set-enabled', 'threat:set-auto-update', 'threat:update', 'threat:forget-host', 'threat:continue-log',
   'websafety:third-party-count', 'downloads:explain',
+  // Share a space's address check (main/space-check.js): read-only, but only the interface asks.
+  'space:check',
   // Quick look at a finished download (main/download-peek.js): reads a file's contents, so only the interface asks, and main serves only files Vex downloaded.
   'downloads:peek', 'downloads:peek-hash',
   // An AI news toast and the clicks waiting for the interface (js/ai-news.js):

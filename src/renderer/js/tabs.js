@@ -1688,6 +1688,7 @@ const TabManager = {
       <div class="tab-context-item" data-action="reload-tabs">${MENU_ICONS.reload}Reload them</div>
       <div class="tab-context-item" data-action="mute-tabs">${MENU_ICONS.mute}Mute or unmute them</div>
       <div class="tab-context-item" data-action="save-session">${MENU_ICONS.save}Save as a session</div>
+      <div class="tab-context-item" data-action="share-group">${MENU_ICONS.save}Share this group…</div>
       ${devRow ? `<div class="tab-context-item" data-action="dev-terminal">${MENU_ICONS.reload}${escapeHtml(devRow.label)}</div>` : ''}
       <div class="tab-context-sep"></div>
       <div class="tab-context-item" data-action="close-tabs">${MENU_ICONS.close}Close ${count} tab${VexPlural.s(count)}</div>
@@ -1729,6 +1730,12 @@ const TabManager = {
         }
         window.showToast?.(slept ? 'Slept ' + slept + ' tab' + VexPlural.s(slept) + ' in “' + group.name + '”' : 'Nothing in “' + group.name + '” could sleep — a tab playing sound or kept awake is left alone');
         this.rebuildAllTabs();
+        return;
+      }
+      case 'share-group': {
+        // Share a space (js/share-space-ui.js) is a late module: until it has loaded the menu says so.
+        if (typeof VexShareSpaceUI === 'undefined') { window.showToast?.('Share a space is still loading. Try again in a moment.', 'error'); return; }
+        try { VexShareSpaceUI.share({ groupId }); } catch (err) { window.showToast?.(err.message, 'error', 6000); }
         return;
       }
       case 'reload-tabs': {

@@ -322,6 +322,8 @@ const WorkspaceManager = {
     `).join('') + `
       <div class="ws-sep"></div>
       <div class="ws-add" id="ws-add-btn">+ Add Workspace</div>
+      <div class="ws-add" id="ws-share-btn" role="button" tabindex="0">Share this space…</div>
+      <div class="ws-add" id="ws-open-space-btn" role="button" tabindex="0">Open a shared space…</div>
     `;
 
     // Rename/delete lived only in showModal(id), and nothing ever passed an
@@ -340,6 +342,19 @@ const WorkspaceManager = {
       this.hideDropdown();
       this.showModal();
     });
+    // Share a space (js/share-space-ui.js, a late module): the same two entries are in Ctrl+K.
+    const space = (fn) => () => {
+      this.hideDropdown();
+      if (typeof VexShareSpaceUI === 'undefined') { window.showToast?.('Share a space is still loading. Try again in a moment.', 'error'); return; }
+      try { fn(); } catch (err) { window.showToast?.(err.message, 'error', 6000); }
+    };
+    const onActivate = (id, fn) => {
+      const el = document.getElementById(id);
+      el?.addEventListener('click', fn);
+      el?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } });
+    };
+    onActivate('ws-share-btn', space(() => VexShareSpaceUI.share()));
+    onActivate('ws-open-space-btn', space(() => VexShareSpaceUI.pickFile()));
   },
 
   showDropdown() {

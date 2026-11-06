@@ -828,6 +828,8 @@ define('websafety:third-party-count', [shape({ site: string(253), partition: opt
 define('threat:status threat:update threat:continue-log', []);
 define('threat:set-enabled threat:set-auto-update', [boolean]);
 define('threat:forget-host', [string(253)]);
+// Share a space (src/main/space-check.js): the addresses of a space to look over, at most 200 of at most 2048 characters.
+define('space:check', [value => Array.isArray(value) && value.length <= 200 && value.every(string(2048))]);
 define('downloads:explain', [string(64), optional(boolean)]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);

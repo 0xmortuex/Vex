@@ -1050,6 +1050,16 @@ ipcMain.handle('threat:set-auto-update', (_e, on) => _threatList.setAutoUpdate(o
 ipcMain.handle('threat:update', () => _threatList.update());
 ipcMain.handle('threat:forget-host', (_e, host) => _threatList.forgetHost(host));
 ipcMain.handle('threat:continue-log', () => _threatList.continueLog());
+// Share a space (js/share-space-ui.js): the review asks which of the addresses in a space are look-alikes or reported dangerous sites.
+// Local lookups only; no address is loaded or sent anywhere (src/main/space-check.js).
+ipcMain.handle('space:check', (_e, urls) => {
+  const ws = require('./main/web-safety');
+  return require('./main/space-check').checkAddresses(urls, {
+    analyzeHost: (host) => ws.analyzeHost(host, { sensitivity: _webSafety.sensitivity === 'off' ? 'strict' : _webSafety.sensitivity, topHosts: _webSafetyTopHosts(), allow: _webSafety.snapshot().allow }),
+    threatCheck: (url) => _threatList.check(url),
+    domainToUnicode: (host) => require('url').domainToUnicode(host),
+  });
+});
 // Permission hygiene (src/main/permission-hygiene.js): expiry, the trap guard and the
 // live camera/mic/location indicator. Off until Settings switches the feature on.
 const _permHygiene = require('./main/permission-hygiene').createPermissionHygiene({

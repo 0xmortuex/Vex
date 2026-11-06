@@ -327,6 +327,18 @@
     window.dispatchEvent(new CustomEvent('vex:sidebar-groups', { detail: { groups: true, reset: true } }));
   }
 
+  // Share a space (js/share-space.js): the saved definitions as text (null when never changed), a whole set put in at once, and the text put back.
+  const rawDefs = () => readRaw(DEFS_KEY);
+  const replaceDefs = (defs) => commit(defs, { replaced: true });
+  function restoreDefs(raw) {
+    if (raw == null) { resetGroups(); return; }
+    parseDefs(raw);
+    write(DEFS_KEY, raw);
+    cache = null;
+    relayout();
+    window.dispatchEvent(new CustomEvent('vex:sidebar-groups', { detail: { groups: true, restored: true } }));
+  }
+
   // ---- Which folders are open ---------------------------------------------------------------------------------------
   function openIds() {
     const raw = readRaw(OPEN_KEY);
@@ -659,5 +671,6 @@
     groupOf, groupInfo, model, membership, plan, pickerPlan, labelOf, fullNameOf, descOf, parseDefs,
     createGroup, updateGroup, deleteGroup, reorderGroup, nudgeGroup, movePanel, nudgePanel, isListed, resetGroups,
     migrate, enabled, setEnabled, openIds, isOpen, setOpen, toggleOpen, isFolded, toggleFolded, arrange, refresh, refreshState,
+    rawDefs, replaceDefs, restoreDefs,
   };
 })();
