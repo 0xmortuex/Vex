@@ -11482,6 +11482,10 @@ ipcMain.handle('open-external', (_e, url) => {
   try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}
   return { ok: false };
 });
+// Open this address in the default browser or an installed Edge, Chrome, Firefox or Brave (main/open-in-browser.js): http(s) only, one argument, no shell.
+const _openInBrowser = require('./main/open-in-browser').createOpener({ openDefault: (href) => shell.openExternal(href), spawn: require('child_process').spawn });
+ipcMain.handle('browsers:list', () => _openInBrowser.list());
+ipcMain.handle('browsers:open', (_e, url, browser) => _openInBrowser.open(url, browser));
 // CHANGELOG.tr.md ships beside CHANGELOG.md. A missing file is normal (a build from before it existed); anything else that
 // goes wrong is said, and the notes stay English.
 function _readTurkishChangelog() {

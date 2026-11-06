@@ -967,6 +967,8 @@ contextBridge.exposeInMainWorld('vex', {
   darkModeStatus: () => ipcRenderer.invoke('darkmode:status'),
   onSystemThemeChanged: (cb) => subscribe('system-theme:changed', cb),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  listBrowsers: () => ipcRenderer.invoke('browsers:list'),
+  openInBrowser: (url, browser) => ipcRenderer.invoke('browsers:open', url, browser),
   composeMail: (subject, body, to) => ipcRenderer.invoke('mail:compose', { subject, body, ...(to ? { to } : {}) }),
 
   // Default browser. Attaches the renderer's handler and immediately flushes any

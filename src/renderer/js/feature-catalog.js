@@ -881,6 +881,8 @@ const VexFeatures = {
       what: 'Tries a page directly and through the bypass you run and says which side is broken; it changes nothing. On an existing profile it starts off; turn it on in Settings > Bypass check.' },
     { id: 'this-site', feature: 'this-site', newer: true, cat: 'privacy', name: 'This site', phrases: 'this site site settings site rules site permissions what this site is allowed cookies clear site data pin site remind me about this site shields per site translate this site boost restyle userscripts', cmd: 'this-site',
       what: 'One short menu of everything Vex can do for the site in front: what it may do, its cookies, clearing its data, fixing it, zoom, blocking, translating, a Boost, pinning it, a reminder, a page watch and saving it. Ctrl+K "This site", right-click the site icon at the left of the address field, or "More for this site" in the site panel. Every row runs the command that was already there.' },
+    { id: 'open-in-browser', feature: 'open-in-browser', newer: true, cat: 'privacy', name: 'Open in another browser', phrases: 'open in default browser edge chrome firefox brave external another browser site does not work bank e-devlet drm', cmd: 'open-in-default-browser',
+      what: 'For a site that turns Vex away (some banks, e-Devlet, streaming with DRM): right-click the page (Page menu) or a link and choose Open in default browser, or Open in Edge, Chrome, Firefox or Brave when they are installed. Ctrl+K also has Open this page in my default browser. A private, Tor, routed or disposable tab asks first, because the other browser would load the address from your real connection.' },
     { id: 'unblock-centre', feature: 'unblock-centre', newer: true, cat: 'privacy', name: 'Unblock centre', phrases: 'unblock blocked site blocked website censorship bypass dns doh byedpi zapret turkey cannot open site engel erisim', cmd: 'unblock-centre', setting: { section: 'setting-unblock-centre', label: 'Unblock centre' },
       what: 'When a site fails to load in a way that looks like a block, a bar offers to open just that site by encrypted DNS, a split handshake or the ByeDPI helper, none of which needs administrator rights, and remembers which worked. The Unblock centre lists the sites, with a switch, Test now and Forget for each, and one switch for all of it.' },
     { id: 'watch-alerts', feature: 'watch-alerts', newer: true, cat: 'work', name: 'One alert per change, digest first', phrases: 'watch alerts digest page changed one alert', setting: { section: 'vex-sg-watch-alerts', label: 'Watcher alerts' },
@@ -1339,7 +1341,7 @@ const VexFeatures = {
       { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint', 'gpc', 'referrer-trim'] },
       { name: 'The connection itself', ids: ['doh', 'https-only', 'captive-portal', 'tor', 'routing', 'routing-all', 'site-routes', 'dpi'] },
       { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window'] },
-      { name: 'One site at a time', ids: ['permissions', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'sitebroken', 'siteidentity'] },
+      { name: 'One site at a time', ids: ['permissions', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'sitebroken', 'siteidentity', 'open-in-browser'] },
       { name: 'Your passwords', ids: ['pwhealth'] },
     ],
     reading: [

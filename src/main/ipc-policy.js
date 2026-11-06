@@ -72,6 +72,8 @@ const UI_ONLY_CHANNELS = new Set([
   'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage',
   // The language the native dialogs speak (main/i18n-main.js).
   'i18n:set-language',
+  // Starting another browser with an address (main/open-in-browser.js): Vex's own window only.
+  'browsers:list', 'browsers:open',
   // The Queue panel's setup form saves its address and secret.
   'sidebar-config:set-queue',
   // Knowledge base (main/knowledge-base.js): the index holds page text.

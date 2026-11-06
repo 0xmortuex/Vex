@@ -38,6 +38,8 @@ const VexBoot = {
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },
+    // Open this page or link in another browser: the menu rows and Ctrl+K commands appear once it has loaded (js/webview.js asks with typeof).
+    { src: 'js/open-in-browser.js', usage: [] },
     { src: 'js/share-look.js', usage: [] },
     { src: 'js/share-look-ui.js', usage: [] },
     { src: 'js/share-space.js', usage: ['share-space'] },
