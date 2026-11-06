@@ -507,7 +507,7 @@ const VexResearch = {
     body.append(this._el('div', 'rs-h', this.T('The brief could not be written')), this._el('div', 'rs-fail', text));
     const row = this._el('div', 'rs-actions');
     if (fix === 'connect') row.append(this._btn(this.T('Connect an AI'), () => { close(); this.openConnect(); }, { primary: true }));
-    if (fix === 'spend') row.append(this._btn(this.T('Open the spend limit'), () => { close(); if (typeof SettingsUI !== 'undefined') SettingsUI.openSection('setting-ai-spend'); }));
+    if (fix === 'spend') row.append(this._btn(this.T('Open the spend limit'), () => { close(); if (typeof SettingsUI !== 'undefined') SettingsUI.openSection('ai-spend-cap-input'); }));
     row.append(this._btn(this.T('Close'), close));
     body.append(row);
     if (err && err.message && /did not answer with a brief|not in the shape/.test(err.message)) {
