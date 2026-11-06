@@ -17,7 +17,8 @@ const AIHealth = {
   async check() {
     const out = { at: Date.now() };
     out.online = (() => { try { return navigator.onLine; } catch { return true; } })();
-    out.worker = !!(typeof AIRouter !== 'undefined' && AIRouter.cloudWorkerUrl && AIRouter.cloudWorkerUrl());
+    // "worker" means a cloud AI is connected: your own key or your Worker.
+    out.worker = !!(typeof AIRouter !== 'undefined' && (AIRouter.cloudConfigured ? AIRouter.cloudConfigured() : (AIRouter.cloudWorkerUrl && AIRouter.cloudWorkerUrl())));
     out.model = (typeof AIRouter !== 'undefined' && AIRouter.getModel) ? AIRouter.getModel() : '';
     out.ollama = false; out.installed = null; out.loaded = null; out.gpu = null;
 
@@ -106,7 +107,7 @@ const AIHealth = {
     const local = typeof AIRouter !== 'undefined' && AIRouter.getOllamaStatus ? AIRouter.getOllamaStatus() : {};
     const wantsLocal = !state.worker || local.preferLocal;
 
-    lines.push(state.worker ? 'Cloud AI: configured' : 'Cloud AI: no Worker URL set (Settings › Cloud)');
+    lines.push(state.worker ? 'Cloud AI: configured' : 'Cloud AI: none connected (Settings › AI › Connect an AI)');
     lines.push(state.online ? 'Internet: connected' : 'Internet: offline');
     lines.push(state.ollama ? 'Ollama: running' : 'Ollama: not running');
     if (state.ollama) {
@@ -122,7 +123,7 @@ const AIHealth = {
     let headline;
     if (/stopped|aborted|cancelled/i.test(message)) headline = 'You stopped it — that is not a failure.';
     else if (!state.online && state.worker) headline = 'You are offline, and this request needed the cloud model.';
-    else if (!state.worker && !state.ollama) headline = 'There is no AI backend: no Worker URL is set, and Ollama is not running. Settings › Cloud takes the Worker URL; Settings › AI Backend starts Ollama.';
+    else if (!state.worker && !state.ollama) headline = 'There is no AI backend: no cloud AI is connected, and Ollama is not running. Settings › AI › Connect an AI takes your own key or Worker; Settings › AI Backend starts Ollama.';
     else if (wantsLocal && !state.ollama) headline = 'Ollama is not running, so the local model could not answer. Vex can start it for you — Settings › AI › "Start Ollama when it is needed".';
     else if (state.ollama && Array.isArray(state.installed) && !state.installed.length) headline = 'Ollama is running but has no models installed. Settings › AI › the model manager can pull one.';
     else if (state.ollama && Array.isArray(state.installed) && !state.installed.some(n => n === state.model || n === state.model + ':latest')) headline = `The chosen model "${state.model}" is not installed. Pick one that is, in Settings › AI.`;

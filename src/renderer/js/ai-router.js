@@ -18,6 +18,38 @@ const AIRouter = (() => {
     catch { return ''; }
   }
 
+  // ---- which cloud: your own key, or your Worker ---------------------------------------------------------------
+  // "Cloud" has two sources now (js/ai-keys.js, Settings > AI > Connect an AI). A feature's pin is 'cloud' (the source
+  // below), 'worker', or 'key:<provider id>'. The source is vex.aiCloudSource: 'auto' (a saved key, else the Worker),
+  // 'key' (the active provider) or 'worker'. Everything that used to ask "is the Worker set?" asks cloudConfigured().
+  function keysApi() { return typeof AIKeys !== 'undefined' ? AIKeys : null; }
+  // -> { kind: 'key', provider } | { kind: 'worker' } | { kind: 'missing-key', provider } | null (no cloud at all)
+  function cloudTarget(feature) {
+    const keys = keysApi();
+    const worker = !!cloudWorkerUrl();
+    const pin = (feature && routingPrefs[feature]) || 'auto';
+    if (pin === 'worker') return worker ? { kind: 'worker' } : null;
+    if (pin.startsWith('key:')) {
+      const id = pin.slice(4);
+      const p = keys && keys.provider(id);
+      return p && p.saved ? { kind: 'key', provider: id } : { kind: 'missing-key', provider: id };
+    }
+    const source = keys ? keys.source() : 'worker';
+    const active = keys && keys.hasAny() ? keys.active() : '';
+    if (source === 'worker') return worker ? { kind: 'worker' } : null;
+    if (source === 'key') return active ? { kind: 'key', provider: active } : null;
+    if (active) return { kind: 'key', provider: active };
+    return worker ? { kind: 'worker' } : null;
+  }
+  function cloudConfigured(feature) { return cloudTarget(feature) !== null; }
+  function normPin(pin) { return pin === 'worker' || (typeof pin === 'string' && pin.startsWith('key:')) ? 'cloud' : pin; }
+  // "your Claude key" / "your AI Worker": for the sentences that say where a request goes.
+  function cloudLabel(feature) {
+    const t = cloudTarget(feature);
+    if (t && (t.kind === 'key' || t.kind === 'missing-key')) { const p = keysApi() && keysApi().provider(t.provider); return 'your ' + (p ? p.short : 'AI') + ' key'; }
+    return 'the AI Worker';
+  }
+
   const DEFAULT_ROUTING = {
     chat: 'auto',
     summarize: 'auto',
@@ -127,6 +159,11 @@ const AIRouter = (() => {
     modelChosen = _load('vex.localAIModel', null) !== null;
     localModel = _load('vex.localAIModel', 'llama3.2:3b');
     smallModel = _load('vex.localSmallModel', '');
+    // Which keys are saved decides where "cloud" goes; the status is read before the first request.
+    if (typeof AIKeys !== 'undefined' && AIKeys.available()) {
+      try { await AIKeys.refresh(); }
+      catch (err) { console.error('[AIRouter] could not read the saved AI keys:', err); if (typeof VexProblems !== 'undefined') VexProblems.note('AI', 'The saved AI keys could not be read', err); }
+    }
     await refreshOllamaStatus();
     // Have the local model ready before the first request, not during it.
     if (!ollamaAvailable && dependsOnLocal()) ollamaUp().catch(err => console.warn('[AIRouter] could not start Ollama:', err.message));
@@ -212,7 +249,7 @@ const AIRouter = (() => {
   // first request rather than during it.
   function dependsOnLocal() {
     if (forceCloud) return false;
-    return !cloudWorkerUrl() || preferLocal || Object.values(routingPrefs).includes('local');
+    return !cloudConfigured() || preferLocal || Object.values(routingPrefs).includes('local');
   }
 
   // On-device (WebLLM/WebGPU) wins for chat-like features when the user has
@@ -252,7 +289,7 @@ const AIRouter = (() => {
     } else if (onDeviceReady(feature)) {
       decision = 'ondevice';
     } else {
-      const pref = routingPrefs[feature] || 'auto';
+      const pref = normPin(routingPrefs[feature] || 'auto');
       if (pref === 'cloud' && preferLocal && (isOllamaAvailable() || await ollamaUp())) {
         // "Prefer local (privacy-first)": the features routed to the cloud by
         // default (translate, history search, multi-tab, the agent) stay on
@@ -266,7 +303,7 @@ const AIRouter = (() => {
         // Every other cloud-preferring feature too: multi-tab, translate and
         // history search failed on the cloud first and logged a problem before
         // falling back (found 2026-09-29).
-        decision = (!cloudWorkerUrl() && await ollamaUp()) ? 'local' : 'cloud';
+        decision = (!cloudConfigured(feature) && await ollamaUp()) ? 'local' : 'cloud';
       } else if (pref === 'local') {
         // Local-only feature (e.g. history indexing runs on-device for privacy).
         // If Ollama isn't installed/running, skip quietly instead of failing on
@@ -276,7 +313,7 @@ const AIRouter = (() => {
         decision = (isOllamaAvailable() || (!BACKGROUND_FEATURES.includes(feature) && await ollamaUp())) ? 'local' : 'skip';
       } else {
         // auto mode
-        const hasCloud = isOnline() && !!cloudWorkerUrl();
+        const hasCloud = isOnline() && cloudConfigured(feature);
         if (hasCloud) {
           // Cloud is viable; only choose local if the user prefers it AND
           // Ollama is already known to be up.
@@ -296,6 +333,27 @@ const AIRouter = (() => {
       ollamaAvailable, online: isOnline()
     });
     return decision;
+  }
+
+  // What would answer this feature RIGHT NOW, from what is already known (no Ollama check, nothing started): for the
+  // "Chat: Claude Sonnet 5.5 with your key; background tasks: Ollama" line in Settings and the AI panel's header.
+  // -> { backend: 'local' | 'cloud' | 'ondevice' | 'none', via?: 'key' | 'worker', provider? }
+  function planFor(feature) {
+    const target = cloudTarget(feature);
+    const cloud = () => (target.kind === 'worker' ? { backend: 'cloud', via: 'worker' } : { backend: 'cloud', via: 'key', provider: target.provider });
+    const cloudOk = !!target && isOnline();
+    const localUp = isOllamaAvailable();
+    if (forceCloud) return cloudOk || (target && target.kind === 'missing-key') ? cloud() : { backend: 'none' };
+    if (onDeviceReady(feature)) return { backend: 'ondevice' };
+    const pin = normPin(routingPrefs[feature] || 'auto');
+    if (pin === 'local') return localUp ? { backend: 'local' } : { backend: 'none' };
+    if (pin === 'cloud') {
+      if (preferLocal && localUp) return { backend: 'local' };
+      if (target) return cloud();
+      return localUp ? { backend: 'local' } : { backend: 'none' };
+    }
+    if (cloudOk) return preferLocal && localUp ? { backend: 'local' } : cloud();
+    return localUp ? { backend: 'local' } : { backend: 'none' };
   }
 
   // Features that run silently in the background: when they're set to local and
@@ -332,7 +390,7 @@ const AIRouter = (() => {
     let routedBecause = '';
     if (typeof VexAISpend !== 'undefined' && VexAISpend.routing() && (primary === 'cloud' || primary === 'local')
         && !forceCloud && !preferLocal && (routingPrefs[feature] || 'auto') === 'auto') {
-      const adv = VexAISpend.advise(feature, request, { localUp: isOllamaAvailable(), cloudOk: isOnline() && !!cloudWorkerUrl() });
+      const adv = VexAISpend.advise(feature, request, { localUp: isOllamaAvailable(), cloudOk: isOnline() && cloudConfigured(feature) });
       if (adv && adv.backend !== primary) { primary = adv.backend; routedBecause = adv.because; }
       else if (adv) routedBecause = adv.because;
     }
@@ -625,12 +683,9 @@ const AIRouter = (() => {
     return out;
   }
 
-  async function callLocal(feature, request) {
-    if (feature === 'agent') return callLocalAgent(request);
-    // A question about an image (right-click → "Ask Vex about this image").
-    // Ollama takes images as bare base64 on the message, same as the agent's
-    // screenshot; a model without vision is told rather than left guessing.
-    if (request.image && feature === 'chat') return callLocalVisionChat(request);
+  // The system prompt, the temperature and the user turn of a non-agent request: what a local model is asked, and what
+  // a model behind your own key is asked (callByok), so the answer comes back in the same shape from every backend.
+  function buildLocalPrompt(feature, request) {
     // Phase 15: persona overrides the default system prompt + temperature.
     // Structured features (summarize/translate/etc.) keep their built-in
     // JSON-schema prompts — persona only overrides chat.
@@ -664,6 +719,16 @@ const AIRouter = (() => {
     userMessage += localExtras(request);
     if (request.message) userMessage += `User: ${request.message}`;
     if (!userMessage) userMessage = JSON.stringify(request);
+    return { systemPrompt, temperature, userMessage };
+  }
+
+  async function callLocal(feature, request) {
+    if (feature === 'agent') return callLocalAgent(request);
+    // A question about an image (right-click → "Ask Vex about this image").
+    // Ollama takes images as bare base64 on the message, same as the agent's
+    // screenshot; a model without vision is told rather than left guessing.
+    if (request.image && feature === 'chat') return callLocalVisionChat(request);
+    const { systemPrompt, temperature, userMessage } = buildLocalPrompt(feature, request);
 
     // All local features expect JSON because LOCAL_SYSTEM_PROMPTS.chat also
     // asks for {"reply": "..."} — without format:'json' small models ramble.
@@ -705,10 +770,67 @@ const AIRouter = (() => {
     return { result: text, backend: 'local', model };
   }
 
+  // ---------- CLOUD, YOUR OWN KEY (Claude, OpenAI, Gemini, OpenRouter, a custom server) ----------
+  // Main makes the request with the key (js/ai-keys.js -> src/main/ai-byok.js); this builds what is asked. The
+  // prompts are the local ones (JSON shapes the panel renders), so every feature answers in the shape it expects
+  // from any provider, and the agent's tool calling stays the one JSON object per step it is for Ollama and the Worker.
+  const BYOK_MAX_TOKENS = { agent: 3000, historyIndex: 800, groupTabs: 2500 };
+
+  function byokAgentMessages(request) {
+    const msgs = [{ role: 'system', content: LOCAL_SYSTEM_PROMPTS.agent + '\n\nAvailable tools:\n' + JSON.stringify(request.availableTools || []) }];
+    for (const m of (Array.isArray(request.conversationHistory) ? request.conversationHistory : [])) {
+      if (m && m.role && m.content) msgs.push({ role: m.role, content: String(m.content).slice(0, 3500) });
+    }
+    let um = "User's goal: " + (request.userGoal || request.message || '') + '\n\n';
+    const pc = request.pageContext;
+    if (pc) {
+      um += 'Current page:\nURL: ' + (pc.url || '') + '\nTitle: ' + (pc.title || '') + '\n';
+      if (pc.elements) um += '\nInteractive elements (first 40):\n' + JSON.stringify((pc.elements || []).slice(0, 40)) + '\n';
+      if (pc.text) um += '\nPage text (truncated):\n' + String(pc.text).substring(0, 6000) + '\n';
+    } else {
+      um += 'Current page: none loaded. Tools that need no page still work (web_search, read_url, tabs, notes…).\n';
+    }
+    if (request.lastToolResult) um += '\nLast tool result:\n' + JSON.stringify(request.lastToolResult).slice(0, 12000) + '\n';
+    if (request.image) um += '\nNote: you asked for a screenshot, but screenshots are not sent to your own AI key yet. Use extract_text and extract_elements instead.\n';
+    um += "\nWhat's your next action? Reply with ONE JSON object.";
+    msgs.push({ role: 'user', content: um });
+    return msgs;
+  }
+
+  function byokMessages(feature, request) {
+    if (feature === 'agent') return byokAgentMessages(request);
+    const { systemPrompt, userMessage } = buildLocalPrompt(feature, request);
+    const msgs = [{ role: 'system', content: systemPrompt }];
+    if ((feature === 'chat' || feature === 'multiTab') && Array.isArray(request.conversationHistory)) {
+      // The AI-memory facts ride at the front as system messages and are never trimmed away.
+      const hist = request.conversationHistory.filter(m => m && m.role && m.content);
+      const system = hist.filter(m => m.role === 'system');
+      const turns = hist.filter(m => m.role !== 'system').slice(-10);
+      for (const m of [...system, ...turns]) msgs.push({ role: m.role, content: m.content });
+    }
+    msgs.push({ role: 'user', content: userMessage });
+    return msgs;
+  }
+
+  async function callByok(feature, request, providerId) {
+    const keys = keysApi();
+    if (!keys || !keys.available()) throw new Error('Your own AI key is not available in this build');
+    const p = keys.provider(providerId);
+    if (!p || !p.saved) throw new Error('This feature is set to use your ' + providerId + ' key, but no key is saved on this computer. Add one in Settings › AI › Connect an AI.');
+    if (request.image) throw new Error('Asking about a picture does not work with your ' + p.short + ' key yet. Use a local model that can see images (Ollama), or your AI Worker.');
+    const out = await keys.chat({
+      provider: providerId, feature, messages: byokMessages(feature, request),
+      maxTokens: BYOK_MAX_TOKENS[feature] || 2000, signal: request.signal, onToken: request.onToken,
+    });
+    return { result: out.text, backend: 'cloud', via: 'key', provider: providerId, model: out.model, usage: out.usage };
+  }
+
   // ---------- CLOUD (Cloudflare worker) ----------
   const CLOUD_TIMEOUT_MS = 60000;
 
   async function callCloud(feature, request) {
+    const target = cloudTarget(feature);
+    if (target && (target.kind === 'key' || target.kind === 'missing-key')) return callByok(feature, request, target.provider);
     const actionMap = {
       chat: 'chat',
       summarize: 'summarize',
@@ -737,9 +859,9 @@ const AIRouter = (() => {
       // "…or switch to local Ollama" told someone already on local, with
       // Ollama down, to do what they had done (found 2026-09-29). Say what is
       // missing: with Ollama up, callAI falls back to it after this.
-      if (isOllamaAvailable()) throw new Error('Cloud AI is not configured: no AI Worker URL is set (Settings › Cloud, see SELF_HOSTING.md).');
+      if (isOllamaAvailable()) throw new Error('Cloud AI is not configured: add your own API key in Settings › AI › Connect an AI, or an AI Worker URL in Settings › Cloud (see SELF_HOSTING.md).');
       const where = (typeof Ollama !== 'undefined' && Ollama.getBaseUrl) ? Ollama.getBaseUrl() : 'http://127.0.0.1:11434';
-      throw new Error(`No AI to answer: Ollama at ${where} is not running, and no cloud AI Worker is configured. Start Ollama, or add an AI Worker URL and access token in Settings › Cloud (see SELF_HOSTING.md).`);
+      throw new Error(`No AI to answer: Ollama at ${where} is not running, and no cloud AI is connected. Start Ollama, or connect your own API key in Settings › AI › Connect an AI (an AI Worker URL and access token in Settings › Cloud also work, see SELF_HOSTING.md).`);
     }
     // The normal path (VexConfig.fetchAI → main's cloud:request) is already
     // bounded at 25s in main. The bare-fetch fallback had no bound at all, so a
@@ -909,7 +1031,7 @@ You were given an order, so carry it out. "thought" is one short sentence about 
     // for asking the same question of two of them at once
     // (js/two-models.js). Everything else should use callAI.
     callOn: (backend, feature, request) => callBackend(backend, feature, request),
-    cloudWorkerUrl,
+    cloudWorkerUrl, cloudTarget, cloudConfigured, cloudLabel, planFor,
     migrateHistoryRouting, migrateRouteKey,
     _cleanIpcError
   };

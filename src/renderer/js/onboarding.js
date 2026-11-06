@@ -248,7 +248,7 @@ const Onboarding = {
       case 'privacy':        return this._flag('vex.privacyChosen');
       case 'import':         return this._flag('vex.importOffered');
       case 'defaultbrowser': return this._flag('vex.defaultBrowserConfigured');
-      case 'aicloud':        return this._has('vex.aiWorkerUrl');
+      case 'aicloud':        return this._has('vex.aiWorkerUrl') || (typeof AIKeys !== 'undefined' && AIKeys.hasAny());
       case 'ollama':         return this._route() === 'local';
       case 'ondevice':       return this._flag('vex.preferOnDeviceAI');
       case 'sync':           return this._has('vex.syncWorkerUrl');
@@ -348,7 +348,7 @@ const Onboarding = {
       { key: 'search',         title: 'Default search engine',    sub: 'Which search engine the URL bar and start page use.' , quick: true, secs: 15},
       { key: 'privacy',        title: 'Privacy choices',          sub: 'Three features that ask a service on the internet. Each is yours to choose, and each is a switch in Settings later.' , quick: true, secs: 20},
       { key: 'defaultbrowser', title: 'Make Vex your default',    sub: 'So links from Discord, email, and other apps open in Vex.' , quick: true, secs: 15},
-      { key: 'aicloud',        title: 'Cloud AI (Claude)',        sub: 'Paste your self-hosted Vex AI Worker URL and its access token for the most capable AI (both are kept in Settings › Cloud). Skip if you’ll use local AI instead.' , secs: 45},
+      { key: 'aicloud',        title: 'Cloud AI',        sub: 'Use your own API key (Claude, OpenAI, Gemini or OpenRouter), or your self-hosted Vex AI Worker, for the most capable AI. Skip if you’ll use local AI instead.' , secs: 45},
       { key: 'ollama',         title: 'Local AI (Ollama)',        sub: 'Run models locally with Ollama — private and free. We’ll detect a running Ollama for you.' , secs: 45},
       { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' , secs: 45},
       { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' , secs: 45},
@@ -1047,12 +1047,17 @@ const Onboarding = {
     } else if (key === 'aicloud') {
       let cur = this._session.aicloud;
       if (cur == null) { try { cur = localStorage.getItem('vex.aiWorkerUrl') || ''; } catch { cur = ''; } }
+      setTimeout(() => { const host = body.querySelector('#ob-byok'); if (host && typeof AIConnect !== 'undefined') AIConnect.wizardBlock(host); }, 0);
       body.innerHTML = `<div style="display:flex;flex-direction:column;gap:11px">
         <p style="font-size:12.5px;color:var(--text);margin:0;line-height:1.55">
-          <b>Cloud AI</b> gives Vex its most capable assistant (<b>Claude</b>) — for chat, page summaries,
-          translation, and Agent mode. It runs on <i>your own</i> free Cloudflare Worker with <i>your own</i>
-          API key, so you fully own it and there's no middleman.
+          <b>Cloud AI</b> gives Vex its most capable assistant — for chat, page summaries, translation, and Agent mode. There are three ways to get an AI, and you can change your mind anytime in Settings › AI:
         </p>
+        <ol style="font-size:12.5px;color:var(--text);margin:0;padding-left:18px;line-height:1.6">
+          <li><b>On this computer (Ollama)</b> — free and private; it is the next step.</li>
+          <li><b>Your own API key</b> — the easy way to the best answers. Pick a company, paste a key from your account, done.</li>
+          <li><b>Your own Worker</b> — for technical users; the steps are further down.</li>
+        </ol>
+        <div id="ob-byok"></div>
         <div style="background:rgba(127,127,127,.09);border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.6">
           <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later in Settings › Cloud.</b> Prefer zero setup? Use <b>Local AI (Ollama)</b> or <b>On-device AI</b> on the next two steps instead.
           <div style="margin-top:7px;color:var(--text)">To turn it on now, 4 steps:</div>
@@ -1918,6 +1923,8 @@ const Onboarding = {
       const sel = key === 'aicloud' ? '#ob-ai-url' : '#ob-sync-url';
       const what = key === 'aicloud' ? 'paste your AI Worker URL' : 'paste your Sync Worker URL';
       const v = val(sel);
+      // A saved API key is a complete answer for this step; the Worker URL is then optional.
+      if (!v && key === 'aicloud' && typeof AIKeys !== 'undefined' && AIKeys.hasAny()) return null;
       if (!v) return empty(sel, what);
       let u;
       try { u = new URL(v); } catch { return { field: sel, message: 'That is not a web address — it should look like https://your-worker.workers.dev' }; }

@@ -51,7 +51,7 @@ const SettingsOrganize = {
     ['loadout cards', 'low'], ['game audio scenes', 'low'], ['game control center', 'low'], ['game mode', 'low'],
     ['discord hotkeys', 'low'], ['when a game is running', 'low'], ['held while you played', 'low'], ['bypass check', 'low'],
     ['guide on a second screen', 'low'], ['mouse cursor', 'low'], ['click effect', 'low'], ['sounds', 'low'],
-    ['vex packs', 'mid'], ['route all of vex', 'high'], ['encrypted profile lock', 'high'], ['ai backend', 'high'],
+    ['vex packs', 'mid'], ['route all of vex', 'high'], ['encrypted profile lock', 'high'], ['connect an ai', 'critical'], ['ai backend', 'high'],
     ['chrome extensions', 'high'], ['keyboard shortcuts', 'mid'], ['cloud services', 'mid'], ['userscripts', 'mid'],
     ['reset', 'high'], ['sign-in: why you were signed out', 'low'], ['meeting transcript', 'low'],
     ['terms of service', 'low'], ['permission hygiene', 'mid'], ['storage', 'mid'],
