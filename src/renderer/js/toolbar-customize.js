@@ -139,6 +139,17 @@ const ToolbarCustomize = (() => {
     watcher.observe(rail, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'title'] });
   }
 
+  // Simple mode (js/simple-mode.js) keeps these toolbar buttons away; until the person customises the toolbar that stands.
+  function simpleWithheld(id) {
+    return typeof VexSimpleMode !== 'undefined' && VexSimpleMode.isSimple() && VexSimpleMode.TOOLBAR.includes(id) && !L().isCustom();
+  }
+  // Is this toolbar button to be forced into sight, whatever a look or a mode hides on its own?
+  function isPlaced(id, bar, menu) {
+    if (simpleWithheld(id)) return false;
+    if (menu.includes(id)) return true;
+    return bar.includes(id) && (L().isCustom() || !L().DEFAULT_SHOWN.includes(id));
+  }
+
   // Draw what the model says: panel buttons made or removed, the bar's buttons in the saved order.
   function sync() {
     const r = right();
@@ -151,14 +162,16 @@ const ToolbarCustomize = (() => {
       if (document.getElementById(L().elementId(id)) || !sourceOf(L().panelOf(id))) continue;
       r.insertBefore(makeProxy(id), more);
     }
-    // A look that hides a toolbar button on its own (the browser looks hide Notes, "it is on the rail") shows it once the person
-    // has put it in the toolbar: css/toolbar-customize.css reads data-tb-placed.
-    const custom = L().isCustom();
+    // A look or a mode that hides a toolbar button on its own (the browser looks hide Notes, "it is on the rail"; Simple mode
+    // tucks the power buttons away) must not hide one the model puts in the bar or the three-dot menu: css/toolbar-customize.css
+    // reads data-tb-placed. Two honest exceptions: the untouched default bar keeps its own conditional buttons conditional (the
+    // Settings gear only while the sidebar is off), and Simple mode keeps its power buttons away until the toolbar is customised
+    // (the dialog says so, see simpleWithheld).
     for (const id of L().IDS) {
       const el = document.getElementById(id);
       if (!el) continue;
       el.dataset.tbId = id;
-      el.toggleAttribute('data-tb-placed', custom && bar.includes(id) && !L().DEFAULT_SHOWN.includes(id));
+      el.toggleAttribute('data-tb-placed', isPlaced(id, bar, menu));
     }
     refreshAll();
     watchRail(wanted.size > 0);
@@ -486,6 +499,13 @@ const ToolbarCustomize = (() => {
     return b;
   }
 
+  function withheldNote() {
+    const s = document.createElement('span');
+    s.className = 'tbc-note';
+    s.textContent = 'Hidden while Simple mode is on';
+    return s;
+  }
+
   function renderDialog(box) {
     const focus = box.contains(document.activeElement) ? { key: document.activeElement.dataset.focusKey } : null;
     const cat = catalog();
@@ -518,6 +538,7 @@ const ToolbarCustomize = (() => {
         name.setAttribute('translate', 'no');
         name.textContent = e.label;
         li.append(iconBox(e), name);
+        if (e.kind !== 'panel' && simpleWithheld(id)) li.append(withheldNote());
         const horizontal = where === 'bar';
         const prev = small(horizontal ? 'Move left' : 'Move up', horizontal ? '←' : '↑', () => L().move(id, -1), i === 0);
         const next = small(horizontal ? 'Move right' : 'Move down', horizontal ? '→' : '↓', () => L().move(id, 1), i === ids.length - 1);
@@ -560,7 +581,9 @@ const ToolbarCustomize = (() => {
         for (const [v, t] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); }
         sel.value = L().where(e.id);
         sel.addEventListener('change', () => attempt(() => L().place(e.id, sel.value)));
-        row.append(iconBox(e), name, sel);
+        row.append(iconBox(e), name);
+        if (e.kind !== 'panel' && simpleWithheld(e.id)) row.append(withheldNote());
+        row.append(sel);
         all.appendChild(row);
       }
     }
@@ -621,6 +644,7 @@ const ToolbarCustomize = (() => {
     if (!r) throw new Error('[ToolbarCustomize] #top-bar-right is missing');
     sync();
     window.addEventListener('vex:toolbar-shown', sync);
+    window.addEventListener('vex-ui-mode-changed', sync);
     document.addEventListener('contextmenu', onContextMenu);
     document.addEventListener('pointerdown', onDown, true);
   }
@@ -628,6 +652,7 @@ const ToolbarCustomize = (() => {
   // Everything init() hooked up, taken down again (the tests, and the leak check, open and close it many times).
   function destroy() {
     window.removeEventListener('vex:toolbar-shown', sync);
+    window.removeEventListener('vex-ui-mode-changed', sync);
     document.removeEventListener('contextmenu', onContextMenu);
     document.removeEventListener('pointerdown', onDown, true);
     watchRail(false);

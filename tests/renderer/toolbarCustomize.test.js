@@ -679,5 +679,65 @@ describe('wiring', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/renderer/js/toolbar-customize.js'), 'utf8');
     const lead = /<p class="tbc-lead">([^<]+)<\/p>/.exec(src)[1];
     expect(tr[lead], 'the dialog lead').toBeTruthy();
+    expect(tr['Hidden while Simple mode is on']).toBeTruthy();
+  });
+});
+
+// A look or a mode hides some buttons on its own (browser looks: Notes; Simple mode: the power buttons; the sidebar: the gear).
+// What the model puts in the bar or the three-dot menu must be forced into sight (css/toolbar-customize.css reads data-tb-placed).
+describe('a button the model lists is never hidden by a look or a mode', () => {
+  const placedIds = () => BUILTIN.filter(id => document.getElementById(id).hasAttribute('data-tb-placed'));
+  const simple = (on) => { globalThis.VexSimpleMode = { isSimple: () => on, TOOLBAR: ['btn-tor', 'btn-notes-top', 'btn-extensions', 'btn-toggle-ai', 'btn-split', 'btn-dev-dash', 'btn-profile'] }; C.sync(); };
+  afterEach(() => { delete globalThis.VexSimpleMode; });
+
+  it('by default every button in the three-dot menu is marked, the default bar keeps its own conditional buttons conditional', () => {
+    C.sync();
+    expect(placedIds().sort()).toEqual(L.menuIds().sort());
+    expect(placedIds()).toContain('btn-notes-top');
+    expect(placedIds()).not.toContain('btn-settings-top');
+    expect(placedIds()).not.toContain('btn-profile');
+  });
+  it('Notes put in the three-dot menu or in the bar is marked either way, and moving it keeps it marked', () => {
+    L.place('btn-notes-top', 'bar');
+    expect(document.getElementById('btn-notes-top').hasAttribute('data-tb-placed')).toBe(true);
+    L.place('btn-notes-top', 'menu');
+    expect(document.getElementById('btn-notes-top').hasAttribute('data-tb-placed')).toBe(true);
+  });
+  it('once the toolbar is customised, every button in it is marked, the default ones too', () => {
+    L.place('btn-tor', 'bar');
+    expect(placedIds().sort()).toEqual(BUILTIN.slice().sort());
+  });
+  it('Simple mode keeps its power buttons away on an untouched toolbar, and the dialog says so', () => {
+    simple(true);
+    for (const id of ['btn-tor', 'btn-notes-top', 'btn-extensions', 'btn-toggle-ai', 'btn-split', 'btn-profile']) expect(placedIds(), id).not.toContain(id);
+    expect(placedIds()).toContain('btn-incognito');
+    const ov = C.open();
+    expect(ov.querySelectorAll('.tbc-note').length).toBeGreaterThan(0);
+    expect(ov.querySelector('.tbc-note').textContent).toBe('Hidden while Simple mode is on');
+    C.close();
+  });
+  it('Simple mode shows them once the person customised the toolbar, and follows the mode switch', () => {
+    L.place('btn-split', 'bar');
+    simple(true);
+    expect(placedIds().sort()).toEqual(BUILTIN.slice().sort());
+    const ov = C.open();
+    expect(ov.querySelectorAll('.tbc-note')).toHaveLength(0);
+    C.close();
+    localStorage.removeItem('vex.toolbarShown');
+    localStorage.removeItem('vex.toolbarMenu');
+    simple(true);
+    expect(placedIds()).not.toContain('btn-split');
+    globalThis.VexSimpleMode.isSimple = () => false;
+    window.dispatchEvent(new CustomEvent('vex-ui-mode-changed'));
+    expect(placedIds()).toContain('btn-split');
+  });
+  it('the stylesheet forces a marked button into sight over the looks and Simple mode, but not while it is folded or empty', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'src/renderer/css/toolbar-customize.css'), 'utf8');
+    const rule = /([^{}]*\[data-tb-placed\][^{}]*)\{([^}]*)\}/.exec(css);
+    expect(rule[2]).toMatch(/display:\s*inline-flex\s*!important/);
+    expect(rule[1]).toContain(':not([hidden])');
+    expect(rule[1]).toContain('.tb-overflowed');
+    expect(rule[1]).toContain('.tb-overflow-proxy');
+    expect(rule[1]).not.toMatch(/data-gui-family/);
   });
 });
