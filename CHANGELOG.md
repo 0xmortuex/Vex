@@ -1,5 +1,37 @@
 # Changelog
 
+## v52.84.4 (2026-11-06) — Six new tools, your own AI keys, a toolbar that is yours, and 2,000 wallpapers
+
+This release adds six tools people asked for, lets you bring your own AI account, and lets you arrange the top-right toolbar and the sidebar the way you like. Every look now has its own sidebar, and the Wallpaper Store has a built-in online catalogue.
+
+### New
+- **Research mode.** Pick some tabs and get a short brief in which every claim is checked against the pages it came from, with the source named. Try: Ctrl+K › Research. (feature: research-mode)
+- **In-game overlay.** A small Vex window on a global hotkey, with a guide, Discord, notes and a timer, so you do not leave the game. Try: Settings › Play › Game overlay. (feature: game-overlay)
+- **Voice control.** Say a Ctrl+K command or dictate text, in Turkish or English. Recognition runs on this PC and the audio is never saved. Try: Settings › Voice control. (feature: voice-control)
+- **Page automations.** Record a few steps on a page and let Vex repeat them on a schedule, asking you before anything that matters. Try: Settings › Extras › Page automations. (feature: page-automations)
+- **Share a Space.** Send a friend a workspace's tabs as a `.vexspace` file or a `vex://space` link. They see a preview before anything opens. (feature: share-space)
+- **Safe download assistant.** Every download gets a green, amber or red verdict with plain reasons; an amber or red file is never opened for you. (feature: safe-download)
+- **Connect an AI.** Use your own Claude, OpenAI, Gemini, OpenRouter or custom key in the AI panel. Keys are stored encrypted by Windows, never synced, and the model lists load live. Try: Settings › AI › Connect an AI. (feature: ai-keys)
+- **A toolbar that is yours.** Right-click a top-right button to move it, swap it, or fold it into the three-dot menu, and place any sidebar button there. The address bar shrinks to make room. (feature: toolbar-limit)
+- **A sidebar in every look.** Saying yes to the sidebar in setup now gives each look (Chrome, Firefox, Glass and the others) its own styled rail instead of losing it.
+- **Sidebar folders match the Start button.** Folders and the home button are one style, spaced just enough, and the rail is thinner. Apps is split into its own groups.
+- **2,000 more wallpapers.** A built-in online catalogue of public-domain art and photos (Met, Cleveland, NASA, Wikimedia) that downloads only when you pick one, plus 249 material wallpapers drawn by Vex (marble, wood, fabric and more). The original drawn wallpapers now have Turkish names. (feature: wallpaper-store)
+- **GitHub asks how to open.** Clicking GitHub asks "Control Center or GitHub directly?". Right-click it and choose Keep on Control Center, Keep on Direct, or Ask every time. Try: Settings › Personalization › When I click GitHub. (feature: github-open)
+
+### Improved
+- **Settings search opens the exact row** and highlights it, even in a group that was hidden.
+- **Applying a wallpaper now turns wallpapers on**, so it shows on the home page.
+- **Keyboard shortcuts verified in a real window.** The Sessions key works, Ctrl+Shift++ zooms pages, and Ctrl+K works in private windows.
+
+### Fixed
+- **Dimming layers cover the whole window** (a bright strip showed in Toolbox and AI news).
+- **Back to tab** from a picture-in-picture video now returns to Discord.
+- **Ctrl+Shift+G** says plainly why nothing was grouped instead of lightening the window.
+- **The toolbar no longer re-lays itself out many times a second** on a narrow window.
+- **Toasts stand clear of a rail on the right**, and a button listed in the bar or the three-dot menu is always in sight, in every look and in Simple mode.
+- **Safe downloads and the game overlay** are readable on dark looks, and the overlay hotkey no longer opens a tiny window.
+- **A wallpaper download that redirects to an unlisted host** is now named in the error.
+
 ## v49.89.2 (2026-11-02) — A friendlier setup and Settings, theme packs and wallpapers, and updates that cannot fail silently
 
 Vex looks and feels different on the first day now. Setup asks whether you want a sidebar and a game-friendly mode, Settings shows one short category at a time with a search that finds the exact setting, and you can dress the whole browser with a theme pack, an icon style and a wallpaper that Vex can recolour itself to match. It also warns you before a reported scam site opens, explains why a movie will not play, and a bad update can now undo itself.

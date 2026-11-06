@@ -2,6 +2,38 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
+## v52.84.4 (2026-11-06) — Altı yeni araç, kendi yapay zekâ anahtarlarınız, size ait bir araç çubuğu ve 2.000 duvar kağıdı
+
+Bu sürüm istenen altı aracı ekliyor, kendi yapay zekâ hesabınızı bağlamanıza ve sağ üst araç çubuğunu ile kenar çubuğunu istediğiniz gibi düzenlemenize izin veriyor. Her görünümün artık kendi kenar çubuğu var ve Duvar Kağıdı Mağazası’nda dahili bir çevrimiçi katalog bulunuyor.
+
+### Yeni
+- **Araştırma modu.** Birkaç sekme seçin; her iddianın geldiği sayfayla karşılaştırıldığı, kaynağı belirtilen kısa bir özet alın. Deneyin: Ctrl+K › Araştırma. (feature: research-mode)
+- **Oyun içi katman.** Genel bir kısayolla açılan küçük bir Vex penceresi: rehber, Discord, notlar ve zamanlayıcı, oyundan çıkmadan. Deneyin: Ayarlar › Oyun › Oyun içi katman. (feature: game-overlay)
+- **Sesli komut.** Türkçe veya İngilizce bir Ctrl+K komutu söyleyin ya da yazdırın. Tanıma bu bilgisayarda yapılır, ses asla kaydedilmez. Deneyin: Ayarlar › Sesli komut. (feature: voice-control)
+- **Sayfa otomasyonları.** Bir sayfada birkaç adım kaydedin, Vex bunları zamanlanmış olarak tekrarlasın; önemli bir şeyden önce size sorar. Deneyin: Ayarlar › Ekstralar › Sayfa otomasyonları. (feature: page-automations)
+- **Alan paylaş.** Bir çalışma alanının sekmelerini `.vexspace` dosyası veya `vex://space` bağlantısıyla bir arkadaşınıza gönderin. Bir şey açılmadan önce önizleme görür. (feature: share-space)
+- **Güvenli indirme yardımcısı.** Her indirme, sade gerekçelerle yeşil, sarı veya kırmızı bir karar alır; sarı ya da kırmızı bir dosya sizin yerinize asla açılmaz. (feature: safe-download)
+- **Yapay zekâ bağla.** Yapay zekâ panelinde kendi Claude, OpenAI, Gemini, OpenRouter veya özel anahtarınızı kullanın. Anahtarlar Windows tarafından şifreli saklanır, eşitlenmez; model listeleri canlı yüklenir. Deneyin: Ayarlar › Yapay zekâ › Yapay zekâ bağla. (feature: ai-keys)
+- **Size ait bir araç çubuğu.** Sağ üstteki bir düğmeye sağ tıklayıp taşıyın, değiştirin veya üç nokta menüsüne katın; kenar çubuğundan istediğiniz düğmeyi buraya koyun. Adres çubuğu yer açmak için kısalır. (feature: toolbar-limit)
+- **Her görünümde bir kenar çubuğu.** Kurulumda kenar çubuğuna evet demek artık Chrome, Firefox, Glass ve diğer görünümlerin her birine kendi biçimli çubuğunu veriyor; kaybolmuyor.
+- **Kenar çubuğu klasörleri Başlat düğmesiyle uyumlu.** Klasörler ve ana sayfa düğmesi tek biçimde, yeterince aralıklı; çubuk daha ince. Uygulamalar ayrı gruplara bölündü.
+- **2.000 duvar kağıdı daha.** Kamu malı sanat ve fotoğraflardan oluşan dahili çevrimiçi katalog (Met, Cleveland, NASA, Wikimedia); yalnızca seçtiğinizde iner. Ayrıca Vex’in çizdiği 249 malzeme duvar kağıdı (mermer, ahşap, kumaş ve daha fazlası). İlk çizilen duvar kağıtlarının Türkçe adları eklendi. (feature: wallpaper-store)
+- **GitHub nasıl açılacağını sorar.** GitHub’a tıklamak “Kontrol Merkezi mi, doğrudan GitHub mı?” diye sorar. Sağ tıklayıp Kontrol Merkezi’nde tut, Doğrudan’da tut veya Her seferinde sor seçin. Deneyin: Ayarlar › Kişiselleştirme › GitHub’a tıkladığımda. (feature: github-open)
+
+### Değişti
+- **Ayarlar araması tam satırı açar** ve vurgular; gizli bir grupta olsa bile.
+- **Duvar kağıdı uygulamak artık duvar kağıtlarını açar**, böylece ana sayfada görünür.
+- **Klavye kısayolları gerçek pencerede doğrulandı.** Oturumlar tuşu çalışıyor, Ctrl+Shift++ sayfaları yakınlaştırıyor, Ctrl+K özel pencerelerde çalışıyor.
+
+### Düzeltildi
+- **Karartma katmanları tüm pencereyi kaplıyor** (Araç kutusu ve Yapay zekâ haberlerinde parlak bir şerit görünüyordu).
+- **Sekmeye dön:** resim içinde resim videosundan artık Discord’a dönüyor.
+- **Ctrl+Shift+G**, pencereyi açmak yerine neden hiçbir şey gruplanmadığını açıkça söylüyor.
+- **Araç çubuğu dar pencerede artık saniyede onlarca kez yeniden yerleşmiyor.**
+- **Bildirimler sağdaki çubuktan uzak duruyor**; çubukta veya üç nokta menüsünde listelenen bir düğme her görünümde ve Basit modda hep görünür.
+- **Güvenli indirmeler ve oyun içi katman** koyu görünümlerde okunuyor; katman kısayolu artık minik bir pencere açmıyor.
+- **Listede olmayan bir sunucuya yönlenen duvar kağıdı indirmesi** artık hatada adıyla anılıyor.
+
 ## v49.89.2 (2026-11-02) — Daha rahat bir kurulum ve Ayarlar, tema paketleri ve duvar kağıtları, sessizce başarısız olamayan güncellemeler
 
 Vex artık ilk günden farklı görünüyor ve hissettiriyor. Kurulum kenar çubuğu isteyip istemediğinizi ve oyun dostu bir mod isteyip istemediğinizi soruyor; Ayarlar her seferinde tek bir kısa kategori gösteriyor ve araması tam aradığınız ayarı buluyor; tüm tarayıcıyı bir tema paketi, bir simge stili ve Vex'in kendi renklerini uyduracağı bir duvar kağıdıyla giydirebiliyorsunuz. Ayrıca bildirilmiş bir sahtekâr siteyi açmadan önce uyarıyor, bir filmin neden oynamadığını anlatıyor ve kötü giden bir güncelleme artık kendini geri alabiliyor.
