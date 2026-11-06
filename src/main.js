@@ -7637,6 +7637,24 @@ app.on('web-contents-created', (_event, contents) => {
         });
         win.on('unresponsive', () => { console.error('[discord-popout] window unresponsive'); });
 
+        // A way back: the window had none, closing it left you where you were.
+        require('./main/discord-popout-back').attach(win, {
+          label: async () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return 'Back to Discord';
+            return mainWindow.webContents.executeJavaScript('window.vexTr ? window.vexTr("Back to Discord") : "Back to Discord"');
+          },
+          // User-driven, like pip:back-to-tab: the person pressed the pop-out's own button.
+          onBack: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              if (mainWindow.isMinimized()) mainWindow.restore();
+              mainWindow.show();
+              mainWindow.focus();
+              mainWindow.webContents.send('vex:discord-popout-back');
+            }
+            if (!win.isDestroyed()) win.close();
+          },
+        });
+
         // Let the renderer surface a one-line discoverability hint.
         try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:discord-popout-open'); } catch {}
       } catch (err) { console.error('[discord-popout] setup failed:', err.message); }
@@ -7809,7 +7827,7 @@ app.on('web-contents-created', (_event, contents) => {
     if (_agreementBlocks(contents) || _agreementGate.blocks(mainWindow)) return;
     if (handleFullscreenShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
-    if (handleDictateShortcut(event, input)) return;
+    if (handleDictateShortcut(event, input, contents)) return;
     if (handleCommandBarShortcut(event, input, contents)) return;
     // An extension's shortcut (chrome.commands), before the page hears it.
     if (handleExtensionCommandKey(event, input, contents)) return;
@@ -7874,15 +7892,20 @@ function handleCommandBarShortcut(event, input, contents) {
   let url;
   try { url = contents.getURL(); } catch { url = ''; }
   if (!isCommandBarKey(input, url)) return false;
-  mainWindow.webContents.send('toggle-command-bar');
+  // The page's own window (a private window has its own command bar); none while locked.
+  const win = _shortcutWindow(contents);
+  if (!win) return false;
+  win.webContents.send('toggle-command-bar');
   event.preventDefault();
   return true;
 }
 
 const { isDictateKey } = require('./main/dictate-key');
-function handleDictateShortcut(event, input) {
-  if (!mainWindow || mainWindow.isDestroyed() || !isDictateKey(input)) return false;
-  mainWindow.webContents.send('dictate-toggle');
+function handleDictateShortcut(event, input, contents) {
+  if (!isDictateKey(input)) return false;
+  const win = _shortcutWindow(contents);
+  if (!win) return false;
+  win.webContents.send('dictate-toggle');
   event.preventDefault();
   return true;
 }
@@ -9489,6 +9512,9 @@ app.whenReady().then(async () => {
     // Ctrl alone, on the key going down. Nothing checked that Alt was up, so
     // Ctrl+Alt+W (Watch page) closed the tab, Ctrl+Alt+T opened one and
     // Ctrl+Alt+M muted it (found 2026-09-29).
+    // Behind the lock screen none of Vex's keys act (Ctrl+T opened tabs and Ctrl+W closed them under it).
+    // F11 stays: it only changes the size of the window.
+    if (_vexLocked) { handleFullscreenShortcut(event, input); return; }
     const down = input.type === 'keyDown';
     const ctrlOnly = down && input.control && !input.alt;
     if (ctrlOnly && input.key === 'k') {
@@ -9515,7 +9541,7 @@ app.whenReady().then(async () => {
       mainWindow.webContents.send('zoom-in');
       event.preventDefault();
     }
-    if (ctrlOnly && input.key === '-') {
+    if (ctrlOnly && (input.key === '-' || input.key === '_')) {
       mainWindow.webContents.send('zoom-out');
       event.preventDefault();
     }
@@ -11484,7 +11510,14 @@ require('./main/wallpaper').registerWallpaper({
   execFile: require('child_process').execFile, fs, nativeImage,
 });
 // The Wallpaper Store's files (userData/wallpapers) and its one optional list fetch (src/main/wallpaper-store.js).
-require('./main/wallpaper-store').registerWallpaperStore({ ipcMain, dir: path.join(app.getPath('userData'), 'wallpapers'), fs, path, fetch: boundedPublicFetch });
+// The built-in catalogue (src/main/data/wallpaper-catalogue*.json) is read through a public-only fetch with no size wrapper: the store counts the bytes
+// itself, while they arrive, and checks every address (every redirect too) against the host list in the data folder.
+// Test seam, source runs only (never a packaged build): VEX_WALLPAPER_DATA_DIR reads the catalogue files from another folder, and
+// VEX_WALLPAPER_TEST_HOSTS ("a.example,b.example") makes those exact names look public to the private-address check, so a test can
+// map them to a local server with --host-resolver-rules. Everything else about the fetch (https, host list, size cap) is unchanged.
+const wpTestHosts = !app.isPackaged && process.env.VEX_WALLPAPER_TEST_HOSTS ? process.env.VEX_WALLPAPER_TEST_HOSTS.split(',') : [];
+const wallpaperStreamFetch = _egressFetch(require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => (wpTestHosts.includes(h) ? { endpoints: [{ address: '93.184.216.34' }] } : net.resolveHost(h)) }), { feature: 'Wallpaper store', kind: 'fetch' });
+require('./main/wallpaper-store').registerWallpaperStore({ ipcMain, dir: path.join(app.getPath('userData'), 'wallpapers'), fs, path, fetch: boundedPublicFetch, streamFetch: wallpaperStreamFetch, dataDir: (!app.isPackaged && process.env.VEX_WALLPAPER_DATA_DIR) || path.join(__dirname, 'main', 'data') });
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
 // Settings > Video and music playback (DRM), and the "Why isn't this playing?" banner (src/main/drm-health.js): the
 // diagnosis, the two repairs that need no restart, and clearing one tab's site. A failed repair throws to the caller.

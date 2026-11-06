@@ -105,6 +105,8 @@ const SyncEngine = (() => {
     'vex.themePack', 'vex.iconPack',
     // The sidebar's groups: their names, descriptions, icons, colours and buttons (js/sidebar-groups.js). Which folders are open stays per device.
     'vex.sidebarGroupDefs',
+    // Which buttons sit on the right of the toolbar and in the three-dot menu, and in what order (js/toolbar-limit.js).
+    'vex.toolbarShown', 'vex.toolbarMenu',
     'vex.a11y',
     // Reminders and alarms. The main process owns them (reminders.json); the
     // renderer mirrors the list here so it travels, and imports what arrives
@@ -159,7 +161,7 @@ const SyncEngine = (() => {
     { id: 'reminders', label: 'Reminders and scheduled tasks', keys: ['vex.reminders', 'vex.schedules'] },
     { id: 'ai', label: 'AI settings, personas and memory', keys: ['vex.agentMode', 'vex.aiIndexingEnabled', 'vex.aiRouting', 'vex.aiRoute', 'vex.personas', 'vex.activePersona', 'vex.aiMemory'] },
     { id: 'look', label: 'Themes, look and fonts', keys: ['vex.theme', 'vex.themeAuto', 'vex.customThemes', 'vex.tabLayout',
-      'vex.guiStyle', 'vex.guiColors', 'vex.skinPattern', 'vex.skinShape', 'vex.skinGlow', 'vex.skinStrength', 'vex.font', 'vex.fontMono', 'vex.themePack', 'vex.iconPack', 'vex.sidebarGroupDefs'] },
+      'vex.guiStyle', 'vex.guiColors', 'vex.skinPattern', 'vex.skinShape', 'vex.skinGlow', 'vex.skinStrength', 'vex.font', 'vex.fontMono', 'vex.themePack', 'vex.iconPack', 'vex.sidebarGroupDefs', 'vex.toolbarShown', 'vex.toolbarMenu'] },
     // Saved passwords and authenticator (2FA) accounts. Off until the person
     // turns them on, on each device (OFF_UNLESS_CHOSEN), after Vex asks again
     // (the Vex PIN if set). The main process seals each one with a key
@@ -1552,7 +1554,7 @@ const SyncEngine = (() => {
   // ===== THE LOOK =====
   // A look, skin, font or reading aid that arrived is put on screen at once,
   // as the theme is (theme-manager.js applySynced).
-  const LOOK_KEYS = ['vex.guiStyle', 'vex.guiColors', 'vex.skinPattern', 'vex.skinShape', 'vex.skinGlow', 'vex.skinStrength', 'vex.font', 'vex.fontMono', 'vex.themePack', 'vex.iconPack', 'vex.sidebarGroupDefs', 'vex.a11y'];
+  const LOOK_KEYS = ['vex.guiStyle', 'vex.guiColors', 'vex.skinPattern', 'vex.skinShape', 'vex.skinGlow', 'vex.skinStrength', 'vex.font', 'vex.fontMono', 'vex.themePack', 'vex.iconPack', 'vex.sidebarGroupDefs', 'vex.toolbarShown', 'vex.toolbarMenu', 'vex.a11y'];
   const lookSnapshot = () => JSON.stringify(LOOK_KEYS.map(key => localStorage.getItem(key)));
   function applyLook() {
     const G = window.VexGuiStyle;
@@ -1571,6 +1573,8 @@ const SyncEngine = (() => {
     // Both re-read storage. The design and icon attributes change on <html>, and the saved window look (js/early-look.js) follows them by itself.
     window.VexThemePacks?.apply();
     window.VexIconPacks?.apply();
+    // The toolbar redraws its buttons and their order from the synced keys.
+    window.dispatchEvent(new CustomEvent('vex:toolbar-shown'));
     if (window.AccessibilityPack) { window.AccessibilityPack.init(); window.AccessibilityPack.reapplyAll(); }
   }
   // A restored backup brings these back too (js/backup.js).

@@ -19,7 +19,8 @@
 
   // The address field keeps at least this much room (CSS px of #url-input)
   // whenever the window allows it: enough to read a whole domain and a path.
-  const MIN_URL_INPUT = 280;
+  // 240 since the toolbar could be filled with as many buttons as a person likes (js/toolbar-customize.js).
+  const MIN_URL_INPUT = 240;
   // First to go first. Window controls and Back/Forward/Reload never go.
   const ORDER = [
     'btn-restart-app', 'btn-onboarding', 'btn-tor', 'btn-notes-top', 'btn-dev-dash',
@@ -37,26 +38,40 @@
   let moved = [];          // elements currently in the menu: the folded ones (js/toolbar-limit.js), then those squeezed out
   let proxied = null;      // the element standing in under the chevron after a menu click
   let scheduled = false;
+  let squeezed = [];       // the part of `moved` that is there only because the window is narrow (not because the person put it there)
+  let toldSqueeze = false;
+  let held = false;        // the menu button stays in sight while a button is being dragged (so it can be dropped on it)
 
   const visible = (el) => !!el && !el.hidden && el.getClientRects().length > 0 && getComputedStyle(el).display !== 'none';
 
   // Everything that may move, first-to-go first: the known ids, then any other
   // button another module put in the right-hand cluster (the Toolbox button).
+  // The buttons the person placed in the toolbar (their order IS their priority): the last one goes first,
+  // so the buttons they put first are the last to be folded.
+  function placed() {
+    if (typeof ToolbarLimit === 'undefined') return [];
+    return ToolbarLimit.shownIds().map(id => document.getElementById(ToolbarLimit.elementId(id)))
+      .filter(el => el && bar.contains(el) && visible(el)).reverse();
+  }
+
   function candidates() {
+    const mine = new Set(placed());
+    const managed = (id) => typeof ToolbarLimit !== 'undefined' && ToolbarLimit.isBuiltin(id);
     const out = [];
     for (const id of ORDER) {
       const el = document.getElementById(id);
-      if (el && bar.contains(el) && visible(el)) out.push(el);
+      if (el && bar.contains(el) && visible(el) && !managed(id)) out.push(el);
     }
     // Buttons another module added to the right-hand cluster or the address
     // bar that are not in ORDER (the Toolbox button, the Web Store install).
     const extra = (id) => {
       const box = document.getElementById(id);
-      return box ? [...box.children].filter(el => el.tagName === 'BUTTON' && !NEVER.has(el.id) && !ORDER.includes(el.id) && visible(el)) : [];
+      return box ? [...box.children].filter(el => el.tagName === 'BUTTON' && !NEVER.has(el.id) && !ORDER.includes(el.id) && !mine.has(el) && visible(el)) : [];
     };
-    out.splice(Math.min(2, out.length), 0, ...extra('top-bar-right'));
-    out.push(...extra('url-bar'));
-    return out;
+    // The address bar's own helpers go first, then the toolbar buttons last-placed first, then the rest.
+    const early = out.filter(el => ORDER.indexOf(el.id) < ORDER.indexOf('btn-split'));
+    const late = out.filter(el => !early.includes(el));
+    return [...early, ...extra('top-bar-right'), ...mine, ...late, ...extra('url-bar')];
   }
 
   // The toolbar fits when nothing is clipped or pushed off the bar and the
@@ -75,9 +90,10 @@
   }
 
   // The buttons the four-icon limit folds away (js/toolbar-limit.js): always in the menu, whatever the width.
+  // In the order the person put them in the menu; a panel placed in the menu is one of them.
   function folded() {
     if (typeof ToolbarLimit === 'undefined') return [];
-    return ToolbarLimit.foldedIds().map(id => document.getElementById(id)).filter(el => el && bar.contains(el) && visible(el));
+    return ToolbarLimit.menuIds().map(id => document.getElementById(ToolbarLimit.elementId(id))).filter(el => el && bar.contains(el) && visible(el));
   }
 
   function clearProxy() {
@@ -96,19 +112,31 @@
     moved = [];
     bar.classList.remove('tb-compact', 'tb-tight');
     for (const el of folded()) { el.classList.add('tb-overflowed'); moved.push(el); }
-    more.hidden = !moved.length;
-    if (fits()) { if (menu) renderMenu(); return; }
+    const chosen = moved.length;
+    more.hidden = !moved.length && !held;
+    squeezed = [];
+    if (fits()) { finish(); return; }
     bar.classList.add('tb-compact');
-    if (fits()) { if (menu) renderMenu(); return; }
+    if (fits()) { finish(); return; }
     more.hidden = false;
     for (const el of candidates()) {
       el.classList.add('tb-overflowed');
       moved.push(el);
       if (fits()) break;
     }
-    if (!moved.length) more.hidden = true;
+    squeezed = moved.slice(chosen);
+    if (!moved.length) more.hidden = !held;
     if (!fits()) bar.classList.add('tb-tight');
+    finish();
+  }
+
+  // Said once per run of Vex, not at every resize: buttons moved into the menu only because the window is too narrow.
+  function finish() {
     if (menu) renderMenu();
+    if (squeezed.length && !toldSqueeze) {
+      toldSqueeze = true;
+      window.showToast?.('The window is narrow, so some toolbar buttons moved into the three-dot menu. They come back when there is room.');
+    }
   }
 
   function schedule() {
@@ -129,10 +157,14 @@
       row.type = 'button';
       row.className = 'tb-overflow-item';
       row.setAttribute('role', 'menuitem');
+      // The model's id of a button the person can place (js/toolbar-customize.js drags and right-clicks by it).
+      const tbId = el.dataset.tbId || (typeof ToolbarLimit !== 'undefined' && ToolbarLimit.isBuiltin(el.id) ? el.id : '');
+      if (tbId) row.dataset.tbId = tbId;
+      if (squeezed.includes(el)) row.classList.add('tb-overflow-squeezed');
       const ico = document.createElement('span');
       ico.className = 'tb-overflow-ico';
       ico.setAttribute('aria-hidden', 'true');
-      const svg = el.querySelector('svg');
+      const svg = el.querySelector('svg') || el.querySelector('img');
       if (svg) ico.appendChild(svg.cloneNode(true));
       const label = document.createElement('span');
       label.className = 'tb-overflow-label';
@@ -158,7 +190,8 @@
     cust.addEventListener('click', () => {
       closeMenu();
       more.focus({ preventScroll: true });
-      if (typeof SettingsUI !== 'undefined') SettingsUI.openSection('setcat-layout');
+      if (window.ToolbarCustomize) window.ToolbarCustomize.open();
+      else if (typeof SettingsUI !== 'undefined') SettingsUI.openSection('setcat-layout');
     });
     menu.appendChild(cust);
   }
@@ -283,7 +316,14 @@
     schedule();
   }
 
-  const api = { init, relayout, fits, candidates: () => candidates(), moved: () => moved.slice(), MIN_URL_INPUT, ORDER };
+  // While a button is dragged the menu button is always in sight; when the drag ends it hides again if the menu is empty.
+  function holdMore(on) { held = !!on; schedule(); }
+
+  const api = {
+    init, relayout, fits, candidates: () => candidates(), moved: () => moved.slice(), squeezed: () => squeezed.slice(),
+    holdMore, closeMenu: () => { if (menu) closeMenu(); }, menuElement: () => menu, moreButton: () => more,
+    MIN_URL_INPUT, ORDER,
+  };
   if (typeof window !== 'undefined') window.ToolbarOverflow = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof document !== 'undefined' && typeof VexIcons !== 'undefined') {

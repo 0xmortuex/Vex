@@ -750,6 +750,11 @@ const SidebarManager = {
         if (typeof PiPManager !== 'undefined') PiPManager.popoutPanel(panelName, wv, e.args && e.args[0]);
         return;
       }
+      // Chromium's floating player closed ("Back to tab"): back to this panel.
+      if (e.channel === 'vex-pip-left') {
+        if (typeof PiPManager !== 'undefined') PiPManager.leftNative(panelName);
+        return;
+      }
       if (e.channel !== 'vex-media-capture') return;
       const d = (e.args && e.args[0]) || {};
       this.setPanelCapturing(panelName, d.kind, d.active);

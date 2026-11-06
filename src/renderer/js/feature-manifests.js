@@ -542,8 +542,8 @@
       permissions: { reads: [], writes: ['the cursor style, colour and size you chose'], sends: [] } },
     { id: 'click-effect', title: 'Click effect', group: 'Click effect', maturity: 'new', storageKeys: ['vex.clickFx'],
       permissions: { reads: [], writes: ['the click effect and colour you chose'], sends: [] } },
-    { id: 'wallpaper-store', title: 'Wallpapers', group: 'Wallpapers', maturity: 'new', commands: ['wallpapers'], storageKeys: ['vex.wallpaper', 'vex.wallpaper.catalogueUrl', 'vex.wallpaper.enabled', 'vex.wallpaper.sync', 'vex.wallpaper.sync.areas'], budget: { storageKB: 20 },
-      permissions: { reads: ['the pictures you add yourself, to show them as a wallpaper'], writes: ['the wallpaper you chose, your favourites, and the shrunk pictures it keeps in Vex\'s own folder (at most 80 MB of downloaded photos and 24 of your own)'], sends: ['A request for the photo list, and for the pictures it names, to the address you set in Settings > Wallpapers; only when you open the Wallpaper Store with an address set (none by default)'] } },
+    { id: 'wallpaper-store', title: 'Wallpapers', group: 'Wallpapers', maturity: 'new', commands: ['wallpapers'], storageKeys: ['vex.wallpaper', 'vex.wallpaper.catalogueUrl', 'vex.wallpaper.enabled', 'vex.wallpaper.online', 'vex.wallpaper.sync', 'vex.wallpaper.sync.areas'], budget: { storageKB: 20 },
+      permissions: { reads: ['the pictures you add yourself, to show them as a wallpaper'], writes: ['the wallpaper you chose, your favourites, and the shrunk pictures it keeps in Vex\'s own folder (at most 80 MB of downloaded photos and 24 of your own)'], sends: ['A plain request (no cookies, nothing about you) for the preview of a built-in online wallpaper when its card comes into view, and for the full picture when you pick it, only to the public hosts Vex names in its own list; none at all when "Show online wallpapers" is off', 'A request for your own photo list, and for the pictures it names, to the address you set in Settings > Wallpapers (none by default)'] } },
     { id: 'revisit-watch', title: 'Watch suggestions', group: 'Watch suggestions', maturity: 'new', storageKeys: ['vex.revisit', 'vex.revisit.enabled'],
       permissions: { reads: ['the address and title of the pages you open (never a private or Tor tab)', 'the words of a page you open often, once per visit, only to tell whether it changed'], writes: ['the address, title and open times of up to 200 pages, and up to 6 short fingerprints of each (not the words), here'], sends: [] } },
     { id: 'workspace-archive', title: 'Idle workspaces', group: 'Idle workspaces', maturity: 'new',
@@ -822,9 +822,9 @@
     // the .v2 marker lets an 'off' written by the first version (not a choice) flip to on once.
     { id: 'sidebar-groups', title: 'Sidebar groups', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded', 'vex.sidebarGroups.open', 'vex.sidebarGroupDefs'], usesKeys: ['vex.sidebarOrder', 'vex.panelOverrides'],
       permissions: { reads: ['which panels the sidebar has and in what order'], writes: ['whether the sidebar is grouped, your groups (names, descriptions, icons, colours, which buttons are in them) and which folders are open'], sends: [] } },
-    // A layout choice (at most four icons on the toolbar's right, the rest in the "more" menu): no switch, it only folds.
-    { id: 'toolbar-limit', title: 'Four toolbar icons', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.toolbarShown'], usesKeys: ['vex.layout'],
-      permissions: { reads: ['which toolbar buttons you rearranged or hid'], writes: ['which toolbar buttons you keep in the toolbar'], sends: [] } },
+    // A layout choice (four icons on the toolbar's right by default; any button, in any order, in the bar or the "more" menu): no switch.
+    { id: 'toolbar-limit', title: 'Customizable toolbar', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.toolbarShown', 'vex.toolbarMenu'], usesKeys: ['vex.layout', 'vex.sidebarOrder', 'vex.panelOverrides'],
+      permissions: { reads: ['which toolbar buttons you rearranged or hid', 'which panels the sidebar has'], writes: ['which toolbar buttons and sidebar panels you keep in the toolbar or the three-dot menu, and in what order'], sends: [] } },
     { id: 'feature-registry', title: 'Feature records', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.featureUsage', 'vex.usage.prior.', 'vex.minimalMode', 'vex.registry'],
       permissions: { reads: ['which features exist'], writes: ['which features you use, and which are staged'], sends: [] } },

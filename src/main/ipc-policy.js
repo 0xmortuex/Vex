@@ -205,7 +205,7 @@ const UI_ONLY_CHANNELS = new Set([
   // Whether Vex's own folder browser takes the folders a tab meets, and forgetting its recent folders (main/folder-viewer.js): the interface, never a page.
   'folderview:set-enabled', 'folderview:forget-recent',
   // The Wallpaper Store (main/wallpaper-store.js): its files and its one optional list fetch are Vex's own window only.
-  'wallpaper:catalogue', 'wallpaper:download', 'wallpaper:save', 'wallpaper:read', 'wallpaper:remove', 'wallpaper:stats', 'wallpaper:clear-cache']);
+  'wallpaper:catalogue', 'wallpaper:builtin', 'wallpaper:cancel', 'wallpaper:download', 'wallpaper:save', 'wallpaper:read', 'wallpaper:remove', 'wallpaper:stats', 'wallpaper:clear-cache']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');

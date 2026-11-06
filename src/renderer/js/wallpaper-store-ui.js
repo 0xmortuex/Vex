@@ -19,7 +19,27 @@
   const HIDDEN_SHADE = 0.6;      // a shade stronger than this leaves under 40% of the picture showing: the person is told
   const icon = (name, size = 14) => (typeof root.VexIcons !== 'undefined' ? root.VexIcons.svg(name, { size }) : '');
   const toast = (msg, kind) => { root.showToast?.(msg, kind || 'info'); };    // answers to a button the person just pressed
-  const fail = (err) => { root.console.error('[wallpapers]', err); toast(err && err.message ? err.message : String(err), 'error'); };
+  const fail = (err) => { root.console.error('[wallpapers]', err); toast(friendly(err), 'error'); };
+
+  // A failed download or preview -> a sentence in the person's language. main tags its reasons "[wp:<code>] English detail"
+  // (and the window does the same for "off" and "offline"); the detail is kept at the end so the real reason is never hidden.
+  const REASONS = {
+    off: 'Online wallpapers are switched off, so nothing is loaded from the internet. Turn them on in Settings > Wallpapers.',
+    offline: 'This computer is offline. Connect to the internet and try again.',
+    host: 'This picture is not on one of the hosts Vex is allowed to load wallpapers from, so it was not downloaded.',
+    unreachable: 'The picture\'s host could not be reached. Check your connection and try again.',
+    http: 'The picture\'s host refused the download. Try again later.',
+    'too-large': 'The picture is too big (over 12 MB), so it was not downloaded.',
+    'not-image': 'The address did not give a picture, so nothing was kept.',
+    cancelled: 'Download cancelled. Nothing was kept.',
+  };
+  function friendly(err) {
+    const text = err && err.message ? err.message : String(err);
+    const m = /\[wp:([a-z-]+)\]\s*([^\n]*)/.exec(text);
+    if (!m || !REASONS[m[1]]) return text;
+    return L(REASONS[m[1]]) + (m[1] === 'off' || m[1] === 'offline' || m[1] === 'cancelled' || !m[2] ? '' : ' (' + m[2] + ')');
+  }
+  const tagOf = (err) => { const m = /\[wp:([a-z-]+)\]/.exec(err && err.message ? err.message : ''); return m ? m[1] : ''; };
 
   function el(tag, cls, text) {
     const e = doc.createElement(tag);
@@ -47,7 +67,7 @@
       const dlg = root.VexSettingsGroups.dialog({ id: 'vex-wallpaper-store', title: L('Wallpaper Store'), sub: L('Pictures for your New Tab page. Arrow keys move over the cards, Enter previews, Ctrl+Enter applies, / searches, Escape closes.') });
       dlg.overlay.classList.add('vws');
       dlg.overlay.querySelector('.vexsr-card').classList.add('vws-card');
-      const ui = { cat: 'all', q: '', sel: null, limit: PAGE, draft: { ...V.DEFAULTS }, io: null, thumbToken: 0 };
+      const ui = { cat: 'all', src: 'all', q: '', sel: null, limit: PAGE, draft: { ...V.DEFAULTS }, io: null, thumbToken: 0, dl: null };
       const cur = V.current();
       if (cur) { ui.sel = cur.id; ui.draft = { dim: cur.dim, blur: cur.blur, auto: cur.auto }; }
       if (select && V.get(select)) ui.sel = select;
@@ -62,6 +82,24 @@
       const settingsBtn = button(L('Settings'), () => { dlg.close(); if (root.SettingsUI && root.SettingsUI.openSection) root.SettingsUI.openSection('setting-wallpapers'); }, { iconName: 'sliders' });
       top.append(search, addBtn, settingsBtn);
 
+      // Where a wallpaper comes from: All / Drawn by Vex / Art and designs / Photos / Mine.
+      const srcRow = el('div', 'vws-cats vws-sources');
+      srcRow.setAttribute('role', 'group');
+      srcRow.setAttribute('aria-label', L('Source'));
+      // The online part: what it is, where it loads from, and the switch.
+      const onlineBox = el('div', 'vws-online');
+      const onlineNote = el('p', 'vws-online-note');
+      const onlineSwitch = el('label', 'vws-check vws-online-switch');
+      const onlineInput = el('input');
+      onlineInput.type = 'checkbox';
+      onlineInput.checked = V.online();
+      onlineInput.addEventListener('change', () => {
+        try { V.setOnline(onlineInput.checked); } catch (err) { fail(err); onlineInput.checked = V.online(); return; }
+        if (onlineInput.checked) loadOnline(); else { ui.src = ui.src === 'art' || ui.src === 'photo' ? 'all' : ui.src; say(L('Online wallpapers are off. Nothing is loaded from the internet.')); }
+        renderOnlineNote(); renderCats(); renderGrid();
+      });
+      onlineSwitch.append(onlineInput, doc.createTextNode(' ' + L('Show online wallpapers')));
+      onlineBox.append(onlineNote, onlineSwitch);
       const cats = el('div', 'vws-cats');
       cats.setAttribute('role', 'group');
       cats.setAttribute('aria-label', L('Wallpaper categories'));
@@ -76,22 +114,56 @@
       const panel = el('aside', 'vws-panel');
       panel.setAttribute('aria-label', L('Preview'));
       main.append(gridWrap, panel);
-      dlg.body.append(top, cats, status, main);
+      dlg.body.append(top, onlineBox, srcRow, cats, status, main);
 
       // actions: [[label, onClick], ...] shown as buttons after the sentence
       const say = (text, actions) => {
         status.textContent = text || '';
         for (const [label, fn, cls] of actions || []) status.append(doc.createTextNode(' '), button(label, () => { Promise.resolve().then(fn).catch(fail); }, { cls: cls || 'btn-primary' }));
       };
-      const items = () => V.search({ query: ui.q, category: ui.cat });
+      const items = () => V.search({ query: ui.q, category: ui.cat, source: ui.src });
+
+      // --- the online note and the source filter
+      function renderOnlineNote() {
+        const info = V.catalogueInfo();
+        const hosts = info && info.hosts && info.hosts.length ? info.hosts.join(', ') : '';
+        onlineNote.textContent = V.online()
+          ? L('Photos and artworks are loaded from public hosts only when you look at them. Nothing about you is sent.') + (hosts ? ' ' + L('Hosts:') + ' ' + hosts + '.' : '')
+          : L('Online wallpapers are off. Nothing is loaded from the internet, and only the wallpapers drawn by Vex and your own pictures are shown.');
+      }
+      function renderSources() {
+        srcRow.textContent = '';
+        const onl = V.online();
+        const opts = [['all', L('All')], ['generated', L('Drawn by Vex')]];
+        if (onl) opts.push(['art', L('Art and designs')], ['photo', L('Photos')]);
+        opts.push(['mine', L('Mine')]);
+        if (!opts.some(o => o[0] === ui.src)) ui.src = 'all';
+        for (const [id, label] of opts) {
+          const b = el('button', 'vws-chip', label);
+          b.type = 'button';
+          b.dataset.src = id;
+          b.setAttribute('aria-pressed', String(ui.src === id));
+          b.addEventListener('click', () => {
+            ui.src = id; ui.limit = PAGE; renderSources();
+            const again = Array.from(srcRow.children).find(n => n.dataset.src === id);
+            if (again) again.focus({ preventScroll: true });
+            renderGrid();
+          });
+          srcRow.append(b);
+        }
+      }
 
       // --- categories
       function renderCats() {
+        renderSources();
         cats.textContent = '';
         const have = V.list();
         const chips = [['all', L('All')], ['fav', L('Favourites')], ['recent', L('Recent')], ['mine', L('My pictures')]];
-        if (have.some(i => i.source === 'catalogue')) chips.push(['photos', L('Photos')]);
+        if (have.some(i => i.source === 'catalogue' && i.origin === 'hosted')) chips.push(['photos', L('Photos')]);
         for (const c of V.categories()) chips.push([c.id, L(c.title)]);
+        // The online categories: only when online wallpapers are on (the list is empty otherwise). Titles come from the data file; a Turkish Vex has its own for the known ones.
+        if (V.online()) for (const c of V.onlineCategories()) chips.push([c.id, c.title]);
+        if (!chips.some(c => c[0] === ui.cat)) ui.cat = 'all';
         for (const [id, label] of chips) {
           const b = el('button', 'vws-chip', label);
           b.type = 'button';
@@ -122,7 +194,8 @@
             : ui.cat === 'recent' ? L('Nothing here yet. Wallpapers you apply show up here.')
               : ui.cat === 'mine' ? L('You have not added a picture of your own yet.')
                 : ui.cat === 'photos' ? L('No photo list is set. Settings > Wallpapers can point Vex at a list of free photos.')
-                  : L('No wallpaper matches that.'));
+                  : (!V.online() && (ui.src === 'art' || ui.src === 'photo')) ? L('Online wallpapers are off. Turn on "Show online wallpapers" to see them.')
+                    : L('No wallpaper matches that.'));
           gridWrap.append(empty);
           renderPanel();
           return;
@@ -136,10 +209,21 @@
               if (img.dataset.state === 'idle') {
                 img.dataset.state = 'loading';
                 const id = card.dataset.id, d = V.get(id);
-                V.thumbOf(d).then((src) => { if (card.isConnected && img.dataset.state === 'loading') { img.src = src; img.dataset.state = 'shown'; } })
-                  .catch((err) => { img.dataset.state = 'idle'; card.classList.add('vws-broken'); root.console.error('[wallpapers] preview failed:', err.message); });
+                // A preview that waits its turn is dropped if the card has left the view by then (nothing is fetched for it).
+                V.thumbOf(d, { stale: () => !card.isConnected || img.dataset.state !== 'loading' }).then((src) => { if (card.isConnected && img.dataset.state === 'loading') { img.src = src; img.dataset.state = 'shown'; card.classList.remove('vws-broken', 'vws-offline'); } })
+                  .catch((err) => {
+                    img.dataset.state = 'idle';
+                    if (tagOf(err) === 'skipped') return;
+                    // An honest card: the picture's colour stays, and a line says why there is no preview (never an endless spinner).
+                    const why = tagOf(err) === 'offline' ? L('Offline') : tagOf(err) === 'off' ? L('Online is off') : L('No preview');
+                    card.classList.add(tagOf(err) === 'offline' ? 'vws-offline' : 'vws-broken');
+                    const note = card.querySelector('.vws-card-note') || card.insertBefore(el('span', 'vws-card-note'), card.querySelector('.vws-name'));
+                    note.textContent = why;
+                    card.title = friendly(err);
+                    root.console.error('[wallpapers] preview failed:', err.message);
+                  });
               }
-            } else if (img.dataset.state === 'shown') { img.removeAttribute('src'); img.dataset.state = 'idle'; }
+            } else if (img.dataset.state === 'shown' || img.dataset.state === 'loading') { img.removeAttribute('src'); img.dataset.state = 'idle'; }
           }
         }, { root: gridWrap, rootMargin: '500px 0px' });
         for (const d of shown) {
@@ -221,8 +305,14 @@
       async function renderPanel() {
         const mine = ++previewToken;
         let previewSrc = null;
-        panel.textContent = '';
         const d = ui.sel ? V.get(ui.sel) : null;
+        // An online picture that is not on this computer yet is NOT fetched by looking at it: the panel shows its preview and a Download button.
+        let cached = true;
+        if (d && d.source === 'catalogue') {
+          try { cached = await V.isCached(d.id); } catch (err) { cached = false; fail(err); }
+          if (mine !== previewToken) return;
+        }
+        panel.textContent = '';
         if (!d) { panel.append(el('div', 'vws-empty', L('Choose a wallpaper to preview it.'))); return; }
         const box = el('div', 'vws-preview');
         const pic = el('div', 'vws-pv-pic');
@@ -237,14 +327,23 @@
         read.setAttribute('role', 'status');
         const title = el('h3', 'vws-title', d.title);
         const by = el('div', 'vws-by');
-        by.textContent = d.source === 'generated' ? L('Drawn by Vex. Free to use, nothing is downloaded.') : d.source === 'mine' ? L('Your own picture, kept on this computer.') : (L('Photo by') + ' ' + d.author + ' · ' + d.licence);
+        // The credit line: title (above), who made it, under which licence. The source page opens in the person's own browser (the safe external-link path).
+        by.textContent = d.source === 'generated' ? L('Drawn by Vex. Free to use, nothing is downloaded.') : d.source === 'mine' ? L('Your own picture, kept on this computer.')
+          : (d.group === 'art' ? L('Artwork by') : L('Photo by')) + ' ' + d.author + ' · ' + V.licenceName(d.licence);
+        by.classList.add('vws-credit');
+        const palette = el('div', 'vws-palette');
+        palette.setAttribute('role', 'group');
+        palette.setAttribute('aria-label', L('Colours Vex takes from this wallpaper'));
         panel.append(box, read);
-        matchSection(panel, d.id, { compact: true });
+        if (cached) { matchSection(panel, d.id, { compact: true }); panel.append(palette); }
+        else {
+          panel.append(el('p', 'vws-online-note', L('Not on this computer yet. Download it to see your New Tab text over it and to match Vex to it.')));
+        }
         panel.append(title, by);
         if (d.sourceUrl) {
           panel.append(button(L('Open the source page'), () => {
-            if (typeof root.TabManager === 'undefined') { fail(new Error('Tabs are not available')); return; }
-            root.TabManager.createTab(d.sourceUrl);
+            if (!root.vex || typeof root.vex.openExternal !== 'function') { fail(new Error('The external link opener is not available')); return; }
+            root.vex.openExternal(d.sourceUrl).catch(fail);
           }, { iconName: 'globe' }));
         }
 
@@ -273,28 +372,59 @@
         // buttons
         const isOn = (V.current() || {}).id === d.id;
         const actions = el('div', 'vws-actions');
-        const applyBtn = button(isOn ? L('Apply changes') : L('Apply'), () => apply().catch(fail), { cls: 'btn-primary', iconName: 'check' });
+        const applyBtn = button(isOn ? L('Apply changes') : (cached ? L('Apply') : L('Download and apply')), () => apply().catch(fail), { cls: 'btn-primary', iconName: 'check' });
         const fav = button(V.isFavourite(d.id) ? L('Remove from favourites') : L('Add to favourites'), () => { try { V.toggleFavourite(d.id); renderGrid(); } catch (err) { fail(err); } }, { iconName: 'heart' });
         fav.setAttribute('aria-pressed', String(V.isFavourite(d.id)));
-        actions.append(applyBtn, fav);
+        actions.append(applyBtn);
+        if (!cached) actions.append(button(L('Download'), () => getPicture(d).then((ok) => { if (ok) renderGrid(); }).catch(fail), { iconName: 'download' }));
+        actions.append(fav);
         panel.append(actions);
         const more = el('div', 'vws-actions');
-        more.append(button(L('Use colours from this wallpaper'), () => colours(d.id), { iconName: 'palette' }));
+        if (cached) more.append(button(L('Use colours from this wallpaper'), () => colours(d.id), { iconName: 'palette' }));
         if (V.current()) more.append(button(L('Remove wallpaper'), () => V.remove().then(() => { say(L('The wallpaper is off. Your New Tab uses the theme again.')); renderGrid(); }).catch(fail), { cls: 'btn-danger', iconName: 'x' }));
         if (d.source === 'mine') more.append(button(L('Delete this picture'), () => del(d), { cls: 'btn-danger', iconName: 'trash' }));
         panel.append(more);
 
         // The picture behind the sample, drawn from the same source the New Tab gets.
+        if (!cached) {
+          // Only the small preview (already on this computer, or fetched when its card came into view): the colour of the picture holds the place.
+          pic.style.backgroundColor = d.dominant || '#444';
+          try { const t = await V.thumbOf(d); if (mine !== previewToken) return; pic.style.backgroundImage = 'url("' + t + '")'; }
+          catch (err) { if (mine !== previewToken) return; root.console.error('[wallpapers] preview failed:', err.message); }
+          read.textContent = L('Not downloaded yet.');
+          read.className = 'vws-read';
+          return;
+        }
         try {
           const { src } = await V.sourceOf(d);
           if (mine !== previewToken) return;
           previewSrc = src;
           pic.style.backgroundImage = 'url("' + src + '")';
           measure();
+          showPalette();
         } catch (err) {
           if (mine !== previewToken) return;
-          read.textContent = err.message;
+          read.textContent = friendly(err);
           read.className = 'vws-read vws-bad';
+        }
+
+        // The colours Vex would wear for this wallpaper (the same palette "Match Vex to this wallpaper" paints with), read from the picture itself.
+        function showPalette() {
+          const SY = root.VexWallpaperSync;
+          if (!SY || typeof SY.paletteFor !== 'function') return;
+          SY.paletteFor(d.id).then((p) => {
+            if (mine !== previewToken) return;
+            palette.textContent = '';
+            const names = { background: 'Background', surface: 'Surface', text: 'Text', muted: 'Muted text', primary: 'Accent', success: 'Success', warning: 'Warning', danger: 'Danger', border: 'Border' };
+            for (const key of Object.keys(names)) {
+              if (!p.colors[key]) continue;
+              const sw = el('span', 'vws-swatch');
+              sw.style.background = p.colors[key];
+              sw.title = L(names[key]) + ' ' + p.colors[key];
+              sw.dataset.color = p.colors[key];
+              palette.append(sw);
+            }
+          }).catch((err) => { if (mine === previewToken) { palette.textContent = err.message; root.console.error('[wallpapers] palette failed:', err.message); } });
         }
 
         function measure() {
@@ -319,9 +449,51 @@
         }
       }
 
+      // The progress line of a download: "Downloading 3.2 of 8.1 MB", a bar and a Cancel button. The parts are made once and
+      // updated in place (a button made again on every update could not be clicked). -> { onProgress, ticket, finish }
+      function progressLine(d) {
+        const ticket = V.newTicket();
+        status.textContent = '';
+        const text = el('span', 'vws-dl-text', L('Downloading') + ' ' + d.title + '…');
+        const bar = doc.createElement('progress');
+        bar.className = 'vws-dl-bar';
+        bar.max = 100;
+        bar.setAttribute('aria-label', L('Download progress'));
+        const cancel = button(L('Cancel'), () => { cancel.disabled = true; V.cancelDownload(ticket).catch(fail); }, { cls: 'btn-secondary' });
+        status.append(text, doc.createTextNode(' '), bar, doc.createTextNode(' '), cancel);
+        const mb = (n) => (n / 1048576).toFixed(1);
+        ui.dl = { ticket, id: d.id };
+        return {
+          ticket,
+          onProgress: ({ got, total }) => {
+            text.textContent = L('Downloading') + ' ' + mb(got) + (total ? ' ' + L('of') + ' ' + mb(total) : '') + ' MB';
+            if (total) bar.value = Math.min(100, (got / total) * 100); else bar.removeAttribute('value');
+          },
+          finish: () => { ui.dl = null; },
+        };
+      }
+      // Downloads (and shrinks, and keeps) one online picture with progress and Cancel. -> true when it is on this computer now;
+      // on failure the real reason is shown with a Try again button, and the result is false (nothing half-saved is left).
+      async function getPicture(d) {
+        const p = progressLine(d);
+        try { await V.sourceOf(d, { ticket: p.ticket, onProgress: p.onProgress }); }
+        catch (err) {
+          p.finish();
+          root.console.error('[wallpapers] download failed:', err.message);
+          say(friendly(err), tagOf(err) === 'cancelled' || tagOf(err) === 'off' ? [] : [[L('Try again'), () => getPicture(d).then((ok) => { if (ok) { renderGrid(); } })]]);
+          return false;
+        }
+        p.finish();
+        say(L('Downloaded:') + ' ' + d.title);
+        return true;
+      }
+
       async function apply() {
         const d = V.get(ui.sel);
         if (!d) throw new Error('Choose a wallpaper first');
+        if (d.source === 'catalogue' && !(await V.isCached(d.id))) {
+          if (!(await getPicture(d))) return;
+        }
         say(L('Applying…'));
         // Pressing Apply means "show me this": a New Tab with wallpapers switched off would keep the picture saved and unseen.
         if (!V.enabled()) V.setEnabled(true);
@@ -400,21 +572,33 @@
 
       const unsub = V.onChange(() => { if (!dlg.overlay.isConnected) { unsub(); releaseThumbs(); return; } renderCats(); renderGrid(); });
 
+      // The online lists are read now: the built-in one is a file inside Vex (no request), the hosted one only if an address is set.
+      // Switched off, nothing is read at all.
+      function loadOnline() {
+        if (!V.online()) return Promise.resolve();
+        if (V.catalogueUrl()) say(L('Looking for the photo list…'));
+        return V.loadCatalogue().then((r) => {
+          if (!dlg.overlay.isConnected) return;
+          const info = V.catalogueInfo() || {};
+          say(r.entries + ' ' + L('online wallpapers') + (info.stale ? ' · ' + L('offline, showing the saved list') : '') + (info.problems && info.problems.length ? ' · ' + info.problems.length + ' ' + L('entries were skipped (see the console)') : ''));
+          if (info.problems && info.problems.length) root.console.warn('[wallpapers] skipped list entries:\n' + info.problems.join('\n'));
+          renderOnlineNote(); renderCats(); renderGrid();
+        }).catch((err) => {
+          if (!dlg.overlay.isConnected) return;
+          root.console.error('[wallpapers] the online list failed:', err);
+          say(L('The wallpaper list could not be read: ') + friendly(err));
+          renderOnlineNote(); renderCats(); renderGrid();
+        });
+      }
+      // Coming back online: the previews that said "Offline" are asked for again.
+      const onBack = () => { if (!dlg.overlay.isConnected) { root.removeEventListener('online', onBack); return; } renderGrid(); };
+      root.addEventListener('online', onBack);
+
+      renderOnlineNote();
       renderCats();
       renderGrid();
       search.focus();
-
-      // The photo list is read only now, and only if an address is set.
-      if (V.catalogueUrl()) {
-        say(L('Looking for the photo list…'));
-        V.loadCatalogue().then((r) => {
-          if (!dlg.overlay.isConnected) return;
-          const info = V.catalogueInfo() || {};
-          say(r.entries + ' ' + L('photos') + (info.stale ? ' · ' + L('offline, showing the saved list') : '') + (info.problems && info.problems.length ? ' · ' + info.problems.length + ' ' + L('entries were skipped (see the console)') : ''));
-          if (info.problems && info.problems.length) root.console.warn('[wallpapers] skipped list entries:\n' + info.problems.join('\n'));
-          renderCats(); renderGrid();
-        }).catch((err) => { if (dlg.overlay.isConnected) say(L('The photo list could not be read: ') + err.message); });
-      }
+      loadOnline();
       return dlg;
     },
   };
@@ -498,7 +682,7 @@
     }
     const c = V.current();
     body.append(G.note(c ? L('Want Vex itself to look like this wallpaper? "Match Vex to this wallpaper" below paints the tabs, the toolbar and search bar, the side bar and more in its colours, in one click. You can also pick the parts.') : L('Choose a wallpaper in the store, then match Vex to it: the tabs, toolbar, side bar and more take its colours, in one click.')));
-    body.append(G.note(L('Pictures for your New Tab page: 74 drawn by Vex, free photos from a list you can point Vex at, and your own pictures. Nothing is downloaded until you open the store with a list address set.')));
+    body.append(G.note(L('Pictures for your New Tab page: some drawn by Vex, photos and artworks from public hosts, and your own pictures. Online ones are loaded only when you look at them, and nothing about you is sent.')));
     body.append(G.field(L('Now'), el('span', 'vws-now', c ? c.title : L('No wallpaper'))));
     const row = el('div', 'vws-set-actions');
     row.append(button(L('Open the Wallpaper Store'), () => { try { Store.open(); } catch (err) { fail(err); } }, { cls: 'btn-primary', iconName: 'palette' }));
@@ -506,6 +690,9 @@
     body.append(row);
     if (c) matchSection(body, c.id);
     body.append(G.toggle(L('Show the wallpaper on the New Tab'), V.enabled(), (on) => { try { V.setEnabled(on); if (typeof root.VexUsage !== 'undefined') root.VexUsage.touch(V.FEATURE); } catch (err) { fail(err); } }));
+
+    body.append(G.toggle(L('Show online wallpapers'), V.online(), (on) => { try { V.setOnline(on); } catch (err) { fail(err); } }));
+    body.append(G.note(L('Off means Vex never contacts any host for wallpapers: only the ones drawn by Vex and your own pictures are shown, and pictures you already downloaded keep working.')));
 
     const url = el('input', 'set-input');
     url.type = 'url';
@@ -517,12 +704,12 @@
     urow.append(
       button(L('Save address'), () => { try { V.setCatalogueUrl(url.value); toast(url.value.trim() ? L('Saved. Open the store to read the list.') : L('Cleared. Vex fetches no photos.'), 'success'); } catch (err) { fail(err); } }),
       button(L('Check the list now'), async () => {
-        try { V.setCatalogueUrl(url.value); const r = await V.loadCatalogue({ force: true }); toast(r.configured ? r.entries + ' ' + L('photos in the list') + (r.problems && r.problems.length ? ' · ' + r.problems.length + ' ' + L('skipped') : '') : L('No address is set'), r.configured ? 'success' : 'info'); }
+        try { V.setCatalogueUrl(url.value); const r = await V.loadCatalogue({ force: true }); toast(r.off ? L('Online wallpapers are off') : r.configured ? (r.hosted || 0) + ' ' + L('photos in the list') + (r.problems && r.problems.length ? ' · ' + r.problems.length + ' ' + L('skipped') : '') : L('No address is set'), r.configured ? 'success' : 'info'); }
         catch (err) { fail(err); }
       }),
     );
     body.append(urow);
-    body.append(G.note(L('The list is a small JSON file you host yourself; every photo in it must be free to use (CC0, public domain, Pexels or Unsplash licence) and name its author. Vex checks each entry and skips any it cannot verify. Left empty, Vex never contacts anything for wallpapers.')));
+    body.append(G.note(L('The list is a small JSON file you host yourself; every photo in it must be free to use (CC0, public domain, Pexels or Unsplash licence) and name its author. Vex checks each entry and skips any it cannot verify. Left empty, Vex reads only its own built-in list.')));
 
     const stat = el('div', 'vws-stat');
     body.append(stat);
