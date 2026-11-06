@@ -192,7 +192,7 @@ describe('the GitHub panel', () => {
       expect(note).toContain('asked Vex to slow down');
       expect(note).toMatch(/try again after \d/);
       expect(note).toContain('Showing what was saved 1h ago');
-      expect(JSON.parse(localStorage.getItem('vex-github-cooldown')).user).toBe('me');
+      expect(JSON.parse(localStorage.getItem('vex-github-cooldown')).until).toBeGreaterThan(Date.now());
     });
 
     it('does not ask GitHub again until the reset time, however often the panel is opened', async () => {
@@ -228,12 +228,15 @@ describe('the GitHub panel', () => {
       expect(localStorage.getItem('vex-github-cooldown')).toBeNull();
     });
 
-    it('a cooldown set for another user does not stop this one', async () => {
-      localStorage.setItem('vex-github-cooldown', JSON.stringify({ user: 'someone-else', until: Date.now() + 60 * 60000 }));
-      window.VexNet = { fetch: vi.fn(async (u) => (u.includes('/repos?') ? res(200, []) : u.includes('/search/') ? res(200, { items: [] }) : res(200, { login: 'me', name: 'Me' }))) };
+    it('shares the cooldown with the Pull Request Desk: the limit is per address, whoever is signed in', async () => {
+      staleCache();
+      // What github-desk.js writes after its own refusal: no user in it.
+      localStorage.setItem('vex-github-cooldown', JSON.stringify({ until: Date.now() + 60 * 60000 }));
+      window.VexNet = { fetch: vi.fn() };
       open('me');
       await GitHubPanel.loadData();
-      expect(window.VexNet.fetch).toHaveBeenCalled();
+      expect(window.VexNet.fetch).not.toHaveBeenCalled();
+      expect(document.getElementById('gh-panel-note').textContent).toContain('asked Vex to slow down');
       expect(document.getElementById('gh-panel-name').textContent).toBe('Me');
     });
 

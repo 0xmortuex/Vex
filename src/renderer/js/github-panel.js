@@ -135,8 +135,10 @@ const GitHubPanel = {
     return at > Date.now() ? at : Date.now() + this.COOLDOWN_MS;
   },
 
+  // The limit is per ADDRESS, not per user, and the Pull Request Desk (github-desk.js) spends from the same quota, so
+  // the cooldown is one shared key whoever is signed in.
   _setCooldown(until) {
-    try { localStorage.setItem(this.COOLDOWN_KEY, JSON.stringify({ user: this.username, until })); }
+    try { localStorage.setItem(this.COOLDOWN_KEY, JSON.stringify({ until })); }
     catch (err) { console.warn('GitHub panel: the retry time could not be saved:', err); }
   },
 
@@ -148,7 +150,7 @@ const GitHubPanel = {
   _cooldownUntil() {
     try {
       const c = JSON.parse(localStorage.getItem(this.COOLDOWN_KEY) || 'null');
-      return c && c.user === this.username && c.until > Date.now() ? c.until : 0;
+      return c && c.until > Date.now() ? c.until : 0;
     } catch (err) {
       console.warn('GitHub panel: the retry time could not be read:', err);
       return 0;

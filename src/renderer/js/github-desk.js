@@ -14,15 +14,50 @@ const GitHubDesk = {
   API: 'https://api.github.com',
   CACHE_KEY: 'vex.githubDesk.cache',
   CACHE_MS: 10 * 60000,
-  MAX_CI: 6,
+  MAX_CI: 3, // each pull request costs 3 requests for its checks
   PER_LIST: 10,
+  // Unsigned, GitHub allows 60 requests an hour per ADDRESS (not per user), and the GitHub panel spends from the same
+  // quota. After a refusal both stop asking until GitHub's reset time, through this one shared key.
+  COOLDOWN_KEY: 'vex-github-cooldown',
+  COOLDOWN_MS: 15 * 60000,
 
   username() { try { return (localStorage.getItem('vex.githubUsername') || '').trim(); } catch { return ''; } },
+
+  // When GitHub will answer again: its Retry-After / reset header when the response has one (the token vault's
+  // answer has none), else COOLDOWN_MS from now. -> ms since the epoch, always in the future.
+  _resetAt(res) {
+    const h = res && res.headers && typeof res.headers.get === 'function' ? res.headers : null;
+    const retry = h ? Number(h.get('retry-after')) : 0;
+    const reset = h ? Number(h.get('x-ratelimit-reset')) : 0;
+    const at = retry > 0 ? Date.now() + retry * 1000 : reset > 0 ? reset * 1000 : 0;
+    return at > Date.now() ? at : Date.now() + this.COOLDOWN_MS;
+  },
+  _setCooldown(until) {
+    try { localStorage.setItem(this.COOLDOWN_KEY, JSON.stringify({ until })); }
+    catch (err) { console.warn('GitHub desk: the retry time could not be saved:', err); }
+  },
+  _cooldownUntil(now = Date.now()) {
+    try { const c = JSON.parse(localStorage.getItem(this.COOLDOWN_KEY) || 'null'); return c && c.until > now ? c.until : 0; }
+    catch (err) { console.warn('GitHub desk: the retry time could not be read:', err); return 0; }
+  },
+  _slowDownText(until) {
+    const when = new Date(until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const quota = typeof GitHubVault !== 'undefined' && GitHubVault.quotaText ? GitHubVault.quotaText() : '';
+    return 'GitHub asked Vex to slow down; it will try again after ' + when + '.' + (quota ? ' (' + quota + ')' : '');
+  },
+  _ago(ms) {
+    const m = Math.max(0, Math.round(ms / 60000));
+    return m < 1 ? 'just now' : m < 60 ? m + 'm ago' : Math.round(m / 60) + 'h ago';
+  },
 
   async _json(path) {
     const f = this._fetch || (typeof GitHubVault !== 'undefined' ? (u, i) => GitHubVault.fetch(u, i) : (window.VexNet && window.VexNet.fetch) || fetch);
     const r = await f(path.startsWith('http') ? path : this.API + path, { headers: { Accept: 'application/vnd.github+json' } });
-    if (r.status === 403 || r.status === 429) throw new Error('GitHub asked Vex to slow down; try again in a while');
+    if (r.status === 403 || r.status === 429) {
+      const until = this._resetAt(r);
+      this._setCooldown(until);
+      throw Object.assign(new Error(this._slowDownText(until)), { rateLimited: true, until });
+    }
     if (r.status === 404) throw new Error('GitHub cannot show that (private repositories are not visible to Vex)');
     if (!r.ok) throw new Error('GitHub answered ' + r.status);
     return r.json();
@@ -73,29 +108,56 @@ const GitHubDesk = {
   async load({ force = false, now = Date.now() } = {}) {
     const user = this.username();
     if (!user) throw new Error('Set your GitHub username in Settings first');
-    if (!force) {
-      try {
-        const c = JSON.parse(localStorage.getItem(this.CACHE_KEY) || 'null');
-        if (c && c.user === user && now - c.at < this.CACHE_MS) return c;
-      } catch { /* a bad cache is just a miss */ }
-    }
+    // The saved desk for this user, whatever its age (a failed refresh must not throw it away).
+    let saved = null;
+    try {
+      const c = JSON.parse(localStorage.getItem(this.CACHE_KEY) || 'null');
+      if (c && c.user === user) saved = c;
+    } catch { /* a bad cache is just a miss */ }
+    if (!force && saved && now - saved.at < this.CACHE_MS) return saved;
+
+    // GitHub already said no: asking again before its reset only keeps the limit pinned, Refresh included.
+    const staleOr = (until) => {
+      const why = this._slowDownText(until);
+      if (!saved) throw new Error(why);
+      return { ...saved, stale: true, errors: [why + ' Showing what was saved ' + this._ago(now - saved.at) + '.'] };
+    };
+    const wait = this._cooldownUntil(now);
+    if (wait) return staleOr(wait);
+
     const q = (s) => '/search/issues?per_page=' + this.PER_LIST + '&sort=updated&q=' + encodeURIComponent(s);
     const errors = [];
+    let limitedUntil = 0;
+    const note = (label, err) => { if (err.rateLimited) limitedUntil = Math.max(limitedUntil, err.until); else errors.push(label + ': ' + err.message); };
     const grab = async (label, query, kind) => {
       try { return ((await this._json(q(query))).items || []).map(i => this.shape(i, kind)); }
-      catch (err) { errors.push(label + ': ' + err.message); return []; }
+      catch (err) { note(label, err); return []; }
     };
     const [mine, review, issues] = await Promise.all([
       grab('Your pull requests', 'author:' + user + ' is:pr is:open', 'mine'),
       grab('Review requests', 'review-requested:' + user + ' is:pr is:open', 'review'),
       grab('Assigned issues', 'assignee:' + user + ' is:issue is:open', 'issue'),
     ]);
-    // CI for the pull requests that matter most: yours, then review requests.
-    const withCi = [...mine, ...review].slice(0, this.MAX_CI);
-    await Promise.all(withCi.map(async (e) => {
-      try { e.ci = await this._checks(e); }
-      catch (err) { e.ci = 'unknown'; if (!errors.some(x => x.startsWith('Checks'))) errors.push('Checks: ' + err.message); }
-    }));
+    // CI for the pull requests that matter most: yours, then review requests. Not once GitHub has refused.
+    if (!limitedUntil) {
+      const withCi = [...mine, ...review].slice(0, this.MAX_CI);
+      await Promise.all(withCi.map(async (e) => {
+        try { e.ci = await this._checks(e); }
+        catch (err) {
+          e.ci = 'unknown';
+          if (err.rateLimited) limitedUntil = Math.max(limitedUntil, err.until);
+          else if (!errors.some(x => x.startsWith('Checks'))) errors.push('Checks: ' + err.message);
+        }
+      }));
+    }
+    if (limitedUntil) {
+      // Nothing came back: show the saved desk, or say why there is none (an empty list would read as "nothing open").
+      // Otherwise show what did arrive, say why the rest is missing, and do not save it, so the next look after the
+      // reset asks again instead of trusting a partial answer.
+      if (!mine.length && !review.length && !issues.length) return staleOr(limitedUntil);
+      errors.unshift(this._slowDownText(limitedUntil));
+      return { user, at: now, mine, review, issues, errors };
+    }
     const out = { user, at: now, mine, review, issues, errors };
     try { localStorage.setItem(this.CACHE_KEY, JSON.stringify(out)); } catch (err) { window.VexProblems?.note('GitHub desk', 'Could not keep the desk for later', err); }
     return out;

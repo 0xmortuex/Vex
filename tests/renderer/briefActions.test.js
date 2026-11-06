@@ -145,6 +145,84 @@ describe('GitHub desk', () => {
   it('says what is missing when no username is set', async () => {
     await expect(GitHubDesk.load({ force: true })).rejects.toThrow(/username/);
   });
+
+  // Unsigned, GitHub allows 60 requests an hour per address, and one look costs up to 3 searches + 3 per checked
+  // pull request. After a refusal the desk keeps what it saved, says when it will try again, and stays quiet until then.
+  describe('when GitHub asks Vex to slow down', () => {
+    const refuse = (resetInMin) => ({
+      ok: false, status: 403, json: async () => ({}),
+      headers: { get: (k) => (k === 'x-ratelimit-reset' && resetInMin ? String(Math.floor((Date.now() + resetInMin * 60000) / 1000)) : null) },
+    });
+    const saved = (ageMin = 60) => localStorage.setItem(GitHubDesk.CACHE_KEY, JSON.stringify({
+      user: 'me', at: Date.now() - ageMin * 60000, errors: [],
+      mine: [{ kind: 'mine', repo: 'o/r', number: 1, title: 'Saved PR', url: 'https://github.com/o/r/pull/1', ci: 'success' }], review: [], issues: [],
+    }));
+    beforeEach(() => { localStorage.setItem('vex.githubUsername', 'me'); });
+    afterEach(() => { GitHubDesk._fetch = null; });
+
+    it('keeps the saved desk, says when it will try again, and does not cache the failure', async () => {
+      saved();
+      GitHubDesk._fetch = vi.fn(async () => refuse(30));
+      const desk = await GitHubDesk.load({ force: true });
+      expect(desk.stale).toBe(true);
+      expect(desk.mine[0].title).toBe('Saved PR');
+      expect(desk.errors).toHaveLength(1);
+      expect(desk.errors[0]).toMatch(/slow down; it will try again after \d/);
+      expect(desk.errors[0]).toContain('Showing what was saved 1h ago');
+      // The saved desk is still the good one, not an empty failed answer.
+      expect(JSON.parse(localStorage.getItem(GitHubDesk.CACHE_KEY)).mine[0].title).toBe('Saved PR');
+    });
+
+    it('stays quiet until the reset time, Refresh included, and spends nothing on checks after a refusal', async () => {
+      saved();
+      GitHubDesk._fetch = vi.fn(async () => refuse(30));
+      await GitHubDesk.load({ force: true });
+      const calls = GitHubDesk._fetch.mock.calls.length;
+      expect(calls).toBe(3); // the three searches, and no check requests
+      await GitHubDesk.load({ force: true });
+      await GitHubDesk.load({ force: true });
+      expect(GitHubDesk._fetch.mock.calls.length).toBe(calls);
+    });
+
+    it('with nothing saved it says why instead of "Nothing open for you"', async () => {
+      GitHubDesk._fetch = vi.fn(async () => refuse(0));
+      await expect(GitHubDesk.load({ force: true })).rejects.toThrow(/slow down; it will try again after/);
+      // No header to go by: the default fifteen minutes, not zero.
+      expect(JSON.parse(localStorage.getItem('vex-github-cooldown')).until).toBeGreaterThan(Date.now() + 10 * 60000);
+    });
+
+    it('asks again once the time has passed and forgets nothing it should keep', async () => {
+      saved();
+      localStorage.setItem('vex-github-cooldown', JSON.stringify({ until: Date.now() - 1000 }));
+      GitHubDesk._fetch = vi.fn(async (url) => (decodeURIComponent(url).includes('/search/') ? json({ items: [] }) : json({}, 404)));
+      const desk = await GitHubDesk.load({ force: true });
+      expect(desk.stale).toBeUndefined();
+      expect(desk.mine).toHaveLength(0);
+      expect(GitHubDesk._fetch).toHaveBeenCalled();
+    });
+
+    it('the panel\'s cooldown stops the desk too', async () => {
+      saved();
+      localStorage.setItem('vex-github-cooldown', JSON.stringify({ until: Date.now() + 60 * 60000 }));
+      GitHubDesk._fetch = vi.fn();
+      const desk = await GitHubDesk.load({ force: true });
+      expect(GitHubDesk._fetch).not.toHaveBeenCalled();
+      expect(desk.stale).toBe(true);
+    });
+
+    it('a refusal part-way shows what arrived, says why the rest is missing, and does not save the partial answer', async () => {
+      saved(60);
+      GitHubDesk._fetch = vi.fn(async (url) => {
+        const u = decodeURIComponent(url);
+        if (u.includes('author:me')) return json({ items: [{ number: 9, title: 'Fresh PR', html_url: 'https://github.com/o/r/pull/9', repository_url: 'https://api.github.com/repos/o/r', user: { login: 'x' }, updated_at: '2026-10-13T00:00:00Z', pull_request: {} }] });
+        return refuse(30);
+      });
+      const desk = await GitHubDesk.load({ force: true });
+      expect(desk.mine[0].title).toBe('Fresh PR');
+      expect(desk.errors[0]).toContain('asked Vex to slow down');
+      expect(JSON.parse(localStorage.getItem(GitHubDesk.CACHE_KEY)).mine[0].title).toBe('Saved PR');
+    });
+  });
 });
 
 describe('interests profile', () => {
