@@ -307,6 +307,9 @@ body {
    own buttons too), then goes tight (no logo, smaller gaps); a moved button
    that is clicked from the menu stands in, invisible, where the chevron is, so
    the menu it opens under itself lands there (walkthrough H1, 2026-10-07). */
+/* While the overflow code measures the bar (js/toolbar-overflow.js) nothing in it animates: a width measured in the middle of a transition
+   flipped the decision, the flip restarted the transition, and the bar re-laid itself out every frame (CI, a 1024px screen). */
+#top-bar.tb-measuring, #top-bar.tb-measuring * { transition: none !important; }
 #top-bar.tb-compact #vex-logo > span { display: none; }
 #top-bar.tb-compact #vex-logo { padding: 0 4px; }
 #top-bar.tb-compact #workspace-btn { font-size: 0; gap: 4px; padding: 4px 7px; }

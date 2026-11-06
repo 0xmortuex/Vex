@@ -104,9 +104,20 @@
     proxied = null;
   }
 
+  // Transitions are off while the bar is measured and for one frame after it changed (see css/app.css, .tb-measuring): a measurement taken
+  // in the middle of a transition made the layout flip-flop at 60 Hz when the bar sat right at the limit.
+  let unmeasureQueued = false;
+  function unmeasureSoon() {
+    if (unmeasureQueued) return;
+    unmeasureQueued = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => { unmeasureQueued = false; if (bar && !scheduled) bar.classList.remove('tb-measuring'); }));
+  }
+
   function relayout() {
     scheduled = false;
     if (!bar || !more) return;
+    bar.classList.add('tb-measuring');
+    unmeasureSoon();
     clearProxy();
     for (const el of moved) el.classList.remove('tb-overflowed');
     moved = [];
