@@ -158,7 +158,8 @@ describe('slow providers answer late, with a still-searching line', () => {
     CommandBar.registerProvider({ id: 'library', label: 'Library', search: () => { throw new Error('sync throw'); } });
     CommandBar.registerProvider({ id: 'kb', label: 'Knowledge base', search: () => [{ id: 'kb:1', label: 'New note from kb', action() {} }] });
     CommandBar.search('new');
-    await wait(60);
+    // Wait for the answer (up to 2 s) instead of a fixed 60 ms: a busy CI machine took longer once and the test failed on timing, not on logic.
+    for (let i = 0; i < 40 && !CommandBar.results.some(r => r.id === 'kb:1'); i++) await wait(50);
     const ids = CommandBar.results.map(r => r.id);
     expect(ids).toContain('new');
     expect(ids).toContain('kb:1');
