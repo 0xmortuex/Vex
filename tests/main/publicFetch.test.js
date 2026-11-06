@@ -112,4 +112,14 @@ describe('publicFetch', () => {
     await expect(createPublicFetch(fakeNet({}, {}))('https://nowhere.example/')).rejects.toThrow(/ERR_NAME_NOT_RESOLVED/);
     await expect(createPublicFetch(fakeNet({}, {}))('file:///C:/x')).rejects.toThrow(/Only http and https/);
   });
+
+  // Real-window run 2026-11-06: a listed host redirecting to a name that does not resolve was reported as "listed-host could not be
+  // reached (ERR_NAME_NOT_RESOLVED)": the DNS lookup ran before the caller's own check.
+  it('names a refused redirect target (checkUrl) before it looks the name up', async () => {
+    const n = fakeNet({ 'https://ok.example/a': { redirect: 'https://other.example/x.jpg' } }, { 'ok.example': ['93.184.216.34'] });
+    const checkUrl = (u) => { if (u.hostname !== 'ok.example') throw new Error('[wp:host] ' + u.hostname + ' is not on the list'); };
+    await expect(createPublicFetch(n)('https://ok.example/a', { checkUrl })).rejects.toThrow(/\[wp:host\] other\.example is not on the list/);
+    expect(n.resolveHost).toHaveBeenCalledTimes(1);
+    expect(n.requested).toEqual(['https://ok.example/a']);
+  });
 });

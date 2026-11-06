@@ -162,7 +162,7 @@
         if (have.some(i => i.source === 'catalogue' && i.origin === 'hosted')) chips.push(['photos', L('Photos')]);
         for (const c of V.categories()) chips.push([c.id, L(c.title)]);
         // The online categories: only when online wallpapers are on (the list is empty otherwise). Titles come from the data file; a Turkish Vex has its own for the known ones.
-        if (V.online()) for (const c of V.onlineCategories()) chips.push([c.id, c.title]);
+        if (V.online()) for (const c of V.onlineCategories()) { if (!chips.some(x => x[0] === c.id)) chips.push([c.id, c.title]); }
         if (!chips.some(c => c[0] === ui.cat)) ui.cat = 'all';
         for (const [id, label] of chips) {
           const b = el('button', 'vws-chip', label);
