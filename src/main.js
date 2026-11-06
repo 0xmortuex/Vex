@@ -7691,6 +7691,7 @@ app.on('web-contents-created', (_event, contents) => {
               if (!mainWindow || mainWindow.isDestroyed()) return;
               if (mainWindow.isMinimized()) mainWindow.restore();
               mainWindow.show();
+              // A raise the person asked for (pip:back-to-tab style: they pressed the pop-out's own button), so it bypasses the raise guard.
               mainWindow.focus();
               mainWindow.webContents.send('vex:discord-popout-back');
             };
