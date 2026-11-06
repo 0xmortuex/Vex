@@ -206,6 +206,9 @@ define('capture:done', [shape({ id: string(40), ok: boolean, said: optional(stri
 define('extensions:set-enabled', [string(160), boolean]);
 define('extensions:set-scope', [string(160), string(20)]);
 define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])]);
+// When all downloads finish: sleep / shut down (main/after-downloads.js).
+define('afterdl:get afterdl:disarm afterdl:cancel', []);
+define('afterdl:arm', [oneOf(['sleep', 'shutdown'])]);
 // The address, and the id the panel knows the download by: main retries it
 // through the session the first attempt used (src/main/downloads.js).
 define('downloads:retry', [web, optional(string(160))]);

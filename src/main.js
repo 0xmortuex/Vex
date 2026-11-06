@@ -4078,7 +4078,14 @@ const _safeDownload = require('./main/safe-download').createSafeDownload({
   noteFile: (p) => _downloadService._noteFile(p),
   log: (m) => console.log(m),
 });
+// "When all downloads finish: sleep / shut down" (src/main/after-downloads.js): armed on purpose, never saved. Made just below.
+let _afterDl = null;
 const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
+  onLifecycle: (e) => {
+    if (!_afterDl) return;
+    try { if (e.type === 'start') _afterDl.noteStart(e.id); else _afterDl.noteEnd(e.id, e.state, !!e.byPerson); }
+    catch (err) { console.error('[AfterDownloads] could not follow a download:', err.message); }
+  },
   releases: _releaseDesk,
   assessFile: (ctx) => _safeDownload.assess(ctx),
   prefs: () => _downloadPrefs.current(),
@@ -4095,6 +4102,28 @@ const _downloadService = require('./main/downloads').createDownloadService({ app
     return Array.isArray(list) ? list.filter(d => d && d.state === 'completed').map(d => d.path) : [];
   } });
 const { wireDownloadsOnSession } = _downloadService;
+{
+  const after = require('./main/after-downloads');
+  const tell = (event) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('afterdl:event', event); } catch (err) { console.error('[AfterDownloads] could not tell the window:', err.message); } };
+  const toast = (title, body) => Promise.resolve(notifier.show({ title, body, tag: 'after-downloads', urgent: true })).catch(err => console.error('[AfterDownloads] could not show the notification:', err.message));
+  _afterDl = after.createAfterDownloads({
+    run: after.createCommandRunner({ spawn: require('child_process').spawn, onError: (err, what) => { console.error('[AfterDownloads] the ' + what + ' command failed:', err.message); tell({ kind: 'error', action: what, message: err.message }); } }),
+    notify: (event) => {
+      tell(event);
+      // The window may be hidden or minimised: the countdown and the reasons also go to Windows' notifications.
+      const sleeping = event.action !== 'shutdown';
+      if (event.kind === 'countdown') toast(sleeping ? 'Your PC will go to sleep in a minute' : 'Your PC will shut down in a minute', 'Your downloads are finished. Open Vex and press Cancel to stop it.');
+      else if (event.kind === 'blocked') toast('Your PC was left on', 'A download did not finish, so Vex left your computer as it is.');
+      else if (event.kind === 'error') toast(sleeping ? 'Could not put the PC to sleep' : 'Could not shut the PC down', event.message);
+      else if (event.kind === 'disarmed' && event.why === 'expired') toast('Vex stopped waiting for your downloads', 'It was set more than 12 hours ago, so it was switched off. Set it again if you still want it.');
+    },
+  });
+  app.on('before-quit', () => _afterDl.dispose());
+  ipcMain.handle('afterdl:get', () => _afterDl.state());
+  ipcMain.handle('afterdl:arm', (_e, action) => _afterDl.arm(action));
+  ipcMain.handle('afterdl:disarm', () => _afterDl.disarm());
+  ipcMain.handle('afterdl:cancel', () => _afterDl.cancel());
+}
 
 // === Phase 18: Chrome extension loader ===
 const extensionsDir = path.join(userDataPath, 'extensions');

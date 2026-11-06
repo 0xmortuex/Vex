@@ -44,6 +44,10 @@ const DownloadsPanel = {
     window.vex?.onDownloadStarted?.((data) => this._onStart(data));
     window.vex?.onDownloadProgress?.((data) => this._onProgress(data));
     window.vex?.onDownloadComplete?.((data) => this._onComplete(data));
+    // "When all downloads finish: sleep / shut down" (main/after-downloads.js): its countdown and reasons, drawn by js/after-downloads-ui.js.
+    window.vex?.onAfterDlEvent?.((e) => {
+      this._withAfterDownloads((ui) => ui.onEvent(e), 'the after-downloads countdown');
+    });
 
     this._updateBadge();
   },
@@ -273,6 +277,13 @@ const DownloadsPanel = {
     }
   },
 
+  // js/after-downloads-ui.js loads on demand; a page without the lazy loader has no such row.
+  _withAfterDownloads(use, what) {
+    if (typeof VexLazy === 'undefined') return;
+    VexLazy.ensure('js/after-downloads-ui.js').then(() => use(AfterDownloadsUI))
+      .catch((err) => window.VexProblems?.note('Downloads', 'Could not show ' + what, err));
+  },
+
   _renderShell(panel) {
     panel.innerHTML = `
       <div class="downloads-container">
@@ -292,6 +303,7 @@ const DownloadsPanel = {
     search.value = this._query || '';
     search.addEventListener('input', () => { this._query = search.value; this._applyFilter(); });
     this._bindListKeys(panel.querySelector('#downloads-list'));
+    this._withAfterDownloads((ui) => ui.mount(panel), 'the after-downloads choice');
     panel.querySelector('#btn-open-dl-folder')?.addEventListener('click', () => window.vex.downloadsOpenFolder?.());
     panel.querySelector('#btn-dl-rules')?.addEventListener('click', () => this.editRules());
     panel.querySelector('#downloads-clear-btn')?.addEventListener('click', () => {

@@ -405,6 +405,7 @@ const CommandBar = {
     // Phase 3 commands
     { id: 'notes', label: 'Notes', hint: 'Open notes panel', shortcut: 'Ctrl+Shift+N', icon: 'note', isPrimary: true, action: () => SidebarManager.openPanel('notes') },
     { id: 'downloads', label: 'Downloads', hint: 'Open downloads panel', icon: 'download', isPrimary: true, action: () => SidebarManager.openPanel('downloads') },
+    { id: 'after-downloads', label: 'Sleep or shut down when downloads finish', hint: 'Opens the Downloads panel, where you choose it on purpose each time', icon: 'download', action: () => SidebarManager.openPanel('downloads') },
     { id: 'session-save', label: 'Save Session', hint: 'Save current tabs as a session', icon: 'save', action: () => SessionManager.showOverlay() },
     { id: 'session-load', label: 'Load Session', hint: 'Restore a saved session', shortcut: 'Ctrl+Shift+O', icon: 'folder-open', action: () => SessionManager.showOverlay() },
     { id: 'workspace', label: 'Switch Workspace', hint: 'Change workspace profile', icon: 'refresh', when: () => !(typeof window !== 'undefined' && window.VexTabPolicy?.isPrivateWindow), action: () => WorkspaceManager.toggleDropdown() },

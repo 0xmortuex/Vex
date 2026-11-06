@@ -664,6 +664,12 @@ contextBridge.exposeInMainWorld('vex', {
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
+  // When all downloads finish: sleep / shut down (main/after-downloads.js)
+  afterDlGet:            () => ipcRenderer.invoke('afterdl:get'),
+  afterDlArm:            (action) => ipcRenderer.invoke('afterdl:arm', action),
+  afterDlDisarm:         () => ipcRenderer.invoke('afterdl:disarm'),
+  afterDlCancel:         () => ipcRenderer.invoke('afterdl:cancel'),
+  onAfterDlEvent:        (cb) => subscribe('afterdl:event', cb),
   // What a download is, from where, and what to open it with; withHash adds its SHA-256 once finished.
   // Quick look at a finished download: what is inside it, read by main (only files Vex downloaded); the hash only when asked.
   downloadsPeek:         (filePath) => ipcRenderer.invoke('downloads:peek', filePath),

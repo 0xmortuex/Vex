@@ -88,7 +88,7 @@ const UI_ONLY_CHANNELS = new Set([
   // Which languages the spell checker uses (main.js, js/spell-lang.js).
   'spellcheck:set-languages', 'spellcheck:state',
   'panelguard:throttle',
-  'login-item:get', 'login-item:set', 'tray:get', 'tray:set', 'clipboard:write-secret', 'clipboard:clear-if', 'open-guest-window',
+  'login-item:get', 'login-item:set', 'tray:get', 'tray:set', 'afterdl:get', 'afterdl:arm', 'afterdl:disarm', 'afterdl:cancel', 'clipboard:write-secret', 'clipboard:clear-if', 'open-guest-window',
   'startup:list', 'startup:signatures', 'applock:make-record', 'applock:stores', 'applock:reset', 'applock:lock-on-minimize', 'photoprep:open', 'photoprep:save','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
   // Saved payment cards (main/cards.js): the list, the full number for a fill the person pressed, saving, editing, removing. Vex's own window only.
   'cards:list', 'cards:reveal', 'cards:has', 'cards:save', 'cards:update', 'cards:delete',
