@@ -3062,12 +3062,12 @@ const AIPanel = {
       const wait = cause && cause.byok && Number(cause.byok.retryAfter) > 0 ? Math.min(Math.ceil(cause.byok.retryAfter), 120) : 0;
       if (wait) {
         let left = wait;
-        const label = btn.querySelector('span');
+        const word = btn.querySelector('span');
         btn.disabled = true;
         const tick = () => {
           if (!btn.isConnected) return;
-          if (left <= 0) { btn.disabled = false; label.textContent = 'Retry'; return; }
-          label.textContent = (window.vexTr ? window.vexTr('Retry in') : 'Retry in') + ' ' + left + ' s';
+          if (left <= 0) { btn.disabled = false; word.textContent = 'Retry'; return; }
+          word.textContent = (window.vexTr ? window.vexTr('Retry in') : 'Retry in') + ' ' + left + ' s';
           left--;
           setTimeout(tick, 1000);
         };

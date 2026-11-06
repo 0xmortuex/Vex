@@ -192,6 +192,8 @@ function createByok({ secretStore, file, fetch, now = () => Date.now(), testHost
     const chosen = entry.models && entry.models[slot];
     if (chosen) return chosen;
     const listed = await listModels(id);
+    // A list that could not be fetched says why (a refused key, no network): that is the answer, not "no model".
+    if (!listed.ok && listed.error && listed.error.code !== 'no-key') throw listed.error;
     const rec = listed.recommended && listed.recommended[slot];
     return rec || null;
   }

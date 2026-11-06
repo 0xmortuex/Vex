@@ -222,6 +222,12 @@ describe('a chat request', () => {
     expect(signal.aborted).toBe(true);
     expect(byok.cancel('stopme')).toBe(false);
   });
+  it('with no model chosen and a list that fails, the list\'s own reason is the answer', async () => {
+    const { byok } = make(async () => json({ error: { message: 'invalid x-api-key' } }, 401));
+    await byok.setKey('anthropic', KEY);
+    const r = await byok.chat('x', 'anthropic', { tier: 'best', messages: [{ role: 'user', content: 'hi' }] }, () => {});
+    expect(r.error).toMatchObject({ code: 'invalid-key', status: 401, provider: 'anthropic' });
+  });
   it('a missing key or model is told, with where to fix it', async () => {
     const { byok } = make(async () => json(MODELS));
     expect((await byok.chat('x', 'openai', { messages }, () => {})).error.code).toBe('no-key');

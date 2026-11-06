@@ -327,10 +327,10 @@ const AIConnect = {
     }, { danger: true }));
     panel.appendChild(actions);
     if (AIKeys.saved().length > 1 || AIKeys.active() !== p.id) {
-      const use = this._el('label', 'setting-toggle-row');
+      const use = this._el('label', 'aic-row aic-use');
       const radio = this._el('input'); radio.type = 'radio'; radio.name = 'aic-active'; radio.checked = AIKeys.active() === p.id;
       radio.addEventListener('change', () => { if (radio.checked) { AIKeys.setActive(p.id); this._redrawOverview(); this._toast(T('{1} answers chat and the agent', p.short), 'success'); } });
-      use.append(radio, document.createTextNode(' '), this._el('span', null, 'Use this one for chat and the agent'));
+      use.append(radio, this._el('span', 'aic-use-text', 'Use this one for chat and the agent'));
       panel.appendChild(use);
     }
     this._models(panel, p, redraw);

@@ -39,6 +39,8 @@
 .aic-model-row { display: grid; grid-template-columns: 1fr; gap: 2px; margin-bottom: 6px; }
 .aic-price { font-size: 11.5px; color: var(--text-muted); }
 .aic-cap input { width: 110px; }
+.aic-use { cursor: pointer; font-size: 13px; color: var(--text); }
+.aic-use input { accent-color: var(--primary); }
 
 /* The AI panel's connection bar (header: which AI answers, with a quick switcher) and its states. */
 .ai-bar { display: flex; align-items: center; gap: 8px; padding: 4px 12px; font-size: 11.5px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
@@ -47,7 +49,7 @@
 .ai-bar-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .ai-bar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-bar-meter { margin-left: auto; white-space: nowrap; }
-.ai-bar-menu { position: absolute; z-index: 40; min-width: 240px; max-width: 340px; max-height: 60vh; overflow: auto; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius, 8px); box-shadow: 0 8px 28px var(--vex-shadow-color, rgba(0, 0, 0, .35)); padding: 6px; }
+.ai-bar-menu { position: fixed; z-index: 600; /* above the AI panel (500) it opens from */ min-width: 240px; max-width: 340px; max-height: 60vh; overflow: auto; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius, 8px); box-shadow: 0 8px 28px var(--vex-shadow-color, rgba(0, 0, 0, .35)); padding: 6px; }
 .ai-bar-menu h4 { margin: 6px 8px 2px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
 .ai-bar-item { display: block; width: 100%; text-align: left; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: 12.5px; cursor: pointer; }
 .ai-bar-item:hover, .ai-bar-item:focus-visible { background: var(--vex-hover-fill, color-mix(in srgb, var(--text) 8%, transparent)); outline: none; }

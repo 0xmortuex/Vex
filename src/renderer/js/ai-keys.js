@@ -140,7 +140,7 @@ const AIKeys = (() => {
       case 'no-model': text = T('No model is chosen for {1}. Pick one in Settings.', who); fix = 'settings'; break;
       default: text = T('{1} refused the request.', who); fix = 'retry';
     }
-    if (e.detail) text += ' ' + T('It said: {1}', String(e.detail).slice(0, 300));
+    if (e.detail && e.code !== 'no-model' && e.code !== 'no-key') text += ' ' + T('It said: {1}', String(e.detail).slice(0, 300));
     return { text, fix, code: e.code || '', provider: e.provider || '', retryAfter: e.retryAfter || 0 };
   }
   function makeError(info) {
