@@ -8496,6 +8496,13 @@ require('./main/profile-lock-ipc').registerProfileLock({
   app.on('will-quit', () => voiceEngine.dispose());
 }
 
+// Copy Text from Image: the English + Turkish recognition data, ~4.9 MB, downloaded on request into <profile>/ocr-lang (main/ocr-lang-pack.js).
+{
+  const { createOcrLangStore, registerOcrLang } = require('./main/ocr-lang-pack');
+  const ocrLangStore = createOcrLangStore({ dir: path.join(userDataPath, 'ocr-lang'), fetchImpl: _egressFetch(net.fetch.bind(net), { feature: 'Text-from-image language pack', kind: 'fetch' }) });
+  registerOcrLang({ ipcMain, store: ocrLangStore, mainWindowOf: () => mainWindow });
+}
+
 // Gmail IMAP/SMTP sidebar panel was reverted — see commit history for Phases 1-3.
 // One-time cleanup: remove any leftover encrypted app-password from disk so it
 // doesn't sit around after the feature was pulled. Safe to remove this block

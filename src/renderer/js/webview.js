@@ -2494,9 +2494,11 @@ const WebviewManager = {
       imageItems.push({ label: 'Copy Image Address', action: () => { navigator.clipboard.writeText(imageSrc); window.showToast?.('Image address copied'); } });
       if (web) imageItems.push({ label: 'Search Image with Lens', action: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(imageSrc), true, null, { partition }) });
       if (typeof ImageZoom !== 'undefined') imageItems.push({ label: 'Zoom Image', action: () => ImageZoom.open(imageSrc) });
+      // The words in the picture, English and Turkish, to the clipboard (js/image-text.js).
+      if (typeof VexImageText !== 'undefined') imageItems.push({ label: 'Copy Text from Image', action: () => VexImageText.copyFromImage(imageSrc, webview) });
       if (web && typeof AIPanel !== 'undefined' && AIPanel.askAboutImage) imageItems.push({ label: 'Ask Vex About This Image', action: () => AIPanel.askAboutImage(imageSrc) });
     }
-    groups.push(() => this._pushGroup(items, imageItems, (it) => /^(Save Image|Save Image As…|Copy Image)$/.test(it.label), 'More for this image', 'image'));
+    groups.push(() => this._pushGroup(items, imageItems, (it) => /^(Save Image|Save Image As…|Copy Image|Copy Text from Image)$/.test(it.label), 'More for this image', 'image'));
 
     // A right-clicked video or sound offered nothing for it (found 2026-09-29).
     const media = (e.params.mediaType === 'video' || e.params.mediaType === 'audio') ? e.params : null;

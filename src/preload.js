@@ -723,6 +723,13 @@ contextBridge.exposeInMainWorld('vex', {
   voiceCancel: () => ipcRenderer.invoke('voice:cancel'),
   voiceTestClip: (name) => ipcRenderer.invoke('voice:test-clip', name),
   onVoiceProgress: (callback) => subscribe('voice:progress', callback),
+  // Copy Text from Image (js/image-text.js; main/ocr-lang-pack.js): the English + Turkish recognition data, downloaded once on request.
+  ocrLangStatus: () => ipcRenderer.invoke('ocrlang:status'),
+  ocrLangDownload: () => ipcRenderer.invoke('ocrlang:download'),
+  ocrLangCancel: () => ipcRenderer.invoke('ocrlang:cancel'),
+  ocrLangRemove: () => ipcRenderer.invoke('ocrlang:remove'),
+  ocrLangRead: (code) => ipcRenderer.invoke('ocrlang:read', code),
+  onOcrLangProgress: (callback) => subscribe('ocrlang:progress', callback),
   // Startup-persistence check (T3-122): read-only.
   startupList: () => ipcRenderer.invoke('startup:list'),
   startupSignatures: () => ipcRenderer.invoke('startup:signatures'),

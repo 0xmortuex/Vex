@@ -46,6 +46,8 @@ const VexBoot = {
     { src: 'js/page-nav.js', usage: [] },
     // Search This Site: the Ctrl+K command, its key and the "@site words" address-bar prefix (js/app.js asks with typeof).
     { src: 'js/site-search.js', usage: [] },
+    // Copy Text from Image (English + Turkish): the image menu asks with typeof; the Tesseract engine loads only when a picture is read.
+    { src: 'js/image-text.js', usage: [] },
     { src: 'js/share-look.js', usage: [] },
     { src: 'js/share-look-ui.js', usage: [] },
     { src: 'js/share-space.js', usage: ['share-space'] },
