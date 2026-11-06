@@ -135,6 +135,8 @@ const VexBoot = {
     // Dark mode for websites: the Settings rows and the page-menu toggle. The pages themselves are handled by
     // src/dark-mode-preload.js and main, which read the saved settings, so a tab never waits for this file.
     { src: 'js/dark-mode.js', usage: [] },
+    // Page automations: record a job on a site and replay it. The rules and the in-page code load the first time they are used (VexLazy.ensure).
+    { src: 'js/page-automations.js', usage: ['page-automations'] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

@@ -236,6 +236,8 @@ let mainWindow = null;
 // Main-process reminders (src/main/reminders.js); created in startReminders()
 // once the window exists, referenced by the second-instance handler above it.
 let reminders = null;
+// Page automations (src/main/automations.js); created in startAutomations().
+let _automations = null;
 let adBlockerEnabled = true;
 // Starts the ad-block engine (set once the window is ready; see initAdblockEngine).
 let _startAdblockEngine = null;
@@ -900,6 +902,7 @@ if (!gotTheLock) {
     if (commandLine.some(a => /^--reminder=/.test(a))) {
       console.log('[Reminders] woken by the OS while running — checking what is due');
       if (reminders) reminders.fireDue().catch(err => console.error('[Reminders] fireDue after wake failed:', err.message));
+      if (_automations) _automations.checkDue().catch(err => console.error('[Automations] due-check after wake failed:', err.message));
       focusMainWindow();
       return;
     }
@@ -9469,6 +9472,7 @@ app.whenReady().then(async () => {
     try { _updater.cleanup(); } catch (err) { console.warn('[Updates] could not tidy the updates folder:', err.message); }
   }, 60000).unref();
   startReminders();
+  startAutomations();
 
   // === Boot smoke test (gated by VEX_SMOKE=1) ===
   // Boots the REAL app and asserts the renderer initialized in real Chromium —
@@ -11903,6 +11907,29 @@ function startReminders() {
     .then(() => { for (const a of process.argv) handleVexAction(a); })
     .catch(err => console.error('[Reminders] failed to start:', err.message));
   if (process.argv.some(a => /^--reminder=/.test(a))) console.log('[Reminders] launched by the OS for a reminder');
+}
+
+// Page automations (src/main/automations*.js): record once, replay on demand or on a schedule. Its Windows
+// wake-up is a task of its own beside the reminders' (same Task Scheduler code, id prefix "auto-"). The window a run
+// uses is made in the recording's own session and destroyed at the end; nothing is stored outside automations.enc.
+function startAutomations() {
+  const osScheduler = require('./main/os-schedule').createOsScheduler({
+    platform: process.env.VEX_NO_OS_SCHEDULE === '1' ? 'none' : process.platform,
+    execFile: require('child_process').execFile,
+    execPath: process.execPath,
+    appPath: app.getAppPath(),
+    packaged: app.isPackaged,
+    extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)).concat(_profile.id === 'default' ? [] : ['--profile=' + _profile.id]),
+    scope: _profile.id === 'default' ? undefined : _profile.id,
+    log: (m) => console.log(m),
+  });
+  _automations = require('./main/automations-wire').registerAutomations({
+    ipcMain, BrowserWindow, secretStore, userDataPath, notifier, osScheduler,
+    getSession: (partition) => secureSessions.fromPartition(partition),
+    mainWindowOf: () => mainWindow,
+    readRouting: () => readRouting(),
+    focusMainWindow: (why) => focusMainWindow(why),
+  });
 }
 
 // Privacy report card, extension usage, crash-proof tabs and quiet hours
