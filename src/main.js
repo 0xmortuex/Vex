@@ -485,6 +485,9 @@ function _httpsUpgradeURL(details) {
 function _httpsAnswer(details) {
   if (_lookalikeGuard(details)) return { cancel: true };
   if (_threatGuard(details)) return { cancel: true };
+  // A click on a tracking redirect link goes to the page it names (main/nav-unwrap.js); that address is then judged as any other.
+  const unwrapped = _unwrapAnswer(details);
+  if (unwrapped) return { redirectURL: unwrapped };
   const upgraded = _httpsUpgradeURL(details);
   return upgraded ? { redirectURL: upgraded } : { cancel: false };
 }
@@ -3295,7 +3298,7 @@ function wireAdblockerOnSession(ses, tag) {
     // A site whose third-party content is switched off (js/site-rules.js),
     // then the blocker (src/main/ad-verdict.js).
     const verdict = _adVerdict.judge(details, ses);
-    if (verdict === 'third-party' || verdict === 'images') {
+    if (verdict === 'third-party' || verdict === 'images' || verdict === 'lite') {
       callback({ cancel: true });
       return;
     }
@@ -3852,7 +3855,20 @@ let _hasUaRules = false;
 // webContents id -> the User-Agent its session has, for pages that are
 // carrying a site's own (see the did-start-navigation listener).
 const _siteUaOverridden = new Map();
-const _refreshUaRules = () => { _hasUaRules = Object.values(_siteRules).some(r => typeof r.ua === 'string'); };
+const _refreshUaRules = () => { _hasUaRules = Object.values(_siteRules).some(r => typeof r.ua === 'string'); _hasTimeoutRules = Object.values(_siteRules).some(r => Number.isInteger(r.sessionMin)); };
+// A site with a session-timeout warning (js/session-timeout.js): only then is a tab's real activity reported to its window, at
+// most every 5 seconds per page, as a page id and nothing else.
+let _hasTimeoutRules = false;
+const _activitySentAt = new Map();   // page id -> when its window was last told
+function _reportTabActivity(contents) {
+  if (!_hasTimeoutRules || contents.getType() !== 'webview') return;
+  const t = Date.now();
+  if (t - (_activitySentAt.get(contents.id) || 0) < 5000) return;
+  const host = secureSessions.owner(contents);
+  if (!host || host.win.isDestroyed()) return;
+  _activitySentAt.set(contents.id, t);
+  host.win.webContents.send('session-timeout:activity', { pageId: contents.id });
+}
 _refreshUaRules();
 ipcMain.handle('siterules:set', (_e, rules) => {
   const before = _siteRules;
@@ -3869,6 +3885,81 @@ ipcMain.handle('siterules:set', (_e, rules) => {
   return { ok: true, rules: _siteRules };
 });
 ipcMain.handle('siterules:get', () => ({ ok: true, rules: _siteRules }));
+// Forget a site when I close it (main/site-forget.js): the window says the last tab of such a site closed; Vex's quit sweeps the rest.
+const _siteForget = require('./main/site-forget').createSiteForget({
+  getRules: () => _siteRules,
+  sessionFor: (partition) => secureSessions.fromPartition(partition),
+  openPages: (partition) => webContents.getAllWebContents()
+    .filter(w => !w.isDestroyed() && w.getType() === 'webview' && secureSessions.partitionOf(w) === partition)
+    .map(w => ({ id: w.id, url: w.getURL() })),
+  quitPartitions: () => BROWSING_SESSIONS,
+});
+ipcMain.handle('siteforget:run', async (_e, opts) => {
+  try {
+    const { url, partition, exceptPageId } = opts || {};
+    if (typeof url !== 'string' || url.length > 4096) throw new Error('That is not a web address');
+    if (typeof partition !== 'string') throw new Error('The session of the tab is missing');
+    return await _siteForget.afterTabClosed({ url, partition, exceptPageId: Number.isInteger(exceptPageId) ? exceptPageId : null });
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+let _forgetQuitDone = false;
+app.on('will-quit', (event) => {
+  if (_forgetQuitDone) return;
+  _forgetQuitDone = true;
+  event.preventDefault();
+  _siteForget.onQuit()
+    .catch(err => console.error('[SiteForget] could not forget the sites on quit:', err && err.message))
+    .finally(() => app.quit());
+});
+// Lite mode (and the other global switches in main/nav-privacy.js): one flag the request hook reads at once.
+const NavPrivacy = require('./main/nav-privacy');
+const _navPrivacyFile = path.join(userDataPath, 'nav-privacy.json');
+let _navPrivacy = NavPrivacy.load(fs, _navPrivacyFile);
+ipcMain.handle('navprivacy:get', () => ({ ok: true, ..._navPrivacy }));
+// Skip the redirect (main/nav-unwrap.js). Only a link the person clicked just now (a click or key press on that page in the last
+// 3 seconds), only a GET for the page itself, only when switched on, never in a Tor tab, never for a site that opted out. The
+// window shows a quiet toast with Undo; Undo asks for the wrapper address to be let through once for that tab.
+const NavUnwrap = require('./main/nav-unwrap');
+const UNWRAP_GESTURE_MS = 3000;
+const _unwrapBypass = new Map();   // page id -> { url, until }: the wrapper address Undo asked to open as it is
+function _unwrapTarget(contents, url, { newTab = false } = {}) {
+  if (_navPrivacy.unwrap !== true) return null;
+  if (!contents || contents.isDestroyed() || contents.getType() !== 'webview' || (contents.session && contents.session.__vexTor)) return null;
+  const bypass = _unwrapBypass.get(contents.id);
+  if (bypass) {
+    _unwrapBypass.delete(contents.id);
+    if (bypass.url === url && bypass.until >= Date.now()) return null;
+  }
+  const r = NavUnwrap.unwrapNavigation(url);
+  if (!r) return null;
+  let from;
+  try { from = contents.getURL() || ''; } catch { from = ''; }  // the page the click was on; gone means no page
+  if (!NavUnwrap.siteAllows(_siteRules, from, url, r.url)) return null;
+  const host = secureSessions.owner(contents);
+  if (host && !host.win.isDestroyed()) host.win.webContents.send('linkunwrap:done', { pageId: contents.id, from: url, to: r.url, via: r.via, newTab });
+  return r.url;
+}
+function _unwrapAnswer(details) {
+  if (_navPrivacy.unwrap !== true || details.resourceType !== 'mainFrame' || details.method !== 'GET' || !details.webContentsId) return null;
+  const last = _lastGestureAt.get(details.webContentsId);
+  if (!Number.isFinite(last) || Date.now() - last > UNWRAP_GESTURE_MS) return null;
+  return _unwrapTarget(webContents.fromId(details.webContentsId), details.url);
+}
+ipcMain.handle('linkunwrap:allow-once', (_e, opts) => {
+  const { pageId, url } = opts || {};
+  if (!Number.isInteger(pageId) || typeof url !== 'string' || url.length > 8192) return { ok: false, error: 'That is not a page and an address' };
+  _unwrapBypass.set(pageId, { url, until: Date.now() + 30000 });
+  return { ok: true };
+});
+ipcMain.handle('navprivacy:set', (_e, change) => {
+  try {
+    const next = NavPrivacy.apply(_navPrivacy, change);
+    NavPrivacy.save(fs, _navPrivacyFile, next);
+    _navPrivacy = next;
+    _broadcastDownloadEvent('navprivacy:changed', _navPrivacy);
+    return { ok: true, ..._navPrivacy };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
 // A watched page read as a hidden tab would show it (src/main/page-render.js):
 // for pages built by JavaScript. Only Vex's own main window may ask; the
 // window's own routing refusal (Tor, proxy, container) comes first, and the
@@ -4046,6 +4137,8 @@ const _adVerdict = require('./main/ad-verdict').createAdVerdict({
   blocksThirdParty: (page, url) => Object.keys(_siteRules).length > 0 && SiteRules.blocksThirdParty(_siteRules, page, url),
   // The 'images' switch; never in a Tor session (src/main/ad-verdict.js).
   blocksImages: (page, ses) => !(ses && ses.__vexTor) && Object.keys(_siteRules).length > 0 && !!page && SiteRules.blocksImages(_siteRules, page),
+  // Lite mode, global (main/nav-privacy.js), through the same hook and not in a Tor session (images: false in its handler).
+  liteBlocks: (page, resourceType) => _navPrivacy.lite && SiteRules.liteBlocks(_siteRules, true, page, resourceType),
   onBlockedPage: (id, url) => setTimeout(() => _adBlockedPage(id, url), 0),
 });
 // A page the ad blocker refused (a click on an ad or sponsored link) says so,
@@ -7107,9 +7200,9 @@ const _lastGestureAt = new Map();   // page id -> when it last had a click or ke
 function _watchGestures(contents) {
   const id = contents.id;
   contents.on('input-event', (_e, input) => {
-    if (input && _mainHelpers.GESTURE_INPUT_TYPES.has(input.type)) _lastGestureAt.set(id, Date.now());
+    if (input && _mainHelpers.GESTURE_INPUT_TYPES.has(input.type)) { _lastGestureAt.set(id, Date.now()); _reportTabActivity(contents); }
   });
-  contents.once('destroyed', () => { _lastGestureAt.delete(id); _popupBlocker.forget(id); });
+  contents.once('destroyed', () => { _lastGestureAt.delete(id); _activitySentAt.delete(id); _popupBlocker.forget(id); });
 }
 // The pop-up blocker (src/main/popup-blocker.js): a window a page opens with
 // no click or key press of yours on it is refused, unless the site's pop-ups
@@ -7851,7 +7944,8 @@ app.on('web-contents-created', (_event, contents) => {
           win.webContents.send('peek:open', { url, partition: openerPartition, opener: contents.id });
         } else {
           win.webContents.send('tab:create-from-external', {
-            url,
+            // A link opened in a new tab goes through the same redirect skipping as one clicked in place (the pop-up check above needed a click).
+            url: _unwrapTarget(contents, url, { newTab: true }) || url,
             background: disposition === 'background-tab' || disposition === 'save-to-disk',
             // A Tor / burner / private / container tab's link stays in that
             // session; it opened in persist:main before (found 2026-09-29).

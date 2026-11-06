@@ -31,11 +31,26 @@
 //                at creation: it cannot be changed on a live page). Vex allows
 //                autoplay everywhere else, because Master Volume's boost needs
 //                a running AudioContext (main.js).
+//   lite         Lite mode (slow Wi-Fi) leaves this site alone: its pictures and
+//                fonts load and its tabs may autoplay. Only means something while
+//                Lite mode is on (src/main/nav-privacy.js).
+//   unwrap       a click on a link that goes through a tracking redirect, from this
+//                site, through its redirect or to it, is left as it was
+//                (src/main/nav-unwrap.js): for a sign-in that needs the redirect
+//   sessionMin   not a switch: the site logs you out after this many idle
+//                minutes (1 to 720), and Vex warns before. keepAlive (true) is the
+//                separate opt-in to a same-origin request that keeps it signed in.
+//   forget       not a switch: true clears the site's cookies and storage when
+//                the last tab of it closes and when Vex quits (src/main/site-forget.js).
+//                Never for the video, music and chat sites in FORGET_PROTECTED.
 //   ua           not a switch: the site is asked for as 'mobile' or with a
 //                typed User-Agent string (the desktop one is the normal
 //                thing, so it is never stored). Never in a Tor tab.
 const OFF = 'off';
-const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer', 'autoplay'];
+const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer', 'autoplay', 'lite', 'unwrap'];
+const SESSION_MIN_MAX = 720;
+// Sites whose sign-in Vex's panels and DRM playback depend on: 'forget' is refused for them, in the window and again here.
+const FORGET_PROTECTED = ['netflix.com', 'spotify.com', 'discord.com', 'discordapp.com', 'disneyplus.com', 'primevideo.com', 'hulu.com', 'max.com', 'hbomax.com', 'tv.apple.com', 'twitch.tv', 'crunchyroll.com'];
 const UA_MOBILE = 'mobile';
 const UA_MAX = 512;
 
@@ -91,6 +106,45 @@ function keepsReferrer(rules, referrerUrl, requestUrl) {
   return isOff(rules, referrerUrl, 'referrer') || isOff(rules, requestUrl, 'referrer');
 }
 
+// A host or any subdomain of a protected site.
+function forgetProtected(h) {
+  const b = String(h || '').replace(/^www\./, '').toLowerCase();
+  return FORGET_PROTECTED.some(p => b === p || b.endsWith('.' + p));
+}
+
+// The rule's own key (the host or parent domain it was saved under) for a page, or null.
+function ruleKeyFor(rules, url) {
+  const h = host(url);
+  if (!h || !rules) return null;
+  let best = null;
+  for (const key of Object.keys(rules)) {
+    const k = String(key).replace(/^www\./, '').toLowerCase();
+    if ((h === k || h.endsWith('.' + k)) && (best === null || k.length > best.length)) best = k;
+  }
+  return best;
+}
+
+// Forget the site when its last tab closes: only for a site that asked and is not protected.
+function forgets(rules, url) {
+  const rule = ruleFor(rules, url);
+  return !!(rule && rule.forget === true && !forgetProtected(host(url)));
+}
+
+// The idle timeout the person told Vex about, as { minutes, keepAlive }, or null.
+function sessionTimeoutFor(rules, url) {
+  const rule = ruleFor(rules, url);
+  if (!rule || !Number.isInteger(rule.sessionMin) || rule.sessionMin < 1 || rule.sessionMin > SESSION_MIN_MAX) return null;
+  return { minutes: rule.sessionMin, keepAlive: rule.keepAlive === true };
+}
+
+// Lite mode refuses the pictures and web fonts of a web page; a site marked 'lite' off is left alone. Never for a page that is not http(s)
+// (Vex's own pages and local files keep their pictures).
+function liteBlocks(rules, on, pageUrl, resourceType) {
+  if (!on || (resourceType !== 'image' && resourceType !== 'font')) return false;
+  if (!/^https?:/i.test(String(pageUrl || ''))) return false;
+  return !isOff(rules, pageUrl, 'lite');
+}
+
 // A User-Agent a person typed: printable ASCII on one line, nothing else.
 function validUserAgent(ua) {
   return typeof ua === 'string' && ua.length >= 8 && ua.length <= UA_MAX && /^[ -~]+$/.test(ua) && ua.trim() === ua;
@@ -116,6 +170,11 @@ function clean(rules) {
     if (!h || h.length > 253 || !/^[a-z0-9.-]+$/.test(h)) continue;
     const kept = {};
     for (const what of SWITCHES) if (rule && rule[what] === OFF) kept[what] = OFF;
+    if (rule && Number.isInteger(rule.sessionMin) && rule.sessionMin >= 1 && rule.sessionMin <= SESSION_MIN_MAX) {
+      kept.sessionMin = rule.sessionMin;
+      if (rule.keepAlive === true) kept.keepAlive = true;
+    }
+    if (rule && rule.forget === true && !forgetProtected(h)) kept.forget = true;
     if (rule && (rule.ua === UA_MOBILE || validUserAgent(rule.ua))) kept.ua = rule.ua;
     if (Object.keys(kept).length) out[h] = kept;
     if (Object.keys(out).length >= 200) break;
@@ -123,4 +182,4 @@ function clean(rules) {
   return out;
 }
 
-module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, allowsAds, blocksImages, sendsGpc, keepsReferrer, userAgentFor, validUserAgent, UA_MOBILE, clean };
+module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, allowsAds, blocksImages, sendsGpc, keepsReferrer, sessionTimeoutFor, forgets, forgetProtected, ruleKeyFor, FORGET_PROTECTED, liteBlocks, SESSION_MIN_MAX, userAgentFor, validUserAgent, UA_MOBILE, clean };

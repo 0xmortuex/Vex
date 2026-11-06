@@ -42,6 +42,14 @@ const VexBoot = {
     { src: 'js/lyrics-card.js', usage: [] },
     // "Check my devices": only read when its Ctrl+K command or the offer in Meeting mode is used.
     { src: 'js/device-check.js', usage: [] },
+    // Sign-out warning for sites that log you out: does nothing unless a site has a timeout saved (site panel).
+    { src: 'js/session-timeout.js', usage: [] },
+    // Lite mode (slow Wi-Fi): the toolbar badge, its Settings section and the switch. The tabs' autoplay policy is read from site-rules-ui.js.
+    { src: 'js/lite-mode.js', usage: [] },
+    // Skip tracking redirect links: the toast with Undo, the Settings row and the default for a new profile (the skipping itself is in main).
+    { src: 'js/link-unwrap.js', usage: [] },
+    // Forget a site when I close it: listens for a tab closing, and does nothing for a site without the rule.
+    { src: 'js/forget-site.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },

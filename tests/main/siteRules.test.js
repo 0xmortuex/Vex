@@ -98,3 +98,24 @@ describe('the header and picture switches', () => {
     expect(userAgentFor(r, 'https://b.com/', 'MOBILE')).toBe(null);
   });
 });
+
+describe('the sign-out timeout of a site (js/session-timeout.js)', () => {
+  const { sessionTimeoutFor } = require('../../src/main/site-rules.js');
+  it('is kept as whole minutes from 1 to 720, with keepAlive only beside it', () => {
+    expect(clean({ 'portal.example': { sessionMin: 20 } })).toEqual({ 'portal.example': { sessionMin: 20 } });
+    expect(clean({ 'portal.example': { sessionMin: 20, keepAlive: true } })).toEqual({ 'portal.example': { sessionMin: 20, keepAlive: true } });
+    // keepAlive without a timeout, or with a nonsense one, is dropped: a stray flag cannot start a request.
+    expect(clean({ 'portal.example': { keepAlive: true } })).toEqual({});
+    for (const bad of [0, -5, 721, 1.5, '20', null, NaN, Infinity]) expect(clean({ 'portal.example': { sessionMin: bad, keepAlive: true } })).toEqual({});
+  });
+  it('keepAlive must be exactly true', () => {
+    expect(clean({ 'portal.example': { sessionMin: 20, keepAlive: 'yes' } })).toEqual({ 'portal.example': { sessionMin: 20 } });
+  });
+  it('applies to the site and its subdomains, with the opt-in read separately', () => {
+    const r = { 'portal.example': { sessionMin: 15 }, 'bank.example': { sessionMin: 5, keepAlive: true } };
+    expect(sessionTimeoutFor(r, 'https://www.portal.example/a')).toEqual({ minutes: 15, keepAlive: false });
+    expect(sessionTimeoutFor(r, 'https://login.bank.example/')).toEqual({ minutes: 5, keepAlive: true });
+    expect(sessionTimeoutFor(r, 'https://other.example/')).toBe(null);
+    expect(sessionTimeoutFor({ 'x.example': { cookies: 'off' } }, 'https://x.example/')).toBe(null);
+  });
+});
