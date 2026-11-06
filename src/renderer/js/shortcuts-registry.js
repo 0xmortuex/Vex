@@ -186,8 +186,11 @@ const ShortcutsRegistry = (() => {
     // A key saved before the rule in whyNotAKey is never handed to main.
     const combos = Object.values(all).filter(d => d.current && d.hasHandler && !whyNotAKey(d.current)).map(d => d.current);
     combos.push(...Object.keys(WINDOW_KEYS));
-    try { window.vex.setGuestShortcutKeys([...new Set(combos)]); return true; }
+    try { window.vex.setGuestShortcutKeys([...new Set(combos)]); }
     catch (err) { console.warn('[Shortcuts] could not hand the keys to the window:', err && err.message); return false; }
+    // Main answers Ctrl+Tab for the recency switcher only while Next/Previous Tab still have those keys.
+    if (typeof VexTabMru !== 'undefined' && typeof VexTabMru.syncMain === 'function') VexTabMru.syncMain();
+    return true;
   }
 
   function init() {
