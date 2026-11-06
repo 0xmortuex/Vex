@@ -44,6 +44,8 @@ const VexBoot = {
     { src: 'js/link-open-extras.js', usage: [] },
     // Next / previous page key and its Ctrl+K commands (the key is in js/shortcuts-registry.js and runs the command by id).
     { src: 'js/page-nav.js', usage: [] },
+    // Search This Site: the Ctrl+K command, its key and the "@site words" address-bar prefix (js/app.js asks with typeof).
+    { src: 'js/site-search.js', usage: [] },
     { src: 'js/share-look.js', usage: [] },
     { src: 'js/share-look-ui.js', usage: [] },
     { src: 'js/share-space.js', usage: ['share-space'] },

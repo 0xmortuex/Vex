@@ -155,6 +155,16 @@ function vexOwnTextFocused(doc) {
     val = (val || '').trim();
     if (!val) return;
 
+    // "@site words": search only the site in front (js/site-search.js). A keyword of your own with that name wins.
+    if (typeof VexSiteSearch !== 'undefined') {
+      const prefix = VexSiteSearch.parsePrefix(val);
+      if (prefix) {
+        VexSiteSearch.run(prefix.words, !!newTab).catch(err => window.showToast?.(err.message, 'error'));
+        urlInput.blur();
+        return;
+      }
+    }
+
     // An address, a keyword search ("@yt cats", "!w einstein") or words for
     // the chosen engine, read each time (js/typed-address.js resolve, the
     // same answer Ctrl+K and the New Tab box give).

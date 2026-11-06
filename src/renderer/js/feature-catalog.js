@@ -887,6 +887,8 @@ const VexFeatures = {
       what: 'Right-click a link for Open Link in Container (any other container, with its own cookies), Open Link in Split View (beside the tab in front), Open Link in Private Window and Open Link in Background (a tab that does not take the focus). Opening a link from a Tor, proxy or disposable tab into another container or a private window asks first.' },
     { id: 'page-nav', feature: 'page-nav', newer: true, cat: 'reading', name: 'Next and previous page', phrases: 'next page previous page pagination older newer sonraki sayfa onceki sayfa ileri geri results thread chapter gallery key alt pagedown', cmd: 'page-next', keys: 'Alt+PageDown',
       what: 'One key (Alt+PageDown, and Alt+PageUp for the way back) goes to the next or previous page of search results, a forum thread, a documentation chapter or a gallery. It uses the page’s own rel=next link first, then links worded Next, Previous, Older, Newer, Sonraki, Önceki, İleri or Geri (or with » › « ‹), then the number after the current one in numbered pagination. If there is none it says so. Both keys can be changed in Settings > Shortcuts, and Ctrl+K has Go to the next page and Go to the previous page.' },
+    { id: 'site-search', feature: 'site-search', newer: true, cat: 'reading', name: 'Search this site', phrases: 'search this site site search find on website only site: sitesinde ara bu sitede ara within one site', cmd: 'search-this-site', keys: 'Ctrl+Alt+Shift+F',
+      what: 'Search only the site in front with your search engine, written as site:host and your words. Ctrl+K Search This Site, the page menu, Ctrl+Alt+Shift+F, or @site and your words in the address bar. The engine you chose in Settings is used, and a note says so when it has to use another one.' },
     { id: 'unblock-centre', feature: 'unblock-centre', newer: true, cat: 'privacy', name: 'Unblock centre', phrases: 'unblock blocked site blocked website censorship bypass dns doh byedpi zapret turkey cannot open site engel erisim', cmd: 'unblock-centre', setting: { section: 'setting-unblock-centre', label: 'Unblock centre' },
       what: 'When a site fails to load in a way that looks like a block, a bar offers to open just that site by encrypted DNS, a split handshake or the ByeDPI helper, none of which needs administrator rights, and remembers which worked. The Unblock centre lists the sites, with a switch, Test now and Forget for each, and one switch for all of it.' },
     { id: 'watch-alerts', feature: 'watch-alerts', newer: true, cat: 'work', name: 'One alert per change, digest first', phrases: 'watch alerts digest page changed one alert', setting: { section: 'vex-sg-watch-alerts', label: 'Watcher alerts' },
@@ -1349,7 +1351,7 @@ const VexFeatures = {
       { name: 'Your passwords', ids: ['pwhealth'] },
     ],
     reading: [
-      { name: 'Getting to the words', ids: ['reading-mode', 'readfree', 'copyunlock', 'doctext', 'find-in-page', 'page-nav'] },
+      { name: 'Getting to the words', ids: ['reading-mode', 'readfree', 'copyunlock', 'doctext', 'find-in-page', 'page-nav', 'site-search'] },
       { name: 'Getting through them', ids: ['readaloud', 'speedread', 'bionic', 'accessibility', 'zoom', 'dictionary'] },
       { name: 'In another language', ids: ['translate', 'translate-side'] },
       { name: 'Keeping what you read', ids: ['save-pdf', 'save-page', 'archive-page', 'archive-library', 'annotations', 'cards', 'cite', 'pagediff'] },

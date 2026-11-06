@@ -2188,6 +2188,8 @@ const WebviewManager = {
       // Tab" copied whatever TAB was active and Auto-refresh had no tab to
       // refresh, so a panel gets neither.
       ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.duplicateTab(t); } catch (err) { window.showToast?.('Could not duplicate the tab: ' + err.message, 'error'); } } }] : []),
+      // Only this site, with your search engine (js/site-search.js).
+      ...(isTab && typeof VexSiteSearch !== 'undefined' ? [{ label: 'Search This Site…', action: () => VexSiteSearch.run('', true).catch(err => window.showToast?.(err.message, 'error')) }] : []),
       { label: 'Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
       // The whole page, one part of it, or a number in it (js/page-watch-ui.js).
       // A tab's page only: a side panel is not a page to keep an eye on.
