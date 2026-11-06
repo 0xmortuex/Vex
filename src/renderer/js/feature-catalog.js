@@ -487,6 +487,8 @@ const VexFeatures = {
       what: 'Stops everything that is playing after 15, 30, 60 or 90 minutes, or when the video ends, fading the sound out over the last 15 seconds. Ctrl+K, "Sleep Timer". It starts only when you start it.' },
     { id: 'sound-policy', phrases: 'one sound at a time pause other tabs when one plays auto pause music during calls discord meet zoom teams microphone in use resume after call exempt', cat: 'media', cmd: 'sound-policy', name: 'One sound at a time', setting: { section: 'vex-sg-sound-policy', label: 'One sound at a time' },
       what: 'When a tab starts playing, pauses the other playing tabs (with an Undo), and during a call (the microphone in use) pauses everything else and plays it again when the call ends. Both rules are off until you switch them on; Ctrl+K, "Why Did That Stop Playing?" says why something stopped.' },
+    { id: 'video-link-time', phrases: 'copy video link at current time timestamp youtube link share video at this moment start at seconds twitch vod vimeo time link', cat: 'media', cmd: 'copy-video-time', name: 'Copy video link at this time',
+      what: 'Copies a link that opens the video at the second it is on now: YouTube, Twitch VODs, Vimeo, and a #t= link for any other page. Ctrl+K, the Ctrl+Alt+Shift+C key, or right-click the video.' },
     { id: 'mute', phrases: 'mute silence sound audio', cat: 'media', cmd: 'mute',
       what: 'Silence one tab, or every tab except this one.' },
     { id: 'screenshot', phrases: 'screen grab capture picture of the page snip', cat: 'media', cmd: 'screenshot',
@@ -1363,7 +1365,7 @@ const VexFeatures = {
       { name: 'This machine', ids: ['resmon', 'downloads', 'backup'] },
     ],
     media: [
-      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'sleep-timer', 'sound-policy', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
+      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'sleep-timer', 'sound-policy', 'video-link-time', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
       { name: 'Capturing what is on screen', ids: ['screenshot', 'screenshot-full', 'record-screen', 'clips', 'markup', 'whiteboard', 'page-images', 'qr'] },
       { name: 'Games and calls', ids: ['gaming', 'game-mode', 'game-guide', 'game-dossier', 'game-patch-radar', 'game-control-center', 'screenshare'] },
     ],

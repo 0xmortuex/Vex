@@ -2539,6 +2539,7 @@ const WebviewManager = {
         { label: flags.isLooping ? 'Stop Looping' : 'Loop', action: () => act('el.loop = !el.loop') },
         ...(flags.canToggleControls ? [{ label: flags.isControlsVisible ? 'Hide Controls' : 'Show Controls', action: () => act('el.controls = !el.controls') }] : []),
         ...(media.mediaType === 'video' && typeof PiPManager !== 'undefined' ? [{ label: 'Picture-in-Picture', action: () => PiPManager.toggle() }] : []),
+        ...(media.mediaType === 'video' ? [{ label: 'Copy Video Link at This Time', action: async () => { try { if (!window.VexVideoLink) await VexLazy.ensure('js/video-link.js'); await VexVideoLink.copyFromWebview(webview); } catch (err) { window.showToast?.(err.message, 'error'); } } }] : []),
         ...(src ? [
           { label: `Open ${noun === 'video' ? 'Video' : 'Sound'} in New Tab`, action: () => TabManager.createTab(src, true, null, { partition: webview.getAttribute?.('partition') }) },
           { label: `Copy ${noun === 'video' ? 'Video' : 'Sound'} Address`, action: () => navigator.clipboard.writeText(src).then(() => window.showToast?.('Address copied'), err => window.showToast?.('Could not copy: ' + err.message, 'error')) },

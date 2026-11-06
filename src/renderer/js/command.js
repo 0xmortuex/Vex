@@ -447,6 +447,8 @@ const CommandBar = {
     // Pause the other players when one starts, and during calls (js/sound-policy.js; both off until switched on).
     { id: 'sound-policy', label: 'One Sound at a Time', hint: 'Pause the other tabs when one starts playing, and pause media while you are on a call — off until you switch it on', icon: 'volume', action: async () => { try { if (!window.VexSoundPolicy) await VexLazy.ensure('js/sound-policy.js'); await VexSoundPolicy.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'sound-why', label: 'Why Did That Stop Playing?', hint: 'What the one-sound-at-a-time and call rules paused in this window, and why', icon: 'clock', action: async () => { try { if (!window.VexSoundPolicy) await VexLazy.ensure('js/sound-policy.js'); await VexSoundPolicy.openLog(); } catch (err) { _commandFailed(err); } } },
+    // A link to this video at the second it is on (js/video-link.js, loaded after start-up).
+    { id: 'copy-video-time', label: 'Copy Video Link at This Time', hint: 'Copies a link that opens this video at the second it is on now: YouTube, Twitch, Vimeo or any page with a video', icon: 'link', action: async () => { try { if (!window.VexVideoLink) await VexLazy.ensure('js/video-link.js'); await VexVideoLink.copyActive(); } catch (err) { _commandFailed(err); } } },
     // The same slider as Quick Tools > Master Volume (js/master-volume.js); it
     // had no command, so the Library could only describe it.
     { id: 'master-volume', label: 'Master Volume', hint: 'One slider, 0 to 500%, for the sound of every tab', icon: 'sliders', action: () => { if (typeof MasterVolume === 'undefined') throw new Error('Master Volume is not available in this window'); MasterVolume.show(); } },
