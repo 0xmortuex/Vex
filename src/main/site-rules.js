@@ -34,6 +34,9 @@
 //   lite         Lite mode (slow Wi-Fi) leaves this site alone: its pictures and
 //                fonts load and its tabs may autoplay. Only means something while
 //                Lite mode is on (src/main/nav-privacy.js).
+//   unwrap       a click on a link that goes through a tracking redirect, from this
+//                site, through its redirect or to it, is left as it was
+//                (src/main/nav-unwrap.js): for a sign-in that needs the redirect
 //   sessionMin   not a switch: the site logs you out after this many idle
 //                minutes (1 to 720), and Vex warns before. keepAlive (true) is the
 //                separate opt-in to a same-origin request that keeps it signed in.
@@ -44,7 +47,7 @@
 //                typed User-Agent string (the desktop one is the normal
 //                thing, so it is never stored). Never in a Tor tab.
 const OFF = 'off';
-const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer', 'autoplay', 'lite'];
+const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer', 'autoplay', 'lite', 'unwrap'];
 const SESSION_MIN_MAX = 720;
 // Sites whose sign-in Vex's panels and DRM playback depend on: 'forget' is refused for them, in the window and again here.
 const FORGET_PROTECTED = ['netflix.com', 'spotify.com', 'discord.com', 'discordapp.com', 'disneyplus.com', 'primevideo.com', 'hulu.com', 'max.com', 'hbomax.com', 'tv.apple.com', 'twitch.tv', 'crunchyroll.com'];

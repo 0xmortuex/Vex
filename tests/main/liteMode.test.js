@@ -80,15 +80,15 @@ describe('the saved flag', () => {
   const tmp = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'vex-nav-')), 'nav-privacy.json');
   it('is off for a profile that never had it, and round-trips', () => {
     const file = tmp();
-    expect(NavPrivacy.load(fs, file)).toEqual({ lite: false });
+    expect(NavPrivacy.load(fs, file)).toEqual({ lite: false, unwrap: null });
     NavPrivacy.save(fs, file, { lite: true });
-    expect(NavPrivacy.load(fs, file)).toEqual({ lite: true });
+    expect(NavPrivacy.load(fs, file)).toEqual({ lite: true, unwrap: null });
   });
   it('a damaged file is reported and starts from the default, not silently', () => {
     const file = tmp();
     fs.writeFileSync(file, '{nope');
     const errors = [];
-    expect(NavPrivacy.load(fs, file, { error: (...a) => errors.push(a.join(' ')) })).toEqual({ lite: false });
+    expect(NavPrivacy.load(fs, file, { error: (...a) => errors.push(a.join(' ')) })).toEqual({ lite: false, unwrap: null });
     expect(errors.join('\n')).toMatch(/not readable/);
   });
   it('a change must be a boolean for a key it knows', () => {

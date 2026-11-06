@@ -341,6 +341,7 @@ const SitePanel = {
       body += this._behaviourHtml(c);
       body += this._blockingHtml(c);
       body += this._switchesHtml(c);
+      body += this._linksHtml(c);
       body += this._liteHtml(c);
       body += this._sessionHtml(c);
       body += this._identityHtml(c);
@@ -531,6 +532,14 @@ const SitePanel = {
     }
     return this._section('switches', 'What this site is allowed', rows
       + `<p class="sp-note">${this._after ? 'The page reloads when you close this panel.' : 'Every page of this site, in every window.'}</p>` + broken);
+  },
+
+  // Skipping tracking redirect links (js/link-unwrap.js): a site where it breaks a sign-in can be left out. A site rule ('unwrap' off).
+  _linksHtml(c) {
+    if (typeof SiteRulesUI === 'undefined' || !c.web) return '';
+    return this._section('links', 'Links', this._switch('unwrap-site', 'Skip tracking redirect links', {
+      checked: !SiteRulesUI.isOff(c.url, 'unwrap'), disabled: !c.canSave,
+      note: (typeof VexLinkUnwrap !== 'undefined' && !VexLinkUnwrap.on() ? 'Off for every site in Settings at the moment. ' : '') + 'Links on this site, through its redirect or to it, go straight to the real page. Turn this off if signing in with it breaks.' }));
   },
 
   // Lite mode (js/lite-mode.js): this site can be left out of it. A site rule ('lite' off), main/site-rules.js.
@@ -825,6 +834,12 @@ const SitePanel = {
         await SiteRulesUI.set(c.url, 'referrer', el.checked);
         this._after = this._after || 'reload';
         window.showToast?.(el.checked ? c.host + ' gets the full referrer' : c.host + ' is trimmed like every other site again');
+        this._paint();
+        return;
+      case 'unwrap-site':
+        this._mustSave(c);
+        await SiteRulesUI.set(c.url, 'unwrap', !el.checked);
+        window.showToast?.(this._tr(el.checked ? 'Links through tracking redirects are skipped for {1}' : 'Links through tracking redirects are left as they are for {1}', c.host));
         this._paint();
         return;
       case 'lite-exempt':

@@ -518,6 +518,7 @@ define('siterules:get', []);
 define('navprivacy:get', []);
 define('navprivacy:set', [object]);
 // Forget a site when its last tab closed (main/site-forget.js): the address and session are checked again in main.
+define('linkunwrap:allow-once', [shape({ pageId: integer, url: string(8192) })]);
 define('siteforget:run', [shape({ url: string(4096), partition: string(128), exceptPageId: optional(integer) })]);
 // A watched page read through a hidden tab (src/main/page-render.js): the
 // address and, for one part of it, a selector and the words it began with.

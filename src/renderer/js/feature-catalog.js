@@ -281,6 +281,8 @@ const VexFeatures = {
       what: 'For slow Wi-Fi or a phone hotspot: one switch that stops every web page from loading pictures and web fonts and stops video from starting by itself. A badge on the toolbar says it is on, and a site can be left out of it.' },
     { id: 'forget-site', phrases: 'forget site when closed clear cookies on close sign out when i close shared computer library school computer auto clear site data per site', cat: 'privacy', cmd: 'forget-site', name: 'Forget a site when I close it',
       what: 'For a site you only use on a shared or school computer: when the last tab of it closes, and when Vex closes, its cookies and stored data are cleared. This signs you out of it each time. Per site, never for video, music and chat sites.' },
+    { id: 'link-unwrap', phrases: 'tracking redirect links google url facebook l.php skip redirect clean links unwrap wrapper link tracking click tracking', cat: 'privacy', cmd: 'link-unwrap', name: 'Skip tracking redirect links',
+      what: 'A link you click that goes through google.com/url, facebook.com/l.php and similar redirect pages goes straight to the real page, so those companies do not hear of the click. On for new profiles, off for existing ones until you turn it on; a site can be left out.' },
     { id: 'siteidentity', cat: 'privacy', cmd: 'siteidentity',
       what: 'Exactly what this page can see about your browser, with a verdict on why a site might be refusing to work.' },
     { id: 'pwhealth', cat: 'privacy', cmd: 'pwhealth',
@@ -1342,7 +1344,7 @@ const VexFeatures = {
       { name: 'Finding what you have read', ids: ['recall', 'recall-meaning', 'remember', 'catchup', 'screenshot-code'] },
     ],
     privacy: [
-      { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint', 'gpc', 'referrer-trim'] },
+      { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint', 'gpc', 'referrer-trim', 'link-unwrap'] },
       { name: 'The connection itself', ids: ['doh', 'https-only', 'captive-portal', 'tor', 'routing', 'routing-all', 'site-routes', 'dpi'] },
       { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window'] },
       { name: 'One site at a time', ids: ['permissions', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'lite-mode', 'session-timeout', 'forget-site', 'sitebroken', 'siteidentity'] },

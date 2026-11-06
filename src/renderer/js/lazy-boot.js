@@ -39,6 +39,8 @@ const VexBoot = {
     { src: 'js/session-timeout.js', usage: [] },
     // Lite mode (slow Wi-Fi): the toolbar badge, its Settings section and the switch. The tabs' autoplay policy is read from site-rules-ui.js.
     { src: 'js/lite-mode.js', usage: [] },
+    // Skip tracking redirect links: the toast with Undo, the Settings row and the default for a new profile (the skipping itself is in main).
+    { src: 'js/link-unwrap.js', usage: [] },
     // Forget a site when I close it: listens for a tab closing, and does nothing for a site without the rule.
     { src: 'js/forget-site.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },

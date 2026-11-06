@@ -277,6 +277,9 @@ contextBridge.exposeInMainWorld('vex', {
   onNavPrivacyChanged: (callback) => subscribe('navprivacy:changed', callback),
   // The last tab of a site with "forget when closed" closed (main/site-forget.js): { url, partition, exceptPageId } -> { ok, skipped?, cleared?, error? }.
   siteForget: (opts) => ipcRenderer.invoke('siteforget:run', opts),
+  // Skipped a tracking redirect (main/nav-unwrap.js): { pageId, from, to, via, newTab } when a click went straight to the page; and "Undo".
+  onLinkUnwrapped: (callback) => subscribe('linkunwrap:done', callback),
+  linkUnwrapAllowOnce: (opts) => ipcRenderer.invoke('linkunwrap:allow-once', opts),
   // How long a few well-known services take to answer, and yours for comparison.
   netLatency: () => ipcRenderer.invoke('net:latency'),
   // What a word means, asked of a dictionary from the main process.

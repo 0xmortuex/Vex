@@ -482,6 +482,9 @@ function _httpsUpgradeURL(details) {
 function _httpsAnswer(details) {
   if (_lookalikeGuard(details)) return { cancel: true };
   if (_threatGuard(details)) return { cancel: true };
+  // A click on a tracking redirect link goes to the page it names (main/nav-unwrap.js); that address is then judged as any other.
+  const unwrapped = _unwrapAnswer(details);
+  if (unwrapped) return { redirectURL: unwrapped };
   const upgraded = _httpsUpgradeURL(details);
   return upgraded ? { redirectURL: upgraded } : { cancel: false };
 }
@@ -3910,6 +3913,41 @@ const NavPrivacy = require('./main/nav-privacy');
 const _navPrivacyFile = path.join(userDataPath, 'nav-privacy.json');
 let _navPrivacy = NavPrivacy.load(fs, _navPrivacyFile);
 ipcMain.handle('navprivacy:get', () => ({ ok: true, ..._navPrivacy }));
+// Skip the redirect (main/nav-unwrap.js). Only a link the person clicked just now (a click or key press on that page in the last
+// 3 seconds), only a GET for the page itself, only when switched on, never in a Tor tab, never for a site that opted out. The
+// window shows a quiet toast with Undo; Undo asks for the wrapper address to be let through once for that tab.
+const NavUnwrap = require('./main/nav-unwrap');
+const UNWRAP_GESTURE_MS = 3000;
+const _unwrapBypass = new Map();   // page id -> { url, until }: the wrapper address Undo asked to open as it is
+function _unwrapTarget(contents, url, { newTab = false } = {}) {
+  if (_navPrivacy.unwrap !== true) return null;
+  if (!contents || contents.isDestroyed() || contents.getType() !== 'webview' || (contents.session && contents.session.__vexTor)) return null;
+  const bypass = _unwrapBypass.get(contents.id);
+  if (bypass) {
+    _unwrapBypass.delete(contents.id);
+    if (bypass.url === url && bypass.until >= Date.now()) return null;
+  }
+  const r = NavUnwrap.unwrapNavigation(url);
+  if (!r) return null;
+  let from;
+  try { from = contents.getURL() || ''; } catch { from = ''; }  // the page the click was on; gone means no page
+  if (!NavUnwrap.siteAllows(_siteRules, from, url, r.url)) return null;
+  const host = secureSessions.owner(contents);
+  if (host && !host.win.isDestroyed()) host.win.webContents.send('linkunwrap:done', { pageId: contents.id, from: url, to: r.url, via: r.via, newTab });
+  return r.url;
+}
+function _unwrapAnswer(details) {
+  if (_navPrivacy.unwrap !== true || details.resourceType !== 'mainFrame' || details.method !== 'GET' || !details.webContentsId) return null;
+  const last = _lastGestureAt.get(details.webContentsId);
+  if (!Number.isFinite(last) || Date.now() - last > UNWRAP_GESTURE_MS) return null;
+  return _unwrapTarget(webContents.fromId(details.webContentsId), details.url);
+}
+ipcMain.handle('linkunwrap:allow-once', (_e, opts) => {
+  const { pageId, url } = opts || {};
+  if (!Number.isInteger(pageId) || typeof url !== 'string' || url.length > 8192) return { ok: false, error: 'That is not a page and an address' };
+  _unwrapBypass.set(pageId, { url, until: Date.now() + 30000 });
+  return { ok: true };
+});
 ipcMain.handle('navprivacy:set', (_e, change) => {
   try {
     const next = NavPrivacy.apply(_navPrivacy, change);
@@ -7874,7 +7912,8 @@ app.on('web-contents-created', (_event, contents) => {
           win.webContents.send('peek:open', { url, partition: openerPartition, opener: contents.id });
         } else {
           win.webContents.send('tab:create-from-external', {
-            url,
+            // A link opened in a new tab goes through the same redirect skipping as one clicked in place (the pop-up check above needed a click).
+            url: _unwrapTarget(contents, url, { newTab: true }) || url,
             background: disposition === 'background-tab' || disposition === 'save-to-disk',
             // A Tor / burner / private / container tab's link stays in that
             // session; it opened in persist:main before (found 2026-09-29).
