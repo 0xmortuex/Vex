@@ -7,10 +7,12 @@
 //
 // THE AUDIO NEVER TOUCHES THE DISK. whisper-cli can only read a "file", so the speech is handed over through a Windows
 // NAMED PIPE that this process serves: the engine opens \\.\pipe\vex-voice-<128 random bits> as if it were a WAV file and
-// reads the bytes straight out of this process's memory. Measured 2026-11-06 with whisper.cpp b5454: it works, and it does
+// reads the bytes straight out of this process's memory. The pipe stays open until the engine has EXITED, and every connection gets the
+// whole clip: closing the server at the first connection made the real whisper-cli fail with code 11 (it opens the name more than once;
+// found 2026-11-06 in the real window). Measured 2026-11-06 with whisper.cpp b5454: it works, and it does
 // not need a temp file, a stdin redirect (Windows text-mode stdin corrupts the audio and the engine printed nothing) or a
-// local web server (the engine's own server would open a network port). The pipe accepts ONE connection and is closed
-// after it. No file is written by this module at all, and no audio byte, no text and no argument that holds speech is ever
+// local web server (the engine's own server would open a network port). The name is 128 random bits and the pipe is closed when the
+// engine exits. No file is written by this module at all, and no audio byte, no text and no argument that holds speech is ever
 // logged.
 //
 // The engine has no network code of its own to start with (it is the plain command-line program, not whisper-server), and it
@@ -85,7 +87,6 @@ function createVoiceEngine({ store, spawnImpl = childProcess.spawn, netImpl = ne
       server = netImpl.createServer((sock) => {
         sock.on('error', (e) => { pipeError = e; });      // the engine closes its end as soon as it has read the data (EPIPE); reported below only if the run failed
         sock.end(wav);
-        server.close();
       });
       await new Promise((resolve, reject) => { server.once('error', reject); server.listen(pipe, resolve); });
       if (run.cancelled) throw Object.assign(new Error('Cancelled'), { cancelled: true });

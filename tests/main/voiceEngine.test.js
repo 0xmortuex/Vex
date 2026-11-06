@@ -67,6 +67,15 @@ describe('the audio reaches the engine through a pipe', () => {
     } finally { delete process.env.HTTPS_PROXY; }
   });
 
+  // The failure seen in the real window (2026-11-06): the server was closed at the first connection, and the real whisper-cli, which opens
+  // the name again for a second decoder, stopped with code 11 (write EPIPE). The pipe must serve every connection until the engine exits.
+  it('keeps the pipe open for an engine that opens the name twice (regression: exit code 11 / EPIPE)', async () => {
+    const { spawnImpl } = launcher('twice');
+    const clip = pcm(1, 4);
+    const out = await createVoiceEngine({ store: fakeStore(), spawnImpl }).transcribe(clip, { model: 'base' });
+    expect(out.text).toContain('heard 16000 samples');
+  });
+
   it('uses a different unguessable pipe for every clip', async () => {
     const { spawnImpl, seen } = launcher();
     const engine = createVoiceEngine({ store: fakeStore(), spawnImpl });

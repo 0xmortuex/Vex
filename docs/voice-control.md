@@ -60,7 +60,7 @@ Cancel, switching the feature off and quitting kill it at once. There is no alwa
 
 **The audio never touches the disk.** whisper-cli can only read a file name. Measured on b5454: `-f -` (stdin) prints nothing on Windows
 (text-mode stdin corrupts the WAV), and `whisper-server` would open a network port. A **named pipe** works: the main process serves
-`\\.\pipe\vex-voice-<128 random bits>`, passes that as `-f`, writes the WAV image into it once, and closes the pipe after the one connection. No
+`\\.\pipe\vex-voice-<128 random bits>`, passes that as `-f`, serves the WAV image to every connection until the engine exits (whisper.cpp opens the name more than once; closing the pipe at the first connection made it fail with exit code 11, found in the real window), then closes the pipe. No
 temp file, no log line holds speech (a unit test spies on every file-writing function and on `console`).
 
 "No network from the engine": the program has no network code (it is the plain CLI, not the server) and gets no proxy settings. Windows does not

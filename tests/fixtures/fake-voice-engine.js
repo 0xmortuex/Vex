@@ -7,6 +7,8 @@ const args = process.argv.slice(2);
 const at = (flag) => args[args.indexOf(flag) + 1];
 const mode = process.env.FAKE_VOICE_MODE || 'ok';
 if (mode === 'hang') { setInterval(() => {}, 1000); return; }
+// 'twice': like whisper.cpp, which opens the name once to try one decoder and again for another. The pipe must still be there.
+if (mode === 'twice') { fs.readFileSync(at('-f')); }
 const wav = fs.readFileSync(at('-f'));
 if (wav.toString('latin1', 0, 4) !== 'RIFF') { console.error('not a wav'); process.exit(2); }
 if (mode === 'fail') { console.error('model is damaged'); process.exit(3); }
