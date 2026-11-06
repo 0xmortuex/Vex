@@ -356,7 +356,7 @@ const VexResearch = {
         cb.type = 'checkbox';
         cb.checked = r.checked && !r.why;
         cb.disabled = !!r.why || (!cb.checked && atLimit);
-        cb.setAttribute('aria-label', T('Read {1}', r.tab.title || r.tab.url));
+        cb.setAttribute('aria-label', T('Read the page: {1}', r.tab.title || r.tab.url));
         cb.addEventListener('change', () => { r.checked = cb.checked; if (r.checked) ensure(r); else redraw(); });
         const text = this._el('span', 'rs-row-text');
         text.append(this._el('span', 'rs-row-title', r.tab.title || r.tab.url), this._el('span', 'rs-row-host', this.hostOf(r.tab.url) || r.tab.url));

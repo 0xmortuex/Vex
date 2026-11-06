@@ -14207,7 +14207,7 @@ const VexI18nUI = {
       'Research': 'Araştır',
       'Research mode is still loading. Try again in a moment.': 'Araştırma modu hâlâ yükleniyor. Biraz sonra yeniden deneyin.',
       'A short brief in which every claim points to a quote in a page you chose.': 'Her iddianın seçtiğiniz bir sayfadaki alıntıya işaret ettiği kısa bir özet.',
-      'Read {1}': '{1} okunsun',
+      'Read the page: {1}': 'Sayfayı oku: {1}',
       'Not read: {1}': 'Okunmadı: {1}',
       'Reading the page...': 'Sayfa okunuyor...',
       'Reads the first {1} of {2} words': '{2} sözcüğün ilk {1} tanesini okur',
