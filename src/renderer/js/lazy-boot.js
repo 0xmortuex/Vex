@@ -114,6 +114,8 @@ const VexBoot = {
     { src: 'js/card-saver.js', usage: [] },
     // Dangerous-site warnings: the Settings section (switch, list date, Update now, test) and two Ctrl+K commands. The check itself is in main.
     { src: 'js/threat-list-ui.js', usage: [] },
+    // Safe Download Assistant: the mark on a finished download, Open anyway..., Quarantine and Settings > Safe downloads. The check itself is in main.
+    { src: 'js/safe-download-ui.js', usage: [] },
     // The bar over a tab an extension is controlling through the debugger (draws itself when main says a tab is held).
     { src: 'js/ext-debug-bar.js', usage: [] },
     // An extension's side panel, docked beside the page (chrome.sidePanel.open).

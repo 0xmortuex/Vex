@@ -169,4 +169,4 @@ function inspectFile({ fs, file, name, maxHead = HEAD } = {}) {
   return out;
 }
 
-module.exports = { inspectFile, detect, zipEntries, judgeZip, DOC_ENDING };
+module.exports = { inspectFile, detect, zipEntries, judgeZip, DOC_ENDING, DOCUMENTISH, PROGRAM_EXT, RISKY_IN_ARCHIVE, SHORTCUT_OR_SCRIPT };

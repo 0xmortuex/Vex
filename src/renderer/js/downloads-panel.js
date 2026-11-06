@@ -167,6 +167,9 @@ const DownloadsPanel = {
     if (data.url && !dl.url) dl.url = data.url;
     const fileCheck = this._cleanFileCheck(data.fileCheck);
     if (fileCheck) dl.fileCheck = fileCheck; else delete dl.fileCheck;
+    // The Safe Download Assistant's verdict (main/safe-download.js, drawn by js/safe-download-ui.js); null while it is switched off.
+    const safe = this._cleanSafe(data.safe);
+    if (safe) dl.safe = safe; else delete dl.safe;
     this.activeDownloads.delete(data.id);
     this.save();
     this._replaceRow(dl);
@@ -174,7 +177,7 @@ const DownloadsPanel = {
 
     // Asked for at the start: open it now, through the same check as any
     // other Open. The toast is skipped — the file is already in front of you.
-    if (fileCheck && fileCheck.worst === 'high') {
+    if (!dl.safe && fileCheck && fileCheck.worst === 'high') {
       // What the file is does not match its name (file-content-check.js): said instead of the usual "finished" card.
       const text = dl.filename + ': ' + fileCheck.findings[0].text;
       if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: 'download-file-check', urgency: 'critical', id: dl.id, title: 'Be careful with this download', body: text }, () => window.showToast?.(text, 'error', 12000));
@@ -190,8 +193,14 @@ const DownloadsPanel = {
         filename: dl.filename,
         path: dl.path,
         size: dl.totalBytes || dl.receivedBytes || 0,
-        from: dl.url || ''            // so the toast can check before it opens
+        from: dl.url || '',           // so the toast can check before it opens
+        safe: dl.safe || null
       });
+      // A red verdict is said loudly as well as on the card.
+      if (dl.safe && dl.safe.level === 'red') {
+        const text = dl.filename + ': ' + (typeof VexSafeDownload !== 'undefined' ? VexSafeDownload.pick(dl.safe.top || dl.safe.headline) : (dl.safe.top || dl.safe.headline).en);
+        if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: 'download-file-check', urgency: 'critical', id: dl.id, title: 'Be careful with this download', body: text }, () => {});
+      }
     } else if (dl.state === 'cancelled') {
       window.showToast?.(`Download cancelled: ${dl.filename}`, 'info');
     } else {
@@ -205,6 +214,15 @@ const DownloadsPanel = {
     }
   },
 
+  // The Safe Download Assistant's verdict as the panel keeps it: plain text only (shown escaped), bounded.
+  _cleanSafe(s) {
+    if (!s || typeof s !== 'object' || !['green', 'amber', 'red', 'gray'].includes(s.level)) return null;
+    const t = (o) => ({ en: String((o && o.en) || '').slice(0, 500), tr: String((o && o.tr) || '').slice(0, 500) });
+    const reasons = (Array.isArray(s.reasons) ? s.reasons : []).filter(r => r && ['red', 'amber', 'info', 'ok'].includes(r.level)).slice(0, 10)
+      .map(r => ({ id: String(r.id || '').slice(0, 40), level: r.level, ...t(r) }));
+    const top = reasons.find(r => r.level === 'red' || r.level === 'amber') || null;
+    return { level: s.level, headline: t(s.headline), reasons, top: top ? { id: top.id, en: top.en, tr: top.tr } : null, canQuarantine: s.canQuarantine === true && s.level === 'red', noPreview: s.noPreview === true };
+  },
   // The file check of a finished download as the panel keeps it: at most four findings, plain text, bounded.
   _cleanFileCheck(c) {
     if (!c || typeof c !== 'object') return null;
@@ -215,7 +233,7 @@ const DownloadsPanel = {
   },
   _fileCheckHtml(dl) {
     const c = dl.fileCheck;
-    if (!c) return '';
+    if (!c || dl.safe) return '';
     const lines = c.findings.map(f => `<div class="download-warn" role="note" style="margin-top:4px;font-size:11.5px;line-height:1.4;color:${f.level === 'high' ? 'var(--danger,#ef4444)' : 'var(--text)'}"><b>${f.level === 'high' ? 'Warning' : 'Careful'}:</b> ${this._esc(f.text)}</div>`);
     if (c.note) lines.push(`<div class="download-warn" style="margin-top:4px;font-size:11.5px;color:var(--text-muted)">${this._esc(c.note)}</div>`);
     return lines.join('');
@@ -649,6 +667,29 @@ const DownloadsPanel = {
 
   wantsOpen(id) { return this.openWhenDone.has(id); },
 
+  // Quarantine (red verdicts): the file moves to Vex's own quarantine folder under a harmless name. Nothing is deleted.
+  async _quarantine(id, { confirm = true } = {}) {
+    const dl = this.downloads.find(d => d.id === id);
+    if (!dl || !dl.path) throw new Error('That download is not in the list any more');
+    const tr = (text) => (window.vexTr || String)(text);
+    if (confirm) {
+      const ok = await vexConfirm({
+        title: tr('Move this file to quarantine?'),
+        message: dl.filename + '\n\n' + tr('Vex moves it into its own quarantine folder and gives it a name that cannot be run. Nothing is deleted; you can still show it in its folder or delete it from here.'),
+        okLabel: tr('Quarantine'), cancelLabel: tr('Not now'), danger: true,
+      });
+      if (!ok) return false;
+    }
+    const r = await window.vex.safeDownload.quarantine(dl.path);
+    if (!r || !r.ok) { window.showToast?.((r && r.error) || 'Could not move the file to quarantine', 'error'); return false; }
+    dl.path = r.path;
+    dl.quarantined = true;
+    this.save();
+    this._replaceRow(dl);
+    window.showToast?.(tr('Moved to quarantine'), 'info');
+    return true;
+  },
+
   // Called when a download finishes. Separate from _onComplete so the rule is
   // readable and testable: only a completed file, only one that was asked for,
   // and only after the same check every other Open goes through.
@@ -669,6 +710,9 @@ const DownloadsPanel = {
   },
 
   async _okToOpen(filePath, from) {
+    // Amber or red from the Safe Download Assistant: "Open anyway..." asks once, repeating the top reason (js/safe-download-ui.js).
+    const mine = this.downloads.find(d => d.path === filePath);
+    if (mine && typeof VexSafeDownload !== 'undefined' && VexSafeDownload.warns(mine)) return VexSafeDownload.gate(mine);
     if (!window.vex || typeof window.vex.fileInspect !== 'function') return true;
     let info;
     try { info = await window.vex.fileInspect(filePath, from || ''); }
@@ -751,6 +795,9 @@ const DownloadsPanel = {
       if (!(await this._okToOpen(b.dataset.path, b.dataset.from))) return;
       const result = await window.vex.downloadsOpenFile?.(b.dataset.path);
       if (result && !result.ok) window.showToast?.(result.error || 'Could not open that file', 'error');
+    }));
+    rowEl.querySelectorAll('[data-action="quarantine"]').forEach(b => b.addEventListener('click', () => {
+      this._quarantine(b.dataset.id).catch(err => window.VexProblems?.note('Downloads', 'Could not move the file to quarantine', err));
     }));
     rowEl.querySelectorAll('[data-action="open-when-done"]').forEach(b => b.addEventListener('click', () => {
       const on = this.setOpenWhenDone(b.dataset.id, !this.wantsOpen(b.dataset.id));
@@ -919,7 +966,8 @@ const DownloadsPanel = {
       actions = `<button class="dl-btn${wants ? ' on' : ''}" data-action="open-when-done" data-id="${id}" aria-pressed="${wants}" title="${wants ? 'Vex will open this the moment it finishes \u2014 press again to stop' : 'Open this the moment it finishes'}">${wants ? 'Will open' : 'Open when done'}</button>` + actions;
     } else if (isComplete) {
       actions = `<button class="dl-btn" data-action="quick-look" data-id="${id}" title="Quick look (Space)" aria-label="Quick look">${typeof VexIcons !== 'undefined' ? VexIcons.svg('eye', { size: 14 }) : 'Look'}</button>
-            <button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
+            ${dl.quarantined ? '' : `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">${typeof VexSafeDownload !== 'undefined' ? this._esc(VexSafeDownload.openLabel(dl)) : 'Open'}</button>`}
+            ${dl.safe && dl.safe.canQuarantine && !dl.quarantined ? `<button class="dl-btn" data-action="quarantine" data-id="${id}" title="Move to Vex's quarantine folder; nothing is deleted">Quarantine</button>` : ''}
             <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>
             ${this._scanButton(dl)}
             ${this._extractButton(dl)}
@@ -946,6 +994,7 @@ const DownloadsPanel = {
           <div class="download-filename">${this._esc(dl.filename)}</div>
           <div class="download-meta">${this._metaText(dl)}</div>
           ${isComplete ? this._fileCheckHtml(dl) : ''}
+          ${isComplete && typeof VexSafeDownload !== 'undefined' ? VexSafeDownload.blockHtml(dl) : ''}
           ${isActive ? `<div class="download-progress"><div class="download-progress-bar" style="width:${pct}%"></div></div>` : ''}
         </div>
         <div class="download-actions">

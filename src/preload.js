@@ -834,6 +834,12 @@ contextBridge.exposeInMainWorld('vex', {
     forgetHost: (host) => ipcRenderer.invoke('threat:forget-host', host),
     continueLog: () => ipcRenderer.invoke('threat:continue-log'),
   },
+  // Safe Download Assistant (main/safe-download.js): the Settings choices, and Quarantine for a file Vex downloaded. The verdict itself arrives with download-complete.
+  safeDownload: {
+    get: () => ipcRenderer.invoke('safedl:get'),
+    set: (patch) => ipcRenderer.invoke('safedl:set', patch),
+    quarantine: (filePath) => ipcRenderer.invoke('safedl:quarantine', filePath),
+  },
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
   reminders: {

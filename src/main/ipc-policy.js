@@ -165,6 +165,8 @@ const UI_ONLY_CHANNELS = new Set([
   // The site panel's third-party count and a download's explanation (main/safe-web-extras.js): read-only, but only the interface asks.
   // The dangerous-site list (main/threat-list.js): its switch, status, update and the sites you said to go on to are never a page's call.
   'threat:status', 'threat:set-enabled', 'threat:set-auto-update', 'threat:update', 'threat:forget-host', 'threat:continue-log',
+  // The Safe Download Assistant (main/safe-download.js): its settings and moving a downloaded file to quarantine are never a page's call.
+  'safedl:get', 'safedl:set', 'safedl:quarantine',
   'websafety:third-party-count', 'downloads:explain',
   // Quick look at a finished download (main/download-peek.js): reads a file's contents, so only the interface asks, and main serves only files Vex downloaded.
   'downloads:peek', 'downloads:peek-hash',

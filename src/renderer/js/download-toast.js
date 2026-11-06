@@ -28,14 +28,18 @@ const DownloadToast = {
   // Inline SVG, drawn in currentColor so it follows the theme.
   FILE_ICON: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
 
-  show({ filename, path, size, from }) {
+  show({ filename, path, size, from, safe = null }) {
     const container = this._container();
     const toast = document.createElement('div');
     toast.className = 'download-toast';
     // Open / Show need a real path. Rendering them for a download whose path
     // never arrived gave two buttons that silently did nothing.
+    // A verdict from the Safe Download Assistant (js/safe-download-ui.js): amber and red say "Open anyway...", and the mark
+    // with its "Why?" fold sits under the size. The panel's Open check does the asking, so both Open buttons agree.
+    const sd = safe && typeof VexSafeDownload !== 'undefined' ? { path, filename, safe } : null;
+    const openLabel = sd && VexSafeDownload.warns(sd) ? VexSafeDownload.openLabel(sd) : 'Open';
     const fileActions = path
-      ? '<button data-action="open" type="button">Open</button><button data-action="folder" type="button">Show</button>'
+      ? `<button data-action="open" type="button">${openLabel}</button><button data-action="folder" type="button">Show</button>`
       : '';
     toast.innerHTML = `
       <div class="download-toast-icon">${this.FILE_ICON}</div>
@@ -52,6 +56,7 @@ const DownloadToast = {
     `;
     toast.querySelector('.download-toast-filename').textContent = filename || 'Download';
     toast.querySelector('.download-toast-size').textContent = this._formatBytes(size);
+    if (sd) toast.querySelector('.download-toast-info').insertAdjacentHTML('beforeend', VexSafeDownload.blockHtml(sd));
 
     const dismiss = () => {
       if (toast.classList.contains('leaving')) return;

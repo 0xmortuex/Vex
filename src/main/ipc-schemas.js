@@ -828,6 +828,10 @@ define('websafety:third-party-count', [shape({ site: string(253), partition: opt
 define('threat:status threat:update threat:continue-log', []);
 define('threat:set-enabled threat:set-auto-update', [boolean]);
 define('threat:forget-host', [string(253)]);
+// Safe Download Assistant (src/main/safe-download.js, js/safe-download-ui.js): its Settings and Quarantine. Vex's own window only.
+define('safedl:get', []);
+define('safedl:set', [value => object(value) && (value.on === undefined || boolean(value.on)) && (value.strictness === undefined || ['relaxed', 'normal', 'strict'].includes(value.strictness)) && (value.checks === undefined || (object(value.checks) && Object.keys(value.checks).length <= 4 && Object.values(value.checks).every(boolean)))]);
+define('safedl:quarantine', [string(4096)]);
 define('downloads:explain', [string(64), optional(boolean)]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);

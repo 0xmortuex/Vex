@@ -563,6 +563,10 @@
     // (kept in main, like Web safety's sensitivity), so there is no VexUsage row and no vex.* key.
     { id: 'threat-list', title: 'Warnings for known dangerous sites', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['threat:settings', 'threat:test'],
       permissions: { reads: ['the address of each page you open, only to look it up in a list on this computer'], writes: ['the downloaded list (a set of hashes, no names), the sites you chose to trust, and a note of each time you chose Continue anyway'], sends: ['About once a day, a request for the public list file (a plain GET with no cookies); none of your addresses are in it'] } },
+    // Safe Download Assistant (src/main/safe-download.js, js/safe-download-ui.js): its switch is the one in Settings > Safe downloads (kept in main, like
+    // Web safety's sensitivity), so there is no VexUsage row and no vex.* key. Kill switch: turn it off there and no download is checked.
+    { id: 'safe-download', title: 'Safe Download Assistant', group: 'Web safety', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['safedl:settings'],
+      permissions: { reads: ['a finished download: its first 64 KB, the list of names inside a zip, rar or 7z (never unpacked), the signature of a Windows program (read by Windows, the program is not run), and the address it came from'], writes: ['only when you press Quarantine: moves that one file into Vex\'s quarantine folder under a name that cannot run; nothing is ever deleted'], sends: [] } },
     // Quick look at a finished download (js/download-quicklook.js): Space in the Downloads panel. Always on, no switch: it is how the panel looks at a file.
     { id: 'download-quicklook', title: 'Quick look at downloads', group: 'Downloads', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['the first part of a finished download you press Space on, only if Vex downloaded it (a picture, a PDF, the first 200 KB of text, the names in an archive, the first text of an Office file)'], writes: ['nothing; a file is deleted to the Recycle Bin only after you confirm'], sends: [] } },

@@ -4039,8 +4039,26 @@ function _adBlockedPage(id, url) {
 const _releaseDesk = require('./main/download-desk').createReleaseDesk({
   fs, file: path.join(userDataPath, 'release-downloads.json'), write: (f, bytes) => require('./main/file-store').atomicWrite(f, bytes, { backup: false }),
 });
+// Safe Download Assistant (src/main/safe-download.js): a green / amber / red verdict on a finished download from local facts only,
+// and Quarantine for a red one. It never deletes, opens or uploads anything.
+const _safeDownload = require('./main/safe-download').createSafeDownload({
+  fs, file: path.join(userDataPath, 'safe-download.json'), quarantineDir: path.join(userDataPath, 'quarantine'),
+  signatureOf: (f) => _fileCheck.signature(f),
+  threatCheck: (u) => _threatList.check(u),
+  lookalikeOf: (host) => {
+    const r = require('./main/web-safety').analyzeHost(host, { sensitivity: 'standard', topHosts: _webSafetyTopHosts(), allow: _webSafety.snapshot().allow });
+    return r && r.flagged && r.level === 'high' ? (r.resembles || 'another site') : '';
+  },
+  registrable: (h) => require('./main/web-safety').registrable(h),
+  listArchive: require('./main/archive-list'),
+  motw: require('./main/mark-of-the-web').createMarkOfTheWeb({ fs, log: (m) => console.log(m) }),
+  isDownloadedFile: (p) => _downloadService.isDownloadedFile(p),
+  noteFile: (p) => _downloadService._noteFile(p),
+  log: (m) => console.log(m),
+});
 const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
   releases: _releaseDesk,
+  assessFile: (ctx) => _safeDownload.assess(ctx),
   prefs: () => _downloadPrefs.current(),
   // A page's second download with no click asks first (Chrome's automatic
   // downloads); a click or key press is read from _watchGestures.
@@ -10116,7 +10134,15 @@ ipcMain.handle('file:inspect', async (_e, filePath, from) => {
 // Only a file Vex downloaded: this runs whatever it opens (security scan L5).
 ipcMain.handle('downloads:open-file', async (_e, filePath) => {
   if (!_downloadService.isDownloadedFile(filePath)) return { ok: false, error: 'Vex opens only files it downloaded itself. Use Show in folder to open this one.' };
+  if (_safeDownload.isQuarantined(filePath)) return { ok: false, error: 'This file is in quarantine, so Vex will not open it. Use Show in folder or Delete.' };
   try { const r = await shell.openPath(filePath); return { ok: !r, error: r || null }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+// Safe Download Assistant: its Settings, and Quarantine for a file Vex downloaded (src/main/safe-download.js). Vex's own window only.
+ipcMain.handle('safedl:get', () => _safeDownload.get());
+ipcMain.handle('safedl:set', (_e, patch) => _safeDownload.set(patch));
+ipcMain.handle('safedl:quarantine', (_e, filePath) => {
+  try { return { ok: true, ..._safeDownload.quarantine(filePath) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 // Whether each finished download is still on disk: a deleted one showed
