@@ -50,3 +50,6 @@ build/window-bundle/
 
 # Generated at publish time from the CHANGELOG entry for the version being released.
 build/release-notes.md
+
+# Wallpaper catalogue build: raw API responses and verification results
+scripts/.wallpaper-catalogue-cache/
