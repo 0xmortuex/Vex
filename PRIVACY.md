@@ -141,6 +141,7 @@ For rate limiting it also keeps your IP address for up to about 16 minutes. It d
 - **Ollama.** If you have installed Ollama, Vex talks to it at `localhost:11434` on your own PC, and starts it when it is needed (section 2). Your questions and pages do not leave your PC. When you download a model through Vex, Ollama itself downloads it from the Ollama library.
 - **On-device AI (WebLLM).** Runs inside Vex on your graphics card. When you click Download, the model is fetched from huggingface.co (and a small runtime file from raw.githubusercontent.com). After that, nothing is sent.
 - **Dictation** (speech to text) runs on your PC. The first time, after asking you, Vex downloads the Whisper model from huggingface.co. Your voice is never sent.
+- **Voice control** (say a command, or dictate) runs on your PC. Only when you press Download in Settings, Vex downloads the speech engine (whisper.cpp, 9 MB) from github.com and one speech model (60 or 190 MB) from huggingface.co, and checks each against a fixed checksum before using it. The microphone is open only while you hold the key or have started listening, with a red panel on screen; the audio is kept in memory, handed to the engine on this PC and never saved or sent.
 - **Reading text from images and scanned PDFs** (OCR) runs on your PC. The first time, Vex downloads the English language data from cdn.jsdelivr.net.
 
 ### Cloud AI (off until you set it up)
