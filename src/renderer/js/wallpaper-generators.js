@@ -8,7 +8,7 @@
 //
 //   WallpaperGenerators.svg({ id, kind, seed, colors: [c0..c4], opts })  -> '<svg ...>'
 //   kinds: mesh linear radial horizon waves mountains lowpoly tiles dots grid
-//          rings topo stars grain solid bokeh
+//          rings topo stars grain solid bokeh (and those added by WallpaperGenerators.extend)
 //
 // colors[0] is the base, colors[1] its second tone, colors[2..4] are accents.
 
@@ -260,6 +260,17 @@
     },
   };
 
+  // More kinds arrive from js/wallpaper-materials.js and js/wallpaper-patterns.js (materials, tiles, botanical, sky):
+  // they are drawn with the same helpers and are loaded after this file.
+  function extend(kinds) {
+    for (const name of Object.keys(kinds)) {
+      if (GEN[name]) throw new Error('The wallpaper kind "' + name + '" already exists');
+      if (typeof kinds[name] !== 'function') throw new Error('The wallpaper kind "' + name + '" must be a function');
+      GEN[name] = kinds[name];
+      KINDS.push(name);
+    }
+  }
+
   function svg(def) {
     if (!def || typeof def !== 'object') throw new Error('A wallpaper needs a definition');
     if (typeof def.id !== 'string' || !def.id) throw new Error('A wallpaper needs an id');
@@ -277,7 +288,7 @@
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup).replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29');
   }
 
-  const api = { svg, dataUrl, KINDS, WIDTH: W, HEIGHT: H, hash, rng, mix, luminance, along };
+  const api = { svg, dataUrl, extend, KINDS, WIDTH: W, HEIGHT: H, hash, rng, mix, luminance, along, f, rgb, toHex };
   if (typeof window !== 'undefined') window.WallpaperGenerators = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = { WallpaperGenerators: api };
 })(typeof window !== 'undefined' ? window : globalThis);

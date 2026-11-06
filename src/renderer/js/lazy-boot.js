@@ -86,6 +86,11 @@ const VexBoot = {
     // The Wallpaper Store: pictures drawn by code (data, generators), the painter shared with the New Tab, the logic and API (window.VexWallpapers) and its screen.
     { src: 'js/wallpaper-generators.js', usage: [] },
     { src: 'js/wallpaper-data.js', usage: [] },
+    // More pictures drawn by code (materials, tiles, botanical, sky, maps): about 150 KB of text that nothing reads until the Store or a New Tab paints one.
+    { src: 'js/wallpaper-materials.js', usage: [] },
+    { src: 'js/wallpaper-patterns.js', usage: [] },
+    { src: 'js/wallpaper-nature.js', usage: [] },
+    { src: 'js/wallpaper-materials-data.js', usage: [] },
     { src: 'js/wallpaper-paint.js', usage: [] },
     { src: 'js/wallpaper-store.js', usage: ['wallpaper-store'] },
     { src: 'js/wallpaper-sync.js', usage: [] },

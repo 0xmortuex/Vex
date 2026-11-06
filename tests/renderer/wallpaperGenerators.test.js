@@ -6,7 +6,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 const { WallpaperGenerators: G } = require('../../src/renderer/js/wallpaper-generators.js');
+require('../../src/renderer/js/wallpaper-materials.js');
+require('../../src/renderer/js/wallpaper-patterns.js');
+require('../../src/renderer/js/wallpaper-nature.js');
 const { WallpaperData: D } = require('../../src/renderer/js/wallpaper-data.js');
+const { MATERIAL_ROWS } = require('../../src/renderer/js/wallpaper-materials-data.js');
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -68,6 +72,68 @@ describe('the pictures', () => {
     expect(url.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
     expect(url).not.toMatch(/[()'"<>\s]/);
     expect(decodeURIComponent(url.split(',')[1])).toBe(G.svg(list[0]));
+  });
+});
+
+// The materials, tiles, botanical prints, sky and maps (js/wallpaper-materials-data.js and the three kind files).
+describe('the material wallpapers', () => {
+  const ids = new Set(MATERIAL_ROWS.map(r => r[0]));
+  const mine = D.generated().filter(w => ids.has(w.id));
+  const NEW_GROUPS = ['marble', 'wood', 'fabric', 'paper', 'stone', 'metal', 'sky', 'tiles', 'botanical', 'maps'];
+
+  it('are at least 200, in ten new groups that each hold at least 5', () => {
+    expect(mine.length).toBeGreaterThanOrEqual(200);
+    for (const g of NEW_GROUPS) {
+      expect(D.CATEGORIES.some(c => c.id === g), g).toBe(true);
+      expect(mine.filter(w => w.category === g).length, g).toBeGreaterThanOrEqual(5);
+    }
+    expect(mine.every(w => NEW_GROUPS.includes(w.category))).toBe(true);
+  });
+  it('have ids and names that are not used by the older wallpapers, and every id is a safe slug', () => {
+    const older = D.generated().filter(w => !ids.has(w.id));
+    const names = new Set(older.map(w => w.title)), taken = new Set(older.map(w => w.id));
+    for (const w of mine) {
+      expect(names.has(w.title), w.title).toBe(false);
+      expect(taken.has(w.id), w.id).toBe(false);
+      expect(w.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+    }
+  });
+  it('use every new kind of picture, and each new kind is used by at least two wallpapers', () => {
+    const used = {};
+    for (const w of mine) used[w.kind] = (used[w.kind] || 0) + 1;
+    const added = G.KINDS.filter(k => !['mesh', 'linear', 'radial', 'horizon', 'waves', 'mountains', 'lowpoly', 'tiles', 'dots', 'grid', 'rings', 'topo', 'stars', 'grain', 'solid', 'bokeh'].includes(k));
+    expect(added.length).toBeGreaterThanOrEqual(35);
+    for (const k of added) expect(used[k] || 0, k).toBeGreaterThanOrEqual(2);
+  });
+  it('are drawn in a few milliseconds each (the browser does the heavy work, at the size of the screen)', () => {
+    const t0 = Date.now();
+    for (const w of mine) G.svg(w);
+    const per = (Date.now() - t0) / mine.length;
+    expect(per).toBeLessThan(15);
+  });
+  it('light ones list their colours lightest first and dark ones darkest first (what "Match Vex to this wallpaper" reads)', () => {
+    for (const w of mine) {
+      const first = G.luminance(w.colors[0]), last = G.luminance(w.colors[4]);
+      if (w.light) expect(first, w.id).toBeGreaterThanOrEqual(last);
+      else expect(first, w.id).toBeLessThanOrEqual(last);
+    }
+  });
+  it('a wallpaper added after the list was read is in the next read, and a repeated id, group or palette is refused', () => {
+    const before = D.generated().length;
+    const row = ['zz-test', 'Zz test', 'zz', 'solid', 'zzpal', 1];
+    D.extend({ categories: [{ id: 'zz', title: 'Zz' }], palettes: { zzpal: ['#000000', '#111111', '#222222', '#333333', '#444444'] }, rows: [row] });
+    expect(D.generated().length).toBe(before + 1);
+    expect(() => D.extend({ rows: [row] })).toThrow(/already exists/);
+    expect(() => D.extend({ categories: [{ id: 'zz', title: 'Zz' }] })).toThrow(/already exists/);
+    expect(() => D.extend({ palettes: { zzpal: [] } })).toThrow(/already exists/);
+  });
+  it('the kinds refuse a mode they do not know', () => {
+    const c = ['#000000', '#222222', '#444444', '#888888', '#eeeeee'];
+    for (const kind of ['wood', 'paper', 'stone', 'metal']) expect(() => G.svg({ id: 'x-' + kind, kind, seed: 1, colors: c, opts: { mode: 'nope' } }), kind).toThrow(/Unknown/);
+    expect(() => G.svg({ id: 'x-leaf', kind: 'leaves', seed: 1, colors: c, opts: { leaf: 'nope' } })).toThrow(/Unknown leaf/);
+  });
+  it('a kind cannot be added twice', () => {
+    expect(() => G.extend({ marble() { return ''; } })).toThrow(/already exists/);
   });
 });
 
