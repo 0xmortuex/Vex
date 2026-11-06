@@ -12475,6 +12475,40 @@ ipcMain.handle('windows:reopen-closed', (event) => {
   return { ok: true, url: c.url };
 });
 
+// === Does this network want a sign-in? (main/captive-portal.js) ==============
+// Only ever started by a press in the window (the failed-page screen, Ctrl+K): one plain-http request to a page whose
+// answer is known, with no cookies, recorded in the egress ledger like every other outgoing request. Electron's
+// net.fetch cannot show where a redirect goes ("Redirect was cancelled"), so this uses net.request's redirect event.
+const _captive = require('./main/captive-portal');
+const _captiveRequest = _captive.createRequest(net);
+// The ledger wants a fetch-shaped answer: a status, ok, and headers.get.
+const _captiveFetch = _egressFetch(async (url) => {
+  const r = await _captiveRequest(url);
+  return { ok: r.status >= 200 && r.status < 300, status: r.status, headers: { get: (k) => (String(k).toLowerCase() === 'location' ? r.headers.location : null) }, raw: r };
+}, { feature: 'Wi-Fi sign-in check', kind: 'fetch' });
+let _captiveDohTimer = null;
+ipcMain.handle('captive:check', async () => {
+  const result = await _captive.check(async (url) => (await _captiveFetch(url)).raw);
+  return { ...result, secureDns: privacyCfg.doh };
+});
+// The person chose to sign in: HTTPS-only leaves these hosts alone until Vex closes (the same list as "Continue" on
+// the no-HTTPS page), so the portal's plain-http pages are not upgraded into a failure.
+ipcMain.handle('captive:allow-http', (_e, hosts) => {
+  const list = _captive.cleanHosts(hosts);
+  for (const h of list) _httpsOnlyFailed.add(h);
+  return { ok: true, hosts: list };
+});
+// Strict secure DNS never asks the network's own resolver, which is what a portal answers with its sign-in address.
+// Paused for a few minutes on a press, then put back from the saved setting (applyDoH).
+ipcMain.handle('captive:pause-secure-dns', (_e, minutes) => {
+  const n = _captive.cleanPause(minutes);
+  clearTimeout(_captiveDohTimer);
+  app.configureHostResolver({ secureDnsMode: 'off', secureDnsServers: [] });
+  _captiveDohTimer = setTimeout(() => { _captiveDohTimer = null; applyDoH(); }, n * 60000);
+  if (typeof _captiveDohTimer.unref === 'function') _captiveDohTimer.unref();
+  return { ok: true, until: Date.now() + n * 60000 };
+});
+
 // Set as default browser — opens Windows Default Apps settings
 ipcMain.handle('set-as-default-browser', async () => {
   try {

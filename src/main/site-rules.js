@@ -26,11 +26,16 @@
 //                this site: the "excluded sites" of Settings > Privacy
 //   referrer     the address a request came from is left alone for this site
 //                even when Settings trims it ("this site needs the referrer")
+//   autoplay     sound and video start only when the person clicks: a tab built
+//                on the site gets autoplayPolicy=user-gesture-required (renderer,
+//                at creation: it cannot be changed on a live page). Vex allows
+//                autoplay everywhere else, because Master Volume's boost needs
+//                a running AudioContext (main.js).
 //   ua           not a switch: the site is asked for as 'mobile' or with a
 //                typed User-Agent string (the desktop one is the normal
 //                thing, so it is never stored). Never in a Tor tab.
 const OFF = 'off';
-const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer'];
+const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer', 'autoplay'];
 const UA_MOBILE = 'mobile';
 const UA_MAX = 512;
 

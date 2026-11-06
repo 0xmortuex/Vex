@@ -353,6 +353,23 @@ const WebviewManager = {
     }
   },
 
+  // The `webpreferences` of a tab's guest, fixed when it is created. Pure.
+  webPreferencesFor({ keptAwake = false, noScripts = false, noAutoplay = false, historyFrom = null, carried = null } = {}) {
+    return 'contextIsolation=yes'
+      + (keptAwake ? ',backgroundThrottling=no' : '')
+      + (noScripts ? ',javascript=no' : '')
+      // user-gesture-required (not document-user-activation-required): it blocks the same autoplay but leaves Web
+      // Audio running, which Master Volume's boost needs (measured in Electron 42, 2026-11-06).
+      + (noAutoplay ? ',autoplayPolicy=user-gesture-required' : '')
+      + (Number.isInteger(historyFrom) ? ',vexHistoryFrom=' + historyFrom : '')
+      + (carried ? ',vexHistoryFrom=' + carried : '');
+  },
+
+  // Is this address held to the other autoplay setting than the guest a tab was built with? Pure.
+  autoplayDiffers(url, builtOff) {
+    return !!(window.SiteRulesUI && window.SiteRulesUI.autoplayOff && window.SiteRulesUI.autoplayOff(url)) !== !!builtOff;
+  },
+
   createWebview(tab) {
     if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
     // A container's own route is asked for now, before anything reads the
@@ -413,11 +430,11 @@ const WebviewManager = {
       carried = 'c' + (++this._historySeq);
       window.vex.carryTabHistory(carried, tab.partition || 'persist:main', tab.history);
     }
-    webview.setAttribute('webpreferences', 'contextIsolation=yes'
-      + (keptAwake ? ',backgroundThrottling=no' : '')
-      + (noScripts ? ',javascript=no' : '')
-      + (Number.isInteger(historyFrom) ? ',vexHistoryFrom=' + historyFrom : '')
-      + (carried ? ',vexHistoryFrom=' + carried : ''));
+    // A site held to "autoplay only when I click" (Site settings): Vex allows autoplay everywhere else (main.js), so
+    // this one tab's guest is built to refuse it. Like JavaScript, it cannot be changed on a live page.
+    const noAutoplay = !!(window.SiteRulesUI && window.SiteRulesUI.autoplayOff && window.SiteRulesUI.autoplayOff(tab.url));
+    webview._noAutoplay = noAutoplay;
+    webview.setAttribute('webpreferences', this.webPreferencesFor({ keptAwake, noScripts, noAutoplay, historyFrom, carried }));
     webview.dataset.tabId = tab.id;
     // Browsing on to such a site from here is held to it by main, on the
     // page's own response (script-src 'none'). The other way round cannot be:
@@ -435,6 +452,20 @@ const WebviewManager = {
       };
       onWebview('did-start-navigation', leave);
       onWebview('did-redirect-navigation', leave);
+    }
+    // The same for autoplay: a tab built for one setting that browses on to a site with the other is built again, because
+    // the policy belongs to the guest, not the page. Only when the two differ, so with no autoplay rule saved this never runs.
+    if (window.SiteRulesUI && typeof window.SiteRulesUI.autoplayOff === 'function') {
+      const changeAutoplay = (event) => {
+        if (event.isMainFrame === false || event.isInPlace || !/^https?:/i.test(event.url || '')) return;
+        if (!this.autoplayDiffers(event.url, webview._noAutoplay)) return;
+        try { webview.stop(); } catch { /* going anyway */ }
+        tab.url = event.url;
+        tab._historyFrom = webview.getWebContentsId();
+        TabManager.rebuildTab(tab.id);
+      };
+      onWebview('did-start-navigation', changeAutoplay);
+      onWebview('did-redirect-navigation', changeAutoplay);
     }
 
     // Events

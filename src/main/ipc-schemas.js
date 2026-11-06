@@ -16,6 +16,10 @@ define('extensions:install-catalog', [string(60)]);
 // The documents Vex ships, by name (src/main/legal-docs.js), and "Quit Vex".
 define('legal:read', [oneOf(['PRIVACY.md', 'TERMS.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'])]);
 define('app:quit', []);
+// Does this network want a sign-in (main/captive-portal.js): the check takes nothing; the hosts and the minutes are checked again in main.
+define('captive:check', []);
+define('captive:allow-http', [value => Array.isArray(value) && value.length > 0 && value.length <= 4 && value.every(h => typeof h === 'string' && h.length <= 253)]);
+define('captive:pause-secure-dns', [integer]);
 // "Was Vex uninstalled by hand?" (setup wizard, js/onboarding.js): no arguments, the answer is read once and the note is removed.
 define('setup:take-uninstall-marker', []);
 // Feature isolation in safe mode (main/safe-mode.js) and the ledger of what left this computer (main/egress-ledger.js).

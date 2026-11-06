@@ -832,7 +832,8 @@ const SitePanel = {
           this._mustSave(c);
           const what = act.slice(5);
           await SiteRulesUI.set(c.url, what, !el.checked);
-          this._after = what === 'js' ? 'rebuild' : (this._after || 'reload');
+          // JavaScript and autoplay are fixed when a tab's guest is created, so the tab is built again for them.
+          this._after = what === 'js' || what === 'autoplay' ? 'rebuild' : (this._after || 'reload');
           this._paint();
           return;
         }

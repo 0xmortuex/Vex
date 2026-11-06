@@ -54,10 +54,11 @@ const GuideTemplates = {
     {
       id: 'autoplay',
       ask: ['stop autoplay', 'videos play by themselves', 'stop videos playing', 'mute everything', 'sound starts on its own', 'stop sound'],
-      headline: 'Sound is per-site in Vex, and a tab that starts talking can be silenced from the tab strip.',
+      headline: 'Autoplay is per-site in Vex: hold a site to "only when I click", and a tab that starts talking can still be silenced from the tab strip.',
       steps: [
+        'Ctrl+K → "What This Site Is Allowed" → Autoplay off: sound and video on that site start only when you click. The tab reopens with it off.',
         'Right-click the tab → Mute, or Ctrl+M for the one you are on.',
-        'Ctrl+K → "What This Site Is Allowed" turns off a site’s JavaScript entirely, which stops the player as well.',
+        'The same panel can turn a site’s JavaScript off entirely, which stops the player as well (and most of the page).',
         'For a site you keep: right-click its tab → "Page volume…" remembers a level per site, and Ctrl+K → "Even Out the Sound" tames the loud parts.',
       ],
       feature: 'volume',

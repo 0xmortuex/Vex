@@ -220,6 +220,19 @@ describe('what it changes, and where', () => {
     P.close();
     expect(TabManager.rebuildTab).toHaveBeenCalledWith('t1');
   });
+  it('Autoplay off is saved for the site and builds the tab again on close (the policy belongs to the guest)', async () => {
+    setup(); const P = load();
+    P.open(); await flush();
+    const ap = document.getElementById('sp-rule-autoplay');
+    expect(ap).not.toBeNull();
+    expect(ap.checked).toBe(true); // autoplay allowed is the usual
+    ap.checked = false; ap.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush(); await flush();
+    expect(JSON.parse(localStorage.getItem('vex.siteRules'))['news.example'].autoplay).toBe('off');
+    expect(SiteRulesUI.autoplayOff('https://www.news.example/story')).toBe(true);
+    P.close();
+    expect(TabManager.rebuildTab).toHaveBeenCalledWith('t1');
+  });
   it('a site can be asked for as a mobile site, kept with its other switches, and the page reloads', async () => {
     const { wv } = setup(); const P = load();
     P.open(); await flush();

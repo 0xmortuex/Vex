@@ -983,6 +983,10 @@ contextBridge.exposeInMainWorld('vex', {
       try { cb(url); } catch { console.error('[Vex URL] URL handler failed'); }
     }
   },
+  // Does this network want a sign-in? (main/captive-portal.js) Each one is a press in the window.
+  captiveCheck: () => ipcRenderer.invoke('captive:check'),
+  captiveAllowHttp: (hosts) => ipcRenderer.invoke('captive:allow-http', hosts),
+  captivePauseSecureDns: (minutes) => ipcRenderer.invoke('captive:pause-secure-dns', minutes),
   setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
   // Start with Windows: what Windows holds, and changing it (main/login-item.js)

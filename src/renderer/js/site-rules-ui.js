@@ -14,6 +14,7 @@ const SiteRulesUI = {
     { id: 'cookies', name: 'Cookies', note: 'Off means none are sent to this site and none it sends back are kept, and any it already had are removed — it will not remember you.' },
     { id: 'thirdParty', name: 'Content from other sites', note: 'Off refuses anything this page loads from another host: adverts, trackers, embeds, some fonts.' },
     { id: 'images', name: 'Pictures', note: 'Off loads none of this page’s pictures, which saves data. Not in a Tor tab. Reload to see the change.' },
+    { id: 'autoplay', name: 'Autoplay', note: 'Off means sound and video start only when you click. The tab reopens with it off.' },
   ],
 
   // The site's own User-Agent: 'mobile', or a typed string; '' is the
@@ -72,6 +73,8 @@ const SiteRulesUI = {
 
   isOff(url, what) { const rule = this.forUrl(url); return !!(rule && rule[what] === 'off'); },
   scriptsOff(url) { return this.isOff(url, 'js'); },
+  // A site held to "only when I click": its tabs are built with autoplayPolicy=user-gesture-required (webview.js).
+  autoplayOff(url) { return this.isOff(url, 'autoplay'); },
   // The site panel's "Block ads and trackers on this site": stored as the
   // 'ads' switch beside the three above (main/site-rules.js), but not one of
   // WHAT — a site the blocker leaves alone is not being held back.

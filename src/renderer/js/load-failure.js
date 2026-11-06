@@ -146,8 +146,22 @@ const VexLoadFailure = {
     if (/^https:/i.test(failed.url) && !this._local(failed.url)) add('Try http:// instead', false, () => this.tryHttp(tab.id), 'Not encrypted: you will be asked to confirm');
     if (failed.copy) add('Open your saved copy', false, () => ArchiveLibrary.openCopy(failed.copy.id), this._t('Saved {1}').replace('{1}', new Date(failed.copy.at).toLocaleString()));
     if (typeof LinkRot !== 'undefined') add('Look in the Wayback Machine', false, () => LinkRot.viewArchived(failed.url), 'Opens archive.org in a new tab');
+    // Café and school Wi-Fi hold you at a sign-in page, which looks exactly like this screen. A press asks one plain page
+    // whether that is the case (js/captive-portal.js); nothing is asked until then.
+    let captive = null;
+    if (typeof VexCaptivePortal !== 'undefined' && VexCaptivePortal.offers(failed.code)) {
+      const c = failed.captive;
+      add(c && c.state !== 'checking' ? 'Check the network again' : 'Is this a Wi-Fi sign-in?', false, () => VexCaptivePortal.checkFor(tab.id), 'Asks one plain page whether this network wants a sign-in. Only when you press this.');
+      if (c) {
+        captive = document.createElement('p');
+        captive.className = 'vlf-tip vlf-captive';
+        captive.setAttribute('role', 'status');
+        captive.textContent = VexCaptivePortal.describe(c);
+        for (const a of VexCaptivePortal.actions(c)) add(a.label, a.primary, a.run, a.title);
+      }
+    }
     add('Copy the address', false, () => navigator.clipboard.writeText(failed.url).then(() => window.showToast?.(this._t('Address copied'))));
-    box.append(h, p, t, row, u);
+    if (captive) box.append(h, p, t, captive, row, u); else box.append(h, p, t, row, u);
     el.appendChild(box);
     host.appendChild(el);
     this._el = el;

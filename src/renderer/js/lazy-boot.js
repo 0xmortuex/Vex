@@ -33,6 +33,8 @@ const VexBoot = {
     { src: 'js/toolbar-customize.js', usage: [] },
     // Clicking GitHub: the Control Center or github.com, asked or kept (js/sidebar.js loads it on demand if a click comes first).
     { src: 'js/github-open.js', usage: [] },
+    // Wi-Fi sign-in check: only read when its button on the page that did not load, or its Ctrl+K command, is pressed.
+    { src: 'js/captive-portal.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },
