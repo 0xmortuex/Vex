@@ -149,13 +149,13 @@ describe('the Settings section', () => {
     await VexGameOverlay.save({ on: true });
     const body = document.createElement('div');
     VexGameOverlaySettings.render(body);
-    const [game, url] = body.querySelectorAll('input[aria-label="Program name of the game"], input[aria-label="Guide page address for that game"]');
-    game.value = 'RobloxPlayerBeta'; url.value = 'https://roblox.fandom.com/';
+    const [game, url] = body.querySelectorAll('input[aria-label="Name of the game in the Game mode list"], input[aria-label="Guide page address for that game"]');
+    game.value = 'roblox'; url.value = 'https://roblox.fandom.com/';
     [...body.querySelectorAll('button')].find(b => b.textContent === 'Add guide page').click();
-    await vi.waitFor(() => expect(JSON.parse(localStorage.getItem('vex.gameOverlay')).guides).toEqual({ RobloxPlayerBeta: 'https://roblox.fandom.com/' }));
+    await vi.waitFor(() => expect(JSON.parse(localStorage.getItem('vex.gameOverlay')).guides).toEqual({ roblox: 'https://roblox.fandom.com/' }));
     vexApi.gameOverlayConfig.mockRejectedValueOnce(new Error('Only http and https addresses can be used'));
     VexGameOverlaySettings.render(body);
-    const [g2, u2] = body.querySelectorAll('input[aria-label="Program name of the game"], input[aria-label="Guide page address for that game"]');
+    const [g2, u2] = body.querySelectorAll('input[aria-label="Name of the game in the Game mode list"], input[aria-label="Guide page address for that game"]');
     g2.value = 'x'; u2.value = 'file:///C:/secret';
     [...body.querySelectorAll('button')].find(b => b.textContent === 'Add guide page').click();
     await vi.waitFor(() => expect(window.showToast).toHaveBeenCalledWith(expect.stringContaining('Only http'), 'error'));
