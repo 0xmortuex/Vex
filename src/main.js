@@ -1623,6 +1623,7 @@ function _sendGameState() {
   if (_keepOnTopInst) { try { _keepOnTopInst.recheck(); } catch (err) { console.error('[KeepOnTop] ' + err.message); } }
   // T2-059: the floating video hides while a fullscreen game is up (when asked to).
   try { setPipGameFullscreen(!!_mergedGameState().fullscreen); } catch (err) { console.error('[Vex PiP] could not follow the game state:', err.message); }
+  try { if (_gameOverlayInst) _gameOverlayInst.onGame(_mergedGameState()); } catch (err) { console.error('[GameOverlay] could not follow the game state:', err.message); }
   try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:state', _mergedGameState()); } catch { /* window gone */ }
 }
 // While Game mode is on for a game: Vex's page processes run below normal
@@ -1671,6 +1672,7 @@ app.whenReady().then(() => _commitGuard.start());
 ipcMain.handle('commit:state', () => { try { _commitGuard.poll(); } catch (err) { throw new Error('Could not read the memory limit: ' + err.message, { cause: err }); } return _commitGuard.state(); });
 app.on('will-quit', () => { try { _commitGuard.stop(); } catch { /* vex-allow-empty-catch: already stopped at quit */ } });
 app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} try { _gameProcs.stop(); } catch {} try { _gameModeSession.end(); } catch {} });
+app.on('will-quit', () => { try { if (_gameOverlayInst) _gameOverlayInst.dispose(); } catch (err) { console.error('[GameOverlay] could not release the hotkey at quit:', err.message); } });
 
 // Time travel and the tuning advisor (src/main/state-journal.js,
 // src/main/tuning-advisor.js). The interface pushes small snapshots of the
@@ -1758,6 +1760,9 @@ const _gameHotkeys = require('./main/game-hotkeys').createGameHotkeys({
   },
 });
 ipcMain.handle('hotkeys:get', () => ({ current: _gameHotkeys.current(), actions: _gameHotkeys.ACTIONS }));
+// The in-game overlay (src/main/game-overlay.js, game-overlay-ipc.js): a separate Vex window on one global hotkey. Started
+// below once the profile is readable. It never touches a game's process; see the header of game-overlay.js.
+let _gameOverlayInst = null;
 
 // === Quick capture ========================================================
 // A small window that floats over whatever you were doing — a game, a stream,
@@ -2545,6 +2550,7 @@ function _restoreAppWindows() {
 }
 function _lockVex() {
   _vexLocked = true;
+  try { if (_gameOverlayInst) _gameOverlayInst.ctl.destroy(); } catch (err) { console.error('[GameOverlay] could not close the overlay at the lock:', err.message); }
   for (const w of BrowserWindow.getAllWindows()) {
     if (w === mainWindow || w.isDestroyed() || !w.isVisible() || isPipContents(w.webContents)) continue;
     w.hide();
@@ -9285,6 +9291,23 @@ app.whenReady().then(async () => {
     const r = _gameHotkeys.apply();
     for (const e of r.errors) console.error('[Hotkeys] ' + e.accel + ' for ' + e.action + ': ' + e.error);
   } catch (err) { console.error('[Hotkeys] could not register:', err.message); }
+  // The in-game overlay's hotkey, if the overlay is on (settings are read from vex.gameOverlay).
+  try {
+    const electron_ = require('electron');
+    _gameOverlayInst = require('./main/game-overlay-ipc').install({
+      ipcMain, electron: { BrowserWindow, WebContentsView: electron_.WebContentsView, globalShortcut, screen: electron_.screen, nativeTheme: electron_.nativeTheme },
+      path, fs, root: __dirname, userDataPath, secureSessions,
+      loadSaved: () => _persistLoad()['vex.gameOverlay'] || '',
+      getMainWindow: () => mainWindow,
+      // A link inside the overlay becomes a tab of the main window, the way Open as App windows do it.
+      openAsTab: (url) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('tab:create-from-external', { url }); },
+      // Keys other parts of Vex hold system-wide: the overlay refuses to share them.
+      conflicts: () => [_windowKeys.BOSS_ACCELERATOR, ...Object.values(_gameHotkeys.current())],
+      isLocked: () => _vexLocked,
+      log: (m) => console.log(m),
+    });
+    _gameOverlayInst.start();
+  } catch (err) { console.error('[GameOverlay] could not start:', err.message); }
 
   // F12, Ctrl+Shift+F12, Ctrl+Shift+J and the boss key are no longer
   // Windows-wide: handleWindowKeys answers them in Vex's own windows and pages

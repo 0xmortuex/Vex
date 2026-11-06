@@ -938,6 +938,9 @@ Video, audio, screen sharing, streaming services.
 - **Held while you played** (`game-holds`): After a Game mode session, one list of the Vex messages held while you played. Open it with Ctrl+K: Held while you played. On an existing profile it starts off; turn it on in Settings > Held while you played.
   - Open: Ctrl+K: "Held while you played"; Settings > Held while you played.
   - Default: New: starts off on an existing profile until you switch it on.
+- **Game overlay** (`game-overlay`): A small Vex window you open with a hotkey while a game runs: a guide page, Discord, notes, a timer, music buttons and a quick search, without alt-tabbing. It is an ordinary window and never touches the game, so it is safe with anti-cheat. On an existing profile it starts off; turn it on in Settings > Game overlay.
+  - Open: Ctrl+K: "Show or hide the game overlay"; Settings > Game overlay.
+  - Default: New: starts off on an existing profile until you switch it on.
 - **Even out the sound** (`nightaudio`): Brings quiet dialogue up and holds loud parts down on this site, so a film at night does not need a hand on the volume. Remembered per site.
   - Open: Ctrl+K: "Even Out the Sound (Night Mode)".
 - **Note a moment in a video** (`videonote`): Writes a note about the video at the second it is on now, as a link back to that second. One note per video, so a talk’s notes are one page.

@@ -241,6 +241,10 @@ const VexFaqData = {
       kw: 'creator maker author developer github projects repositories repos stars other works yapımcı geliştirici projeler depo yıldız',
       q: "Where can I see the other projects of the person who makes Vex?",
       a: "Press Ctrl+K and choose More from the creator, or open it from the top of Everything Vex Can Do. It lists the public projects of the maker with their stars and languages, and has filters to search and sort them. The list ships with Vex, so nothing is contacted until you press Refresh from GitHub, and that button does nothing in a private window." },
+    { id: 'game-overlay', cat: 'speed', cmd: 'Show or hide the game overlay',
+      kw: 'game overlay in game guide wiki discord notes timer hotkey roblox borderless anti-cheat oyun katman rehber kısayol',
+      q: 'Can I see a guide or Discord over my game without alt-tabbing?',
+      a: 'Yes. Turn on Game overlay in Settings, add a guide page for your game, and press its hotkey while you play. It is an ordinary separate window that never touches the game, so it is safe with anti-cheat; a game in exclusive fullscreen can hide it, so use borderless.' },
   ],
 };
 
