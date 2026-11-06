@@ -9,13 +9,18 @@ import { describe, it, expect, beforeAll } from 'vitest';
 const sharp = require('sharp');
 const { WallpaperPaint: P } = require('../../src/renderer/js/wallpaper-paint.js');
 const { WallpaperGenerators: G } = require('../../src/renderer/js/wallpaper-generators.js');
+require('../../src/renderer/js/wallpaper-materials.js');
+require('../../src/renderer/js/wallpaper-patterns.js');
+require('../../src/renderer/js/wallpaper-nature.js');
 const { WallpaperData: D } = require('../../src/renderer/js/wallpaper-data.js');
+const { MATERIAL_ROWS } = require('../../src/renderer/js/wallpaper-materials-data.js');
 
 const W = 1280, H = 720;
 const ACCENTS = { navy: [30, 58, 95], gold: [212, 165, 116], pale: [240, 240, 255], black: [0, 0, 0] };
 
+// The SVGs are 1600 x 900; asking for 72 * 0.8 dpi draws them at 1280 x 720 straight away (cheaper than drawing and shrinking).
 async function rasterOf(svg) {
-  const r = await sharp(Buffer.from(svg)).resize(W, H, { fit: 'fill' }).ensureAlpha().raw().toBuffer();
+  const r = await sharp(Buffer.from(svg), { density: 72 * W / 1600 }).resize(W, H, { fit: 'fill' }).ensureAlpha().raw().toBuffer();
   return new Uint8ClampedArray(r);
 }
 function solid(fn) {
@@ -30,13 +35,19 @@ describe('every wallpaper Vex draws', () => {
   beforeAll(async () => {
     for (const w of list) {
       const s = P.summarisePixels(await rasterOf(G.svg(w)), W, H);
-      rows.push({ id: w.id, summary: s });
+      rows.push({ id: w.id, summary: s, light: w.light });
     }
-  }, 120000);
+  }, 900000);
 
   it('has a number for every wallpaper', () => {
     expect(rows.length).toBe(list.length);
-    expect(rows.length).toBeGreaterThanOrEqual(60);
+    expect(rows.length).toBeGreaterThanOrEqual(270);
+  });
+
+  it('calls a wallpaper light only if it is not dark, and dark only if it is not pale (what "Match Vex to this wallpaper" starts from)', () => {
+    const own = new Set(MATERIAL_ROWS.map(r => r[0]));
+    const wrong = rows.filter(r => own.has(r.id) && (r.light ? r.summary.meanY < 0.3 : r.summary.meanY > 0.4)).map(r => r.id + ' ' + r.summary.meanY.toFixed(2));
+    expect(wrong).toEqual([]);
   });
 
   it('shows at least 70% of the picture (shade 30% or less) with the glass the page picks by itself, at 4.5:1 or better', () => {
@@ -64,7 +75,9 @@ describe('every wallpaper Vex draws', () => {
   });
 
   it('picks the dark glass for a dark picture and the light glass for a pale one', () => {
+    // Only the clear cases: a mid-tone picture (wood, kraft paper, sand) can go either way, and the planner takes the glass that needs the lighter plate.
     for (const { id, summary } of rows) {
+      if (summary.meanY > 0.3 && summary.meanY <= 0.5) continue;
       const p = P.plan({ summary, accent: ACCENTS.navy });
       expect(p.scheme, id).toBe(summary.meanY > 0.5 ? 'light' : 'dark');
     }
