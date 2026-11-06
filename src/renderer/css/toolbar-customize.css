@@ -14,8 +14,12 @@
 }
 .tb-panel-badge.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; top: 2px; right: 2px; }
 
-/* The browser looks hide the Notes button because Notes is on the rail; put in the toolbar on purpose, it shows (Simple mode still hides it). */
-body[data-gui-family="browser"] #top-bar-right > #btn-notes-top[data-tb-placed] { display: inline-flex !important; }
+/* A look or a mode hides some toolbar buttons on its own (the browser looks hide Notes because it is on the rail, Simple mode
+   tucks the power buttons away, the sidebar hides the Settings gear). A button the toolbar model puts in the bar or the
+   three-dot menu is in sight anyway (js/toolbar-customize.js sets data-tb-placed). Not while it is folded into the menu
+   (.tb-overflowed hides it, its menu row stands for it) and not while it has nothing to show (the Inbox bell, [hidden]).
+   Three attribute selectors + two ids outrank the looks' and Simple mode's doubled-id rules. */
+body #top-bar #top-bar-right > [data-tb-placed][data-tb-placed][data-tb-placed]:not([hidden]):not(.tb-overflowed:not(.tb-overflow-proxy)) { display: inline-flex !important; }
 
 /* A finger drags a button instead of scrolling the bar. */
 #top-bar-right > [data-tb-id], .tb-overflow-item[data-tb-id] { touch-action: none; }
@@ -59,6 +63,7 @@ body.tb-drag-active { user-select: none; cursor: grabbing; }
 .tbc-ico { width: 20px; height: 20px; display: inline-grid; place-items: center; flex: 0 0 20px; }
 .tbc-ico svg, .tbc-ico img { width: 16px; height: 16px; object-fit: contain; }
 .tbc-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbc-note { flex: 0 1 auto; font-size: 11px; color: var(--text-muted); }
 .tbc-btn, .tbc-select {
   background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; cursor: pointer;
   min-width: 26px; height: 26px; font: inherit; font-size: 12px; padding: 0 6px;
