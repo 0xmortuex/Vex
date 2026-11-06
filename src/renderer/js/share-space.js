@@ -57,6 +57,8 @@
 
   var W = function () { return typeof window !== 'undefined' ? window : globalThis; };
   function need(name, obj) { if (!obj) throw new Error('Share a space needs ' + name + ' to be loaded'); return obj; }
+  // WorkspaceManager is a top-level const in the window, not a property of it.
+  function workspaces() { return typeof WorkspaceManager !== 'undefined' ? WorkspaceManager : W().WorkspaceManager; }
   function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
 
   // ---- The switch ------------------------------------------------------------------------------------------------------------------------------
@@ -452,7 +454,8 @@
       });
     });
     var reasons = Object.keys(excluded).map(function (code) { return { code: code, text: REASONS[code] || code, count: excluded[code] }; });
-    var ws = w.WorkspaceManager && w.WorkspaceManager.getActive ? w.WorkspaceManager.getActive() : null;
+    var WMg = workspaces();
+    var ws = WMg && WMg.getActive ? WMg.getActive() : null;
     var SG = null, e = env();
     try { SG = sidebarOf(e); } catch (err) { throw new Error('Could not read your sidebar folders: ' + err.message, { cause: err }); }
     return {
@@ -523,7 +526,7 @@
     var v = checked(space);
     what = what || { tabs: true, groups: true, sidebar: false, look: false };
     if (!what.tabs && !what.sidebar && !what.look) throw new Error('Choose something to add');
-    var WM = need('js/workspaces.js', w.WorkspaceManager);
+    var WM = need('js/workspaces.js', workspaces());
     if (w.VexTabPolicy && w.VexTabPolicy.isPrivateWindow) throw new Error('A private window has no workspaces to add to');
     if (hasUndo()) {
       // One shared space can be undone at a time; the earlier one is kept for good.
@@ -589,7 +592,7 @@
     var w = W();
     var problems = [];
     if (rec.wsId) {
-      var WM = w.WorkspaceManager;
+      var WM = workspaces();
       if (WM.workspaces.some(function (x) { return x.id === rec.wsId; })) {
         if (WM.activeId === rec.wsId) {
           var back = WM.workspaces.some(function (x) { return x.id === rec.prevWsId; }) ? rec.prevWsId : (WM.workspaces.find(function (x) { return x.id !== rec.wsId; }) || {}).id;
@@ -619,7 +622,7 @@
 
   // Opens the space in its new workspace (switching to it); the person's own workspace is saved by the switch.
   async function open(workspaceId) {
-    var WM = need('js/workspaces.js', W().WorkspaceManager);
+    var WM = need('js/workspaces.js', workspaces());
     await WM.switchTo(workspaceId);
     if (WM.activeId !== workspaceId) throw new Error('Could not switch to the new workspace');
   }
