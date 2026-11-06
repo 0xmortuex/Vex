@@ -84,6 +84,7 @@ Every key Vex answers, read from the code that answers it.
 | `Ctrl+Alt+I` | Hints: click with the keyboard | link-hints | registry runs Ctrl+K command `link-hints` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+Q` | Hints: go to a tab | tab-hints | registry runs Ctrl+K command `tab-hints` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+Shift+S` | Search the web for the selection | search-selection | registry runs Ctrl+K command `search-selection` | passed up before the page | yes | Settings list only |
+| `Ctrl+Alt+Shift+C` | Copy video link at this time | copy-video-time | registry runs Ctrl+K command `copy-video-time` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+Shift+O` | Show or hide the game overlay | game-overlay | registry runs Ctrl+K command `game-overlay` | passed up before the page | yes | Settings list only |
 | `Ctrl+Shift+N` | Notes | - | main.js / app.js, outside the registry | the page has it first | fixed | README, Ctrl+K hint |
 | `Ctrl+=` | Zoom in | - | main.js / app.js, outside the registry | taken before the page | fixed | Settings list only |

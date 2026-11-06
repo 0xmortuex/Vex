@@ -124,6 +124,8 @@ const ShortcutsRegistry = (() => {
     'search-selection': { default: 'Ctrl+Alt+Shift+S', label: 'Search the web for the selection', category: 'Navigation', cmd: 'search-selection' },
     // The in-game overlay (main/game-overlay.js). Also a SYSTEM-WIDE key, so it works while a game has the screen; Ctrl+Alt+O is split view's,
     // hence the third modifier. js/game-overlay.js hands the current key to main after every change.
+    // Every Ctrl+Alt letter is taken, so copying a video link at its current time takes three modifiers (js/video-link.js).
+    'copy-video-time': { default: 'Ctrl+Alt+Shift+C', label: 'Copy video link at this time', category: 'Tools', cmd: 'copy-video-time' },
     'game-overlay': { default: 'Ctrl+Alt+Shift+O', label: 'Show or hide the game overlay', category: 'Tools', cmd: 'game-overlay' }
   };
 

@@ -85,8 +85,10 @@ const VexPlayfulness = {
   // it has its own switches and gates (Game mode, meetings, Focus, quiet hours) and is deliberately not under the Play level.
   // device-check.js: the pre-call "Check my devices" card; its microphone level meter and its soft speaker test tone are a job the person asked for,
   // pressed for, and stopped when the card closes; nothing is recorded.
+  // site-eq.js: bass, treble, mono and balance the person sets for a site in the volume box; it shapes the page's own sound and makes none, and does nothing until a slider moves.
+  // sleep-timer.js: a timer the person starts to stop what is playing; it turns the sound down and pauses, it makes no sound of its own.
   // voice-control.js: captures the microphone (and draws its level meter) only while the person holds the key or listens; it plays no sound.
-  FUNCTIONAL_AUDIO: ['brief-extras/audio-digest.js', 'clock-panel.js', 'device-check.js', 'dictation.js', 'listen-reader.js', 'master-volume.js', 'meeting-transcribe.js', 'night-audio.js', 'page-extras.js', 'queue-podcast.js', 'site-volume.js', 'ui-sounds.js', 'voice-control.js'],
+  FUNCTIONAL_AUDIO: ['brief-extras/audio-digest.js', 'clock-panel.js', 'device-check.js', 'dictation.js', 'listen-reader.js', 'master-volume.js', 'meeting-transcribe.js', 'night-audio.js', 'page-extras.js', 'queue-podcast.js', 'site-eq.js', 'site-volume.js', 'sleep-timer.js', 'ui-sounds.js', 'voice-control.js'],
 
   _rank(level) { return this.LEVELS.indexOf(level); },
   _quietSwitch() { try { return localStorage.getItem(this.QUIET_KEY) === '1'; } catch { return false; } },

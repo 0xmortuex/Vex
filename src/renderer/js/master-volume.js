@@ -101,6 +101,15 @@ const MasterVolume = {
     return kept === null ? this.level() : kept;
   },
   _urlOf(wv) { try { return typeof window.vexGuestUrl === 'function' ? window.vexGuestUrl(wv) : wv.getURL(); } catch { return ''; } },
+  // Bass, treble, mono and balance kept for a site (js/site-eq.js, read in only when some site has a setting).
+  applyEq(wv) {
+    const raw = localStorage.getItem('vex.siteEq');
+    if (!raw || raw === '{}') return;
+    const go = () => { if (window.VexSiteEq.has(this._urlOf(wv))) window.VexSiteEq.applyToWebview(wv); };
+    if (window.VexSiteEq) { go(); return; }
+    if (typeof VexLazy === 'undefined') return;
+    VexLazy.ensure('js/site-eq.js').then(go).catch(err => console.warn('[MasterVolume] could not load the sound settings:', err && err.message));
+  },
   // Does this page need the script at all? (100% and nothing kept: no.)
   needsApply(wv) { return this.levelFor(this._urlOf(wv)) !== 1; },
 
@@ -371,7 +380,7 @@ const MasterVolume = {
   // A player frame the page adds after it loaded gets the level too
   // (site-volume.js); dom-ready covers only the page itself.
   init() {
-    window.vexOnLateFrame((wv) => { if (this.needsApply(wv)) this.applyToWebview(wv); });
+    window.vexOnLateFrame((wv) => { if (this.needsApply(wv)) this.applyToWebview(wv); this.applyEq(wv); });
     // A level above 100% is louder than the source: said once a week, not every start.
     if (typeof VexJobs !== 'undefined') VexJobs.every('Loud volume reminder', 6 * 3600 * 1000, () => this.warnIfLoud(), { when: 'ui', feature: 'site-audio-memory' });
     if (typeof AttentionInbox !== 'undefined') AttentionInbox.handle('site-audio-memory', () => this.show());
@@ -508,6 +517,7 @@ const MasterVolume = {
       <div class="mastervol-sub">Applies to every tab &amp; panel · above 100% boosts louder than the source</div>
       <div class="mastervol-warn" role="note" hidden>Above 100% is louder than the source: loud sites get louder too, and it can distort or tire your ears. Keep a boost only for the sites that need it.</div>
       <div class="mastervol-site"></div>
+      <div class="mastervol-eq"></div>
       <div class="mastervol-status" role="status" aria-live="polite" hidden></div>`;
     document.body.appendChild(el);
     if (typeof VexLayer !== 'undefined') VexLayer.popover(el, 'master-volume');
@@ -568,6 +578,18 @@ const MasterVolume = {
     set(pct, false); // colourise the % label on open
     drawSite();
     slider.addEventListener('change', drawSite);
+    // Bass, treble, mono and balance for the site in front (js/site-eq.js), read in when this box opens.
+    const eqBox = el.querySelector('.mastervol-eq');
+    const drawEq = () => {
+      const url = frontUrl();
+      if (!/^https?:/i.test(url)) return;
+      const front = this._visibleWebviews()[0];
+      const persist = !!front && !(window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(front));
+      const go = () => { if (el.isConnected) window.VexSiteEq.draw(eqBox, { url, wv: front, persist }); };
+      if (window.VexSiteEq) go();
+      else if (typeof VexLazy !== 'undefined') VexLazy.ensure('js/site-eq.js').then(go).catch(err => { eqBox.textContent = `Could not load the sound settings: ${err.message}`; });
+    };
+    drawEq();
     // On the slider at once, so the arrow keys set the level when it was opened
     // with Ctrl+K: it was a long Tab away from wherever the focus had been.
     slider.focus({ preventScroll: true });
@@ -637,6 +659,16 @@ const MasterVolume = {
       .mastervol-warn[hidden]{display:none;}
       .mastervol-site{margin-top:8px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;}
       .mastervol-keepnote{font-size:11px;line-height:1.4;color:var(--text-muted,#9a9aa5);}
+      .mastervol-eq{margin-top:10px;border-top:1px solid var(--border,rgba(255,255,255,0.10));padding-top:8px;}
+      .mastervol-eq:empty{display:none;}
+      .mastervol-eqhead{font-size:11.5px;font-weight:600;color:var(--text,#e9e9ee);margin-bottom:4px;}
+      .mastervol-eqrow{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text,#e9e9ee);margin:3px 0;}
+      .mastervol-eqrow span:first-child{width:62px;flex:0 0 auto;}
+      .mastervol-eqrow input[type=range]{flex:1;accent-color:var(--primary,#6366f1);}
+      .mastervol-eqval{width:64px;text-align:right;color:var(--text-muted,#9a9aa5);font-variant-numeric:tabular-nums;}
+      .mastervol-eqstatus{margin-top:6px;font-size:11px;line-height:1.45;color:var(--text,#e9e9ee);}
+      .mastervol-eqstatus:empty{display:none;}
+      .mastervol-eqnote{margin-top:4px;font-size:10.5px;line-height:1.4;color:var(--text-muted,#9a9aa5);}
       .mastervol-keep{font:inherit;font-size:11.5px;padding:4px 10px;border-radius:7px;cursor:pointer;color:var(--text,#e9e9ee);background:transparent;border:1px solid var(--border,rgba(255,255,255,0.18));}
     `;
     document.head.appendChild(st);
