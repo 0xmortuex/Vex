@@ -92,11 +92,14 @@ describe('the audio never reaches the disk or a log', () => {
       .map(name => vi.spyOn(fs, name));
     const pspies = ['writeFile', 'appendFile', 'open', 'mkdtemp', 'copyFile'].map(name => vi.spyOn(fs.promises, name));
     const { spawnImpl } = launcher();
-    const before = nodeFs.readdirSync(os.tmpdir()).length;
+    const before = new Set(nodeFs.readdirSync(os.tmpdir()));
     const out = await createVoiceEngine({ store: fakeStore(), spawnImpl }).transcribe(pcm(1, 5), { model: 'base' });
     expect(out.text).toContain('heard 16000 samples');
     for (const s of [...spies, ...pspies]) expect(s, 'a file function was called').not.toHaveBeenCalled();
-    expect(nodeFs.readdirSync(os.tmpdir()).length).toBe(before);
+    // Other tests running in parallel create and remove their own temp files, so a plain count of the shared folder is not stable
+    // (it failed once on CI: 80 against 79). The file-function spies above are the proof; this looks only for new audio-shaped files.
+    const fresh = nodeFs.readdirSync(os.tmpdir()).filter(n => !before.has(n));
+    expect(fresh.filter(n => /wav|pcm|raw|audio|voice|whisper|speech/i.test(n))).toEqual([]);
   });
 
   it('logs nothing, neither on success nor on failure', async () => {
