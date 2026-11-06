@@ -45,6 +45,16 @@ const VexBoot = {
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },
+    // Open this page or link in another browser: the menu rows and Ctrl+K commands appear once it has loaded (js/webview.js asks with typeof).
+    { src: 'js/open-in-browser.js', usage: [] },
+    // More ways to open a link (split view, container, private window, background): the link menu asks with typeof.
+    { src: 'js/link-open-extras.js', usage: [] },
+    // Next / previous page key and its Ctrl+K commands (the key is in js/shortcuts-registry.js and runs the command by id).
+    { src: 'js/page-nav.js', usage: [] },
+    // Search This Site: the Ctrl+K command, its key and the "@site words" address-bar prefix (js/app.js asks with typeof).
+    { src: 'js/site-search.js', usage: [] },
+    // Copy Text from Image (English + Turkish): the image menu asks with typeof; the Tesseract engine loads only when a picture is read.
+    { src: 'js/image-text.js', usage: [] },
     { src: 'js/share-look.js', usage: [] },
     { src: 'js/share-look-ui.js', usage: [] },
     { src: 'js/share-space.js', usage: ['share-space'] },

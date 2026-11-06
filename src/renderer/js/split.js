@@ -117,6 +117,15 @@ const SplitScreen = {
     return true;
   },
 
+  // One more pane in a split that is already on (a link opened in split view, js/link-open-extras.js).
+  addPane(tabId) {
+    if (!this.active) throw new Error('The screen is not split');
+    if (this.panes.length >= this.MAX_PANES) throw new Error('Split view is full');
+    if (!TabManager.tabs.some(t => t.id === tabId)) throw new Error('That tab is not open');
+    if (!this.panes.includes(tabId)) this.panes.push(tabId);
+    this.applySplit();
+  },
+
   // Split button = plain on/off (2-way). Multi-pane is via setLayout(3|4).
   toggle() { if (this.active) this.deactivate(); else this.activate(2); },
 

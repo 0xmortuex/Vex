@@ -8538,6 +8538,13 @@ require('./main/profile-lock-ipc').registerProfileLock({
   app.on('will-quit', () => voiceEngine.dispose());
 }
 
+// Copy Text from Image: the English + Turkish recognition data, ~4.9 MB, downloaded on request into <profile>/ocr-lang (main/ocr-lang-pack.js).
+{
+  const { createOcrLangStore, registerOcrLang } = require('./main/ocr-lang-pack');
+  const ocrLangStore = createOcrLangStore({ dir: path.join(userDataPath, 'ocr-lang'), fetchImpl: _egressFetch(net.fetch.bind(net), { feature: 'Text-from-image language pack', kind: 'fetch' }) });
+  registerOcrLang({ ipcMain, store: ocrLangStore, mainWindowOf: () => mainWindow });
+}
+
 // Gmail IMAP/SMTP sidebar panel was reverted — see commit history for Phases 1-3.
 // One-time cleanup: remove any leftover encrypted app-password from disk so it
 // doesn't sit around after the feature was pulled. Safe to remove this block
@@ -11537,6 +11544,10 @@ ipcMain.handle('open-external', (_e, url) => {
   try { if (typeof url === 'string' && /^https?:\/\//i.test(url)) { shell.openExternal(url); return { ok: true }; } } catch {}
   return { ok: false };
 });
+// Open this address in the default browser or an installed Edge, Chrome, Firefox or Brave (main/open-in-browser.js): http(s) only, one argument, no shell.
+const _openInBrowser = require('./main/open-in-browser').createOpener({ openDefault: (href) => shell.openExternal(href), spawn: require('child_process').spawn });
+ipcMain.handle('browsers:list', () => _openInBrowser.list());
+ipcMain.handle('browsers:open', (_e, url, browser) => _openInBrowser.open(url, browser));
 // CHANGELOG.tr.md ships beside CHANGELOG.md. A missing file is normal (a build from before it existed); anything else that
 // goes wrong is said, and the notes stay English.
 function _readTurkishChangelog() {

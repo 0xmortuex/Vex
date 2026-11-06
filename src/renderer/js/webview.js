@@ -2175,6 +2175,8 @@ const WebviewManager = {
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
       { label: 'Copy as Markdown link', action: () => { try { const u = webview.getURL(); const title = (webview.getTitle && webview.getTitle()) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
       { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL(), true, null, { partition: webview.getAttribute?.("partition") }) },
+      // For a site that turns Electron away: the default browser, or Edge / Chrome / Firefox / Brave when installed (js/open-in-browser.js).
+      ...(typeof VexOpenIn !== 'undefined' ? VexOpenIn.menuItems(webview.getURL(), webview) : []),
       // The partition goes too: main refuses a private, OTR or Tor tab rather
       // than reopen it in the main profile, and the refusal is said aloud.
       { label: 'Open as App', action: () => {
@@ -2186,6 +2188,8 @@ const WebviewManager = {
       // Tab" copied whatever TAB was active and Auto-refresh had no tab to
       // refresh, so a panel gets neither.
       ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.duplicateTab(t); } catch (err) { window.showToast?.('Could not duplicate the tab: ' + err.message, 'error'); } } }] : []),
+      // Only this site, with your search engine (js/site-search.js).
+      ...(isTab && typeof VexSiteSearch !== 'undefined' ? [{ label: 'Search This Site…', action: () => VexSiteSearch.run('', true).catch(err => window.showToast?.(err.message, 'error')) }] : []),
       { label: 'Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
       // The whole page, one part of it, or a number in it (js/page-watch-ui.js).
       // A tab's page only: a side panel is not a page to keep an eye on.
@@ -2409,6 +2413,10 @@ const WebviewManager = {
           TabManager.createTab(e.params.linkURL, true, (from && from.groupId) || null, { partition: webview.getAttribute?.("partition"), openerTabId: from ? from.id : null });
         }
       });
+      // Split view, another container, a private window, the background (js/link-open-extras.js).
+      if (typeof VexLinkOpen !== 'undefined') linkItems.push(...VexLinkOpen.menuItems(e.params.linkURL, webview, isTab));
+      // For a site that turns Electron away: the default browser, or Edge / Chrome / Firefox / Brave (js/open-in-browser.js).
+      if (typeof VexOpenIn !== 'undefined' && VexOpenIn.menuItems(e.params.linkURL, webview).length) linkItems.push({ label: 'Open Link in Another Browser', icon: 'globe', sub: VexOpenIn.menuItems(e.params.linkURL, webview) });
       // A link out of Discord or Roblox: what it really is, in one disabled line
       // (js/chat-link-hygiene.js; off until the person switches it on).
       if (typeof ChatLinkHygiene !== 'undefined') {
@@ -2468,7 +2476,7 @@ const WebviewManager = {
         });
       }
     }
-    groups.push(() => this._pushGroup(items, linkItems, (it) => it.label === 'Open Link in New Tab' || it.label === 'Copy Link', 'More for this link', 'link'));
+    groups.push(() => this._pushGroup(items, linkItems, (it) => it.label === 'Open Link in New Tab' || it.label === 'Copy Link' || it.label === 'Open Link in Another Browser' || it.label === 'Open Link in Container', 'More for this link', 'link'));
 
     const imageItems = [];
     // The picture under the pointer, whether Chromium saw it (an <img> on
@@ -2486,9 +2494,11 @@ const WebviewManager = {
       imageItems.push({ label: 'Copy Image Address', action: () => { navigator.clipboard.writeText(imageSrc); window.showToast?.('Image address copied'); } });
       if (web) imageItems.push({ label: 'Search Image with Lens', action: () => TabManager.createTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(imageSrc), true, null, { partition }) });
       if (typeof ImageZoom !== 'undefined') imageItems.push({ label: 'Zoom Image', action: () => ImageZoom.open(imageSrc) });
+      // The words in the picture, English and Turkish, to the clipboard (js/image-text.js).
+      if (typeof VexImageText !== 'undefined') imageItems.push({ label: 'Copy Text from Image', action: () => VexImageText.copyFromImage(imageSrc, webview) });
       if (web && typeof AIPanel !== 'undefined' && AIPanel.askAboutImage) imageItems.push({ label: 'Ask Vex About This Image', action: () => AIPanel.askAboutImage(imageSrc) });
     }
-    groups.push(() => this._pushGroup(items, imageItems, (it) => /^(Save Image|Save Image As…|Copy Image)$/.test(it.label), 'More for this image', 'image'));
+    groups.push(() => this._pushGroup(items, imageItems, (it) => /^(Save Image|Save Image As…|Copy Image|Copy Text from Image)$/.test(it.label), 'More for this image', 'image'));
 
     // A right-clicked video or sound offered nothing for it (found 2026-09-29).
     const media = (e.params.mediaType === 'video' || e.params.mediaType === 'audio') ? e.params : null;

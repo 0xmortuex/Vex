@@ -78,6 +78,9 @@ Every key Vex answers, read from the code that answers it.
 | `Ctrl+Alt+Z` | Search open tabs | tab-search | registry runs Ctrl+K command `tab-search` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+O` | Split view: next pane | split-focus | registry runs Ctrl+K command `split-focus-next` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+Y` | Split view: swap panes | split-swap | registry runs Ctrl+K command `split-swap-panes` | passed up before the page | yes | Settings list only |
+| `Alt+PageDown` | Go to the next page (results, thread, chapter) | page-next | registry runs Ctrl+K command `page-next` | passed up before the page | yes | Settings list only |
+| `Alt+PageUp` | Go to the previous page | page-prev | registry runs Ctrl+K command `page-prev` | passed up before the page | yes | Settings list only |
+| `Ctrl+Alt+Shift+F` | Search this site | search-this-site | registry runs Ctrl+K command `search-this-site` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+I` | Hints: click with the keyboard | link-hints | registry runs Ctrl+K command `link-hints` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+Q` | Hints: go to a tab | tab-hints | registry runs Ctrl+K command `tab-hints` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+Shift+S` | Search the web for the selection | search-selection | registry runs Ctrl+K command `search-selection` | passed up before the page | yes | Settings list only |
