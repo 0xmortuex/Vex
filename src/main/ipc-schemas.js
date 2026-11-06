@@ -532,6 +532,9 @@ define('automations:import', [string(700000)]);
 // what Windows holds; set it on or off, minimised or not.
 define('login-item:get', []);
 define('login-item:set', [boolean, boolean]);
+// Settings > Keep Vex running in the tray when I close the window (main/tray-keep.js).
+define('tray:get', []);
+define('tray:set', [boolean]);
 define('siterules:set', [object]);
 // The saved decisions one tab's page is held to, by the page's id (main.js).
 define('permissions:list-for-page', [integer]);

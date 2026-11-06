@@ -2092,6 +2092,29 @@ function vexOwnTextFocused(doc) {
     }
   }
 
+  // Keep Vex running in the tray when I close the window (Settings > General, main/tray-keep.js). Off until chosen.
+  {
+    const box = document.getElementById('setting-tray-keep');
+    const note = document.getElementById('tray-keep-note');
+    if (box && window.vex && window.vex.trayGet) {
+      const paint = (s) => {
+        box.checked = !!s.keepInTray;
+        box.disabled = !s.supported;
+        if (note && !s.supported) note.textContent = s.safeMode ? '· not available in safe mode' : '· only available on Windows';
+      };
+      window.vex.trayGet().then(paint).catch((err) => window.VexProblems?.note('Settings', 'Could not read the tray setting', err));
+      box.addEventListener('change', async () => {
+        try { paint(await window.vex.traySet(box.checked)); }
+        catch (err) {
+          window.showToast?.('Not changed: ' + String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (Error: )?/, ''), 'error');
+          try { paint(await window.vex.trayGet()); } catch (e2) { window.VexProblems?.note('Settings', 'Could not read the tray setting', e2); }
+          return;
+        }
+        window.showToast?.(box.checked ? 'Vex will keep running in the tray when you close the window' : 'Closing the window will quit Vex');
+      });
+    }
+  }
+
   // === Phase 11: UX polish ===
   // Copy URL button
   document.getElementById('btn-copy-url')?.addEventListener('click', () => {

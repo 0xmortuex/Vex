@@ -70,6 +70,12 @@ const TR = {
   'Alarm': 'Alarm',
   'Reminder': 'Hatırlatıcı',
   'Reminder — urgent': 'Hatırlatıcı — acil',
+  // The tray icon's menu and its first-hide notice (main/tray-keep.js).
+  'Open Vex': 'Vex’i aç',
+  'New tab': 'Yeni sekme',
+  'Pause notifications': 'Bildirimleri duraklat',
+  'Quit Vex': 'Vex’ten çık',
+  'Vex is still running in the tray. Right-click the icon to quit.': 'Vex hâlâ tepsede çalışıyor. Çıkmak için simgeye sağ tıklayın.',
   'Snooze 9 min': 'Ertele 9 dk',
   'Open': 'Aç',
   'Mute this source': 'Bu kaynağı sustur',

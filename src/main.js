@@ -132,7 +132,10 @@ const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
 const { createSessionSecurity } = require('./main/session-security');
-const secureSessions = createSessionSecurity({ session, BrowserWindow, webContents, root: __dirname, isPipContents });
+// Keep Vex running in the tray (main/tray-keep.js): made once the profile folder is known, below.
+let _trayKeepInst = null;
+const secureSessions = createSessionSecurity({ session, BrowserWindow, webContents, root: __dirname, isPipContents,
+  beforeClose: (win, host) => !!_trayKeepInst && win === mainWindow && _trayKeepInst.handleClose(win, { isPrivate: !!host.privatePartition }) });
 // "What left this computer" (main/egress-ledger.js): every request Vex itself
 // makes through these two is noted with its host and sizes, never its content.
 // The ledger file lives in the profile folder, so it is created once that path
@@ -1497,10 +1500,10 @@ app.on('browser-window-created', (_e, win) => {
 // Processes ended by Vex quitting, updating or Windows ending the session are
 // not crashes (src/main/exit-kinds.js); everything else still is.
 const _exitWatch = require('./main/exit-kinds').createExitWatch();
-app.on('before-quit', () => _exitWatch.mark('quitting'));
+app.on('before-quit', () => { _exitWatch.mark('quitting'); if (_trayKeepInst) _trayKeepInst.markQuitting(); });
 app.on('browser-window-created', (_e, win) => {
   win.on('query-session-end', () => _exitWatch.mark('closing because Windows is logging off or shutting down'));
-  win.on('session-end', () => _exitWatch.mark('closing because Windows is logging off or shutting down'));
+  win.on('session-end', () => { _exitWatch.mark('closing because Windows is logging off or shutting down'); if (_trayKeepInst) _trayKeepInst.markQuitting(); });
 });
 app.on('child-process-gone', (_e, d) => {
   if (!d) return;
@@ -11282,7 +11285,7 @@ ipcMain.handle('updates:install', async (event, version) => {
     _updateLog.add('PROBLEM: Vex could not save your tabs, so it did not close to install the update');
     win.webContents.send('updates:install-failed', { error: 'Vex could not save your tabs, so it did not close to install the update. Try again once the problem it reported is fixed.' });
   }, 9000);
-  win.close();
+  _closeMainForReal(win);
   return { ok: true };
 });
 // The backup made right before an update installs (src/main/update-backups.js,
@@ -11357,13 +11360,18 @@ function _closeOtherProfilesForUpdate() {
     console.log('[Profiles] closing for the update:', open.join(', ') || 'no other profile open', '| reopen after:', reopen.join(', ') || 'none');
   } catch (err) { console.error('[Profiles] could not close the other profiles for the update:', err.message); }
 }
+// Closing the main window to really leave (install an update, restart, another profile's update): never hidden into the tray (main/tray-keep.js).
+function _closeMainForReal(win) {
+  if (_trayKeepInst) { _trayKeepInst.setForceClose(true); setTimeout(() => { if (_trayKeepInst) _trayKeepInst.setForceClose(false); }, 10000).unref(); }
+  win.close();
+}
 function _closeForOtherProfileUpdate() {
   console.log('[Profiles] another profile is installing an update — closing');
   _pendingInstall = null;
   if (!mainWindow || mainWindow.isDestroyed()) { app.quit(); return; }
   const win = mainWindow;
   win.once('closed', () => app.quit());
-  win.close();
+  _closeMainForReal(win);
 }
 function _profilesFromMainWindow(event) {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window manages profiles');
@@ -11704,7 +11712,7 @@ ipcMain.handle('app:restart', () => {
       // Saving gives up after 8 s (session-security.js); a later ordinary
       // close must then not restart.
       setTimeout(() => { if (!win.isDestroyed()) win.removeListener('closed', relaunch); }, 9000);
-      win.close();
+      _closeMainForReal(win);
       return { ok: true };
     }
     app.relaunch({ args }); app.exit(0); return { ok: true };
@@ -11974,6 +11982,26 @@ const _protect = require('./main/protect').registerProtect({
   isLocked: () => _vexLocked,
   log: (m) => console.log(m),
 });
+
+// Keep Vex running in the tray when the window is closed (src/main/tray-keep.js). Off until Settings turns it on.
+_trayKeepInst = require('./main/tray-keep').createTrayKeep({
+  fs, file: path.join(userDataPath, 'tray-prefs.json'), electron: { Tray: require('electron').Tray, Menu, nativeImage },
+  iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
+  getMainWindow: () => mainWindow,
+  // Private windows are not kept while Vex is hidden: they close, which wipes their session as ever.
+  closePrivateWindows: () => { for (const w of BrowserWindow.getAllWindows()) { const h = w.isDestroyed() ? null : secureSessions.owner(w.webContents); if (h && h.privatePartition) w.close(); } },
+  newTab: () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('new-tab'); },
+  reopenMain: () => _reopenMainWindow(null),
+  quitApp: () => app.quit(),
+  quiet: _protect.quiet,
+  notice: (text) => { Promise.resolve(notifier.show({ title: 'Vex', body: text, tag: 'tray-notice', urgent: true })).catch(err => console.error('[Tray] could not show the first-hide notice:', err.message)); },
+  translate: (text) => _i18nMain.t(text),
+  safeMode: !!_boot.safeMode,
+  log: (m) => console.log(m),
+});
+app.whenReady().then(() => _trayKeepInst.start());
+ipcMain.handle('tray:get', () => _trayKeepInst.get());
+ipcMain.handle('tray:set', (_e, on) => _trayKeepInst.set(on));
 
 // What am I signed in to, and the "my session leaked" kill switch (src/main/signed-in.js):
 // cookie names and dates only, across the main profile and the three containers.
@@ -12612,6 +12640,8 @@ ipcMain.handle('privacy:tracker-reset', () => {
 });
 
 app.on('window-all-closed', () => {
+  // Kept running in the tray (main/tray-keep.js): only when the setting is on and the tray icon is there to quit from.
+  if (_trayKeepInst && _trayKeepInst.handleAllClosed()) return;
   app.quit();
 });
 

@@ -992,6 +992,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Start with Windows: what Windows holds, and changing it (main/login-item.js)
   loginItemGet: () => ipcRenderer.invoke('login-item:get'),
   loginItemSet: (openAtLogin, startMinimised) => ipcRenderer.invoke('login-item:set', openAtLogin, startMinimised),
+  // Keep Vex running in the tray when the window is closed (main/tray-keep.js)
+  trayGet: () => ipcRenderer.invoke('tray:get'),
+  traySet: (on) => ipcRenderer.invoke('tray:set', on),
 
   // Platform + versions
   platform: process.platform,

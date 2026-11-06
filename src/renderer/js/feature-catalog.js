@@ -590,6 +590,8 @@ const VexFeatures = {
       what: 'A hand-picked shelf of popular extensions (YouTube, privacy, dark mode, developer tools and more), each tested in Vex and marked Works fully, Works partly or Does not work, with the reason. Add installs it from its real source (the Chrome Web Store with its signatures checked, or the publisher’s own GitHub); Vex hosts no copies. Paste a Web Store link into its search to add any other extension.' },
     { id: 'login-start', phrases: 'start with windows launch at login startup boot open when computer starts run at startup minimised', cat: 'look', name: 'Start Vex when Windows starts', setting: { id: 'setting-login-item' },
       what: 'Opens Vex when you sign in to Windows, in front or minimised on the taskbar. Only in the installed app, and it shows what Windows really holds.' },
+    { id: 'tray-keep', phrases: 'tray system tray notification area keep running background close window hide quit exit reminders downloads keep open', cat: 'look', name: 'Keep Vex running in the tray', setting: { id: 'setting-tray-keep' },
+      what: 'Closing the window hides Vex by the clock instead of quitting, so reminders, downloads and your panels keep going. Right-click the tray icon to quit.' },
     { id: 'simple-mode', cat: 'look', cmd: 'simple-mode', setting: { id: 'setting-developer-mode' },
       phrases: 'developer mode simple mode too many buttons cluttered calm basic beginner fewer options hide advanced all features critical settings only',
       what: 'Developer mode off is a calm Vex: only the critical settings and the everyday buttons and panels are on screen. Nothing is removed — All features in the toolbar, or Developer mode on, shows the rest, any time.' },
@@ -1368,7 +1370,7 @@ const VexFeatures = {
       { name: 'And your own', ids: ['panel-authenticator'] },
     ],
     look: [
-      { name: 'The whole browser', ids: ['themes', 'theme-editor', 'theme-from-picture', 'theme-auto', 'chrome-themes', 'skin', 'font', 'uisize', 'guistyle', 'simple-mode', 'login-start', 'startpage', 'editlayout', 'tools-bar', 'shortcuts'] },
+      { name: 'The whole browser', ids: ['themes', 'theme-editor', 'theme-from-picture', 'theme-auto', 'chrome-themes', 'skin', 'font', 'uisize', 'guistyle', 'simple-mode', 'login-start', 'tray-keep', 'startpage', 'editlayout', 'tools-bar', 'shortcuts'] },
       { name: 'One site at a time', ids: ['siteprofiles', 'boost', 'userscripts', 'zap', 'airestyle'] },
       { name: 'The rest', ids: ['search-engine', 'extensions', 'setupgallery'] },
     ],
