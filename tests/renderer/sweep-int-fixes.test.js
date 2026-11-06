@@ -168,6 +168,96 @@ describe('the GitHub panel', () => {
     expect(document.getElementById('panel-github').textContent).not.toMatch(/Loading/);
     err.mockRestore();
   });
+
+  // GitHub allows 60 unsigned requests an hour and a refresh costs about 8: once it says no, the panel keeps what
+  // it saved, says when it will try again, and does not ask again before then.
+  describe('when GitHub asks Vex to slow down', () => {
+    const refuse = (resetInMin) => ({
+      ok: false, status: 403, json: async () => ({}),
+      headers: { get: (k) => (k === 'x-ratelimit-reset' && resetInMin ? String(Math.floor((Date.now() + resetInMin * 60000) / 1000)) : null) },
+    });
+    const staleCache = () => localStorage.setItem('vex-github-cache', JSON.stringify({
+      user: 'me', profile: { login: 'me', name: 'Me', followers: 3 }, repos: [{ name: 'proj', full_name: 'me/proj', updated_at: '2026-10-01T00:00:00Z', html_url: 'https://github.com/me/proj' }],
+      ci: {}, work: [], timestamp: Date.now() - 60 * 60000,
+    }));
+
+    it('keeps showing the saved answer, with a note saying when it will try again', async () => {
+      staleCache();
+      window.VexNet = { fetch: vi.fn(async () => refuse(30)) };
+      open('me');
+      await GitHubPanel.loadData();
+      expect(document.getElementById('gh-panel-name').textContent).toBe('Me');
+      expect(document.getElementById('gh-panel-repos').textContent).toContain('proj');
+      const note = document.getElementById('gh-panel-note').textContent;
+      expect(note).toContain('asked Vex to slow down');
+      expect(note).toMatch(/try again after \d/);
+      expect(note).toContain('Showing what was saved 1h ago');
+      expect(JSON.parse(localStorage.getItem('vex-github-cooldown')).user).toBe('me');
+    });
+
+    it('does not ask GitHub again until the reset time, however often the panel is opened', async () => {
+      staleCache();
+      window.VexNet = { fetch: vi.fn(async () => refuse(30)) };
+      open('me');
+      await GitHubPanel.loadData();
+      const calls = window.VexNet.fetch.mock.calls.length;
+      expect(calls).toBeGreaterThan(0);
+      for (let i = 0; i < 3; i++) { open('me'); await GitHubPanel.loadData(); }
+      expect(window.VexNet.fetch.mock.calls.length).toBe(calls);
+      expect(document.getElementById('gh-panel-note').textContent).toContain('asked Vex to slow down');
+    });
+
+    it('without a saved answer it says so in every "Loading" spot', async () => {
+      window.VexNet = { fetch: vi.fn(async () => refuse(0)) };
+      open('me');
+      await GitHubPanel.loadData();
+      expect(document.getElementById('gh-panel-name').textContent).toContain('asked Vex to slow down');
+      expect(document.getElementById('gh-panel-repos').textContent).toContain('asked Vex to slow down');
+      expect(document.getElementById('panel-github').textContent).not.toMatch(/Loading/);
+      // No header to go by: it waits the default fifteen minutes, not zero.
+      expect(JSON.parse(localStorage.getItem('vex-github-cooldown')).until).toBeGreaterThan(Date.now() + 10 * 60000);
+    });
+
+    it('asks again once the time has passed, and forgets the cooldown when GitHub answers', async () => {
+      staleCache();
+      localStorage.setItem('vex-github-cooldown', JSON.stringify({ user: 'me', until: Date.now() - 1000 }));
+      window.VexNet = { fetch: vi.fn(async (u) => (u.includes('/repos?') ? res(200, []) : u.includes('/search/') ? res(200, { items: [] }) : res(200, { login: 'me', name: 'Fresh' }))) };
+      open('me');
+      await GitHubPanel.loadData();
+      expect(document.getElementById('gh-panel-name').textContent).toBe('Fresh');
+      expect(localStorage.getItem('vex-github-cooldown')).toBeNull();
+    });
+
+    it('a cooldown set for another user does not stop this one', async () => {
+      localStorage.setItem('vex-github-cooldown', JSON.stringify({ user: 'someone-else', until: Date.now() + 60 * 60000 }));
+      window.VexNet = { fetch: vi.fn(async (u) => (u.includes('/repos?') ? res(200, []) : u.includes('/search/') ? res(200, { items: [] }) : res(200, { login: 'me', name: 'Me' }))) };
+      open('me');
+      await GitHubPanel.loadData();
+      expect(window.VexNet.fetch).toHaveBeenCalled();
+      expect(document.getElementById('gh-panel-name').textContent).toBe('Me');
+    });
+
+    it('offline with a saved answer still shows it, and says GitHub could not be reached', async () => {
+      const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+      staleCache();
+      window.VexNet = { fetch: vi.fn(async () => { throw new TypeError('Failed to fetch'); }) };
+      open('me');
+      await GitHubPanel.loadData();
+      expect(document.getElementById('gh-panel-name').textContent).toBe('Me');
+      expect(document.getElementById('gh-panel-note').textContent).toContain('GitHub could not be reached: Failed to fetch');
+      err.mockRestore();
+    });
+
+    it('reads CI for at most MAX_CI repositories, so a refresh stays cheap', async () => {
+      const repos = Array.from({ length: 8 }, (_, i) => ({ name: 'r' + i, full_name: 'me/r' + i, pushed_at: '2026-10-0' + (i + 1) + 'T00:00:00Z', updated_at: '2026-10-0' + (i + 1) + 'T00:00:00Z', html_url: 'x' }));
+      const urls = [];
+      window.VexNet = { fetch: vi.fn(async (u) => { urls.push(u); return u.includes('/actions/runs') ? res(200, { workflow_runs: [] }) : u.includes('/repos?') ? res(200, repos) : u.includes('/search/') ? res(200, { items: [] }) : res(200, { login: 'me', name: 'Me' }); }) };
+      open('me');
+      await GitHubPanel.loadData();
+      expect(urls.filter(u => u.includes('/actions/runs')).length).toBe(GitHubPanel.MAX_CI);
+      expect(urls.length).toBe(3 + GitHubPanel.MAX_CI); // profile, repos, search + CI
+    });
+  });
 });
 
 describe('mail', () => {

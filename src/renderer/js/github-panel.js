@@ -5,7 +5,12 @@ const GitHubPanel = {
   // by default so a fresh install shows a setup hint instead of anyone's profile.
   username: '',
   cache: { profile: null, repos: null, timestamp: 0 },
-  CACHE_TTL: 5 * 60 * 1000, // 5 minutes
+  // Without a token GitHub allows 60 requests an hour, and one refresh costs about 8, so the answer is kept for
+  // 15 minutes and, after GitHub refuses, nothing is asked again until its reset time (or COOLDOWN_MS).
+  CACHE_TTL: 15 * 60 * 1000,
+  COOLDOWN_MS: 15 * 60 * 1000,
+  COOLDOWN_KEY: 'vex-github-cooldown',
+  MAX_CI: 3, // repositories whose last CI run is read (one request each)
 
   // Standard GitHub language colors
   langColors: {
@@ -101,23 +106,92 @@ const GitHubPanel = {
     return this.cache.timestamp && (Date.now() - this.cache.timestamp < this.CACHE_TTL);
   },
 
-  async loadData() {
-    // Try localStorage cache first
+  // The saved answer for the current user, whatever its age. The cache names whose it is: after the username
+  // changed in Settings the panel went on showing the previous user (found 2026-09-29).
+  _readCache() {
     try {
-      const cached = localStorage.getItem('vex-github-cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        // The cache names whose it is: after the username changed in Settings
-        // the panel went on showing the previous user (found 2026-09-29).
-        if (parsed.user === this.username && Date.now() - parsed.timestamp < this.CACHE_TTL) {
-          this.cache = parsed;
-          this.renderProfile(parsed.profile);
-          this.renderRepos(parsed.repos, parsed.ci || {});
-          this.renderWork(parsed.work || null, parsed.workError || null);
-          return;
-        }
-      }
-    } catch {}
+      const parsed = JSON.parse(localStorage.getItem('vex-github-cache') || 'null');
+      return parsed && parsed.user === this.username && parsed.profile ? parsed : null;
+    } catch (err) {
+      console.warn('GitHub panel: the saved answer could not be read, asking GitHub instead:', err);
+      return null;
+    }
+  },
+
+  _showCached(c) {
+    this.cache = c;
+    this.renderProfile(c.profile);
+    this.renderRepos(c.repos, c.ci || {});
+    this.renderWork(c.work || null, c.workError || null);
+  },
+
+  // When GitHub will answer again: its Retry-After / reset header when the response carries one (the token vault's
+  // answer has no headers), else COOLDOWN_MS from now. → ms since the epoch, always in the future.
+  _resetAt(res) {
+    const h = res && res.headers && typeof res.headers.get === 'function' ? res.headers : null;
+    const retry = h ? Number(h.get('retry-after')) : 0;
+    const reset = h ? Number(h.get('x-ratelimit-reset')) : 0;
+    const at = retry > 0 ? Date.now() + retry * 1000 : reset > 0 ? reset * 1000 : 0;
+    return at > Date.now() ? at : Date.now() + this.COOLDOWN_MS;
+  },
+
+  _setCooldown(until) {
+    try { localStorage.setItem(this.COOLDOWN_KEY, JSON.stringify({ user: this.username, until })); }
+    catch (err) { console.warn('GitHub panel: the retry time could not be saved:', err); }
+  },
+
+  _clearCooldown() {
+    try { localStorage.removeItem(this.COOLDOWN_KEY); } catch (err) { console.warn('GitHub panel:', err); }
+  },
+
+  // The time before which GitHub is not asked again, or 0.
+  _cooldownUntil() {
+    try {
+      const c = JSON.parse(localStorage.getItem(this.COOLDOWN_KEY) || 'null');
+      return c && c.user === this.username && c.until > Date.now() ? c.until : 0;
+    } catch (err) {
+      console.warn('GitHub panel: the retry time could not be read:', err);
+      return 0;
+    }
+  },
+
+  _slowDownText(until) {
+    const when = new Date(until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const quota = typeof GitHubVault !== 'undefined' && GitHubVault.quotaText ? GitHubVault.quotaText() : '';
+    return 'GitHub asked Vex to slow down — it will try again after ' + when + '.' + (quota ? ' (' + quota + ')' : '');
+  },
+
+  // A line above the profile; the panel keeps showing the saved answer under it.
+  _note(text) {
+    const top = document.querySelector('#panel-github .panel-content');
+    if (!top) return;
+    let el = document.getElementById('gh-panel-note');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'gh-panel-note';
+      el.className = 'panel-placeholder';
+      el.setAttribute('role', 'status');
+      el.appendChild(document.createElement('p'));
+      top.insertBefore(el, top.firstChild);
+    }
+    el.firstChild.textContent = text;
+  },
+
+  // GitHub refused or could not be reached. With a saved answer the panel keeps showing it, with a note saying
+  // so; without one it says the reason in every "Loading…" spot (renderFailure).
+  _failWith(why, saved) {
+    if (!saved) { this.renderFailure(why); return; }
+    this._showCached(saved);
+    this._note(why + ' Showing what was saved ' + this.timeAgo(new Date(saved.timestamp)) + '.');
+  },
+
+  async loadData() {
+    const saved = this._readCache();
+    if (saved && Date.now() - saved.timestamp < this.CACHE_TTL) { this._showCached(saved); return; }
+
+    // GitHub already said no: asking again before its reset only keeps the limit pinned.
+    const wait = this._cooldownUntil();
+    if (wait) { this._failWith(this._slowDownText(wait), saved); return; }
 
     try {
       const user = encodeURIComponent(this.username);
@@ -133,18 +207,26 @@ const GitHubPanel = {
 
         this.cache = { user: this.username, profile, repos, ci, work: work.items, workError: work.error, timestamp: Date.now() };
         try { localStorage.setItem('vex-github-cache', JSON.stringify(this.cache)); } catch {}
+        this._clearCooldown();
 
         this.renderProfile(profile);
         this.renderRepos(repos, ci);
         this.renderWork(work.items, work.error);
       } else {
         const bad = profileRes.ok ? reposRes : profileRes;
-        const why = bad.status === 404 ? 'GitHub has no user called "' + this.username + '"' : bad.status === 403 ? 'GitHub asked Vex to slow down — try again in a while' : 'GitHub answered ' + bad.status;
-        this.renderFailure(why);
+        if (bad.status === 403 || bad.status === 429) {
+          const until = this._resetAt(bad);
+          this._setCooldown(until);
+          this._failWith(this._slowDownText(until), saved);
+        } else if (bad.status === 404) {
+          this.renderFailure('GitHub has no user called "' + this.username + '"');
+        } else {
+          this._failWith('GitHub answered ' + bad.status + '.', saved);
+        }
       }
     } catch (e) {
       console.error('GitHub API error:', e);
-      this.renderFailure('GitHub could not be reached: ' + ((e && e.message) || String(e)));
+      this._failWith('GitHub could not be reached: ' + ((e && e.message) || String(e)), saved);
     }
   },
 
@@ -170,11 +252,11 @@ const GitHubPanel = {
     } catch (err) { return { items: null, error: (err && err.message) || 'could not be reached' }; }
   },
 
-  // The last CI run of the five repositories changed most recently.
+  // The last CI run of the MAX_CI repositories changed most recently.
   // → { 'owner/repo': 'success' | 'failure' | 'running' | … }
   async _ci(repos) {
     const out = {};
-    const recent = [...repos].sort((a, b) => new Date(b.pushed_at || b.updated_at) - new Date(a.pushed_at || a.updated_at)).slice(0, 5);
+    const recent = [...repos].sort((a, b) => new Date(b.pushed_at || b.updated_at) - new Date(a.pushed_at || a.updated_at)).slice(0, this.MAX_CI);
     await Promise.all(recent.map(async (repo) => {
       try {
         const r = await (typeof GitHubVault !== 'undefined' ? GitHubVault.fetch.bind(GitHubVault) : (window.VexNet?.fetch || fetch))('https://api.github.com/repos/' + repo.full_name + '/actions/runs?per_page=1');
