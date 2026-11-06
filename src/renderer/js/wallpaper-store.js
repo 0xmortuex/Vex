@@ -30,6 +30,20 @@
   const ID_RE = /^[a-z0-9][a-z0-9-]{1,62}$/;
   const RECENT_MAX = 12, FAV_MAX = 500, MINE_MAX = 24;
   const DEFAULTS = Object.freeze({ dim: 0, blur: 0, auto: true });
+  // "Show online wallpapers" (default ON): off means no request to any host, ever, and the online part of the store is hidden.
+  const ONLINE_KEY = 'vex.wallpaper.online';
+  const THUMB_CONCURRENCY = 4;
+  // Licence codes (main/wallpaper-catalogue.js LICENCES) -> the name shown in a credit line. A test keeps the two in step.
+  const LICENCE_NAMES = Object.freeze({
+    'CC0-1.0': 'Creative Commons Zero (public domain)', 'PDM-1.0': 'Public Domain Mark', 'Pexels': 'Pexels License',
+    'Unsplash': 'Unsplash License', 'Own': 'Made by the owner of the list',
+  });
+  // The titles of the built-in categories in Turkish, by id. Any other id shows the title the data file gives.
+  const CATEGORY_TR = Object.freeze({
+    'art-landscapes': 'Sanat: manzaralar', 'art-japan': 'Sanat: Japonya', 'art-seascapes': 'Sanat: deniz manzaraları',
+    'art-patterns': 'Sanat: desenler', 'art-classic': 'Sanat: klasikler', space: 'Uzay', nature: 'Doğa', mountains: 'Dağlar',
+    'sea-and-sky': 'Deniz ve gökyüzü', cities: 'Şehirler', architecture: 'Mimari',
+  });
 
   // --- pure logic (tested on its own) -----------------------------------------------
 
@@ -58,10 +72,17 @@
   function pushRecent(state, id) {
     return { ...state, recent: [id, ...state.recent.filter(x => x !== id)].slice(0, RECENT_MAX) };
   }
-  // items: descriptors. filter: { query, category: 'all' | 'fav' | 'recent' | 'mine' | 'photos' | a category id }
-  function search(items, state, { query = '', category = 'all' } = {}) {
+  // Which part of the store a wallpaper belongs to: drawn by Vex, art and designs (category ids "art-..."), photos, or the person's own.
+  function groupOf(i) {
+    if (i.group) return i.group;
+    if (i.source === 'generated') return 'generated';
+    if (i.source === 'mine') return 'mine';
+    return /^art-/.test(i.category || '') ? 'art' : 'photo';
+  }
+  // items: descriptors. filter: { query, category: 'all' | 'fav' | 'recent' | 'mine' | 'photos' | a category id, source: 'all' | 'generated' | 'art' | 'photo' | 'mine' }
+  function search(items, state, { query = '', category = 'all', source = 'all' } = {}) {
     const words = String(query).toLowerCase().split(/\s+/).filter(Boolean);
-    let out = items;
+    let out = source === 'all' ? items : items.filter(i => groupOf(i) === source);
     if (category === 'fav') out = out.filter(i => state.fav.includes(i.id));
     else if (category === 'recent') out = state.recent.map(id => out.find(i => i.id === id)).filter(Boolean);
     else if (category === 'mine') out = out.filter(i => i.source === 'mine');
@@ -107,18 +128,30 @@
 
   // --- the catalogue of what can be chosen ------------------------------------------------
 
-  let remote = [];          // descriptors of listed photos, from the last list read this session
-  let remoteInfo = null;    // { name, updated, fetchedAt, stale, error, problems }
+  let remote = [];          // descriptors of the built-in catalogue and the hosted list, from the last read this session
+  let remoteInfo = null;    // { name, updated, fetchedAt, stale, error, problems, builtin, hosted }
+  let remoteCats = [];      // [{ id, title, blurb }] from the built-in categories file
 
-  function fromEntry(e) {
+  function fromEntry(e, origin) {
     return Object.freeze({
-      id: 'photo-' + e.id, title: e.title, category: e.category, source: 'catalogue', kind: 'photo', author: e.author, licence: e.licence,
+      id: 'photo-' + e.id, title: e.title, category: e.category, source: 'catalogue', kind: 'photo', origin: origin || 'hosted',
+      group: /^art-/.test(e.category) ? 'art' : 'photo', author: e.author, licence: e.licence,
       sourceUrl: e.sourceUrl, thumbUrl: e.thumbUrl, fullUrl: e.fullUrl, tags: e.tags, dominant: e.dominant, light: undefined,
       entryId: e.id, width: e.width, height: e.height,
     });
   }
+  // The built-in entries first; a hosted entry whose id is already taken is dropped and said (never two cards with one id).
+  function mergeRemote(builtinList, hostedList) {
+    const seen = new Set(builtinList.map(d => d.id)), out = builtinList.slice(), clashes = [];
+    for (const d of hostedList) {
+      if (seen.has(d.id)) { clashes.push('hosted entry "' + d.entryId + '" repeats the id of a built-in wallpaper and was skipped'); continue; }
+      seen.add(d.id);
+      out.push(d);
+    }
+    return { entries: out, clashes };
+  }
   const mineItems = () => st().mine.map(m => Object.freeze({
-    id: m.id, title: m.title, category: 'mine', source: 'mine', kind: 'picture', author: 'You', licence: 'Your own picture', tags: ['mine'], dominant: m.dominant, light: m.light,
+    id: m.id, title: m.title, category: 'mine', source: 'mine', group: 'mine', kind: 'picture', author: 'You', licence: 'Your own picture', tags: ['mine'], dominant: m.dominant, light: m.light,
   }));
   function generated() {
     if (!root.WallpaperData) throw new Error('The wallpaper list (js/wallpaper-data.js) is not loaded');
@@ -185,42 +218,93 @@
     return s;
   }
 
+  // --- the online part: the switch, the guard in front of every request, tickets for progress and cancel
+
+  const online = () => { try { return ls().getItem(ONLINE_KEY) !== 'false'; } catch (err) { throw new Error('Could not read the online wallpapers switch: ' + err.message); } };
+  // Called before ANY request to a host. Throws (tagged, so the store can say it in the person's language) when there must be none.
+  function guardNetwork() {
+    if (!online()) throw new Error('[wp:off] Online wallpapers are switched off (Settings > Wallpapers), so nothing is loaded from the internet');
+    if (root.navigator && root.navigator.onLine === false) throw new Error('[wp:offline] This computer is offline');
+  }
+  let ticketCount = 0;
+  const newTicket = () => 'dl-' + Date.now().toString(36) + '-' + (++ticketCount);
+  // Ids the cache must not evict: the wallpaper on now and the favourites.
+  const protectIds = () => { const s = st(); return [...new Set([...(s.current ? [s.current.id] : []), ...s.fav])].slice(0, 600); };
+  // Starts a download in main and reports bytes as they arrive: opts = { ticket, onProgress({ got, total }) }.
+  async function download(url, kind, opts = {}) {
+    const v = vexApi();
+    guardNetwork();
+    const ticket = opts.ticket || newTicket();
+    const off = opts.onProgress && typeof v.onWallpaperProgress === 'function' ? v.onWallpaperProgress((p) => { if (p && p.ticket === ticket) opts.onProgress(p); }) : null;
+    try { return await v.wallpaperDownload(url, kind, ticket); }
+    finally { if (off) off(); }
+  }
+
   // A listed photo's file, downloaded and shrunk once, then kept by the main process.
-  async function ensureFull(d) {
+  async function ensureFull(d, opts = {}) {
     const v = vexApi();
     if (await v.wallpaperRead(d.id, 'full')) return;
     if (!d.fullUrl) throw new Error('This photo is not saved on this computer and its list is not loaded; open the Wallpaper Store online once to fetch it again');
-    const got = await v.wallpaperDownload(d.fullUrl, 'full');
+    const got = await download(d.fullUrl, 'full', opts);
     const bytes = await shrink(new root.Blob([got.bytes], { type: got.mime }), { maxW: 2560 });
-    await v.wallpaperSave(d.id, 'full', bytes);
+    await v.wallpaperSave(d.id, 'full', bytes, protectIds());
+  }
+  // Is this listed photo already on this computer? (A look at the folder, no picture is read.)
+  async function isCached(id) {
+    const s = await vexApi().wallpaperStats();
+    return Array.isArray(s.cachedIds) && s.cachedIds.includes(id);
   }
 
-  // -> { src, summary } where src is a data: URL the New Tab can paint.
-  async function sourceOf(d) {
+  // -> { src, summary } where src is a data: URL the New Tab can paint. opts: { ticket, onProgress } for a photo not yet downloaded.
+  async function sourceOf(d, opts) {
     if (d.source === 'generated') {
       const G = root.WallpaperGenerators;
       if (!G) throw new Error('js/wallpaper-generators.js is not loaded');
       const src = G.dataUrl(G.svg(d));
       return { src, summary: await summarise(src, d.id) };
     }
-    if (d.source === 'catalogue') await ensureFull(d);
+    if (d.source === 'catalogue') await ensureFull(d, opts);
     const r = await vexApi().wallpaperRead(d.id, d.source === 'mine' ? 'mine' : 'full');
     if (!r) throw new Error('"' + d.title + '" is not saved on this computer any more' + (d.source === 'mine' ? '' : '; open it in the Wallpaper Store to fetch it again'));
     return { src: r.dataUrl, summary: await summarise(r.dataUrl, d.id) };
   }
 
-  // A small picture for the grid.
-  async function thumbOf(d) {
+  // Previews are fetched a few at a time (a grid scrolled fast must not open hundreds of connections).
+  let thumbRunning = 0;
+  const thumbWaiting = [];
+  function throttled(job) {
+    return new Promise((resolve, reject) => {
+      const run = () => {
+        thumbRunning++;
+        job().then(resolve, reject).finally(() => { thumbRunning--; const next = thumbWaiting.shift(); if (next) next(); });
+      };
+      if (thumbRunning < THUMB_CONCURRENCY) run(); else thumbWaiting.push(run);
+    });
+  }
+
+  // A small picture for the grid. opts.stale(): true when the card has scrolled away while the preview waited its turn (then nothing is fetched).
+  async function thumbOf(d, opts = {}) {
     if (d.source === 'generated') { const G = root.WallpaperGenerators; return G.dataUrl(G.svg(d)); }
     const v = vexApi();
     let r = await v.wallpaperRead(d.id, 'thumb');
     if (!r && d.source === 'catalogue' && d.thumbUrl) {
-      const got = await v.wallpaperDownload(d.thumbUrl, 'thumb');
-      await v.wallpaperSave(d.id, 'thumb', await shrink(new root.Blob([got.bytes], { type: got.mime }), { maxW: 480, cap: 280 * 1024 }));
+      guardNetwork();
+      await throttled(async () => {
+        if (typeof opts.stale === 'function' && opts.stale()) throw new Error('[wp:skipped] The card is no longer in view');
+        guardNetwork();
+        const got = await download(d.thumbUrl, 'thumb');
+        await v.wallpaperSave(d.id, 'thumb', await shrink(new root.Blob([got.bytes], { type: got.mime }), { maxW: 480, cap: 280 * 1024 }), protectIds());
+      });
       r = await v.wallpaperRead(d.id, 'thumb');
     }
     if (!r) throw new Error('No preview for ' + d.title);
     return r.dataUrl;
+  }
+
+  // A category's title: Turkish when Vex is in Turkish and the id is one we know, else the title the data file gives (English).
+  function categoryTitle(id, fallback = id) {
+    const lang = root.VexI18nUI && typeof root.VexI18nUI.locale === 'function' ? root.VexI18nUI.locale() : 'en';
+    return lang === 'tr' && Object.prototype.hasOwnProperty.call(CATEGORY_TR, id) ? CATEGORY_TR[id] : fallback;
   }
 
   // --- the New Tab ----------------------------------------------------------------------------
@@ -305,7 +389,7 @@
     },
 
     // Show a wallpaper on the New Tab. patch: { dim, blur, auto } (the sliders), kept from last time for the same wallpaper.
-    async apply(id, patch) {
+    async apply(id, patch, opts) {
       if (id == null || id === '') return api.remove();
       if (typeof id !== 'string' || !ID_RE.test(id)) throw new Error('That is not a wallpaper id: ' + id);
       const d = describe(id);
@@ -320,7 +404,7 @@
         auto: typeof p.auto === 'boolean' ? p.auto : (prev ? prev.auto : DEFAULTS.auto),
       };
       // The wallpaper is fetched (a photo) and drawn BEFORE it is chosen: a failure leaves the old wallpaper in place.
-      await sourceOf(d);
+      await sourceOf(d, opts);
       if (mine !== token) return api.current();         // a later choice won
       persist(pushRecent({ ...st(), current: next }, id));
       lastPaint = null;
@@ -408,19 +492,54 @@
         if (u.length > 2048) throw new Error('That address is too long');
       }
       try { if (u) ls().setItem(URL_KEY, u); else ls().removeItem(URL_KEY); } catch (err) { throw new Error('Could not save the address: ' + err.message); }
-      remote = []; remoteInfo = null;
+      remote = []; remoteInfo = null; remoteCats = [];
       emit();
     },
-    // Reads the list only when asked (the store calls it when it opens). Offline, the last good copy answers and says it is old.
+    // --- the online part (built-in catalogue + the hosted list)
+    online,
+    setOnline(on) {
+      try { ls().setItem(ONLINE_KEY, on ? 'true' : 'false'); } catch (err) { throw new Error('Could not save the online wallpapers switch: ' + err.message); }
+      if (!on) { remote = []; remoteInfo = null; remoteCats = []; }
+      emit();
+      return !!on;
+    },
+    // Reads the lists only when asked (the store calls it when it opens). The built-in list is a file inside Vex (no request);
+    // the hosted list is one GET, only when an address is set. With the switch off nothing is read and nothing is requested.
+    // Offline, the last good copy of the hosted list answers and says it is old. A failure of the hosted list is raised
+    // AFTER the built-in entries are in place, so they stay usable.
     async loadCatalogue({ force = false } = {}) {
       const url = api.catalogueUrl();
-      if (!url) { remote = []; remoteInfo = null; return { entries: 0, configured: false }; }
-      const r = await vexApi().wallpaperCatalogue(url, force);
-      remote = r.entries.map(fromEntry);
-      remoteInfo = { name: r.name, updated: r.updated, fetchedAt: r.fetchedAt, stale: !!r.stale, error: r.error || '', problems: r.problems || [] };
+      if (!online()) { remote = []; remoteInfo = null; remoteCats = []; return { entries: 0, configured: !!url, off: true }; }
+      const v = vexApi();
+      if (typeof v.wallpaperBuiltin !== 'function') throw new Error('The built-in wallpaper list is not available here');
+      const b = await v.wallpaperBuiltin();
+      const builtinList = b.entries.map(e => fromEntry(e, 'builtin'));
+      remoteCats = Array.isArray(b.categories) ? b.categories : [];
+      const problems = [...(b.problems || [])];
+      remote = builtinList;
+      remoteInfo = { name: b.name || '', updated: b.updated || '', fetchedAt: 0, stale: false, error: '', problems, builtin: builtinList.length, hosted: 0, hosts: b.hosts || [] };
+      if (!url) return { entries: remote.length, configured: false, ...remoteInfo };
+      const r = await v.wallpaperCatalogue(url, force);
+      const merged = mergeRemote(builtinList, r.entries.map(e => fromEntry(e, 'hosted')));
+      remote = merged.entries;
+      remoteInfo = { ...remoteInfo, name: r.name || remoteInfo.name, updated: r.updated || remoteInfo.updated, fetchedAt: r.fetchedAt, stale: !!r.stale, error: r.error || '', problems: [...problems, ...(r.problems || []), ...merged.clashes], hosted: merged.entries.length - builtinList.length };
       return { entries: remote.length, configured: true, ...remoteInfo };
     },
     catalogueInfo: () => remoteInfo,
+    // The online categories (from the built-in categories file) that have at least one wallpaper, with a title in the person's language.
+    onlineCategories() {
+      const have = new Set(remote.map(d => d.category));
+      const known = remoteCats.filter(c => have.has(c.id)).map(c => ({ id: c.id, title: categoryTitle(c.id, c.title), blurb: c.blurb || '' }));
+      const ids = new Set(known.map(c => c.id));
+      const extra = [...have].filter(id => !ids.has(id) && !/^(mine|photos)$/.test(id) && !(root.WallpaperData && root.WallpaperData.CATEGORIES.some(c => c.id === id)))
+        .map(id => ({ id, title: categoryTitle(id, id.replace(/-/g, ' ').replace(/^./, ch => ch.toUpperCase())), blurb: '' }));
+      return [...known, ...extra];
+    },
+    categoryTitle,
+    licenceName: (code) => LICENCE_NAMES[code] || code,
+    isCached,
+    newTicket,
+    cancelDownload: (ticket) => vexApi().wallpaperCancel(ticket),
     stats: () => vexApi().wallpaperStats(),
     async clearCache() { const r = await vexApi().wallpaperClearCache(); summaries.clear(); return r; },
 
@@ -443,12 +562,13 @@
       return new root.File([blob], d.title + '.png', { type: 'image/png' });
     },
     shrink, bytesOf: BYTES,
-    _logic: { normalize, toggleFav, pushRecent, search },
-    _reset() { state = null; remote = []; remoteInfo = null; listeners.clear(); summaries.clear(); token = 0; },
+    ONLINE_KEY, LICENCE_NAMES, CATEGORY_TR, THUMB_CONCURRENCY,
+    _logic: { normalize, toggleFav, pushRecent, search, groupOf, mergeRemote },
+    _reset() { state = null; remote = []; remoteInfo = null; remoteCats = []; listeners.clear(); summaries.clear(); token = 0; thumbWaiting.length = 0; thumbRunning = 0; },
   };
 
   if (typeof window !== 'undefined') window.VexWallpapers = api; else root.VexWallpapers = api;
-  if (typeof module !== 'undefined' && module.exports) module.exports = { VexWallpapers: api, logic: { normalize, toggleFav, pushRecent, search } };
+  if (typeof module !== 'undefined' && module.exports) module.exports = { VexWallpapers: api, logic: { normalize, toggleFav, pushRecent, search, groupOf, mergeRemote } };
   if (root.document && typeof root.document.dispatchEvent === 'function') root.document.dispatchEvent(new root.Event('vex-wallpapers-ready'));
   // This file loads after start-up (js/lazy-boot.js): a New Tab that was already open (the first tab of a start) loaded before
   // there was anything to hand it, so it is handed the saved wallpaper now.

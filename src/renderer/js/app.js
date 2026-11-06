@@ -835,9 +835,9 @@ function vexOwnTextFocused(doc) {
     'vex.autoArchiveDays', 'vex.locationMode', 'vex.manualLocation',
     'vex.userName', 'vex.githubUsername', 'vex.weatherLoc',
     'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
-    'vex.aiRoute', 'vex.localAIModel', 'vex.aiRouting',
+    'vex.aiRoute', 'vex.localAIModel', 'vex.aiRouting', 'vex.aiByok.active', 'vex.aiCloudSource',
     'vex.preferOnDeviceAI', 'vex.webllmModel',
-    'vex.panelOverrides', 'vex.sidebarOrder', 'vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded', 'vex.sidebarGroups.open', 'vex.sidebarGroupDefs', 'vex.userShortcuts', 'vex.layout', 'vex.toolbarShown',
+    'vex.panelOverrides', 'vex.sidebarOrder', 'vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded', 'vex.sidebarGroups.open', 'vex.sidebarGroupDefs', 'vex.userShortcuts', 'vex.layout', 'vex.toolbarShown', 'vex.toolbarMenu',
     // Written by Settings controls but missing from this list until v2.36.5.
     'vex.searchSuggest', 'vex.sponsorSkip', 'vex.streamerMode',
     'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex', 'vex.game.commitGuard',
@@ -1436,6 +1436,10 @@ function vexOwnTextFocused(doc) {
       window.showToast?.('Pop-out floats on top · Ctrl+Shift+P to toggle');
     });
   } catch {}
+  // Its "Back to Discord" button: Discord's panel (or its tab), as for a PiP "Back to tab".
+  window.vex?.onDiscordPopoutBack?.(() => {
+    if (typeof PiPManager !== 'undefined') PiPManager.returnToSource({ panel: 'discord' });
+  });
 
   // AI Skills (saved prompts) + Boosts (per-site customization)
   if (typeof VexSkills !== 'undefined') VexSkills.init();
@@ -1616,6 +1620,7 @@ function vexOwnTextFocused(doc) {
   // Quick slots: Ctrl+Alt+1..3 run your first three command chains.
   window.addEventListener('keydown', (e) => {
     if (!e.ctrlKey || !e.altKey || !['1', '2', '3'].includes(e.key)) return;
+    if (typeof VexLock !== 'undefined' && VexLock.locked()) return;   // like every other key: nothing runs behind the lock screen
     const ch = typeof CommandChains !== 'undefined' && CommandChains.chains[parseInt(e.key, 10) - 1];
     if (ch) { e.preventDefault(); CommandChains.run(ch); window.showToast?.('' + ch.name); }
   });
@@ -1783,6 +1788,9 @@ function vexOwnTextFocused(doc) {
     // A tab or panel kept awake by choice that grows past 1.5 GB says so once,
     // even with the memory notice off (js/kept-awake-memory.js).
     if (typeof KeptAwakeMemory !== 'undefined') KeptAwakeMemory.init();
+    // Main fires Ctrl+Shift+O itself (toggle-sessions); this is the same action for the list: with no
+    // handler here, the editor and the shortcut sheet treated the key as doing nothing.
+    ShortcutsRegistry.register('sessions',       () => SessionManager.toggle());
     ShortcutsRegistry.register('schedules',      () => SidebarManager?.openPanel('schedules'));
     ShortcutsRegistry.register('tabs-sidebar',   () => window.toggleTabsSidebar?.());
     ShortcutsRegistry.register('split-screen',   () => SplitScreen?.toggle?.());

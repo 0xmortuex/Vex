@@ -142,18 +142,42 @@
   ];
 
   const LIGHT = new Set(['paper', 'sky', 'blush', 'mint', 'lavender', 'sand', 'cloud', 'peach']);
+  const LIGHT_IDS = new Set();    // wallpapers from extend() that are light (their colours are then listed lightest first)
   const TITLE_OF = Object.fromEntries(CATEGORIES.map(c => [c.id, c.title]));
 
   let cache = null;
+
+  // More wallpapers from js/wallpaper-materials-data.js: { categories, palettes, rows, light: [ids] }. Palettes there are
+  // written darkest to lightest. Files that load late can arrive after the list was first read: the next read then has them.
+  function extend(part) {
+    cache = null;
+    for (const c of part.categories || []) {
+      if (TITLE_OF[c.id]) throw new Error('The wallpaper group "' + c.id + '" already exists');
+      CATEGORIES.push(c);
+      TITLE_OF[c.id] = c.title;
+    }
+    for (const name of Object.keys(part.palettes || {})) {
+      if (PALETTES[name]) throw new Error('The wallpaper palette "' + name + '" already exists');
+      PALETTES[name] = part.palettes[name];
+    }
+    const seen = new Set(ROWS.map(r => r[0]));
+    for (const row of part.rows || []) {
+      if (seen.has(row[0])) throw new Error('The wallpaper "' + row[0] + '" already exists');
+      seen.add(row[0]);
+      ROWS.push(row);
+    }
+    for (const id of part.light || []) LIGHT_IDS.add(id);
+  }
+
   function generated() {
     if (cache) return cache;
     cache = ROWS.map(([id, title, category, kind, pal, seed, opts]) => {
       const colors = PALETTES[pal];
       if (!colors) throw new Error('Wallpaper ' + id + ' names an unknown palette: ' + pal);
       if (!TITLE_OF[category]) throw new Error('Wallpaper ' + id + ' names an unknown category: ' + category);
-      const light = LIGHT.has(pal);
+      const light = LIGHT.has(pal) || LIGHT_IDS.has(id);
       return Object.freeze({
-        id, title, category, source: 'generated', kind, seed, colors: colors.slice(), opts: opts || {}, light,
+        id, title, category, source: 'generated', kind, seed, colors: LIGHT_IDS.has(id) ? colors.slice().reverse() : colors.slice(), opts: opts || {}, light,
         dominant: kind === 'solid' || kind === 'grain' ? colors[1] : colors[2],
         tags: [TITLE_OF[category].toLowerCase(), pal, kind, light ? 'light' : 'dark'],
         author: 'Vex', licence: 'Made by Vex',
@@ -162,7 +186,7 @@
     return cache;
   }
 
-  const api = { CATEGORIES, PALETTES, generated, categoryTitle: (id) => TITLE_OF[id] || id };
+  const api = { CATEGORIES, PALETTES, generated, extend, categoryTitle: (id) => TITLE_OF[id] || id };
   if (typeof window !== 'undefined') window.WallpaperData = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = { WallpaperData: api };
 })(typeof window !== 'undefined' ? window : globalThis);

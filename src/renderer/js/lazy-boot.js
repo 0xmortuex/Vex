@@ -28,6 +28,7 @@ const VexBoot = {
   LATE_MODULES: [
     { src: 'js/release-checklist.js', usage: ['release-check'] },
     { src: 'js/sidebar-groups-ui.js', usage: [] },
+    { src: 'js/toolbar-customize.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },
@@ -39,6 +40,8 @@ const VexBoot = {
     { src: 'js/faq-ui.js', usage: [] },
     { src: 'js/drm-help-tr.js', usage: [] },
     { src: 'js/settings-sweep2-tr.js', usage: [] },
+    { src: 'js/ai-connect.js', usage: [] },
+    { src: 'js/ai-bar.js', usage: [] },
     { src: 'js/dialogs-tr.js', usage: [] },
     { src: 'js/drm-help.js', usage: [] },
     { src: 'js/unblock-centre.js', usage: ['unblock-centre'] },
@@ -85,6 +88,11 @@ const VexBoot = {
     // The Wallpaper Store: pictures drawn by code (data, generators), the painter shared with the New Tab, the logic and API (window.VexWallpapers) and its screen.
     { src: 'js/wallpaper-generators.js', usage: [] },
     { src: 'js/wallpaper-data.js', usage: [] },
+    // More pictures drawn by code (materials, tiles, botanical, sky, maps): about 150 KB of text that nothing reads until the Store or a New Tab paints one.
+    { src: 'js/wallpaper-materials.js', usage: [] },
+    { src: 'js/wallpaper-patterns.js', usage: [] },
+    { src: 'js/wallpaper-nature.js', usage: [] },
+    { src: 'js/wallpaper-materials-data.js', usage: [] },
     { src: 'js/wallpaper-paint.js', usage: [] },
     { src: 'js/wallpaper-store.js', usage: ['wallpaper-store'] },
     { src: 'js/wallpaper-sync.js', usage: [] },

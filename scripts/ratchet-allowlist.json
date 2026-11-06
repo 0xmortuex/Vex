@@ -20,6 +20,7 @@
     "src/renderer/js/webview.js": 1
   },
   "no-ungated-toast": {
+    "src/renderer/js/ai-connect.js": 1,
     "src/renderer/js/ai-news.js": 1,
     "src/renderer/js/ai-panel.js": 2,
     "src/renderer/js/ai-router.js": 1,

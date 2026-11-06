@@ -27,6 +27,7 @@ const SECURE_FILES = Object.freeze([
   { id: 'passkeys', file: 'passkeys.dat', label: 'Passkeys' },
   { id: 'github', file: 'github-token.enc', label: 'GitHub read-only token' },
   { id: 'ai-token', file: 'ai-token.enc', label: 'AI service token' },
+  { id: 'ai-keys', file: 'ai-keys.enc', label: 'AI provider keys' },
   { id: 'mcp-auth', file: 'mcp-auth.enc', label: 'Tool-server sign-ins' },
   { id: 'mail', file: 'mail-accounts.enc', label: 'Mail accounts' },
   { id: 'sync-key', file: 'sync-key.bin', label: 'Sync key' },

@@ -95,7 +95,7 @@ const SettingsPane = {
     'Sidebar and toolbar': ['links and panels', 'panels and messages', '=layout', 'reader layouts'],
     'Privacy and security': ['privacy report card', 'safer web', 'web safety', 'route all of vex', 'secure lock options', 'encrypted profile lock', 'permission hygiene'],
     'Tabs and performance': ['session recovery', 'guest session', '=performance', 'on battery', 'smart tab grouping', 'tab comforts', 'recall', 'time travel', 'find by time'],
-    'AI': ['ai backend', 'where ai runs', 'ai spend cap', 'ai personas', 'ai memory', 'ai skills', 'on-device', 'mcp servers', 'ai history', 'long documents'],
+    'AI': ['connect an ai', 'ai backend', 'where ai runs', 'ai spend cap', 'ai personas', 'ai memory', 'ai skills', 'on-device', 'mcp servers', 'ai history', 'long documents'],
     'Focus and study': ['=focus', 'co-op focus timer', 'distraction budget', 'focus os', 'breaks', 'study block', 'focus block length', 'ask before distracting', 'knowledge base', 'flashmind', 'listen to articles', 'explain this page', 'research board', 'meeting copilot'],
     'Extras and fun': ['chrome extensions', 'extension audit', 'extension changes', '=boosts', 'userscripts', 'page actions', 'page recorder', 'command chains', 'page watcher', 'media control', 'volume: ', 'mouse gesture editor', 'profile and medals'],
     'Developer': ['developer desk', 'minimal vex', 'health check', 'diagnostics', 'feature switches', 'feature usage', 'search index', 'usage counts', 'new for you', 'what i changed', 'what’s new for me', 'what\'s new for me'],

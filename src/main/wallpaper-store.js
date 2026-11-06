@@ -20,6 +20,7 @@
 // fetched, so the window cannot use this as a general downloader.
 
 const { validateCatalogue, httpsUrl } = require('./wallpaper-catalogue');
+const { loadBuiltin, hostAllowed } = require('./wallpaper-builtin');
 
 const KINDS = ['thumb', 'full', 'mine'];
 const CAPS = { thumb: 300 * 1024, full: 3 * 1024 * 1024, mine: 3 * 1024 * 1024 };
@@ -40,8 +41,15 @@ function sniff(b) {
 }
 const MIME_OF = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' };
 
-function createWallpaperStore({ dir, fs, path, fetch, now = Date.now }) {
+// A failure the window shows in the person's language: "[wp:<code>] English text". Only the message crosses the IPC boundary.
+const STREAM_IDLE_MS = 20000, STREAM_TOTAL_MS = 240000, PROGRESS_EVERY_MS = 120;
+const tagged = (code, text) => new Error('[wp:' + code + '] ' + text);
+
+// builtin:     () => the loaded built-in catalogue (main/wallpaper-builtin.js), or absent
+// streamFetch: the public-only fetch WITHOUT size limits (a stream); a picture from the built-in catalogue is read through it
+function createWallpaperStore({ dir, fs, path, fetch, streamFetch, builtin, now = Date.now, cacheMax = CACHE_MAX_BYTES }) {
   if (!dir || !fs || !path) throw new Error('createWallpaperStore needs a folder, fs and path');
+  const running = new Map();     // ticket -> AbortController of a download the window may cancel
   const kindDir = (kind) => path.join(dir, kind);
   const need = (cond, msg) => { if (!cond) throw new Error(msg); };
   const checkId = (id) => need(typeof id === 'string' && ID_RE.test(id), 'That is not a wallpaper id');
@@ -57,19 +65,23 @@ function createWallpaperStore({ dir, fs, path, fetch, now = Date.now }) {
   }
   const dropFiles = (kind, id) => { for (const f of filesOf(kind)) if (f.id === id) fs.unlinkSync(f.file); };
 
-  function evict(keepFile) {
+  // Least recently used out first (a read touches the file). Never the file just written, and never a
+  // picture whose id is in `protect` (the wallpaper on now and the favourites, which the window names).
+  // "mine" is another folder and is never part of the cache.
+  function evict(keepFile, protect) {
     const all = [...filesOf('thumb'), ...filesOf('full')].sort((a, b) => a.mtime - b.mtime);
     let total = all.reduce((s, f) => s + f.bytes, 0);
     for (const f of all) {
-      if (total <= CACHE_MAX_BYTES) break;
-      if (f.file === keepFile) continue;
+      if (total <= cacheMax) break;
+      if (f.file === keepFile || (protect && protect.has(f.id))) continue;
       fs.unlinkSync(f.file);
       total -= f.bytes;
     }
   }
 
-  function save(id, kind, bytes) {
+  function save(id, kind, bytes, protectIds) {
     checkId(id); checkKind(kind);
+    need(protectIds == null || (Array.isArray(protectIds) && protectIds.every(x => typeof x === 'string')), 'The list of pictures to keep must be a list of ids');
     need(bytes && typeof bytes.byteLength === 'number', 'No picture data was given');
     const buf = Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes);
     need(buf.length <= CAPS[kind], 'That picture is too big to keep (' + Math.ceil(buf.length / 1024) + ' KB; ' + Math.round(CAPS[kind] / 1024) + ' KB at most)');
@@ -83,9 +95,15 @@ function createWallpaperStore({ dir, fs, path, fetch, now = Date.now }) {
     dropFiles(kind, id);
     const file = path.join(kindDir(kind), id + '.' + type.ext);
     const tmp = file + '.tmp';
-    fs.writeFileSync(tmp, buf);
-    fs.renameSync(tmp, file);
-    if (kind !== 'mine') evict(file);
+    try {
+      fs.writeFileSync(tmp, buf);
+      fs.renameSync(tmp, file);
+    } catch (err) {
+      // No half file is left behind: the temporary one goes, then the real reason is raised.
+      try { fs.unlinkSync(tmp); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+      throw err;
+    }
+    if (kind !== 'mine') evict(file, new Set(protectIds || []));
     return { ok: true, bytes: buf.length };
   }
 
@@ -110,7 +128,7 @@ function createWallpaperStore({ dir, fs, path, fetch, now = Date.now }) {
     const cache = [...filesOf('thumb'), ...filesOf('full')], mine = filesOf('mine');
     const c = readCatalogueFile();
     return {
-      cacheFiles: cache.length, cacheBytes: cache.reduce((s, f) => s + f.bytes, 0), cacheMax: CACHE_MAX_BYTES,
+      cacheFiles: cache.length, cacheBytes: cache.reduce((s, f) => s + f.bytes, 0), cacheMax,
       mineFiles: mine.length, mineBytes: mine.reduce((s, f) => s + f.bytes, 0), mineMax: MINE_MAX_FILES,
       mineIds: mine.map(f => f.id), cachedIds: [...new Set(filesOf('full').map(f => f.id))],
       catalogue: c ? { url: c.url, fetchedAt: c.fetchedAt, count: c.doc.entries.length } : null,
@@ -161,9 +179,98 @@ function createWallpaperStore({ dir, fs, path, fetch, now = Date.now }) {
     }
   }
 
-  async function download(url, kind) {
+  // --- the built-in catalogue ------------------------------------------------------------
+
+  const builtinData = () => (typeof builtin === 'function' ? builtin() : null);
+
+  // A picture of the built-in catalogue, read as a stream: only from a listed host (every redirect checked too),
+  // at most DOWNLOAD_CAPS[kind] bytes (counted while it arrives; the transfer is stopped the moment it is over),
+  // only an image. Nothing is written here: the window shrinks it and saves it (save() is atomic), so a failed
+  // or cancelled download leaves no file at all.
+  async function downloadListed(url, kind, hosts, { ticket, onProgress } = {}) {
+    const cap = DOWNLOAD_CAPS[kind];
+    need(typeof streamFetch === 'function', 'This build cannot download wallpapers');
+    const hostOk = (u) => { if (!hostAllowed(u.href, hosts)) throw tagged('host', 'Vex only loads wallpapers from the hosts on its own list; ' + u.hostname + ' is not one of them'); };
+    hostOk(new URL(url));
+    const ctrl = new AbortController();
+    let why = null;                          // why we stopped it ourselves: 'cancel' | 'big' | 'idle' | 'slow'
+    const stop = (reason) => { if (!why) { why = reason; ctrl.abort(); } };
+    if (ticket) running.set(ticket, { cancel: () => stop('cancel') });
+    let idle = setTimeout(() => stop('idle'), STREAM_IDLE_MS);
+    const total = setTimeout(() => stop('slow'), STREAM_TOTAL_MS);
+    const host = new URL(url).hostname;
+    try {
+      let res;
+      try {
+        res = await streamFetch(url, { headers: { Accept: 'image/*' }, credentials: 'omit', signal: ctrl.signal, checkUrl: hostOk, egress: { feature: 'Wallpaper store', kind: 'fetch' } });
+      } catch (err) {
+        if (why === 'cancel') throw tagged('cancelled', 'Download cancelled');
+        if (why) throw tagged('unreachable', host + ' did not answer in time');
+        if (/^\[wp:/.test(err.message)) throw err;
+        throw tagged('unreachable', host + ' could not be reached (' + err.message + ')');
+      }
+      if (!res.ok) { try { await res.body?.cancel(); } catch (e) { console.error('[wallpaper-store] closing a refused download failed:', e.message); } throw tagged('http', host + ' answered ' + res.status); }
+      const type = res.headers.get('content-type') || '';
+      if (!/^image\//i.test(type)) { try { await res.body?.cancel(); } catch (e) { console.error('[wallpaper-store] closing a wrong-type download failed:', e.message); } throw tagged('not-image', 'The address did not give a picture (' + (type || 'no content type') + ')'); }
+      const length = Number(res.headers.get('content-length')) || 0;
+      if (length > cap) { stop('big'); try { await res.body?.cancel(); } catch (e) { console.error('[wallpaper-store] closing an oversize download failed:', e.message); } throw tagged('too-large', 'The picture is ' + (length / 1048576).toFixed(1) + ' MB; ' + Math.round(cap / 1048576) + ' MB at most'); }
+      if (!res.body) throw tagged('not-image', 'The address gave an empty answer');
+      const reader = res.body.getReader();
+      const chunks = [];
+      let got = 0, lastTell = 0;
+      const tell = (force) => { const t = now(); if (onProgress && (force || t - lastTell >= PROGRESS_EVERY_MS)) { lastTell = t; onProgress({ got, total: length }); } };
+      for (;;) {
+        let part;
+        try { part = await reader.read(); }
+        catch (err) {
+          if (why === 'cancel') throw tagged('cancelled', 'Download cancelled');
+          if (why) throw tagged('unreachable', host + ' stopped answering');
+          throw tagged('unreachable', host + ' dropped the connection (' + err.message + ')');
+        }
+        // Stopped (cancelled, or no data for too long) while a piece was on its way: that piece is not used.
+        if (why === 'cancel') { try { await reader.cancel(); } catch (e) { console.error('[wallpaper-store] closing a cancelled download failed:', e.message); } throw tagged('cancelled', 'Download cancelled'); }
+        if (why) throw tagged('unreachable', host + ' stopped answering');
+        if (part.done) break;
+        got += part.value.byteLength;
+        if (got > cap) {
+          stop('big');
+          try { await reader.cancel(); } catch (e) { console.error('[wallpaper-store] closing an oversize download failed:', e.message); }
+          throw tagged('too-large', 'The picture is more than ' + Math.round(cap / 1048576) + ' MB');
+        }
+        chunks.push(part.value);
+        clearTimeout(idle); idle = setTimeout(() => stop('idle'), STREAM_IDLE_MS);
+        tell(false);
+      }
+      tell(true);
+      const buf = Buffer.concat(chunks.map(c => Buffer.from(c.buffer, c.byteOffset, c.byteLength)));
+      const sniffed = sniff(buf);
+      if (!sniffed) throw tagged('not-image', 'That address did not give a PNG, JPEG or WebP picture');
+      return { bytes: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), mime: sniffed.mime };
+    } finally {
+      clearTimeout(idle); clearTimeout(total);
+      if (ticket) running.delete(ticket);
+    }
+  }
+
+  function cancel(ticket) {
+    need(typeof ticket === 'string' && ticket, 'No download was named');
+    const r = running.get(ticket);
+    if (r) r.cancel();
+    return { ok: true, running: !!r };
+  }
+
+  // What the store shows without any network: the built-in entries, their categories and the host list.
+  function builtinList() {
+    const b = builtinData();
+    if (!b) return { name: '', updated: '', entries: [], categories: [], hosts: [], problems: [], present: { catalogue: false, categories: false, hosts: false } };
+    return b;
+  }
+
+  async function download(url, kind, opts = {}) {
     need(kind === 'thumb' || kind === 'full', 'Only previews and full pictures are downloaded');
     need(httpsUrl(url), 'A picture must come from an https address');
+    const b = builtinData();
+    if (b && b.entries.some(e => e.thumbUrl === url || e.fullUrl === url)) return downloadListed(url, kind, b.hosts, opts);
     const c = readCatalogueFile();
     need(c && c.doc.entries.some(e => e.thumbUrl === url || e.fullUrl === url), 'That address is not in the wallpaper list');
     const res = await fetch(url, { headers: { Accept: 'image/*' }, credentials: 'omit', timeoutMs: 30000, maxBytes: DOWNLOAD_CAPS[kind], egress: { feature: 'Wallpaper store', kind: 'fetch' } });
@@ -174,15 +281,24 @@ function createWallpaperStore({ dir, fs, path, fetch, now = Date.now }) {
     return { bytes: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), mime: type.mime };
   }
 
-  return { save, read, remove, stats, clearCache, catalogue, download, sniff };
+  return { save, read, remove, stats, clearCache, catalogue, download, cancel, builtinList, sniff };
 }
 
 // The IPC side. `dir` is <userData>/wallpapers.
-function registerWallpaperStore({ ipcMain, dir, fs, path, fetch }) {
-  const store = createWallpaperStore({ dir, fs, path, fetch });
+function registerWallpaperStore({ ipcMain, dir, fs, path, fetch, streamFetch, dataDir }) {
+  let loaded = null;
+  // Read once, on first use. A damaged file throws every time it is asked for (and is shown), never a half list.
+  const builtin = () => (dataDir ? (loaded || (loaded = loadBuiltin({ fs, path, dir: dataDir }))) : null);
+  const store = createWallpaperStore({ dir, fs, path, fetch, streamFetch, builtin });
   ipcMain.handle('wallpaper:catalogue', (_e, url, force) => store.catalogue(url, !!force));
-  ipcMain.handle('wallpaper:download', (_e, url, kind) => store.download(url, kind));
-  ipcMain.handle('wallpaper:save', (_e, id, kind, bytes) => store.save(id, kind, bytes));
+  ipcMain.handle('wallpaper:builtin', () => store.builtinList());
+  // A ticket (made by the window) lets it show progress and cancel: the bytes counted so far are sent back as they arrive.
+  ipcMain.handle('wallpaper:download', (e, url, kind, ticket) => store.download(url, kind, {
+    ticket,
+    onProgress: ticket ? (p) => { if (!e.sender.isDestroyed()) e.sender.send('wallpaper:progress', { ticket, ...p }); } : undefined,
+  }));
+  ipcMain.handle('wallpaper:cancel', (_e, ticket) => store.cancel(ticket));
+  ipcMain.handle('wallpaper:save', (_e, id, kind, bytes, protect) => store.save(id, kind, bytes, protect));
   ipcMain.handle('wallpaper:read', (_e, id, kind) => store.read(id, kind));
   ipcMain.handle('wallpaper:remove', (_e, id, kind) => store.remove(id, kind));
   ipcMain.handle('wallpaper:stats', () => store.stats());

@@ -83,8 +83,13 @@ function createPublicFetch({ request, resolveHost }) {
   return async function publicFetch(url, init = {}) {
     let href = String(url || '');
     let opts = { ...init };
+    // init.checkUrl (optional): called with every address before it is requested, the first one and each
+    // redirect; it throws to refuse. The Wallpaper Store uses it to keep pictures on its named hosts.
+    const extra = typeof opts.checkUrl === 'function' ? opts.checkUrl : null;
+    delete opts.checkUrl;
     for (let n = 0; ; n++) {
       const u = await checkUrl(href);
+      if (extra) extra(u);
       const out = await hop(u.href, opts);
       if (out.response) return out.response;
       if (n >= MAX_REDIRECTS) throw new Error('Too many redirects from ' + u.hostname);

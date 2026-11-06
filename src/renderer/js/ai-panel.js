@@ -351,7 +351,7 @@ const AIPanel = {
     AgentLoop.start(msg, this._agentMode).then(done, (err) => {
       // A rejection here used to vanish: the buttons reset and the user was
       // left with no idea why nothing happened.
-      this._addError(err?.message || 'The agent stopped unexpectedly');
+      this._addError(err?.message || 'The agent stopped unexpectedly', undefined, err);
       done();
     });
   },
@@ -1637,7 +1637,7 @@ const AIPanel = {
       }
       // The prompt is never lost: it stays in the transcript and Retry re-sends
       // it verbatim once the backend is fixed, without a duplicate bubble.
-      this._addError(err.message || 'Network error', () => this.sendMessage(action, { ...opts, _noEcho: true }));
+      this._addError(err.message || 'Network error', () => this.sendMessage(action, { ...opts, _noEcho: true }), err);
       return false;
     } finally {
       this._live = null;
@@ -2077,7 +2077,7 @@ const AIPanel = {
         this._renderMessages();
         return true;
       }
-      this._addError(err.message || 'Network error', () => this._sendMultiTab(message, tabs, { _noEcho: true }));
+      this._addError(err.message || 'Network error', () => this._sendMultiTab(message, tabs, { _noEcho: true }), err);
       return false;
     } finally {
       this._live = null;
@@ -3035,7 +3035,7 @@ const AIPanel = {
     return el;
   },
 
-  _addError(text, onRetry) {
+  _addError(text, onRetry, cause) {
     const container = document.getElementById('ai-messages');
     if (!container) return;
     this._clearEmptyState();
@@ -3058,6 +3058,30 @@ const AIPanel = {
       btn.innerHTML = (window.VexIcons ? VexIcons.svg('refresh', { size: 13 }) : '') + '<span>Retry</span>';
       btn.addEventListener('click', () => { el.remove(); onRetry(); });
       el.appendChild(btn);
+      // A provider that says "try again in N seconds" is believed: Retry waits that long.
+      const wait = cause && cause.byok && Number(cause.byok.retryAfter) > 0 ? Math.min(Math.ceil(cause.byok.retryAfter), 120) : 0;
+      if (wait) {
+        let left = wait;
+        const word = btn.querySelector('span');
+        btn.disabled = true;
+        const tick = () => {
+          if (!btn.isConnected) return;
+          if (left <= 0) { btn.disabled = false; word.textContent = 'Retry'; return; }
+          word.textContent = (window.vexTr ? window.vexTr('Retry in') : 'Retry in') + ' ' + left + ' s';
+          left--;
+          setTimeout(tick, 1000);
+        };
+        tick();
+      }
+    }
+    // A failure from your own AI key says what to do about it, with the button that does it.
+    if (cause && cause.byok && typeof AIConnect !== 'undefined') {
+      const fix = document.createElement('div');
+      fix.className = 'ai-error-actions';
+      const add = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'ai-why-btn'; b.textContent = label; b.addEventListener('click', fn); fix.appendChild(b); };
+      if (cause.byok.fix === 'settings') add('Open the key settings', () => AIConnect.openCard('key', cause.byok.provider));
+      if (typeof AIRouter !== 'undefined' && AIRouter.isOllamaAvailable()) add('Use Ollama instead', () => { AIRouter.setRoutingPrefs({ chat: 'local', multiTab: 'local' }); document.dispatchEvent(new CustomEvent('vex:ai-route-changed')); window.showToast?.('Chat now uses Ollama. Settings › AI changes it back.'); });
+      if (fix.childElementCount) el.appendChild(fix);
     }
     // "The AI stopped working" has a dozen causes and one symptom. This asks
     // every part — the worker, the internet, Ollama, the model, the graphics

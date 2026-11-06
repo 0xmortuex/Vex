@@ -17,7 +17,7 @@ beforeEach(async () => {
   const listeners = new Set();
   V = {
     DEFAULTS: { dim: 0, blur: 0, auto: true }, FEATURE: 'wallpaper-store',
-    list: () => [D], get: () => D, search: () => [D], categories: () => [], isFavourite: () => false, catalogueUrl: () => '',
+    list: () => [D], get: () => D, search: () => [D], categories: () => [], isFavourite: () => false, catalogueUrl: () => '', online: () => true, setOnline: () => true, loadCatalogue: async () => ({ entries: 0 }), catalogueInfo: () => null, onlineCategories: () => [], licenceName: (c) => c, isCached: async () => true, newTicket: () => 'dl-test', cancelDownload: async () => ({}),
     current: () => state.current, enabled: () => state.enabled,
     onChange: (cb) => { listeners.add(cb); return () => listeners.delete(cb); },
     sourceOf: async () => ({ src: 'data:image/svg+xml;charset=utf-8,x' }),

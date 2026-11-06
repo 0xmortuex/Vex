@@ -80,7 +80,7 @@ describe('toolbar overflow', () => {
     expect(document.getElementById('btn-toolbar-overflow').hidden).toBe(false);
     // never the window controls, Back, or a hidden button
     for (const id of ['btn-close', 'btn-back', 'btn-dev-dash']) expect(moved(api)).not.toContain(id);
-    expect(api.MIN_URL_INPUT).toBe(280);
+    expect(api.MIN_URL_INPUT).toBe(240);
   });
 
   it('the site icon (padlock) never moves, however narrow the window', () => {

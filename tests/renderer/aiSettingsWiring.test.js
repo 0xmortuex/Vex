@@ -46,6 +46,7 @@ beforeEach(async () => {
     refreshOllamaStatus: async () => false,
     ollamaUp: async () => false, ollamaAutoStart: () => true, setOllamaAutoStart: () => {}, agentNumCtx: () => 16384,
     getRoutingPrefs: () => ({}),
+    cloudConfigured: () => false, cloudWorkerUrl: () => '',
     setRoutingPrefs: (p) => routingWrites.push(p),
   };
   globalThis.TabManager = { createTab: vi.fn() };

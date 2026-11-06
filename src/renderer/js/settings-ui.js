@@ -74,7 +74,7 @@ const SettingsUI = {
     { name: 'Workspaces',      icon: 'folders',  color: '#14b8a6', match: ['workspace'] },
     { name: 'Location',        icon: 'pin',      color: '#ef4444', match: ['location'] },
     { name: 'Sync',            icon: 'refresh',  color: '#06b6d4', match: ['sync'] },
-    { name: 'AI',              icon: 'spark',    color: '#d4a574', match: ['long documents', 'ai backend', 'assistant', 'your local models', 'ai agent', 'where ai runs', 'draft into the field', 'thread digest', 'site instructions', 'search by meaning', 'ai spend cap', 'estimated cost per call', 'local model: fit', 'summary cache', 'pinned agent tasks'], group: 'AI' },
+    { name: 'AI',              icon: 'spark',    color: '#d4a574', match: ['long documents', 'connect an ai', 'ai backend', 'assistant', 'your local models', 'ai agent', 'where ai runs', 'draft into the field', 'thread digest', 'site instructions', 'search by meaning', 'ai spend cap', 'estimated cost per call', 'local model: fit', 'summary cache', 'pinned agent tasks'], group: 'AI' },
     { name: 'Personalization', icon: 'user',     color: '#f0abfc', match: ['personalization', 'simple, standard or power', 'morning brief', 'brief actions', 'new tab by time of day', 'new tab layout', 'left-overs', 'chores and bills', 'close the day', 'shape of the day', 'what is due', 'first open of the day', 'next step', 'park and resume', 'copy with source', 'find deadlines', 'put things off', 'plan the week', 'weekly triage', 'what changed since', 'receipts and warranties', 'orders', 'deadlines', 'expense capture', 'follow-ups', 'holidays', 'page reminders', 'two-minute drawer', 'rituals', 'tl equivalent', 'weekday first-open', 'brief cards', 'hidden until needed'] },
     { name: 'Profiles',        icon: 'users',    color: '#22d3ee', match: ['profiles'] },
     { name: 'Personas',        icon: 'users',    color: '#8b5cf6', match: ['persona'], group: 'AI' },
@@ -218,7 +218,7 @@ const SettingsUI = {
     'general', 'default browser', 'sidebar buttons', 'privacy & security', 'privacy hardening',
     'site settings', 'site permissions',
     'autofill', 'sessions', 'downloads', 'passwords', 'passkeys', 'payment cards', 'appearance', 'gui style', 'tab layout',
-    'wallpapers', 'reading & accessibility', 'vex sync', 'data', 'your data', 'about', 'help and faq', 'video and music playback',
+    'wallpapers', 'reading & accessibility', 'connect an ai', 'vex sync', 'data', 'your data', 'about', 'help and faq', 'video and music playback',
   ],
   tierOf(labelText) {
     const t = String(labelText || '').trim().toLowerCase();

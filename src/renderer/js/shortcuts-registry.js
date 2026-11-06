@@ -247,7 +247,14 @@ const ShortcutsRegistry = (() => {
   // was accepted, and main then took that letter from every page: bind "X"
   // and nobody could type an x anywhere (2026-09-29).
   const RESERVED_KEYS = ['Alt+F4', 'Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+A', 'Ctrl+Z', 'Ctrl+Y',
-    'Ctrl+Shift+I', 'Ctrl+Shift+J', 'Ctrl+Shift+C'];
+    'Ctrl+Shift+I', 'Ctrl+Shift+J', 'Ctrl+Shift+C',
+    // Windows keeps these and never hands them to a program, so a shortcut on one could not fire.
+    'Alt+Tab', 'Alt+Escape', 'Ctrl+Escape', 'Ctrl+Shift+Escape', 'Ctrl+Alt+Delete',
+    // Editing a line of text: binding one would break word-by-word moving, deleting and pasting in
+    // every field in Vex (and in pages, where the key is passed up).
+    'Ctrl+Backspace', 'Ctrl+Delete', 'Ctrl+Insert', 'Ctrl+Shift+V',
+    'Ctrl+Left', 'Ctrl+Right', 'Ctrl+Home', 'Ctrl+End',
+    'Ctrl+Shift+Left', 'Ctrl+Shift+Right', 'Ctrl+Shift+Home', 'Ctrl+Shift+End'];
   function whyNotAKey(combo) {
     if (typeof combo !== 'string' || !combo) return 'empty';
     if (RESERVED_KEYS.includes(combo)) return 'reserved';
@@ -386,6 +393,8 @@ const ShortcutsRegistry = (() => {
 
     const combo = eventToShortcut(e);
     if (!combo) return;
+    // A binding saved before whyNotAKey refused its key (Ctrl+Left, say) must not take the key from the text being edited.
+    if (whyNotAKey(combo)) return;
 
     const all = getAllShortcuts();
     for (const [id, data] of Object.entries(all)) {
@@ -407,6 +416,8 @@ const ShortcutsRegistry = (() => {
   return {
     init, getShortcut, getAllShortcuts, assignable,
     setShortcut, resetShortcut, removeShortcut, resetAll, customBindings, restoreBindings,
+    // The keys Vex answers outside the list above, combo -> what it does (the shortcut sheet, the guide and the docs read it).
+    fixedKeys: () => ({ ...FIXED_KEYS }),
     register, eventToShortcut, _tellMain
   };
 })();

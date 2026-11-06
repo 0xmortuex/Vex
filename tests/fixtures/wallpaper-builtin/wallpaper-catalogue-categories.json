@@ -1,0 +1,5 @@
+[
+  { "id": "art-seascapes", "title": "Seascapes in art", "blurb": "Painted seas." },
+  { "id": "nature", "title": "Nature", "blurb": "Fields, forests and fog." },
+  { "id": "Bad Id", "title": "Rejected", "blurb": "" }
+]

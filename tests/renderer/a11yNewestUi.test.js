@@ -260,7 +260,7 @@ describe('the Wallpaper Store', () => {
       DEFAULTS: { dim: 0.2, blur: 0, auto: true },
       current: () => null, get: (id) => items.find(i => i.id === id), list: () => items,
       categories: () => [{ id: 'c', title: 'Cat' }], search: ({ category }) => items.filter(i => category === 'all' || category === i.category),
-      onChange: () => () => {}, catalogueUrl: () => '', isFavourite: () => false, thumbOf: async () => 'data:,', sourceOf: async () => { throw new Error('no picture here'); },
+      onChange: () => () => {}, catalogueUrl: () => '', online: () => true, setOnline: () => true, loadCatalogue: async () => ({ entries: 0 }), catalogueInfo: () => null, onlineCategories: () => [], licenceName: (c) => c, isCached: async () => true, newTicket: () => 'dl-test', cancelDownload: async () => ({}), isFavourite: () => false, thumbOf: async () => 'data:,', sourceOf: async () => { throw new Error('no picture here'); },
       summarise: async () => ({}), stats: async () => ({ cacheBytes: 0, cacheFiles: 0, catalogue: 0 }),
     };
     window.IntersectionObserver = class { observe() {} disconnect() {} };

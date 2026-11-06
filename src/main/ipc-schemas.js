@@ -455,8 +455,12 @@ const wallpaperId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{1,
 const wallpaperKind = oneOf(['thumb', 'full', 'mine']);
 const wallpaperBytes = value => value instanceof ArrayBuffer && value.byteLength <= 4 * 1024 * 1024;
 define('wallpaper:catalogue', [value => typeof value === 'string' && value.length <= 2048, optional(boolean)]);
-define('wallpaper:download', [value => typeof value === 'string' && value.length <= 2048, oneOf(['thumb', 'full'])]);
-define('wallpaper:save', [wallpaperId, wallpaperKind, wallpaperBytes]);
+const wallpaperTicket = value => typeof value === 'string' && /^[a-z0-9-]{4,40}$/.test(value);
+define('wallpaper:download', [value => typeof value === 'string' && value.length <= 2048, oneOf(['thumb', 'full']), optional(wallpaperTicket)]);
+define('wallpaper:cancel', [wallpaperTicket]);
+define('wallpaper:builtin', []);
+// The 4th argument of save: ids of pictures the cache must not evict (the wallpaper on now and the favourites).
+define('wallpaper:save', [wallpaperId, wallpaperKind, wallpaperBytes, optional(value => Array.isArray(value) && value.length <= 600 && value.every(wallpaperId))]);
 define('wallpaper:read', [wallpaperId, wallpaperKind]);
 define('wallpaper:remove', [wallpaperId, optional(wallpaperKind)]);
 define('wallpaper:stats wallpaper:clear-cache', []);
@@ -638,6 +642,13 @@ define('mcp:auth-set', [string(80), string(4096)]);
 // The GitHub read-only token vault (main/github-vault.js) and the developer
 // feeds (main/dev-feeds.js). The token goes in once and never comes back out;
 // the path is checked against a list of read endpoints in main.
+// Bring your own AI key (main/ai-byok.js). The key is a string; everything the window gets back is a result object.
+define('aikey:status', []);
+define('aikey:set-key', [shape({ provider: string(40), key: string(500), baseUrl: optional(string(300)) })]);
+define('aikey:clear-key aikey:test aikey:cancel', [string(64)]);
+define('aikey:set-models', [shape({ provider: string(40), models: object })]);
+define('aikey:models', [string(40), optional(boolean)]);
+define('aikey:chat', [shape({ id: string(64), provider: string(40), tier: optional(string(10)), model: optional(string(200)), maxTokens: optional(finiteNumber), messages: value => Array.isArray(value) && value.length > 0 && value.length <= 200 })]);
 define('github:status github:token-clear github:token-test', []);
 define('github:token-set', [string(400)]);
 define('github:get', [string(400), optional(shape({ authed: optional(boolean) }))]);

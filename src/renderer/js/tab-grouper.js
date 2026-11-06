@@ -67,6 +67,37 @@ function _isBlankTab(t) {
   } catch { return false; }
 }
 
+// What the person is told when grouping does not happen, in plain words and with the real reason
+// (Ctrl+Shift+G used to end in "Grouping failed: Both local (...) and cloud (...) AI failed", or in
+// nothing at all). Three kinds: the AI could not be reached, it answered with nothing Vex can use,
+// or something else. The kind is checked on the reason, which the AI router and Ollama already write
+// as a sentence; "empty reply" is looked for first because a local model that answered nothing and a
+// cloud that is not set up arrive in one message.
+function _sentence(s) {
+  const t = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  return t ? t[0].toUpperCase() + t.slice(1) : t;
+}
+function _failureText(err) {
+  const reason = _sentence(err && err.message ? err.message : err) || 'Unknown error';
+  // "Both local (A) and cloud (B) AI failed": the kind is the first backend's, the one that was asked first.
+  const first = reason.split(/\) and (?:cloud|local) \(/)[0];
+  if (/empty reply|not JSON|cut off|only produced reasoning|malformed|reply was/i.test(first)) {
+    return `Vex AI answered, but not with groups Vex can use, so nothing was changed. ${reason}`;
+  }
+  if (/not running|not configured|no AI to answer|did not answer|did not finish loading|not installed in Ollama|fetch failed|failed to fetch|network|ECONN|ENOTFOUND|timed out|Cloud returned|Authentication/i.test(first)) {
+    return `Vex AI could not be reached, so no tabs were grouped. ${reason}`;
+  }
+  return `Grouping failed: ${reason}`;
+}
+function _applyLabel(n) { return `Apply ${n} group${VexPlural.s(n)}`; }
+function _tooFewText(n) {
+  return `Organize My Tabs needs at least 3 ungrouped tabs with a page open; you have ${n}.`;
+}
+function _noGroupsText(reasoning) {
+  const r = _sentence(reasoning);
+  return r ? `Vex AI found no tabs that belong together, so nothing was grouped. ${r}` : 'Vex AI found no tabs that belong together, so nothing was grouped.';
+}
+
 function _mapGroupIds(parsed, toReal) {
   if (!toReal) return parsed;
   const real = (ids) => (Array.isArray(ids) ? ids : []).map(id => toReal.get(String(id))).filter(Boolean);
@@ -223,13 +254,24 @@ const TabGrouper = (() => {
   // instead of popping up later over whatever the user is doing (H2).
   let _runSeq = 0;
   let _activeLoading = null;
+  // The proposal on screen, if any. Ctrl+Shift+G pressed again while it is open brings it forward
+  // instead of asking the AI again and stacking a second dimmed layer over the first.
+  let _activePreview = null;
+  // A local model that is loading, or a game holding the heavy-job queue, used to leave "Analyzing your
+  // tabs..." up with a "3-8 seconds" line for as long as it took, with nothing said. After this long the
+  // line says it is still working; after the limit the run ends and says why.
+  const SLOW_HINT_AFTER_MS = 12 * 1000;
+  const ANALYSIS_TIMEOUT_MS = 3 * 60 * 1000;
 
   async function analyzeAndPropose(onlyUngrouped = true) {
+    if (_activePreview && _activePreview.isOpen()) { _activePreview.focus(); return; }
+    // Already asking: the key pressed again does not start a second run behind the first one's layer.
+    if (_activeLoading && _activeLoading.isOpen()) return;
     // A Tor, off-the-record or private-window tab is never sent to the AI
     // (it went with the rest, found 2026-10-10).
     const all = _allTabs().filter(t => !_isBlankTab(t) && (!window.VexTabPolicy || window.VexTabPolicy.canShareTab(t)));
     const tabsToAnalyze = onlyUngrouped ? all.filter(t => !t.groupId) : all;
-    if (tabsToAnalyze.length < 3) { _toast('Need at least 3 ungrouped tabs with a page open to propose groupings', 'warn'); return; }
+    if (tabsToAnalyze.length < 3) { _toast(_tooFewText(tabsToAnalyze.length), 'warn', 6000); return; }
 
     const run = ++_runSeq;
     if (_activeLoading) _activeLoading.close();
@@ -240,6 +282,12 @@ const TabGrouper = (() => {
     });
     _activeLoading = loading;
     const stale = () => run !== _runSeq || ctl.signal.aborted || !loading.isOpen();
+    let timedOut = false;
+    let told = false;   // the router said why it is slow: that line stays
+    const slowTimer = setTimeout(() => {
+      if (!stale() && !told) loading.updateHint('Still working. A local model can take a minute, most of all while it loads. Esc cancels.');
+    }, SLOW_HINT_AFTER_MS);
+    let limitTimer = null;
 
     try {
       // Compact payload: ~60-char title, bare hostname, ~100-char summary.
@@ -281,7 +329,22 @@ const TabGrouper = (() => {
       // Cancel aborts the request in flight. Not enumerable: the local
       // prompt for this feature is JSON.stringify(request).
       Object.defineProperty(request, 'signal', { value: ctl.signal, enumerable: false });
-      const response = await AIRouter.callAI('groupTabs', request);
+      // The router says why it is slow (a model loading, a graphics card shared with a game).
+      Object.defineProperty(request, 'onSlow', {
+        value: (why) => { told = true; if (!stale() && why) loading.updateHint(String(why)); },
+        enumerable: false,
+      });
+      const call = Promise.resolve(AIRouter.callAI('groupTabs', request));
+      // A run that has ended (limit, Cancel, Esc) may still settle later: said in the console, never thrown into the page.
+      call.catch((err) => { if (stale() || timedOut) console.warn('[TabGrouper] a grouping request that was already given up on ended:', err && err.message); });
+      const limit = new Promise((_, reject) => {
+        limitTimer = setTimeout(() => {
+          timedOut = true;
+          ctl.abort();
+          reject(new Error('Vex AI did not answer within ' + Math.round(ANALYSIS_TIMEOUT_MS / 60000) + ' minutes, so no tabs were grouped. If Ollama is loading its model or a game is running, try again in a moment.'));
+        }, ANALYSIS_TIMEOUT_MS);
+      });
+      const response = await Promise.race([call, limit]);
       if (stale()) return;
       const parsed = _parseGroupsReply(response.result, toReal);
       // Who proposed these names (T3-107); kept with the cached proposal.
@@ -297,20 +360,27 @@ const TabGrouper = (() => {
         );
       }
 
-      _analysisCache.set(cacheKey, { result: parsed, at: Date.now() });
       loading.close();
 
+      // Nothing to propose is not worth keeping: asked again within 30 s it would have opened an empty proposal.
       if (!parsed.groups.length) {
-        _toast(parsed.reasoning || 'No strong groupings found.', 'info', 6000);
+        _toast(_noGroupsText(parsed.reasoning), 'info', 7000);
         return;
       }
 
+      _analysisCache.set(cacheKey, { result: parsed, at: Date.now() });
       showPreviewModal(parsed, tabsToAnalyze);
     } catch (err) {
-      if (stale()) return;   // cancelled: already said so
+      // The limit ended it: say so even though its abort made the run look cancelled.
+      if (!timedOut && stale()) return;   // cancelled: already said so
       loading.close();
-      _toast(`Grouping failed: ${err.message}`, 'error');
+      console.warn('[TabGrouper] grouping failed:', err);
+      _toast(_failureText(err), 'error', 9000);
     } finally {
+      clearTimeout(slowTimer);
+      clearTimeout(limitTimer);
+      // However it ended, the dimmed layer does not stay behind.
+      loading.close();
       if (_activeLoading === loading) _activeLoading = null;
     }
   }
@@ -327,7 +397,7 @@ const TabGrouper = (() => {
       <div class="sync-modal-card loading-card">
         <div class="spinner"></div>
         <div class="loading-message">${_esc(message)}</div>
-        <div class="loading-hint">This usually takes 3\u20138 seconds</div>
+        <div class="loading-hint" role="status">This usually takes a few seconds. Esc cancels.</div>
         <button type="button" class="btn-secondary group-loading-cancel">Cancel</button>
       </div>
     `;
@@ -360,6 +430,10 @@ const TabGrouper = (() => {
       isOpen: () => open && overlay.isConnected,
       updateMessage: (m) => {
         const el = overlay.querySelector('.loading-message');
+        if (el) el.textContent = m;
+      },
+      updateHint: (m) => {
+        const el = overlay.querySelector('.loading-hint');
         if (el) el.textContent = m;
       }
     };
@@ -451,6 +525,9 @@ const TabGrouper = (() => {
   function showPreviewModal(proposal, sourceTabs) {
     const overlay = document.createElement('div');
     overlay.className = 'sync-modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Proposed Tab Groups');
     overlay.innerHTML = `
       <div class="sync-modal-card group-preview-modal">
         <div class="preview-header">
@@ -483,7 +560,7 @@ const TabGrouper = (() => {
           <button class="btn-link" id="preview-cancel">Cancel</button>
           <div style="flex:1"></div>
           <button class="btn-secondary" id="preview-edit-all">Expand all</button>
-          <button class="btn-primary" id="preview-apply">Apply (${proposal.groups.length} groups)</button>
+          <button class="btn-primary" id="preview-apply">${_applyLabel(proposal.groups.length)}</button>
         </div>
       </div>
     `;
@@ -492,6 +569,7 @@ const TabGrouper = (() => {
       const head = overlay.querySelector('.preview-header');
       if (head) head.appendChild(VexProvenance.chip(proposal.by));
     }
+    _activePreview = { isOpen: () => overlay.isConnected, focus: () => { const b = overlay.querySelector('#preview-apply'); if (b) b.focus(); } };
     wirePreviewHandlers(overlay, proposal, sourceTabs);
   }
 
@@ -575,7 +653,7 @@ const TabGrouper = (() => {
 
         btn.closest('.group-preview').style.display = 'none';
         const remaining = edits.groups.length - edits.removedGroupIndices.size;
-        overlay.querySelector('#preview-apply').textContent = `Apply (${remaining} groups)`;
+        overlay.querySelector('#preview-apply').textContent = _applyLabel(remaining);
       });
     });
 
@@ -730,5 +808,5 @@ const TabGrouper = (() => {
 
 if (typeof window !== 'undefined') window.TabGrouper = TabGrouper;
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { TabGrouper, _domain, _similarity, _shortIds, _parseGroupsReply, _isBlankTab };
+  module.exports = { TabGrouper, _domain, _similarity, _shortIds, _parseGroupsReply, _isBlankTab, _failureText, _tooFewText, _noGroupsText, _applyLabel };
 }
