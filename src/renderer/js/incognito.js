@@ -31,7 +31,8 @@ const VexIncognito = {
   _t(s) { return (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup(s)) || s; },
 
   // Main refuses before the privacy policy is agreed to, and while Vex is locked: said, not dropped.
-  async open() {
+  // `url` (a link to open in the new window) is optional; anything but an http(s) string is ignored (main checks it again).
+  async open(url) {
     if (!window.vex || typeof window.vex.openPrivateWindow !== 'function') {
       window.showToast?.('An incognito window is not available in this build', 'error');
       return false;
@@ -40,7 +41,7 @@ const VexIncognito = {
       await window.vex.openPrivateWindow(
         typeof VexGuiStyle !== 'undefined' ? VexGuiStyle.get() : '',
         typeof VexSimpleMode !== 'undefined' ? VexSimpleMode.mode() : '',
-        undefined,
+        typeof url === 'string' && /^https?:\/\//i.test(url) ? url : undefined,
         window.VexEarlyLook ? window.VexEarlyLook.forNewWindow() : undefined);
       if (typeof VexUsage !== 'undefined' && VexUsage.touch) VexUsage.touch('private-window');
       return true;

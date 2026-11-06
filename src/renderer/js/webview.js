@@ -2411,6 +2411,10 @@ const WebviewManager = {
           TabManager.createTab(e.params.linkURL, true, (from && from.groupId) || null, { partition: webview.getAttribute?.("partition"), openerTabId: from ? from.id : null });
         }
       });
+      // Split view, another container, a private window, the background (js/link-open-extras.js).
+      if (typeof VexLinkOpen !== 'undefined') linkItems.push(...VexLinkOpen.menuItems(e.params.linkURL, webview, isTab));
+      // For a site that turns Electron away: the default browser, or Edge / Chrome / Firefox / Brave (js/open-in-browser.js).
+      if (typeof VexOpenIn !== 'undefined' && VexOpenIn.menuItems(e.params.linkURL, webview).length) linkItems.push({ label: 'Open Link in Another Browser', icon: 'globe', sub: VexOpenIn.menuItems(e.params.linkURL, webview) });
       // A link out of Discord or Roblox: what it really is, in one disabled line
       // (js/chat-link-hygiene.js; off until the person switches it on).
       if (typeof ChatLinkHygiene !== 'undefined') {
@@ -2438,8 +2442,6 @@ const WebviewManager = {
         label: 'Copy Link Exactly',
         action: () => navigator.clipboard.writeText(e.params.linkURL)
       });
-      // In the link's own submenu, for a site that turns Electron away (js/open-in-browser.js).
-      if (typeof VexOpenIn !== 'undefined' && VexOpenIn.menuItems(e.params.linkURL, webview).length) linkItems.push({ label: 'Open Link in Another Browser', icon: 'globe', sub: VexOpenIn.menuItems(e.params.linkURL, webview) });
       linkItems.push({
         // Shorteners and redirects, followed before you click — never from a
         // private or Tor tab, where asking would contact the site outside it.
@@ -2472,7 +2474,7 @@ const WebviewManager = {
         });
       }
     }
-    groups.push(() => this._pushGroup(items, linkItems, (it) => it.label === 'Open Link in New Tab' || it.label === 'Copy Link' || it.label === 'Open Link in Another Browser', 'More for this link', 'link'));
+    groups.push(() => this._pushGroup(items, linkItems, (it) => it.label === 'Open Link in New Tab' || it.label === 'Copy Link' || it.label === 'Open Link in Another Browser' || it.label === 'Open Link in Container', 'More for this link', 'link'));
 
     const imageItems = [];
     // The picture under the pointer, whether Chromium saw it (an <img> on

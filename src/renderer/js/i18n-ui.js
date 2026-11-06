@@ -273,6 +273,25 @@ const VexI18nUI = {
       // --- Open in another browser: catalogue ---
       'Open in another browser': 'Başka bir tarayıcıda aç',
       'For a site that turns Vex away (some banks, e-Devlet, streaming with DRM): right-click the page (Page menu) or a link and choose Open in default browser, or Open in Edge, Chrome, Firefox or Brave when they are installed. Ctrl+K also has Open this page in my default browser. A private, Tor, routed or disposable tab asks first, because the other browser would load the address from your real connection.': 'Vex\'i geri çeviren bir site için (bazı bankalar, e-Devlet, DRM\'li yayınlar): sayfaya (Sayfa menüsü) ya da bir bağlantıya sağ tıklayıp Varsayılan tarayıcıda aç\'ı seçin; kuruluysa Edge, Chrome, Firefox veya Brave\'de de açabilirsiniz. Ctrl+K\'de de Bu sayfayı varsayılan tarayıcımda aç var. Gizli, Tor, yönlendirilmiş ya da tek kullanımlık bir sekme önce sorar, çünkü diğer tarayıcı adresi gerçek bağlantınızdan yükler.',
+      // --- More ways to open a link ---
+      'Open Link in Container': 'Bağlantıyı kapsayıcıda aç',
+      'Open Link in Split View': 'Bağlantıyı bölünmüş görünümde aç',
+      'Open Link in Private Window': 'Bağlantıyı gizli pencerede aç',
+      'Open Link in Background': 'Bağlantıyı arka planda aç',
+      'Opened in the background': 'Arka planda açıldı',
+      'Opened in that container': 'O kapsayıcıda açıldı',
+      'Split view is full (4 panes); close one first': 'Bölünmüş görünüm dolu (4 bölme); önce birini kapatın',
+      'That link is not a web address': 'Bu bağlantı bir web adresi değil',
+      'Split view is not available in this window': 'Bölünmüş görünüm bu pencerede kullanılamıyor',
+      'There is no tab in front to put the link beside': 'Bağlantının yanına konacak öndeki bir sekme yok',
+      'The split could not be started': 'Bölünmüş görünüm başlatılamadı',
+      'A private window is not available in this build': 'Bu sürümde gizli pencere kullanılamıyor',
+      'Open this link outside the protected tab?': 'Bu bağlantı korumalı sekmenin dışında açılsın mı?',
+      'This tab goes through Tor or a proxy, or is disposable. The link would load from your direct connection in another container or a private window.': 'Bu sekme Tor ya da bir vekil sunucu üzerinden gidiyor veya tek kullanımlık. Bağlantı, başka bir kapsayıcıda ya da gizli pencerede doğrudan bağlantınızdan yüklenir.',
+      'More ways to open a link': 'Bir bağlantıyı açmanın daha fazla yolu',
+      'Right-click a link for Open Link in Container (any other container, with its own cookies), Open Link in Split View (beside the tab in front), Open Link in Private Window and Open Link in Background (a tab that does not take the focus). Opening a link from a Tor, proxy or disposable tab into another container or a private window asks first.': 'Bir bağlantıya sağ tıklayın: Bağlantıyı kapsayıcıda aç (kendi çerezleri olan başka bir kapsayıcı), Bağlantıyı bölünmüş görünümde aç (öndeki sekmenin yanında), Bağlantıyı gizli pencerede aç ve Bağlantıyı arka planda aç (odağı almayan bir sekme). Tor, vekil sunucu ya da tek kullanımlık bir sekmeden başka bir kapsayıcıya veya gizli pencereye açmak önce sorar.',
+      // --- link menu help ---
+      'Right-click a link on a page. Open Link in Container lists your other containers, Open Link in Another Browser the browsers found on this PC, and More for this link holds Open Link in Split View, Open Link in Private Window and Open Link in Background. There is nothing to switch on or off.': 'Sayfadaki bir bağlantıya sağ tıklayın. Bağlantıyı kapsayıcıda aç diğer kapsayıcılarınızı, Bağlantıyı başka bir tarayıcıda aç bu bilgisayarda bulunan tarayıcıları listeler; Bu bağlantı için daha fazlası içinde Bağlantıyı bölünmüş görünümde aç, Bağlantıyı gizli pencerede aç ve Bağlantıyı arka planda aç var. Açılacak ya da kapatılacak bir şey yok.',
       // --- This site (js/this-site.js) ---
       'Settings for this site': 'Bu sitenin ayarları',
       'Site settings': 'Site ayarları',

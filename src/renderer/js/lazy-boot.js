@@ -40,6 +40,8 @@ const VexBoot = {
     { src: 'js/this-site.js', usage: [] },
     // Open this page or link in another browser: the menu rows and Ctrl+K commands appear once it has loaded (js/webview.js asks with typeof).
     { src: 'js/open-in-browser.js', usage: [] },
+    // More ways to open a link (split view, container, private window, background): the link menu asks with typeof.
+    { src: 'js/link-open-extras.js', usage: [] },
     { src: 'js/share-look.js', usage: [] },
     { src: 'js/share-look-ui.js', usage: [] },
     { src: 'js/share-space.js', usage: ['share-space'] },

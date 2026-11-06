@@ -883,6 +883,8 @@ const VexFeatures = {
       what: 'One short menu of everything Vex can do for the site in front: what it may do, its cookies, clearing its data, fixing it, zoom, blocking, translating, a Boost, pinning it, a reminder, a page watch and saving it. Ctrl+K "This site", right-click the site icon at the left of the address field, or "More for this site" in the site panel. Every row runs the command that was already there.' },
     { id: 'open-in-browser', feature: 'open-in-browser', newer: true, cat: 'privacy', name: 'Open in another browser', phrases: 'open in default browser edge chrome firefox brave external another browser site does not work bank e-devlet drm', cmd: 'open-in-default-browser',
       what: 'For a site that turns Vex away (some banks, e-Devlet, streaming with DRM): right-click the page (Page menu) or a link and choose Open in default browser, or Open in Edge, Chrome, Firefox or Brave when they are installed. Ctrl+K also has Open this page in my default browser. A private, Tor, routed or disposable tab asks first, because the other browser would load the address from your real connection.' },
+    { id: 'link-open-extras', feature: 'link-open-extras', newer: true, cat: 'tabs', name: 'More ways to open a link', phrases: 'open link in split view container private window background tab right click link', manual: true,
+      what: 'Right-click a link for Open Link in Container (any other container, with its own cookies), Open Link in Split View (beside the tab in front), Open Link in Private Window and Open Link in Background (a tab that does not take the focus). Opening a link from a Tor, proxy or disposable tab into another container or a private window asks first.' },
     { id: 'unblock-centre', feature: 'unblock-centre', newer: true, cat: 'privacy', name: 'Unblock centre', phrases: 'unblock blocked site blocked website censorship bypass dns doh byedpi zapret turkey cannot open site engel erisim', cmd: 'unblock-centre', setting: { section: 'setting-unblock-centre', label: 'Unblock centre' },
       what: 'When a site fails to load in a way that looks like a block, a bar offers to open just that site by encrypted DNS, a split handshake or the ByeDPI helper, none of which needs administrator rights, and remembers which worked. The Unblock centre lists the sites, with a switch, Test now and Forget for each, and one switch for all of it.' },
     { id: 'watch-alerts', feature: 'watch-alerts', newer: true, cat: 'work', name: 'One alert per change, digest first', phrases: 'watch alerts digest page changed one alert', setting: { section: 'vex-sg-watch-alerts', label: 'Watcher alerts' },
@@ -1328,7 +1330,7 @@ const VexFeatures = {
     tabs: [
       { name: 'The tab strip', ids: ['vertical-tabs', 'treetabs', 'tab-groups', 'reopen', 'closeduplicates', 'switchtoopen', 'open-links', 'gestures'] },
       { name: 'Memory, and sleeping', ids: ['why-slow', 'tab-cost', 'keys-sheet', 'tab-sleep', 'memory-saver', 'tab-health', 'memory-panel', 'tasks', 'keep-awake', 'memceiling', 'battery-mode'] },
-      { name: 'More than one thing at once', ids: ['split', 'pip', 'peek', 'workspaces', 'containers', 'pinsite', 'openasapp'] },
+      { name: 'More than one thing at once', ids: ['split', 'pip', 'peek', 'workspaces', 'containers', 'pinsite', 'openasapp', 'link-open-extras'] },
       { name: 'Getting back to where you were', ids: ['sessions', 'wsnap', 'tabtrail', 'apps-not-links'] },
     ],
     ai: [
