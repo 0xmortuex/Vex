@@ -95,6 +95,8 @@ describe('the export dialog', () => {
     boxes[1].checked = false; boxes[1].dispatchEvent(new Event('change'));
     button('#vex-share-space', 'Copy link').click();
     await tick();
+    // The link is compressed asynchronously (CompressionStream): wait for it (up to 3 s) instead of one fixed tick, which a slow CI runner missed.
+    for (let i = 0; i < 60 && copied === null; i++) await new Promise((r) => setTimeout(r, 50));
     expect(copied.startsWith('vex://space?d=')).toBe(true);
     const back = (await S.parse(copied)).space;
     expect(back.tabs.map((t) => t.url)).toEqual(['https://history.example.com/rome']);
