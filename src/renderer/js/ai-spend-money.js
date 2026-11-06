@@ -99,7 +99,10 @@ const VexAIMoney = {
     const exact = list.find(r => r.model.toLowerCase() === name);
     if (exact) return exact;
     const part = list.filter(r => name && name.includes(r.model.toLowerCase())).sort((a, b) => b.model.length - a.model.length)[0];
-    return part || rates.find(r => r.model === '*') || null;
+    if (part) return part;
+    // The built-in ESTIMATES (src/main/ai-prices.js, sent with the AI key status) come after the rows the person wrote and before the * row.
+    const builtin = typeof AIKeys !== 'undefined' && typeof AIKeys.builtinRate === 'function' ? AIKeys.builtinRate(name) : null;
+    return builtin || rates.find(r => r.model === '*') || null;
   },
   estimateTokens(chars) { return Math.ceil(Math.max(0, Number(chars) || 0) / 4); },
   // The characters a request carries to the cloud, without the picture bytes (a picture counts IMAGE_TOKENS).
@@ -133,8 +136,10 @@ const VexAIMoney = {
     try {
       const s = this._read();
       const size = this.requestSize(request);
-      const tin = this.estimateTokens(size.chars) + size.images * this.IMAGE_TOKENS;
-      const tout = this.estimateTokens(this.answerText(answer).length);
+      // A provider that reports its own token counts (your own key) is believed over the one-per-four-characters guess.
+      const real = answer && typeof answer === 'object' && answer.usage && (answer.usage.input > 0 || answer.usage.output > 0) ? answer.usage : null;
+      const tin = real ? Math.floor(real.input || 0) : this.estimateTokens(size.chars) + size.images * this.IMAGE_TOKENS;
+      const tout = real ? Math.floor(real.output || 0) : this.estimateTokens(this.answerText(answer).length);
       const model = (answer && typeof answer === 'object' && typeof answer.model === 'string' && answer.model) || '';
       const c = this.cost(model, tin, tout, s.rates);
       s.calls++; s.tokensIn += tin; s.tokensOut += tout;

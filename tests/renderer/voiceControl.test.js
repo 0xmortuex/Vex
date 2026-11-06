@@ -278,7 +278,7 @@ describe('destructive commands always ask', () => {
   });
   it('runs it only when the Run button is clicked', async () => {
     await say('clear browsing data');
-    click('Run Clear Browsing Data');
+    click('Yes, run Clear Browsing Data');
     expect(executed).toEqual(['clear-data']);
   });
   it('Cancel on the question runs nothing', async () => {

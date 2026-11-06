@@ -113,9 +113,19 @@ const VexExtras = {
     if (this._commands.some(c => c.id === cmd.id)) return false;
     this._commands.push(cmd);
     if (typeof CommandBar !== 'undefined' && Array.isArray(CommandBar.commands)) {
-      if (!CommandBar.commands.some(c => c.id === cmd.id)) CommandBar.commands.push(cmd);
+      if (!CommandBar.commands.some(c => c.id === cmd.id)) { CommandBar.commands.push(cmd); this._keysMayHaveChanged(); }
     }
     return true;
+  },
+  // A command with a key (Ctrl+Alt+Shift+S) only counts as handled once it is in the list, and some
+  // arrive seconds after the registry first told main which keys it answers. Tell main again, or the key
+  // stays dead while a page has the focus until the next rebind (found 2026-11-06). One message per burst.
+  _keysMayHaveChanged() {
+    if (this._keysTimer || typeof window === 'undefined') return;
+    this._keysTimer = setTimeout(() => {
+      this._keysTimer = null;
+      if (window.ShortcutsRegistry && typeof window.ShortcutsRegistry._tellMain === 'function') window.ShortcutsRegistry._tellMain();
+    }, 300);
   },
   // Called once the command bar exists (it is a lexical global, not on window).
   flushCommands() {
@@ -124,6 +134,7 @@ const VexExtras = {
     for (const c of this._commands) {
       if (!CommandBar.commands.some(x => x.id === c.id)) { CommandBar.commands.push(c); n++; }
     }
+    if (n) this._keysMayHaveChanged();
     return n;
   },
 

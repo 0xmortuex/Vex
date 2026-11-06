@@ -273,6 +273,7 @@ const VexUsageRegistry = {
       VexPhoneShare: () => (typeof VexPhoneShare !== 'undefined' ? VexPhoneShare : null),
       VexStudyNotes: () => (typeof VexStudyNotes !== 'undefined' ? VexStudyNotes : null),
       VexPdfHighlights: () => (typeof VexPdfHighlights !== 'undefined' ? VexPdfHighlights : null),
+      VexResearch: () => (typeof VexResearch !== 'undefined' ? VexResearch : null),
       VexPdfTools: () => (typeof VexPdfTools !== 'undefined' ? VexPdfTools : null),
       VexPdfViewer: () => (typeof VexPdfViewer !== 'undefined' ? VexPdfViewer : null),
       VexMediaViewer: () => (typeof VexMediaViewer !== 'undefined' ? VexMediaViewer : null),
@@ -330,6 +331,7 @@ const VexUsageRegistry = {
       VexSplitKeys: () => (typeof VexSplitKeys !== 'undefined' ? VexSplitKeys : null),
       VexPreconnect: () => (typeof VexPreconnect !== 'undefined' ? VexPreconnect : null),
       VexMiniWindow: () => (typeof VexMiniWindow !== 'undefined' ? VexMiniWindow : null),
+      VexGameOverlay: () => (typeof VexGameOverlay !== 'undefined' ? VexGameOverlay : null),
       VexJumpActions: () => (typeof VexJumpActions !== 'undefined' ? VexJumpActions : null),
       VexWindowSet: () => (typeof VexWindowSet !== 'undefined' ? VexWindowSet : null),
       AnnounceDesk: () => (typeof AnnounceDesk !== 'undefined' ? AnnounceDesk : null),
@@ -362,6 +364,7 @@ const VexUsageRegistry = {
       VexErrorMemory: () => (typeof VexErrorMemory !== 'undefined' ? VexErrorMemory : null),
       VexDocsPin: () => (typeof VexDocsPin !== 'undefined' ? VexDocsPin : null),
       VexPkgCard: () => (typeof VexPkgCard !== 'undefined' ? VexPkgCard : null),
+      VexShareSpace: () => (typeof VexShareSpace !== 'undefined' ? VexShareSpace : null),
       VexCodeLibrary: () => (typeof VexCodeLibrary !== 'undefined' ? VexCodeLibrary : null),
       VexTrParse: () => (typeof VexTrParse !== 'undefined' ? VexTrParse : null),
       VexLocaleTranslate: () => (typeof VexLocaleTranslate !== 'undefined' ? VexLocaleTranslate : null),
@@ -438,6 +441,7 @@ const VexUsageRegistry = {
       StorageCeilings: () => (typeof StorageCeilings !== 'undefined' ? StorageCeilings : null),
       GameHolds: () => (typeof GameHolds !== 'undefined' ? GameHolds : null),
       VexBriefCards: () => (typeof VexBriefCards !== 'undefined' ? VexBriefCards : null),
+      VexAutomations: () => (typeof VexAutomations !== 'undefined' ? VexAutomations : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -578,6 +582,7 @@ const VexUsageRegistry = {
       ['phone-share', A.api(G.VexPhoneShare, 'enabled', 'setEnabled')],
       ['study-notes', A.api(G.VexStudyNotes, 'enabled', 'setEnabled')],
       ['pdf-highlights', A.api(G.VexPdfHighlights, 'enabled', 'setEnabled')],
+      ['research-mode', A.api(G.VexResearch, 'enabled', 'setEnabled')],
       ['pdf-tools', A.api(G.VexPdfTools, 'enabled', 'setEnabled')],
       ['office-viewer', A.api(G.VexOfficeViewer, 'enabled', 'setEnabled')],
       ['image-viewer', A.api(G.VexImageViewer, 'enabled', 'setEnabled')],
@@ -639,6 +644,7 @@ const VexUsageRegistry = {
       ['split-keys', A.api(G.VexSplitKeys, 'enabled', 'setEnabled')],
       ['preconnect', A.api(G.VexPreconnect, 'enabled', 'setEnabled')],
       ['mini-window', A.api(G.VexMiniWindow, 'enabled', 'setEnabled')],
+      ['game-overlay', A.api(G.VexGameOverlay, 'enabled', 'setEnabled')],
       ['jump-list', A.api(G.VexJumpActions, 'enabled', 'setEnabled')],
       ['window-set', A.api(G.VexWindowSet, 'enabled', 'setEnabled')],
       ['announce-desk', A.api(G.AnnounceDesk, 'enabled', 'setEnabled')],
@@ -678,6 +684,7 @@ const VexUsageRegistry = {
       ['error-memory', A.api(G.VexErrorMemory, 'enabled', 'setEnabled')],
       ['docs-pin', A.api(G.VexDocsPin, 'enabled', 'setEnabled')],
       ['pkg-card', A.api(G.VexPkgCard, 'enabled', 'setEnabled')],
+      ['share-space', A.api(G.VexShareSpace, 'enabled', 'setEnabled')],
       ['code-library', A.api(G.VexCodeLibrary, 'enabled', 'setEnabled')],
       // Study and Turkish (Wave 2)
       ['turkish-parse', A.api(G.VexTrParse, 'enabled', 'setEnabled')],
@@ -704,6 +711,8 @@ const VexUsageRegistry = {
       ['orders-hub', A.api(G.OrdersHub, 'enabled', 'setEnabled')],
       ['exam-calendar', A.api(G.ExamCalendar, 'enabled', 'setEnabled')],
       ['receipt-locker', A.api(G.ReceiptLocker, 'enabled', 'setEnabled')],
+      // Page automations (main/automations.js): the switch is mirrored in vex.automations.enabled; main holds the truth.
+      ['page-automations', A.api(G.VexAutomations, 'enabled', 'setEnabled')],
       // Wave 2, daily planning: new features, staged off on a profile that already existed.
       ['carry-forward', A.api(G.VexCarry, 'enabled', 'setEnabled')],
       ['snooze-syntax', A.api(G.VexWhen, 'enabled', 'setEnabled')],

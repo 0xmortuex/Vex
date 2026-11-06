@@ -1,3 +1,6 @@
+// What the in-game overlay window may ask (preload-game-overlay.js). The handlers also check that the asker is that window.
+const GAME_OVERLAY_PAGE_CHANNELS = new Set(['gameoverlay:get', 'gameoverlay:hide', 'gameoverlay:click-through', 'gameoverlay:interactive', 'gameoverlay:opacity', 'gameoverlay:compact',
+  'gameoverlay:view', 'gameoverlay:search', 'gameoverlay:save-notes', 'gameoverlay:timer', 'gameoverlay:music']);
 const GUEST_CHANNELS = new Set(['extensions:external-ids', 'extensions:external-message', 'compatibility:get', 'geolocation:check-permission', 'geolocation:get', 'privacy:config-sync', 'screen-share:get-quality',
   '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut', 'page-dialog', 'start-page:is-own',
   // A page's passkey request and the list for a field's chooser, from the page
@@ -53,7 +56,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'drm:clear-site', 'pan
 // (main.js, _siteSessionFor). Writes that would land in the main profile are
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
-const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|threat:(?:set-enabled|set-auto-update|update|forget-host)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|cards:|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|bypass:|unblock:|window:keep-on-top|devdesk:|devext:|castlabs:|devbench:|hygiene:|gccbridge:|secondscreen:|pip:memory|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|wallpaper:(?:catalogue|download|save|remove|clear-cache)|makerepos:refresh|downloads:(?:choose-folder|set-ask|set-media-names|set-resume|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history|release-assist|mods-plan|mods-apply|mods-undo|mods-history|motw-check|open-defender|defender-scan|extract-here)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|devfeeds:|repos:|startup:|applock:|profilecrypt:|transcribe:|voice:|photoprep:|tabs:preconnect|jump:|jumplist:|windows:|sources:|pdftool:|comms:|status:|localsvc:|webhook:|feedback:|spellcheck:set-languages|panelguard:|folderview:(?!set-enabled))/;
+const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|threat:(?:set-enabled|set-auto-update|update|forget-host)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|cards:|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|bypass:|unblock:|window:keep-on-top|devdesk:|devext:|castlabs:|devbench:|hygiene:|gccbridge:|secondscreen:|pip:memory|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|automations:|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|wallpaper:(?:catalogue|download|save|remove|clear-cache)|makerepos:refresh|downloads:(?:choose-folder|set-ask|set-media-names|set-resume|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history|release-assist|mods-plan|mods-apply|mods-undo|mods-history|motw-check|open-defender|defender-scan|extract-here)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|aikey:|devfeeds:|repos:|startup:|applock:|profilecrypt:|transcribe:|voice:|photoprep:|tabs:preconnect|jump:|jumplist:|windows:|sources:|pdftool:|comms:|status:|localsvc:|webhook:|feedback:|spellcheck:set-languages|panelguard:|gameoverlay:|folderview:(?!set-enabled))/;
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
@@ -63,6 +66,8 @@ const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-hos
 // accounts for Vex Sync (main/sync-secrets.js).
 // companion:* pairs a phone browser and publishes the Devices view (main/companion.js).
 const UI_ONLY_CHANNELS = new Set([
+  // In-game overlay: Vex's own window sets it up, turns it on and answers its music buttons (main/game-overlay-ipc.js).
+  'gameoverlay:config', 'gameoverlay:toggle', 'gameoverlay:status', 'gameoverlay:music-answer',
   // The sampling heap profiler on the Discord panel (main/discord-heap.js): Vex's own window only.
   'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage',
   // The language the native dialogs speak (main/i18n-main.js).
@@ -97,6 +102,8 @@ const UI_ONLY_CHANNELS = new Set([
   'app:boot-feature', 'app:boot-disabled', 'egress:summary', 'egress:list', 'egress:clear',
   // The GitHub read-only token vault and the developer feeds: Vex's own window only.
   'github:status', 'github:token-set', 'github:token-clear', 'github:token-test', 'github:get',
+  // Bring your own AI key (main/ai-byok.js): the key goes in once and never comes back; Vex's own window only.
+  'aikey:status', 'aikey:set-key', 'aikey:clear-key', 'aikey:set-models', 'aikey:models', 'aikey:test', 'aikey:chat', 'aikey:cancel',
   'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping', 'devfeeds:notes', 'fx:tcmb', 'makerepos:refresh', 'makerepos:stored', 'status:check',
   // Developer desk, plugin dev loop and the Electron ticker: Vex's own window only.
   'devdesk:config', 'devdesk:set-config', 'devdesk:grant-root', 'devdesk:revoke-root', 'devdesk:open-file', 'devdesk:open-terminal', 'devdesk:branch', 'devdesk:ports',
@@ -159,13 +166,20 @@ const UI_ONLY_CHANNELS = new Set([
   // A watched page read through a hidden tab (main/page-render.js): loading an
   // address is never a page's or an extension's call.
   'pagewatch:render',
+  // Page automations (main/automations.js): recording, running, approving and the kill switch are never a page's or an extension's call.
+  'automations:state', 'automations:set-enabled', 'automations:kill', 'automations:rearm', 'automations:save', 'automations:delete', 'automations:run', 'automations:stop',
+  'automations:decide', 'automations:runs', 'automations:run-get', 'automations:ack', 'automations:export', 'automations:import', 'automations:reveal',
   // Web safety settings (main/web-safety.js): what Vex warns about, which
   // sites are trusted and which are in paranoid mode are never a page's call.
   'websafety:get', 'websafety:set-sensitivity', 'websafety:allow-host', 'websafety:forget-host', 'websafety:set-paranoid', 'websafety:check',
   // The site panel's third-party count and a download's explanation (main/safe-web-extras.js): read-only, but only the interface asks.
   // The dangerous-site list (main/threat-list.js): its switch, status, update and the sites you said to go on to are never a page's call.
   'threat:status', 'threat:set-enabled', 'threat:set-auto-update', 'threat:update', 'threat:forget-host', 'threat:continue-log',
+  // The Safe Download Assistant (main/safe-download.js): its settings and moving a downloaded file to quarantine are never a page's call.
+  'safedl:get', 'safedl:set', 'safedl:quarantine',
   'websafety:third-party-count', 'downloads:explain',
+  // Share a space's address check (main/space-check.js): read-only, but only the interface asks.
+  'space:check',
   // Quick look at a finished download (main/download-peek.js): reads a file's contents, so only the interface asks, and main serves only files Vex downloaded.
   'downloads:peek', 'downloads:peek-hash',
   // An AI news toast and the clicks waiting for the interface (js/ai-news.js):
@@ -258,6 +272,8 @@ function installIpcPolicy(ipcMain, security) {
       // nothing else (renderer/capture.html, preload-capture.js).
       const senderUrl = event.senderFrame?.url || '';
       if (/^file:.*\/renderer\/capture\.html(?:[?#]|$)/i.test(senderUrl) && ['capture:submit', 'capture:close'].includes(channel)) return host;
+      // The in-game overlay (main/game-overlay-ipc.js) is its own BrowserWindow with its own preload: exactly its page channels.
+      if (/^file:.*\/renderer\/game-overlay\.html(?:[?#]|$)/i.test(senderUrl) && GAME_OVERLAY_PAGE_CHANNELS.has(channel)) return host;
       // The unlock window of an encrypted profile (main/profile-unlock.js) is its own window before
       // Vex's interface exists; it may use its two channels (the handler also checks the sender).
       if (/^file:.*\/renderer\/profile-unlock\.html(?:[?#]|$)/i.test(senderUrl) && ['profilecrypt:unlock', 'profilecrypt:quit'].includes(channel)) return host;

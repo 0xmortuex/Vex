@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Vex colours its own pages; Dark Reader (and extensions that honour this) must not recolour them over it. -->
+  <meta name="darkreader-lock">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src file: 'unsafe-inline'; script-src file:; font-src file:; img-src file: data:">
+  <title>Vex overlay</title>
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/design-tokens.css">
+  <link rel="stylesheet" href="css/game-overlay.css">
+</head>
+<body data-mode="expanded">
+  <div class="card" id="card">
+    <header class="bar" id="bar">
+      <span class="bar-icon" id="barIcon" aria-hidden="true"></span>
+      <span class="bar-title" id="title">Vex overlay</span>
+      <span class="bar-game" id="game"></span>
+      <span class="bar-spacer"></span>
+      <span class="lock-state" id="lockState" role="status" aria-live="polite"></span>
+      <div class="bar-tools" id="tools">
+        <button type="button" class="tool" id="btnClick" data-solid aria-pressed="false"></button>
+        <button type="button" class="tool" id="btnCompact" aria-pressed="false"></button>
+        <label class="opacity" id="opacityBox"><span class="opacity-label" id="opacityLabel">See-through</span>
+          <input type="range" id="opacity" min="20" max="100" step="5" value="92"></label>
+        <button type="button" class="tool" id="btnHide" data-solid></button>
+      </div>
+    </header>
+
+    <div class="hint-box" id="hintBox" hidden>
+      <span class="hint-text" id="hintText"></span>
+    </div>
+
+    <div class="mini" id="mini" hidden>
+      <button type="button" class="mini-time" id="miniTime"></button>
+      <span class="mini-music" id="miniMusic">
+        <button type="button" class="tool" id="miniPrev"></button>
+        <button type="button" class="tool" id="miniPlay"></button>
+        <button type="button" class="tool" id="miniNext"></button>
+      </span>
+      <form class="mini-search" id="miniSearch">
+        <input type="text" id="miniQ" maxlength="300" autocomplete="off" spellcheck="false">
+      </form>
+    </div>
+
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Overlay panels"></nav>
+
+    <main class="stage" id="stage">
+      <section class="pane" id="p-guide" role="tabpanel" hidden>
+        <div class="view-slot" id="slot-guide"><p class="slot-msg" id="msg-guide"></p></div>
+      </section>
+      <section class="pane" id="p-discord" role="tabpanel" hidden>
+        <p class="note" id="discordNote"></p>
+        <div class="view-slot" id="slot-discord"><p class="slot-msg" id="msg-discord"></p></div>
+      </section>
+      <section class="pane" id="p-notes" role="tabpanel" hidden>
+        <textarea id="notes" maxlength="20000" spellcheck="false"></textarea>
+        <p class="note" id="notesNote"></p>
+      </section>
+      <section class="pane" id="p-timer" role="tabpanel" hidden>
+        <div class="timer-read" id="timerRead" role="timer" aria-live="off">00:00</div>
+        <div class="timer-row">
+          <button type="button" class="btn" id="timerStart"></button>
+          <button type="button" class="btn" id="timerReset"></button>
+          <button type="button" class="btn" id="timerMode" aria-pressed="false"></button>
+        </div>
+        <div class="timer-row" id="timerPresets"></div>
+        <p class="note" id="timerDone" role="status" aria-live="polite"></p>
+      </section>
+      <section class="pane" id="p-music" role="tabpanel" hidden>
+        <p class="music-now" id="musicNow" role="status" aria-live="polite"></p>
+        <div class="timer-row">
+          <button type="button" class="btn" id="musicPrev"></button>
+          <button type="button" class="btn" id="musicPlay"></button>
+          <button type="button" class="btn" id="musicNext"></button>
+        </div>
+        <p class="note" id="musicNote"></p>
+        <p class="error" id="musicError" role="alert"></p>
+      </section>
+      <section class="pane" id="p-search" role="tabpanel" hidden>
+        <form class="search-row" id="searchForm">
+          <input type="text" id="searchQ" maxlength="300" autocomplete="off" spellcheck="false">
+          <button type="submit" class="btn" id="searchGo"></button>
+        </form>
+        <div class="view-slot" id="slot-search"><p class="slot-msg" id="msg-search"></p></div>
+      </section>
+    </main>
+
+    <footer class="foot" id="foot"></footer>
+  </div>
+  <script src="js/vex-icons.js"></script>
+  <script src="js/game-overlay-page.js"></script>
+</body>
+</html>

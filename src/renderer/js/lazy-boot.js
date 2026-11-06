@@ -36,12 +36,19 @@ const VexBoot = {
     { src: 'js/this-site.js', usage: [] },
     { src: 'js/share-look.js', usage: [] },
     { src: 'js/share-look-ui.js', usage: [] },
+    { src: 'js/share-space.js', usage: ['share-space'] },
+    { src: 'js/share-space-ui.js', usage: [] },
     { src: 'js/diagnostics-bundle.js', usage: [] },
     { src: 'js/your-data.js', usage: [] },
     { src: 'js/maker-repos.js', usage: [] },
     { src: 'js/faq-ui.js', usage: [] },
     { src: 'js/drm-help-tr.js', usage: [] },
     { src: 'js/settings-sweep2-tr.js', usage: [] },
+    { src: 'js/ai-connect.js', usage: [] },
+    { src: 'js/ai-bar.js', usage: [] },
+    // Research mode: a sourced brief from some tabs. The core checks every quote against its page; the module is the window, the Settings group and the commands.
+    { src: 'js/research-core.js', usage: [] },
+    { src: 'js/research-mode.js', usage: ['research-mode'] },
     { src: 'js/dialogs-tr.js', usage: [] },
     { src: 'js/drm-help.js', usage: [] },
     { src: 'js/unblock-centre.js', usage: ['unblock-centre'] },
@@ -70,6 +77,7 @@ const VexBoot = {
     // switch when it arrives and the staging pass runs again (VexRegistry.restageLate), so a profile that already existed
     // still gets them switched off.
     { src: 'js/links-windows.js', usage: ['mini-window', 'window-set'] },
+    { src: 'js/game-overlay.js', usage: ['game-overlay'] },
     { src: 'js/embedding-manager.js', usage: ['embedding-manager'] },
     { src: 'js/response-overrides-ui.js', usage: ['response-overrides'] },
     { src: 'js/selection-tools.js', usage: ['selection-tools'] },
@@ -116,6 +124,8 @@ const VexBoot = {
     { src: 'js/card-saver.js', usage: [] },
     // Dangerous-site warnings: the Settings section (switch, list date, Update now, test) and two Ctrl+K commands. The check itself is in main.
     { src: 'js/threat-list-ui.js', usage: [] },
+    // Safe Download Assistant: the mark on a finished download, Open anyway..., Quarantine and Settings > Safe downloads. The check itself is in main.
+    { src: 'js/safe-download-ui.js', usage: [] },
     // The bar over a tab an extension is controlling through the debugger (draws itself when main says a tab is held).
     { src: 'js/ext-debug-bar.js', usage: [] },
     // An extension's side panel, docked beside the page (chrome.sidePanel.open).
@@ -127,6 +137,8 @@ const VexBoot = {
     // Dark mode for websites: the Settings rows and the page-menu toggle. The pages themselves are handled by
     // src/dark-mode-preload.js and main, which read the saved settings, so a tab never waits for this file.
     { src: 'js/dark-mode.js', usage: [] },
+    // Page automations: record a job on a site and replay it. The rules and the in-page code load the first time they are used (VexLazy.ensure).
+    { src: 'js/page-automations.js', usage: ['page-automations'] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

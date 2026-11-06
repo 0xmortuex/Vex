@@ -1,0 +1,57 @@
+[
+  {
+    "id": "art-landscapes",
+    "title": "Painted landscapes",
+    "blurb": "Museum paintings of valleys, rivers, forests and fields, from old masters to the Hudson River School."
+  },
+  {
+    "id": "art-seascapes",
+    "title": "Seascapes",
+    "blurb": "Ships, harbours, waves and coasts, painted and printed."
+  },
+  {
+    "id": "art-japan",
+    "title": "Japanese art",
+    "blurb": "Woodblock prints, folding screens and ink landscapes from Japan."
+  },
+  {
+    "id": "art-patterns",
+    "title": "Patterns and designs",
+    "blurb": "Real textiles, carpets, tiles, wallpaper and ornament designs."
+  },
+  {
+    "id": "art-classic",
+    "title": "Classic art",
+    "blurb": "Cityscapes, skies and other wide museum pictures."
+  },
+  {
+    "id": "space",
+    "title": "Space",
+    "blurb": "Nebulae, galaxies, planets and Earth seen from orbit, from NASA telescopes and probes."
+  },
+  {
+    "id": "nature",
+    "title": "Nature",
+    "blurb": "Forests, lakes, rivers, deserts and weather in public-domain photographs."
+  },
+  {
+    "id": "mountains",
+    "title": "Mountains",
+    "blurb": "Peaks, canyons, glaciers and volcanoes."
+  },
+  {
+    "id": "sea-and-sky",
+    "title": "Sea and sky",
+    "blurb": "Sunsets, clouds, beaches and open water."
+  },
+  {
+    "id": "cities",
+    "title": "Cities",
+    "blurb": "Skylines, bridges and streets."
+  },
+  {
+    "id": "architecture",
+    "title": "Architecture",
+    "blurb": "Cathedrals, castles, temples and monuments."
+  }
+]

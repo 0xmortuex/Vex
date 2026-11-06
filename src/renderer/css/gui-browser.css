@@ -1141,6 +1141,9 @@ body[data-gui-style="terminal"] #look-sb-head { font: 400 12px var(--b-font); co
    Neobrutal and Terminal already had a rail. The folder tiles are skinned per look in css/sidebar-groups.css. */
 /* Chrome's side panel and Edge's sidebar sit on the right: the strip is the window's right edge, the panel opens beside it. */
 body[data-sb-side="right"] #icon-sidebar { order: 3; border-right: none; border-left: 1px solid var(--b-toolbar-border); }
+/* A rail on the right (Chrome, Fluent) would sit under the toasts stacked in the bottom-right corner: they stand left of it (the UI check
+   found a folder button overlapping a toast's "Try it"). */
+body[data-sb-side="right"] #toast-container, body[data-sb-side="right"] #download-toast-container { right: 88px; }
 body.fullscreen[data-sb-side="right"] #icon-sidebar { left: auto; right: 0; transform: translateX(100%); }
 body.fullscreen[data-sb-side="right"] #icon-sidebar:hover { transform: translateX(0); }
 

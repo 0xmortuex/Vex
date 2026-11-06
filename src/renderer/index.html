@@ -42,6 +42,7 @@
   <link rel="stylesheet" href="css/screenshot.css">
   <link rel="stylesheet" href="css/translate.css">
   <link rel="stylesheet" href="css/ai-panel.css">
+  <link rel="stylesheet" href="css/ai-connect.css">
   <link rel="stylesheet" href="css/print-preview.css">
   <link rel="stylesheet" href="css/sync-settings.css">
   <link rel="stylesheet" href="css/devices-view.css">
@@ -112,6 +113,7 @@
   <link rel="stylesheet" href="css/drm-help.css">
   <link rel="stylesheet" href="css/unblock.css">
   <link rel="stylesheet" href="css/toolbar-customize.css">
+  <link rel="stylesheet" href="css/research.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -798,11 +800,11 @@
             <!-- Phase 14: AI Backend (Local via Ollama + Cloud fallback) -->
             <div class="setting-group">
               <label class="setting-label">AI Backend</label>
-              <p class="setting-info muted" style="margin-bottom:10px">Vex can route AI requests to Claude (cloud) or a local Ollama model on your PC. Local is private &amp; works offline; cloud is higher quality.</p>
+              <p class="setting-info muted" style="margin-bottom:10px">Vex can route AI requests to a cloud AI (your own API key for Claude, OpenAI, Gemini and others, or your own Worker) or to a local Ollama model on your PC. Local is private &amp; works offline; cloud is higher quality. Add your key under "Connect an AI" above.</p>
 
               <div class="ai-status-card" id="ai-status-card">
                 <div class="status-row">
-                  <span class="status-label">Cloud (Claude Sonnet):</span>
+                  <span class="status-label">Cloud (your key or Worker):</span>
                   <span class="status-badge" id="cloud-status">&mdash;</span>
                 </div>
                 <div class="status-row">
@@ -1684,6 +1686,7 @@
           <button class="ai-quick-btn" data-action="translate"><span class="ai-ico" data-ico="globe"></span>Translate</button>
           <button class="ai-quick-btn" data-action="ask"><span class="ai-ico" data-ico="message"></span>Ask</button>
           <button class="ai-quick-btn" data-action="group-tabs"><span class="ai-ico" data-ico="tabs"></span>Organize tabs</button>
+          <button class="ai-quick-btn" data-action="research"><span class="ai-ico" data-ico="book"></span>Research</button>
         </div>
 
         <div class="persona-prompts-row" id="persona-prompts-row" style="display:none"></div>
@@ -1943,6 +1946,7 @@
   <script src="js/ics-calendar.js"></script>
   <script src="js/tab-content-index.js"></script>
   <script src="js/ai-sensitivity.js"></script>
+  <script src="js/ai-keys.js"></script>
   <script src="js/ai-router.js"></script>
   <script src="js/ai-settings.js"></script>
   <script src="js/personas-builtin.js"></script>

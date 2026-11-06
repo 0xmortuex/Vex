@@ -165,6 +165,19 @@ define('rec:finish', [string(80), optional(string(200))]);
 define('rec:cancel', [string(80)]);
 define('capture:submit', [shape({ kind: string(20), text: string(4000) })]);
 define('capture:close capture:open', []);
+// In-game overlay (src/main/game-overlay-ipc.js). The overlay window's own calls carry only what the card shows:
+// a switch, a level, a rectangle for the page view, a line of text. The three "config/toggle/status" calls come from
+// Vex's own window; music-answer is its reply to a music button.
+define('gameoverlay:get gameoverlay:hide gameoverlay:toggle gameoverlay:status', []);
+define('gameoverlay:click-through gameoverlay:interactive gameoverlay:compact', [boolean]);
+define('gameoverlay:opacity', [value => finiteNumber(value) && value >= 0.2 && value <= 1]);
+define('gameoverlay:view', [shape({ panel: oneOf(['guide', 'discord', 'search', 'none']), x: optional(coordinate), y: optional(coordinate), width: optional(coordinate), height: optional(coordinate) })]);
+define('gameoverlay:search', [string(300)]);
+define('gameoverlay:save-notes', [string(20000)]);
+define('gameoverlay:timer', [shape({ mode: oneOf(['stopwatch', 'timer']), running: boolean, startedAt: finiteNumber, elapsedMs: finiteNumber, durationMs: finiteNumber })]);
+define('gameoverlay:music', [oneOf(['toggle', 'next', 'prev', 'status'])]);
+define('gameoverlay:config', [shape({ config: object, tokens: optional(object), searchTemplate: optional(string(300)), lang: optional(oneOf(['en', 'tr'])) })]);
+define('gameoverlay:music-answer', [shape({ id: string(20), ok: boolean, title: optional(string(300)), artist: optional(string(300)), state: optional(string(40)), error: optional(string(500)) })]);
 // The text clips inbox (src/main/capture-inbox.js).
 // Developer bench (renderer js/dev-bench.js; main/request-log.js, response-overrides.js, log-tail.js,
 // pkg-intel.js). Files only ever come from main's own dialogs; the tailer follows a granted id.
@@ -500,6 +513,17 @@ define('siterules:get', []);
 // A watched page read through a hidden tab (src/main/page-render.js): the
 // address and, for one part of it, a selector and the words it began with.
 define('pagewatch:render', [shape({ url: web, selector: optional(string(200)), anchor: optional(string(200)) })]);
+// Page automations (main/automations.js): recordings are checked again in main (the schema only bounds their size), ids are
+// the short ones main makes, a decision is one of three words.
+const autoId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value);
+define('automations:state automations:kill automations:rearm automations:stop automations:reveal', []);
+define('automations:set-enabled', [boolean]);
+define('automations:save', [value => object(value) && JSON.stringify(value).length <= 700000]);
+define('automations:delete automations:run automations:run-get automations:export', [autoId]);
+define('automations:decide', [autoId, oneOf(['approve', 'skip', 'stop'])]);
+define('automations:runs', [optional(autoId)]);
+define('automations:ack', [value => Array.isArray(value) && value.length <= 200 && value.every(autoId)]);
+define('automations:import', [string(700000)]);
 // Settings > Start Vex when I sign in to Windows (main/login-item.js): read
 // what Windows holds; set it on or off, minimised or not.
 define('login-item:get', []);
@@ -648,6 +672,13 @@ define('mcp:auth-set', [string(80), string(4096)]);
 // The GitHub read-only token vault (main/github-vault.js) and the developer
 // feeds (main/dev-feeds.js). The token goes in once and never comes back out;
 // the path is checked against a list of read endpoints in main.
+// Bring your own AI key (main/ai-byok.js). The key is a string; everything the window gets back is a result object.
+define('aikey:status', []);
+define('aikey:set-key', [shape({ provider: string(40), key: string(500), baseUrl: optional(string(300)) })]);
+define('aikey:clear-key aikey:test aikey:cancel', [string(64)]);
+define('aikey:set-models', [shape({ provider: string(40), models: object })]);
+define('aikey:models', [string(40), optional(boolean)]);
+define('aikey:chat', [shape({ id: string(64), provider: string(40), tier: optional(string(10)), model: optional(string(200)), maxTokens: optional(finiteNumber), messages: value => Array.isArray(value) && value.length > 0 && value.length <= 200 })]);
 define('github:status github:token-clear github:token-test', []);
 define('github:token-set', [string(400)]);
 define('github:get', [string(400), optional(shape({ authed: optional(boolean) }))]);
@@ -834,6 +865,12 @@ define('websafety:third-party-count', [shape({ site: string(253), partition: opt
 define('threat:status threat:update threat:continue-log', []);
 define('threat:set-enabled threat:set-auto-update', [boolean]);
 define('threat:forget-host', [string(253)]);
+// Safe Download Assistant (src/main/safe-download.js, js/safe-download-ui.js): its Settings and Quarantine. Vex's own window only.
+define('safedl:get', []);
+define('safedl:set', [value => object(value) && (value.on === undefined || boolean(value.on)) && (value.strictness === undefined || ['relaxed', 'normal', 'strict'].includes(value.strictness)) && (value.checks === undefined || (object(value.checks) && Object.keys(value.checks).length <= 4 && Object.values(value.checks).every(boolean)))]);
+define('safedl:quarantine', [string(4096)]);
+// Share a space (src/main/space-check.js): the addresses of a space to look over, at most 200 of at most 2048 characters.
+define('space:check', [value => Array.isArray(value) && value.length <= 200 && value.every(string(2048))]);
 define('downloads:explain', [string(64), optional(boolean)]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);

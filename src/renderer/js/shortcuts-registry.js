@@ -115,7 +115,10 @@ const ShortcutsRegistry = (() => {
     'link-hints':     { default: 'Ctrl+Alt+I',   label: 'Hints: click with the keyboard', category: 'Navigation', cmd: 'link-hints' },
     'tab-hints':      { default: 'Ctrl+Alt+Q',   label: 'Hints: go to a tab',         category: 'Tabs',       cmd: 'tab-hints' },
     // Every Ctrl+Alt letter is taken, so the selection search takes three modifiers (Address bar extras, js/tabs-nav.js).
-    'search-selection': { default: 'Ctrl+Alt+Shift+S', label: 'Search the web for the selection', category: 'Navigation', cmd: 'search-selection' }
+    'search-selection': { default: 'Ctrl+Alt+Shift+S', label: 'Search the web for the selection', category: 'Navigation', cmd: 'search-selection' },
+    // The in-game overlay (main/game-overlay.js). Also a SYSTEM-WIDE key, so it works while a game has the screen; Ctrl+Alt+O is split view's,
+    // hence the third modifier. js/game-overlay.js hands the current key to main after every change.
+    'game-overlay': { default: 'Ctrl+Alt+Shift+O', label: 'Show or hide the game overlay', category: 'Tools', cmd: 'game-overlay' }
   };
 
   // A binding the user made for a Ctrl+K command that has no built-in key.
@@ -163,6 +166,8 @@ const ShortcutsRegistry = (() => {
   ]);
   for (const id of SYSTEM_SHORTCUTS) { if (DEFAULT_SHORTCUTS[id]) DEFAULT_SHORTCUTS[id].system = true; }
 
+  const changeListeners = [];
+  function onChange(fn) { if (typeof fn !== 'function') throw new TypeError('onChange needs a function'); changeListeners.push(fn); }
   let userShortcuts = {};
   const handlers = new Map();
   let listenerAttached = false;
@@ -188,8 +193,12 @@ const ShortcutsRegistry = (() => {
     // A key saved before the rule in whyNotAKey is never handed to main.
     const combos = Object.values(all).filter(d => d.current && d.hasHandler && !whyNotAKey(d.current)).map(d => d.current);
     combos.push(...Object.keys(WINDOW_KEYS));
-    try { window.vex.setGuestShortcutKeys([...new Set(combos)]); return true; }
+    for (const fn of changeListeners) { try { fn(); } catch (err) { console.error('[Shortcuts] a change listener failed:', err); } }
+    try { window.vex.setGuestShortcutKeys([...new Set(combos)]); }
     catch (err) { console.warn('[Shortcuts] could not hand the keys to the window:', err && err.message); return false; }
+    // Main answers Ctrl+Tab for the recency switcher only while Next/Previous Tab still have those keys.
+    if (typeof VexTabMru !== 'undefined' && typeof VexTabMru.syncMain === 'function') VexTabMru.syncMain();
+    return true;
   }
 
   function init() {
@@ -420,7 +429,7 @@ const ShortcutsRegistry = (() => {
     setShortcut, resetShortcut, removeShortcut, resetAll, customBindings, restoreBindings,
     // The keys Vex answers outside the list above, combo -> what it does (the shortcut sheet, the guide and the docs read it).
     fixedKeys: () => ({ ...FIXED_KEYS }),
-    register, eventToShortcut, _tellMain
+    register, eventToShortcut, _tellMain, onChange
   };
 })();
 

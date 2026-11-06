@@ -84,7 +84,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 
 ### 🧠 AI
 - **Vex AI assistant** (`Ctrl+Shift+A`) — chat over the current page, selection, or many tabs.
-- **AI Router** — routes each feature to **Cloud** (Claude, via *your own* Cloudflare Worker), **local Ollama**, or **on‑device WebLLM (WebGPU)**; Auto / Prefer‑local / Always‑cloud, with per‑feature overrides.
+- **AI Router** — routes each feature to **Cloud** (Claude, OpenAI, Gemini, OpenRouter or any OpenAI-compatible server with *your own API key* in Settings › AI › Connect an AI, or via *your own* Cloudflare Worker), **local Ollama**, or **on‑device WebLLM (WebGPU)**; Auto / Prefer‑local / Always‑cloud, with per‑feature overrides.
 - **Ask Vex to do something…** — plain‑English commands understood **locally & offline** ("close all youtube tabs", "sleep the others", "group my github tabs", "split screen"), with an AI fallback for the rest.
 - **AI Tab Command** — natural‑language tab management with a confirm‑before‑closing plan.
 - **Selection AI bar** — Explain / Summarize / Translate on any highlighted text.

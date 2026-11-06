@@ -1688,6 +1688,8 @@ const TabManager = {
       <div class="tab-context-item" data-action="reload-tabs">${MENU_ICONS.reload}Reload them</div>
       <div class="tab-context-item" data-action="mute-tabs">${MENU_ICONS.mute}Mute or unmute them</div>
       <div class="tab-context-item" data-action="save-session">${MENU_ICONS.save}Save as a session</div>
+      <div class="tab-context-item" data-action="share-group">${MENU_ICONS.save}Share this group…</div>
+      ${typeof VexResearch !== 'undefined' && VexResearch.enabled() ? `<div class="tab-context-item" data-action="research">${VexIcons.svg('book', { size: 14 })}${escapeHtml(VexResearch.groupLabel(count))}</div>` : ''}
       ${devRow ? `<div class="tab-context-item" data-action="dev-terminal">${MENU_ICONS.reload}${escapeHtml(devRow.label)}</div>` : ''}
       <div class="tab-context-sep"></div>
       <div class="tab-context-item" data-action="close-tabs">${MENU_ICONS.close}Close ${count} tab${VexPlural.s(count)}</div>
@@ -1731,6 +1733,12 @@ const TabManager = {
         this.rebuildAllTabs();
         return;
       }
+      case 'share-group': {
+        // Share a space (js/share-space-ui.js) is a late module: until it has loaded the menu says so.
+        if (typeof VexShareSpaceUI === 'undefined') { window.showToast?.('Share a space is still loading. Try again in a moment.', 'error'); return; }
+        try { VexShareSpaceUI.share({ groupId }); } catch (err) { window.showToast?.(err.message, 'error', 6000); }
+        return;
+      }
       case 'reload-tabs': {
         let done = 0;
         for (const t of tabsInGroup) {
@@ -1763,6 +1771,10 @@ const TabManager = {
         try { await DevDesk.openTerminalFor(group.name); }
         catch (err) { window.showToast?.((err && err.message) || 'Could not open the terminal', 'error'); }
         return;
+      }
+      case 'research': {
+        VexResearch.start({ tabs: tabsInGroup }).catch(err => window.showToast?.(err.message, 'error'));
+        break;
       }
       case 'save-session': {
         if (typeof SessionManager === 'undefined') { window.showToast?.('Sessions are not available in this build', 'error'); return; }
@@ -1993,6 +2005,8 @@ const TabManager = {
       ...(webPage && typeof Bookmarks !== 'undefined'
         ? [{ label: Bookmarks.has(tab.url) ? 'Remove bookmark' : 'Bookmark…', action: () => Bookmarks.toggle(tab.url, tab.title) }]
         : []),
+      // A sourced brief from some tabs (js/research-mode.js); nothing when the feature is off or not loaded yet.
+      ...(typeof VexResearch !== 'undefined' ? VexResearch.menuItems(tab) : []),
       // Not for a private or Tor tab or a Vex page (js/handoff.js).
       ...(typeof Handoff !== 'undefined' && Handoff.sendable(tab).ok
         ? [{ label: 'Send to your devices…', action: () => Handoff.openMenu(tab, { x, y }) }]

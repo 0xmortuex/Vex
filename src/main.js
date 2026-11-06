@@ -236,6 +236,8 @@ let mainWindow = null;
 // Main-process reminders (src/main/reminders.js); created in startReminders()
 // once the window exists, referenced by the second-instance handler above it.
 let reminders = null;
+// Page automations (src/main/automations.js); created in startAutomations().
+let _automations = null;
 let adBlockerEnabled = true;
 // Starts the ad-block engine (set once the window is ready; see initAdblockEngine).
 let _startAdblockEngine = null;
@@ -900,6 +902,7 @@ if (!gotTheLock) {
     if (commandLine.some(a => /^--reminder=/.test(a))) {
       console.log('[Reminders] woken by the OS while running — checking what is due');
       if (reminders) reminders.fireDue().catch(err => console.error('[Reminders] fireDue after wake failed:', err.message));
+      if (_automations) _automations.checkDue().catch(err => console.error('[Automations] due-check after wake failed:', err.message));
       focusMainWindow();
       return;
     }
@@ -1050,6 +1053,16 @@ ipcMain.handle('threat:set-auto-update', (_e, on) => _threatList.setAutoUpdate(o
 ipcMain.handle('threat:update', () => _threatList.update());
 ipcMain.handle('threat:forget-host', (_e, host) => _threatList.forgetHost(host));
 ipcMain.handle('threat:continue-log', () => _threatList.continueLog());
+// Share a space (js/share-space-ui.js): the review asks which of the addresses in a space are look-alikes or reported dangerous sites.
+// Local lookups only; no address is loaded or sent anywhere (src/main/space-check.js).
+ipcMain.handle('space:check', (_e, urls) => {
+  const ws = require('./main/web-safety');
+  return require('./main/space-check').checkAddresses(urls, {
+    analyzeHost: (host) => ws.analyzeHost(host, { sensitivity: _webSafety.sensitivity === 'off' ? 'strict' : _webSafety.sensitivity, topHosts: _webSafetyTopHosts(), allow: _webSafety.snapshot().allow }),
+    threatCheck: (url) => _threatList.check(url),
+    domainToUnicode: (host) => require('url').domainToUnicode(host),
+  });
+});
 // Permission hygiene (src/main/permission-hygiene.js): expiry, the trap guard and the
 // live camera/mic/location indicator. Off until Settings switches the feature on.
 const _permHygiene = require('./main/permission-hygiene').createPermissionHygiene({
@@ -1623,6 +1636,7 @@ function _sendGameState() {
   if (_keepOnTopInst) { try { _keepOnTopInst.recheck(); } catch (err) { console.error('[KeepOnTop] ' + err.message); } }
   // T2-059: the floating video hides while a fullscreen game is up (when asked to).
   try { setPipGameFullscreen(!!_mergedGameState().fullscreen); } catch (err) { console.error('[Vex PiP] could not follow the game state:', err.message); }
+  try { if (_gameOverlayInst) _gameOverlayInst.onGame(_mergedGameState()); } catch (err) { console.error('[GameOverlay] could not follow the game state:', err.message); }
   try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:state', _mergedGameState()); } catch { /* window gone */ }
 }
 // While Game mode is on for a game: Vex's page processes run below normal
@@ -1671,6 +1685,7 @@ app.whenReady().then(() => _commitGuard.start());
 ipcMain.handle('commit:state', () => { try { _commitGuard.poll(); } catch (err) { throw new Error('Could not read the memory limit: ' + err.message, { cause: err }); } return _commitGuard.state(); });
 app.on('will-quit', () => { try { _commitGuard.stop(); } catch { /* vex-allow-empty-catch: already stopped at quit */ } });
 app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} try { _gameProcs.stop(); } catch {} try { _gameModeSession.end(); } catch {} });
+app.on('will-quit', () => { try { if (_gameOverlayInst) _gameOverlayInst.dispose(); } catch (err) { console.error('[GameOverlay] could not release the hotkey at quit:', err.message); } });
 
 // Time travel and the tuning advisor (src/main/state-journal.js,
 // src/main/tuning-advisor.js). The interface pushes small snapshots of the
@@ -1758,6 +1773,9 @@ const _gameHotkeys = require('./main/game-hotkeys').createGameHotkeys({
   },
 });
 ipcMain.handle('hotkeys:get', () => ({ current: _gameHotkeys.current(), actions: _gameHotkeys.ACTIONS }));
+// The in-game overlay (src/main/game-overlay.js, game-overlay-ipc.js): a separate Vex window on one global hotkey. Started
+// below once the profile is readable. It never touches a game's process; see the header of game-overlay.js.
+let _gameOverlayInst = null;
 
 // === Quick capture ========================================================
 // A small window that floats over whatever you were doing — a game, a stream,
@@ -2545,6 +2563,7 @@ function _restoreAppWindows() {
 }
 function _lockVex() {
   _vexLocked = true;
+  try { if (_gameOverlayInst) _gameOverlayInst.ctl.destroy(); } catch (err) { console.error('[GameOverlay] could not close the overlay at the lock:', err.message); }
   for (const w of BrowserWindow.getAllWindows()) {
     if (w === mainWindow || w.isDestroyed() || !w.isVisible() || isPipContents(w.webContents)) continue;
     w.hide();
@@ -4039,8 +4058,26 @@ function _adBlockedPage(id, url) {
 const _releaseDesk = require('./main/download-desk').createReleaseDesk({
   fs, file: path.join(userDataPath, 'release-downloads.json'), write: (f, bytes) => require('./main/file-store').atomicWrite(f, bytes, { backup: false }),
 });
+// Safe Download Assistant (src/main/safe-download.js): a green / amber / red verdict on a finished download from local facts only,
+// and Quarantine for a red one. It never deletes, opens or uploads anything.
+const _safeDownload = require('./main/safe-download').createSafeDownload({
+  fs, file: path.join(userDataPath, 'safe-download.json'), quarantineDir: path.join(userDataPath, 'quarantine'),
+  signatureOf: (f) => _fileCheck.signature(f),
+  threatCheck: (u) => _threatList.check(u),
+  lookalikeOf: (host) => {
+    const r = require('./main/web-safety').analyzeHost(host, { sensitivity: 'standard', topHosts: _webSafetyTopHosts(), allow: _webSafety.snapshot().allow });
+    return r && r.flagged && r.level === 'high' ? (r.resembles || 'another site') : '';
+  },
+  registrable: (h) => require('./main/web-safety').registrable(h),
+  listArchive: require('./main/archive-list'),
+  motw: require('./main/mark-of-the-web').createMarkOfTheWeb({ fs, log: (m) => console.log(m) }),
+  isDownloadedFile: (p) => _downloadService.isDownloadedFile(p),
+  noteFile: (p) => _downloadService._noteFile(p),
+  log: (m) => console.log(m),
+});
 const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
   releases: _releaseDesk,
+  assessFile: (ctx) => _safeDownload.assess(ctx),
   prefs: () => _downloadPrefs.current(),
   // A page's second download with no click asks first (Chrome's automatic
   // downloads); a click or key press is read from _watchGestures.
@@ -7645,13 +7682,27 @@ app.on('web-contents-created', (_event, contents) => {
           },
           // User-driven, like pip:back-to-tab: the person pressed the pop-out's own button.
           onBack: () => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
+            // The pop-out goes FIRST, Vex comes forward after it (as pip:back-to-tab does):
+            // closing the window afterwards hands the focus to whatever Windows picks,
+            // and measured in a real window Vex was restored but left behind another
+            // program. The renderer is told (Discord shown, and its own focus request)
+            // at the same moment, for the same reason.
+            let done = false;
+            const bringForward = () => {
+              if (done) return;
+              done = true;
+              if (!mainWindow || mainWindow.isDestroyed()) return;
               if (mainWindow.isMinimized()) mainWindow.restore();
               mainWindow.show();
+              // A raise the person asked for (pip:back-to-tab style: they pressed the pop-out's own button), so it bypasses the raise guard.
               mainWindow.focus();
               mainWindow.webContents.send('vex:discord-popout-back');
-            }
-            if (!win.isDestroyed()) win.close();
+            };
+            if (win.isDestroyed()) { bringForward(); return; }
+            win.once('closed', bringForward);
+            // A page can hold its window open (beforeunload): do not leave the person with nothing.
+            setTimeout(bringForward, 1500);
+            win.close();
           },
         });
 
@@ -8010,6 +8061,12 @@ ipcMain.handle('cloud:token-save', (_event, token) => {
   if (typeof token !== 'string' || token.length < 24 || token.length > 512) throw new Error('Use a token of 24–512 characters');
   return secretStore.write(path.join(userDataPath, 'ai-token.enc'), token);
 });
+// Bring your own AI key (main/ai-byok.js): a provider's API key (Claude, OpenAI, Gemini, OpenRouter, a custom server) sealed by the OS in
+// ai-keys.enc, never handed back to a window; every provider request is made here and streamed to the window. VEX_TEST_PROVIDER_HOST
+// (a local stand-in server, for tests) is read only in an unpackaged run.
+const _byokTestHost = !app.isPackaged ? String(process.env.VEX_TEST_PROVIDER_HOST || '') : '';
+const _aiByok = require('./main/ai-byok').createByok({ secretStore, file: path.join(userDataPath, 'ai-keys.enc'), fetch: boundedNetFetch, testHost: _byokTestHost });
+require('./main/ai-byok').registerByokIpc({ ipcMain, byok: _aiByok });
 // MCP servers' tokens (js/mcp-client.js), by server id, encrypted like the
 // other secrets. They sat in plain text in vex-persist.json and went into
 // every backup, though PRIVACY.md says backups leave tokens out (security scan
@@ -9278,6 +9335,23 @@ app.whenReady().then(async () => {
     const r = _gameHotkeys.apply();
     for (const e of r.errors) console.error('[Hotkeys] ' + e.accel + ' for ' + e.action + ': ' + e.error);
   } catch (err) { console.error('[Hotkeys] could not register:', err.message); }
+  // The in-game overlay's hotkey, if the overlay is on (settings are read from vex.gameOverlay).
+  try {
+    const electron_ = require('electron');
+    _gameOverlayInst = require('./main/game-overlay-ipc').install({
+      ipcMain, electron: { BrowserWindow, WebContentsView: electron_.WebContentsView, globalShortcut, screen: electron_.screen, nativeTheme: electron_.nativeTheme },
+      path, fs, root: __dirname, userDataPath, secureSessions,
+      loadSaved: () => _persistLoad()['vex.gameOverlay'] || '',
+      getMainWindow: () => mainWindow,
+      // A link inside the overlay becomes a tab of the main window, the way Open as App windows do it.
+      openAsTab: (url) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('tab:create-from-external', { url }); },
+      // Keys other parts of Vex hold system-wide: the overlay refuses to share them.
+      conflicts: () => [_windowKeys.BOSS_ACCELERATOR, ...Object.values(_gameHotkeys.current())],
+      isLocked: () => _vexLocked,
+      log: (m) => console.log(m),
+    });
+    _gameOverlayInst.start();
+  } catch (err) { console.error('[GameOverlay] could not start:', err.message); }
 
   // F12, Ctrl+Shift+F12, Ctrl+Shift+J and the boss key are no longer
   // Windows-wide: handleWindowKeys answers them in Vex's own windows and pages
@@ -9410,6 +9484,7 @@ app.whenReady().then(async () => {
     try { _updater.cleanup(); } catch (err) { console.warn('[Updates] could not tidy the updates folder:', err.message); }
   }, 60000).unref();
   startReminders();
+  startAutomations();
 
   // === Boot smoke test (gated by VEX_SMOKE=1) ===
   // Boots the REAL app and asserts the renderer initialized in real Chromium —
@@ -10128,7 +10203,15 @@ ipcMain.handle('file:inspect', async (_e, filePath, from) => {
 // Only a file Vex downloaded: this runs whatever it opens (security scan L5).
 ipcMain.handle('downloads:open-file', async (_e, filePath) => {
   if (!_downloadService.isDownloadedFile(filePath)) return { ok: false, error: 'Vex opens only files it downloaded itself. Use Show in folder to open this one.' };
+  if (_safeDownload.isQuarantined(filePath)) return { ok: false, error: 'This file is in quarantine, so Vex will not open it. Use Show in folder or Delete.' };
   try { const r = await shell.openPath(filePath); return { ok: !r, error: r || null }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+// Safe Download Assistant: its Settings, and Quarantine for a file Vex downloaded (src/main/safe-download.js). Vex's own window only.
+ipcMain.handle('safedl:get', () => _safeDownload.get());
+ipcMain.handle('safedl:set', (_e, patch) => _safeDownload.set(patch));
+ipcMain.handle('safedl:quarantine', (_e, filePath) => {
+  try { return { ok: true, ..._safeDownload.quarantine(filePath) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 // Whether each finished download is still on disk: a deleted one showed
@@ -11836,6 +11919,29 @@ function startReminders() {
     .then(() => { for (const a of process.argv) handleVexAction(a); })
     .catch(err => console.error('[Reminders] failed to start:', err.message));
   if (process.argv.some(a => /^--reminder=/.test(a))) console.log('[Reminders] launched by the OS for a reminder');
+}
+
+// Page automations (src/main/automations*.js): record once, replay on demand or on a schedule. Its Windows
+// wake-up is a task of its own beside the reminders' (same Task Scheduler code, id prefix "auto-"). The window a run
+// uses is made in the recording's own session and destroyed at the end; nothing is stored outside automations.enc.
+function startAutomations() {
+  const osScheduler = require('./main/os-schedule').createOsScheduler({
+    platform: process.env.VEX_NO_OS_SCHEDULE === '1' ? 'none' : process.platform,
+    execFile: require('child_process').execFile,
+    execPath: process.execPath,
+    appPath: app.getAppPath(),
+    packaged: app.isPackaged,
+    extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)).concat(_profile.id === 'default' ? [] : ['--profile=' + _profile.id]),
+    scope: _profile.id === 'default' ? undefined : _profile.id,
+    log: (m) => console.log(m),
+  });
+  _automations = require('./main/automations-wire').registerAutomations({
+    ipcMain, BrowserWindow, secretStore, userDataPath, notifier, osScheduler,
+    getSession: (partition) => secureSessions.fromPartition(partition),
+    mainWindowOf: () => mainWindow,
+    readRouting: () => readRouting(),
+    focusMainWindow: (why) => focusMainWindow(why),
+  });
 }
 
 // Privacy report card, extension usage, crash-proof tabs and quiet hours

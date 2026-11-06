@@ -63,9 +63,9 @@ const AIRouteControl = {
     const s = r.getOllamaStatus();
     const lines = [];
     if (m === 'conflict') lines.push('Both "Prefer local" and "Always cloud" are saved (from a sync or an older version). Vex follows Always cloud. Pick one below; nothing was changed for you.');
-    else if (m === 'cloud') lines.push('Fast cloud: every feature uses the AI Worker, even when a local model is running' + (this.onDevice() ? ', and this overrides on-device AI' : '') + '.');
+    else if (m === 'cloud') lines.push('Fast cloud: every feature uses the cloud AI (your key or the AI Worker), even when a local model is running' + (this.onDevice() ? ', and this overrides on-device AI' : '') + '.');
     else if (m === 'local') lines.push('Private local: features stay on your Ollama model while it is running' + (s.available ? ' (it is)' : ' (it is not right now, so features set to Cloud still use the AI Worker)') + '.');
-    else lines.push('Auto: the AI Worker when it is set up and online, otherwise your local model.');
+    else lines.push('Auto: the cloud AI (your own key, else the AI Worker) when it is set up and online, otherwise your local model.');
     if (this.onDevice() && m !== 'cloud') lines.push('On-device AI is on: chat runs in this browser once its model is loaded.');
     const pins = this.pins();
     if (pins.length) lines.push(pins.length + ' feature' + (pins.length === 1 ? ' is' : 's are') + ' pinned in the table below: ' + pins.map(p => p.feature + ' → ' + p.to).join(', ') + '.');
@@ -165,7 +165,8 @@ const AIRouteControl = {
     const r = this._router();
     const s = r.getOllamaStatus();
     const m = this.mode();
-    const cloudUp = typeof r.cloudWorkerUrl === 'function' && !!r.cloudWorkerUrl() && (typeof r.isOnline !== 'function' || r.isOnline());
+    // A cloud is up when your own key or your Worker is set and the computer is online.
+    const cloudUp = (typeof r.cloudConfigured === 'function' ? r.cloudConfigured() : (typeof r.cloudWorkerUrl === 'function' && !!r.cloudWorkerUrl())) && (typeof r.isOnline !== 'function' || r.isOnline());
     const modelName = typeof r.getModel === 'function' ? r.getModel() : '';
     const local = 'your local model' + (modelName ? ' (' + modelName + ')' : '');
     let now;

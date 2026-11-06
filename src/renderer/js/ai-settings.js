@@ -22,7 +22,7 @@ const AISettings = (() => {
       // "Online" used to mean nothing more than navigator.onLine, so a profile
       // with no Worker URL still read "Online \u2713" right up until every request
       // failed with "Cloud AI is not configured".
-      const configured = !!(AIRouter.cloudWorkerUrl && AIRouter.cloudWorkerUrl());
+      const configured = AIRouter.cloudConfigured();
       if (!configured) {
         cloudEl.textContent = 'Not configured';
         cloudEl.className = 'status-badge offline';
@@ -83,7 +83,7 @@ const AISettings = (() => {
       { id: 'explain', label: 'Explain text', desc: 'Right-click \u2192 Explain' },
       { id: 'historyIndex', label: 'History indexing', desc: 'Background page summaries' },
       { id: 'historySearch', label: 'History search', desc: 'AI-powered history queries. Local unless you choose Auto or Cloud here, and even then Vex asks before any history leaves' },
-      { id: 'agent', label: 'Agent mode', desc: 'Browser automation — prefers the cloud; uses the local model when no AI Worker is set or you prefer local' },
+      { id: 'agent', label: 'Agent mode', desc: 'Browser automation — prefers the cloud; uses the local model when no cloud AI is connected or you prefer local' },
       { id: 'multiTab', label: 'Multi-tab AI', desc: 'Cross-tab reasoning' },
       // Was routable in the router but had no row here, so the only way to
       // change it was editing localStorage by hand.
@@ -91,16 +91,25 @@ const AISettings = (() => {
       { id: 'digest', label: 'Reading digest', desc: 'Summaries of your Read Later pile. Local unless you choose Auto or Cloud here' }
     ];
     const prefs = AIRouter.getRoutingPrefs();
+    // Auto / Cloud / Local, and now which cloud: each saved key ("Your Claude key") or the Worker.
+    const extra = [];
+    if (typeof AIKeys !== 'undefined') for (const p of AIKeys.saved()) extra.push(['key:' + p.id, 'Your ' + p.short + ' key']);
+    if (AIRouter.cloudWorkerUrl()) extra.push(['worker', 'AI Worker']);
+    const options = (f) => {
+      const cur = prefs[f.id] || 'auto';
+      const list = [['auto', 'Auto'], ['cloud', 'Cloud'], ['local', 'Local'], ...extra];
+      // A pin whose key was removed (or came from another computer by sync) stays visible instead of silently changing.
+      if (!list.some(([v]) => v === cur)) list.push([cur, cur.startsWith('key:') ? 'Your ' + cur.slice(4) + ' key (not saved here)' : cur]);
+      return list.map(([v, l]) => `<option value="${escapeHtml(v)}" ${cur === v ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('');
+    };
     container.innerHTML = features.map(f => `
       <div class="routing-item">
         <div class="routing-label">
           <strong>${escapeHtml(f.label)}</strong>
           <span>${escapeHtml(f.desc)}</span>
         </div>
-        <select data-feature="${f.id}">
-          <option value="auto" ${prefs[f.id] === 'auto' ? 'selected' : ''}>Auto</option>
-          <option value="cloud" ${prefs[f.id] === 'cloud' ? 'selected' : ''}>Cloud</option>
-          <option value="local" ${prefs[f.id] === 'local' ? 'selected' : ''}>Local</option>
+        <select data-feature="${f.id}" aria-label="${escapeHtml(f.label)}">
+          ${options(f)}
         </select>
       </div>
     `).join('');
@@ -131,6 +140,7 @@ const AISettings = (() => {
         } else {
           toast('Routing updated', 'success');
         }
+        document.dispatchEvent(new CustomEvent('vex:ai-route-changed'));
       });
     });
   }
@@ -318,7 +328,14 @@ const AISettings = (() => {
     document.addEventListener('keydown', onKey);
   }
 
-  return { renderAISettings, refreshStatus };
+  // A key was added or removed: the routing table offers it (or stops offering it) at once.
+  document.addEventListener('vex:ai-keys', () => {
+    if (!document.getElementById('routing-grid')) return;
+    renderRoutingGrid();
+    wireRoutingGrid();
+  });
+
+  return { renderAISettings, refreshStatus, renderRoutingGrid };
 })();
 
 window.AISettings = AISettings;

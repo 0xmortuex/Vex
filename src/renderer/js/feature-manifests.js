@@ -180,6 +180,9 @@
     // Share my look (js/share-look.js, js/share-look-ui.js): the look as a small .vexlook file or vex://look link, and the review before wearing one. Part of how the window looks.
     { id: 'share-look', title: 'Share my look', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.shareLook.undo'], commands: ['share-look', 'open-shared-look', 'undo-shared-look'],
       permissions: { reads: ['the theme, pack, design, icons, look, skin, fonts and wallpaper choice you use now, and the file or link you open'], writes: ['the look you put on, and the look you had before so Undo can give it back'], sends: [] } },
+    // Share a space (js/share-space.js, js/share-space-ui.js, main/space-check.js): a workspace's tabs as a .vexspace file or vex://space link, and the review before adding one.
+    { id: 'share-space', title: 'Share a space', group: 'Workspaces', maturity: 'new', storageKeys: ['vex.shareSpace.enabled', 'vex.shareSpace.undo'], commands: ['share-space', 'open-space', 'undo-shared-space'],
+      permissions: { reads: ['the addresses and titles of the tabs you choose to share (never private, Tor, container or essential tabs), your tab groups, and the file or link you open'], writes: ['a new workspace, and the sidebar folders or look only if you tick them; what you had before, so Undo can give it back'], sends: [] } },
     // Dark mode for websites (js/dark-mode.js, src/dark-mode-preload.js, main/dark-mode.js): a choice in Settings > Appearance whose "Off" is its own
     // switch, not an extra to hold back. It owns the per-site list the page menu always kept (vex.forceDarkHosts) and the old everywhere flag.
     { id: 'dark-mode-websites', title: 'Dark mode for websites', group: 'Appearance', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.darkMode.', 'vex.forceDarkHosts', 'vex.forceDarkSites'],
@@ -563,6 +566,10 @@
     // (kept in main, like Web safety's sensitivity), so there is no VexUsage row and no vex.* key.
     { id: 'threat-list', title: 'Warnings for known dangerous sites', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['threat:settings', 'threat:test'],
       permissions: { reads: ['the address of each page you open, only to look it up in a list on this computer'], writes: ['the downloaded list (a set of hashes, no names), the sites you chose to trust, and a note of each time you chose Continue anyway'], sends: ['About once a day, a request for the public list file (a plain GET with no cookies); none of your addresses are in it'] } },
+    // Safe Download Assistant (src/main/safe-download.js, js/safe-download-ui.js): its switch is the one in Settings > Safe downloads (kept in main, like
+    // Web safety's sensitivity), so there is no VexUsage row and no vex.* key. Kill switch: turn it off there and no download is checked.
+    { id: 'safe-download', title: 'Safe Download Assistant', group: 'Web safety', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['safedl:settings'],
+      permissions: { reads: ['a finished download: its first 64 KB, the list of names inside a zip, rar or 7z (never unpacked), the signature of a Windows program (read by Windows, the program is not run), and the address it came from'], writes: ['only when you press Quarantine: moves that one file into Vex\'s quarantine folder under a name that cannot run; nothing is ever deleted'], sends: [] } },
     // Quick look at a finished download (js/download-quicklook.js): Space in the Downloads panel. Always on, no switch: it is how the panel looks at a file.
     { id: 'download-quicklook', title: 'Quick look at downloads', group: 'Downloads', killSwitch: 'none', maturity: 'stable', storageKeys: [],
       permissions: { reads: ['the first part of a finished download you press Space on, only if Vex downloaded it (a picture, a PDF, the first 200 KB of text, the names in an archive, the first text of an Office file)'], writes: ['nothing; a file is deleted to the Recycle Bin only after you confirm'], sends: [] } },
@@ -690,6 +697,9 @@
       commands: ['cornell-note', 'flag-question', 'questions-to-ask'], permissions: { reads: ['the page in front and the text you selected, when you ask'], writes: ['a Cornell note, and your list of flagged questions'], sends: [] } },
     { id: 'pdf-highlights', title: 'PDF highlights', group: 'PDF highlights', maturity: 'new', storageKeys: ['vex.pdfHighlights', 'vex.pdfHighlights.prefs'], usesKeys: ['vex.notes'],
       commands: ['pdf-highlight-save', 'pdf-highlights'], permissions: { reads: ['the passage you paste and the page number the PDF viewer shows, when you ask'], writes: ['your PDF highlights and, if you left it on, a PDF highlights note'], sends: [] } },
+    // Research mode (js/research-core.js, js/research-mode.js): a short brief from some tabs in which every claim is checked against its page.
+    { id: 'research-mode', title: 'Research mode', group: 'Research mode', maturity: 'new', storageKeys: ['vex.research.prefs', 'vex.research.briefs'], usesKeys: ['vex.notes'], budget: { storageKB: 700 },
+      commands: ['research-mode', 'research-briefs'], permissions: { reads: ['the text of the tabs you choose, never a private, Tor, bank, mail or sign-in tab or a page that holds a secret'], writes: ['your research briefs (claims, short quotes and addresses, not the page text) and, when you press Save to Notes, a note'], sends: ['The text of the pages you chose (cut to the size the preview shows) to your AI backend, only when that backend is the cloud one, after the preview shows what leaves'] } },
     // Vex's own viewer for office documents and e-books (src/renderer/office-viewer, main/office-viewer.js, js/office-viewer-host.js). It replaces the download these
     // files used to start, so it is on for everyone, an existing profile included; where a book was left and its highlights live in the viewer's own page, not in a vex.* key.
     { id: 'office-viewer', title: 'Documents and e-books viewer', group: 'Documents and e-books', tiers: { minimal: true, standard: true }, storageKeys: ['vex.officeViewer.prefs'],
@@ -803,6 +813,9 @@
       permissions: { reads: ['how much each feature keeps; the Recall index size'], writes: ['the caps and retention of the Recall index; the oldest pages go first'], sends: [] } },
     { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiRoute', 'vex.aiLadder'], commands: ['ai-answered-by'],
       permissions: { reads: ['your AI mode and which backend answered'], writes: ['the same AI mode switches Settings already has'], sends: [] } },
+    // Your own AI key (js/ai-keys.js, ai-connect.js, ai-bar.js; src/main/ai-byok.js). The key itself is sealed in the main process and is in no storage key.
+    { id: 'ai-keys', title: 'Connect an AI: your own API key', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiByok.active', 'vex.aiCloudSource'], events: ['vex:ai-keys', 'vex:ai-keys-usage'],
+      permissions: { reads: ['which providers have a saved key (never the key), the models you chose, and this session\'s token count'], writes: ['which provider answers by default and where cloud requests go'], sends: ['The question, page text and chat history of a request, to the AI company whose key you saved, only when a request is sent to it; never from a Tor or private tab, and never what the sensitivity gate holds back'] } },
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],
       permissions: { reads: ['a sign-in code in your mail, when you ask or allow it'], writes: ['the sites you trusted to receive a code'], sends: [] } },
@@ -877,11 +890,16 @@
     { id: 'page-watch-templates', title: 'Watch templates (seats, fares, wishlist, sale dates)', group: 'Watch templates', maturity: 'new', storageKeys: ['vex.pageWatchTemplates.enabled'],
       commands: ['watch-seats', 'watch-fare', 'watch-wishlist-low', 'watch-sale-date', 'claim-reminder'],
       permissions: { reads: ['the address and title of the page you are on'], writes: ['a page watch, or a reminder with a link back to the page, only when you confirm'], sends: ['A watch asks its own page from this computer, as a visitor would (the page watcher\'s rules)'] } },
+    // ---- Page automations (js/page-automations.js, main/automations*.js) ---------------------------------
+    { id: 'page-automations', title: 'Page automations (record and replay)', group: 'Page automations', maturity: 'new', storageKeys: ['vex.automations.enabled'],      commands: ['automations:record', 'automations:open', 'automations:stop', 'automations:kill'],
+      permissions: { reads: ['the page you record on, and the pages a run opens in a window of its own'], writes: ['your recordings and run logs, encrypted on this computer and never synced', 'Inbox rows that say what happened but never a value that was read', 'a note with the values read, only if you ask for it'], sends: ['Nothing, unless you add the AI summary step: then the values a run read go to your AI backend'] } },
     { id: 'game-holds', title: 'Held while you played', group: 'Held while you played', maturity: 'new', storageKeys: ['vex.gameHolds.enabled', 'vex.gameHolds.log', 'vex.gameHolds.rules'], commands: ['game-holds'], usesKeys: ['vex.attention.denied'],
       permissions: { reads: ['the toasts Vex shows during Game mode', 'what the Attention Budget and the main process held back', 'the Attention Inbox'], writes: ['the list of the last game session (200 messages at most) and your word rules'], sends: [] } },
     { id: 'brief-cards', title: 'Brief cards (permissions, service status, old highlight, flagged pages)', group: 'Brief cards', maturity: 'new', storageKeys: ['vex.briefCards.enabled', 'vex.briefCards.prefs', 'vex.briefCards.status'],
       jobs: ['Platform status'], commands: ['brief-flag-page'], usesKeys: ['vex.permHygiene.enabled', 'vex.resurface'],
       permissions: { reads: ['the permission summary', 'your highlights and notes', 'the pages you flagged'], writes: ['your switches', 'the last service status', 'a page watch for a page you flag'], sends: ['Only when you switch on the service status card: a read-only request to the public status page of Discord, GitHub, Cloudflare and Roblox every 20 minutes, with no cookies and nothing of yours in it, never during Game mode'] } },
+    { id: 'game-overlay', title: 'Game overlay (guide, Discord, notes, timer and music over your game)', group: 'Game overlay', maturity: 'new', storageKeys: ['vex.gameOverlay'], commands: ['game-overlay'],
+      permissions: { reads: ["which game Game mode sees running (its program name only); the Spotify panel's song title when you press a music button"], writes: ['its settings, where the overlay sat for each game, and your notes for each game (game-overlay-state.json)'], sends: ["Only when you open the Guide, Search or Discord panel: the guide page you added, your search words to your own search engine, or Discord with the Discord panel's sign-in"] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

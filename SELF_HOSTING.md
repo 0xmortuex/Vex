@@ -6,6 +6,15 @@ cross-device Sync — run on [Cloudflare Workers](https://workers.cloudflare.com
 that **you deploy yourself**. Nothing in the app points at anyone else's backend,
 so you never spend someone else's API credits or store your data on their server.
 
+**You may not need the AI worker at all.** Settings > AI > **Connect an AI** takes an
+API key from your own Claude, OpenAI, Gemini or OpenRouter account (or any
+OpenAI-compatible server) and Vex talks to that company directly: the key is
+sealed by Windows on your computer, and every request is made by Vex itself. Use
+the worker below when you would rather keep the provider key on your own server,
+or share one AI endpoint between several devices. Vex uses a saved key first and
+the worker second unless you choose otherwise (Settings > AI > Connect an AI, "When
+a request goes to the cloud, use").
+
 Both workers require the `VEX_STATE` Durable Object binding and SQLite migration
 in their checked-in Wrangler configuration; the sync worker also requires
 `VEX_ACCOUNTS` (one object per account) and its `v2` migration. Provider usage and model requests

@@ -223,6 +223,12 @@ contextBridge.exposeInMainWorld('vex', {
   onCaptureTake: (cb) => subscribe('capture:take', cb),
   captureDone: (payload) => ipcRenderer.send('capture:done', payload),
   captureOpen: () => ipcRenderer.invoke('capture:open'),
+  // In-game overlay (main/game-overlay-ipc.js): settings in, the hotkey's result back, and the music buttons relayed to the Spotify panel.
+  gameOverlayConfig: (req) => ipcRenderer.invoke('gameoverlay:config', req),
+  gameOverlayToggle: () => ipcRenderer.invoke('gameoverlay:toggle'),
+  gameOverlayStatus: () => ipcRenderer.invoke('gameoverlay:status'),
+  onGameOverlayMusic: (cb) => subscribe('gameoverlay:music-request', cb),
+  gameOverlayMusicAnswer: (answer) => ipcRenderer.send('gameoverlay:music-answer', answer),
   // Safe mode: why this launch is stripped down, and a backup at this first start that failed.
   safeMode: () => ipcRenderer.invoke('app:safe-mode'),
   // "The interface is up": what stops this launch counting as a failed one.
@@ -419,6 +425,16 @@ contextBridge.exposeInMainWorld('vex', {
   githubTokenClear: () => ipcRenderer.invoke('github:token-clear'),
   githubTokenTest: () => ipcRenderer.invoke('github:token-test'),
   githubGet: (path, opts) => ipcRenderer.invoke('github:get', path, opts),
+  // Bring your own AI key (main/ai-byok.js): a key goes in once and never comes back; answers stream as 'aikey:event'.
+  aiKeyStatus: () => ipcRenderer.invoke('aikey:status'),
+  aiKeySet: (req) => ipcRenderer.invoke('aikey:set-key', req),
+  aiKeyClear: (provider) => ipcRenderer.invoke('aikey:clear-key', provider),
+  aiKeySetModels: (req) => ipcRenderer.invoke('aikey:set-models', req),
+  aiKeyModels: (provider, refresh) => ipcRenderer.invoke('aikey:models', provider, refresh === true),
+  aiKeyTest: (provider) => ipcRenderer.invoke('aikey:test', provider),
+  aiKeyChat: (req) => ipcRenderer.invoke('aikey:chat', req),
+  aiKeyCancel: (id) => ipcRenderer.invoke('aikey:cancel', id),
+  onAiKeyEvent: (cb) => subscribe('aikey:event', cb),
   // Package versions, advisories and one endpoint ping (main/dev-feeds.js).
   devfeedsLatest: (ecosystem, name) => ipcRenderer.invoke('devfeeds:latest', ecosystem, name),
   devfeedsAdvisories: (ecosystem, name, version) => ipcRenderer.invoke('devfeeds:advisories', ecosystem, name, version),
@@ -843,6 +859,16 @@ contextBridge.exposeInMainWorld('vex', {
     forgetHost: (host) => ipcRenderer.invoke('threat:forget-host', host),
     continueLog: () => ipcRenderer.invoke('threat:continue-log'),
   },
+  // Safe Download Assistant (main/safe-download.js): the Settings choices, and Quarantine for a file Vex downloaded. The verdict itself arrives with download-complete.
+  safeDownload: {
+    get: () => ipcRenderer.invoke('safedl:get'),
+    set: (patch) => ipcRenderer.invoke('safedl:set', patch),
+    quarantine: (filePath) => ipcRenderer.invoke('safedl:quarantine', filePath),
+  },
+  // Share a space (main/space-check.js): which addresses of a shared space are look-alikes or reported dangerous. Nothing is loaded.
+  space: {
+    check: (urls) => ipcRenderer.invoke('space:check', urls),
+  },
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
   reminders: {
@@ -862,6 +888,25 @@ contextBridge.exposeInMainWorld('vex', {
     onClicked: (cb) => subscribe('reminders:clicked', cb),
     // A Snooze button on the Windows toast was pressed (handled in main).
     onSnoozed: (cb) => subscribe('reminders:snoozed', cb),
+  },
+  // Page automations (main/automations.js): record once, replay on demand or on a schedule. Recordings live encrypted in main.
+  automations: {
+    state: () => ipcRenderer.invoke('automations:state'),
+    setEnabled: (on) => ipcRenderer.invoke('automations:set-enabled', !!on),
+    kill: () => ipcRenderer.invoke('automations:kill'),
+    rearm: () => ipcRenderer.invoke('automations:rearm'),
+    save: (recording) => ipcRenderer.invoke('automations:save', recording),
+    remove: (id) => ipcRenderer.invoke('automations:delete', id),
+    run: (id) => ipcRenderer.invoke('automations:run', id),
+    stop: () => ipcRenderer.invoke('automations:stop'),
+    decide: (runId, decision) => ipcRenderer.invoke('automations:decide', runId, decision),
+    runs: (id) => ipcRenderer.invoke('automations:runs', id),
+    runGet: (runId) => ipcRenderer.invoke('automations:run-get', runId),
+    ack: (ids) => ipcRenderer.invoke('automations:ack', ids),
+    exportOne: (id) => ipcRenderer.invoke('automations:export', id),
+    importText: (text) => ipcRenderer.invoke('automations:import', text),
+    reveal: () => ipcRenderer.invoke('automations:reveal'),
+    onEvent: (cb) => subscribe('automations:event', cb),
   },
   // Save a small text file where the user chooses (a calendar entry, an export).
   saveTextFile: (name, text, kind) => ipcRenderer.invoke('file:save-text', { name, text, kind }),

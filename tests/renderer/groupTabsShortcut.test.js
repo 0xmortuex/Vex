@@ -41,10 +41,10 @@ describe('Organize Tabs with AI key', () => {
   });
 
   it('after rebinding, only the new key runs it', () => {
-    expect(ShortcutsRegistry.setShortcut('group-tabs', 'Ctrl+Alt+Shift+O')).toBe(true);
+    expect(ShortcutsRegistry.setShortcut('group-tabs', 'Ctrl+Alt+Shift+J')).toBe(true);
     press('G');
     expect(ran).toEqual([]);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'O', ctrlKey: true, altKey: true, shiftKey: true, bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'J', ctrlKey: true, altKey: true, shiftKey: true, bubbles: true }));
     expect(ran).toEqual(['group']);
   });
 });

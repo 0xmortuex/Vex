@@ -835,7 +835,7 @@ function vexOwnTextFocused(doc) {
     'vex.autoArchiveDays', 'vex.locationMode', 'vex.manualLocation',
     'vex.userName', 'vex.githubUsername', 'vex.weatherLoc',
     'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
-    'vex.aiRoute', 'vex.localAIModel', 'vex.aiRouting',
+    'vex.aiRoute', 'vex.localAIModel', 'vex.aiRouting', 'vex.aiByok.active', 'vex.aiCloudSource',
     'vex.preferOnDeviceAI', 'vex.webllmModel',
     'vex.panelOverrides', 'vex.sidebarOrder', 'vex.sidebarGroups', 'vex.sidebarGroups.v2', 'vex.sidebarGroups.folded', 'vex.sidebarGroups.open', 'vex.sidebarGroupDefs', 'vex.userShortcuts', 'vex.layout', 'vex.toolbarShown', 'vex.toolbarMenu',
     // Written by Settings controls but missing from this list until v2.36.5.
@@ -1747,7 +1747,9 @@ function vexOwnTextFocused(doc) {
     // Register handlers for every shortcut we can reach from the renderer.
     // Main-process shortcuts in src/main.js keep firing as system-level
     // defaults (they're labelled "system" in the editor).
-    ShortcutsRegistry.register('command-bar',    () => CommandBar?.open?.() ?? CommandBar?.toggle?.());
+    // toggle(), as main's own Ctrl+K does: open() returns nothing, so `open() ?? toggle()` opened the bar and shut it again,
+    // and Ctrl+K did nothing in a private window, which main does not answer for (found 2026-11-06).
+    ShortcutsRegistry.register('command-bar',    () => CommandBar?.toggle?.());
     ShortcutsRegistry.register('keys-sheet', () => { if (typeof KeysSheet !== 'undefined') KeysSheet.toggle(); });
     // Vex watches its own weight and says something once when one thing has
     // clearly been the problem for a minute (js/why-slow.js).
@@ -2012,6 +2014,17 @@ function vexOwnTextFocused(doc) {
     // While the agreement is outstanding the link waits, and opens right
     // after "I agree" (js/legal.js).
     const held = !VexLegal.openFromOutside(url, (link) => {
+      // A shared space opens its review, never a tab (js/share-space-ui.js is a late module: wait for it, then say so if it never came).
+      if (/^vex:\/\/space\?d=/i.test(link)) {
+        const since = Date.now();
+        const open = () => {
+          if (window.VexShareSpaceUI) window.VexShareSpaceUI.openText(link, 'link').catch((err) => window.VexShareSpaceUI._fail(err));
+          else if (Date.now() - since < 20000) setTimeout(open, 300);
+          else window.showToast?.('Share a space did not load, so that link was not opened', 'error', 6000);
+        };
+        open();
+        return;
+      }
       if (typeof LinkRouting !== 'undefined' && LinkRouting.intercept(link, null)) return;
       try {
         const tab = TabManager.createTab(link, true);

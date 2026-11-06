@@ -474,7 +474,7 @@ const VexVoice = {
     }
     if (d.action === 'confirm') {
       const cmd = d.command;
-      const yes = this._button(this._t('Run {1}', cmd.label), () => this._runCommand(cmd, text, true), 'danger');
+      const yes = this._button(this._t('Yes, run {1}', cmd.label), () => this._runCommand(cmd, text, true), 'danger');
       const no = this._button(this._t('Cancel'), () => this._close());
       const say = this._button(this._t('Answer by voice'), () => {
         this._close();
