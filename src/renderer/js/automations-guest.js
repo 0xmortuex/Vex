@@ -403,5 +403,5 @@
 
   const api = { autoKit, kitSource, call };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (root) root.AutoGuest = api;
+  if (root) window.AutoGuest = api;
 })(typeof window !== 'undefined' ? window : null);

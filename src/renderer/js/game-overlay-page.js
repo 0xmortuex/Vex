@@ -100,7 +100,10 @@
     b.setAttribute('aria-pressed', String(ct));
     const label = ct ? t('Stop clicks going through') : t('Make mouse clicks go through to the game');
     b.title = label; b.setAttribute('aria-label', label);
-    $('lockState').innerHTML = icon('lock', 12) + '<span>' + t('Click-through on') + '</span>';
+    const lockText = document.createElement('span');
+    lockText.textContent = t('Click-through on');
+    $('lockState').innerHTML = icon('lock', 12);
+    $('lockState').appendChild(lockText);
     const c = $('btnCompact');
     c.innerHTML = icon(compact ? 'maximize' : 'minimize', 16);
     c.setAttribute('aria-pressed', String(compact));

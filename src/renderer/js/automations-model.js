@@ -422,5 +422,5 @@
     normalizeRecording, exportRecording, importRecording, stepsFromEvents, rateRefusal, redact, newId,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (root) root.AutoModel = api;
+  if (root) window.AutoModel = api;
 })(typeof window !== 'undefined' ? window : null);

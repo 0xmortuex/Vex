@@ -570,8 +570,9 @@ const VexAutomations = {
       for (const r of runs.slice().reverse()) {
         const rec = st.recs.find(x => x.id === r.recId);
         let summary = '';
+        let summarySource = null;
         if (r.summariseRequested && r.reads.length && r.status === 'ok') {
-          try { summary = await this._summarise(rec, r); } catch (err) { summary = autoTr('The AI summary failed') + ': ' + this._msg(err); }
+          try { const s = await this._summarise(rec, r); summary = s.text; summarySource = s.source; } catch (err) { summary = autoTr('The AI summary failed') + ': ' + this._msg(err); }
         }
         const word = autoTr(this.STATUS[r.status] || r.status);
         // The Inbox list is kept in plain localStorage, so it never carries a value that was read: it says what happened and
@@ -583,7 +584,7 @@ const VexAutomations = {
         }
         if (rec && rec.toNote && r.reads.length && typeof NotesPanel !== 'undefined' && Array.isArray(NotesPanel.notes)) {
           const now = new Date().toISOString();
-          NotesPanel.notes.unshift({ id: 'note_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), title: r.name + ' ' + new Date(r.startedAt).toLocaleDateString(), content: r.reads.map(x => '**' + x.as + '**: ' + x.text).join('\n\n') + (summary ? '\n\n' + summary : ''), pinned: false, tags: ['automation'], sourceUrl: '', sourceTitle: '', createdAt: now, updatedAt: now });
+          NotesPanel.notes.unshift({ id: 'note_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), title: r.name + ' ' + new Date(r.startedAt).toLocaleDateString(), content: r.reads.map(x => '**' + x.as + '**: ' + x.text).join('\n\n') + (summary ? '\n\n' + (summarySource ? VexProvenance.label(summarySource) + ': ' : '') + summary : ''), pinned: false, tags: ['automation'], sourceUrl: '', sourceTitle: '', createdAt: now, updatedAt: now });
           NotesPanel.save();
           try { NotesPanel.renderList?.(); } catch (err) { console.error('[Automations] the notes list could not be redrawn:', err); }
         }
@@ -599,7 +600,9 @@ const VexAutomations = {
     const out = await AIRouter.callAI('chat', { message: ((step && step.prompt) || 'Summarise these values in two sentences.') + '\n\n' + text, conversationHistory: [] });
     let t = out && (out.result != null ? out.result : out);
     if (typeof t === 'string' && /^\s*\{/.test(t)) { try { const j = JSON.parse(t); t = j.reply || j.summary || t; } catch (err) { /* vex-allow-empty-catch: not JSON, so it is plain text after all */ } }
-    return String(t || '').trim().slice(0, 600);
+    // Who wrote it: the router says which backend and model answered (js/provenance-chip.js raises if it does not).
+    const source = typeof VexProvenance !== 'undefined' ? VexProvenance.fromResult(out, { read: 'the values this automation read' }) : null;
+    return { text: String(t || '').trim().slice(0, 600), source };
   },
 
   // ---- Settings -----------------------------------------------------------------------------------------------------
