@@ -35,6 +35,8 @@ const VexBoot = {
     { src: 'js/github-open.js', usage: [] },
     // Wi-Fi sign-in check: only read when its button on the page that did not load, or its Ctrl+K command, is pressed.
     { src: 'js/captive-portal.js', usage: [] },
+    // Skip intro / next episode switches for streaming sites: only read when its Ctrl+K command is used.
+    { src: 'js/streaming-skip.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },

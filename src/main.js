@@ -12569,13 +12569,27 @@ ipcMain.on('privacy:config-sync', (e) => {
   const pageUrl = e.sender.getURL() || (e.senderFrame && e.senderFrame.url) || '';
   e.returnValue = { farble: _mainHelpers.farbleFor(privacyCfg.farble, partition, e.sender.session, pageUrl), seed: _mainHelpers.farbleSeed(FARBLE_KEY, partition, pageUrl), gpc: _gpcFor(e.sender.session, pageUrl) };
 });
+// Skip intro / recap / next episode on streaming sites (main/streaming-skip.js): off per site until turned on; the selector table is site-tweaks.js.
+const _streamingSkipTable = require('./site-tweaks').STREAMING_SKIP;
+const _streamSkip = require('./main/streaming-skip').createStreamingSkipStore({ fs, file: path.join(userDataPath, 'streaming-skip.json'), table: _streamingSkipTable });
+ipcMain.handle('streamskip:get', () => _streamSkip.state());
+ipcMain.handle('streamskip:set', (_event, site, on) => _streamSkip.set(site, on));
+ipcMain.on('streamskip:matched', (e, site, kind) => {
+  try {
+    // The page says which button; main checks the page really is that site, and that the site is on and not private.
+    const url = new URL(e.senderFrame.url);
+    if (require('./site-tweaks').streamingSiteFor(url.hostname, url.pathname) !== site || _passkeys.whyRefused(e.sender)) return;
+    _streamSkip.recordMatch(site, kind);
+  } catch (err) { console.error('[StreamingSkip] could not note a pressed button:', err.message); }
+});
 ipcMain.on('compatibility:get', e => {
   try {
     // 'off': the site is on the "don't offer passkeys" list (the old refusal
     // applies); 'refused': a private, Tor or burner tab, where the page is told
     // no passkey is available; otherwise Vex answers passkey requests itself.
     const off = _passkeySuppressed(new URL(e.senderFrame.url).hostname);
-    e.returnValue = { suppressPasskeys: off, passkeys: off ? 'off' : (_passkeys.whyRefused(e.sender) ? 'refused' : 'vex') };
+    // streamingSkip: the streaming sites the person turned on, and none in a private, Tor or burner tab (main/streaming-skip.js).
+    e.returnValue = { suppressPasskeys: off, passkeys: off ? 'off' : (_passkeys.whyRefused(e.sender) ? 'refused' : 'vex'), streamingSkip: _passkeys.whyRefused(e.sender) ? [] : _streamSkip.enabledSites() };
   }
   catch { e.returnValue = { suppressPasskeys: false }; }
 });

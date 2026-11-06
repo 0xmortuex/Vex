@@ -280,6 +280,169 @@ function tweaksForHost(hostname, options = {}) {
   });
 }
 
+// === Streaming sites: Skip Intro / Skip Recap / Next Episode / "Still watching?" ===
+//
+// OFF by default, per site, and only when the person turned that site on (Ctrl+K
+// "Skip intro and next episode"). All it does is press a button that is already
+// on the page and in view, the way a person would: no network, nothing about the
+// video, the player or its protection is touched, and nothing is played, seeked or
+// paused. A button must stay in view for `delayMs` before it is pressed, so a
+// player that is still drawing it, or a person who got there first, is never
+// fought.
+//
+// THE SELECTORS BELOW ARE THE ONLY PLACE the buttons are described. They were
+// written from how the sites are known to build these buttons and have NOT been
+// verified against the live sites (they need a subscription and change often): a
+// site that changes its page stops matching, and the settings dialog then shows
+// "not matched yet" instead of pretending. When a site is fixed, edit this table
+// and raise `version`.
+//
+// Per button:  kind  - what it is (intro | recap | next | continue)
+//              css   - selectors for the real button (first visible one wins)
+//              guard - optional: the button's text must also match one of these
+//                      (so a generic class never presses "Skip ad")
+//              text  - fallback: a visible <button>/role=button whose WHOLE text
+//                      matches one of these (English and Turkish)
+// Everything only runs while the page has a <video>.
+const STREAMING_SKIP = {
+  version: 1,
+  updated: '2026-11-06',
+  verified: false,
+  delayMs: 700,
+  cooldownMs: 4000,
+  sites: {
+    netflix: {
+      label: 'Netflix',
+      hosts: '(^|\\.)netflix\\.com$',
+      buttons: [
+        { kind: 'intro', css: ['button[data-uia="player-skip-intro"]'], text: ['^skip intro$', '^giriş(i)? atla$'] },
+        { kind: 'recap', css: ['button[data-uia="player-skip-recap"]'], text: ['^skip recap$', '^özeti atla$'] },
+        { kind: 'next', css: ['button[data-uia="next-episode-seamless-button"]', 'button[data-uia="next-episode-seamless-button-draining"]'], text: ['^next episode$', '^sonraki bölüm$'] },
+        { kind: 'continue', css: ['[data-uia="interrupt-autoplay-continue"]'], text: ['^continue (watching|playing)$', '^izlemeye devam et$', '^oynatmaya devam et$'] },
+      ],
+    },
+    prime: {
+      label: 'Prime Video',
+      hosts: '(^|\\.)(primevideo\\.com|amazon\\.(com|co\\.uk|de|fr|it|es|ca|in|com\\.tr|com\\.au|co\\.jp))$',
+      // amazon.* is a shop too: only its video pages count.
+      paths: '^/(gp/video/|Amazon-Video/|-/)|^/detail/|^/region/',
+      buttons: [
+        { kind: 'intro', css: ['.atvwebplayersdk-skipelement-button'], guard: ['intro', 'giriş'], text: ['^skip intro$', '^giriş(i)? atla$'] },
+        { kind: 'recap', css: ['.atvwebplayersdk-skipelement-button'], guard: ['recap', 'özet'], text: ['^skip recap$', '^özeti atla$'] },
+        { kind: 'next', css: ['.atvwebplayersdk-nextupcard-button'], text: ['^next episode$', '^sonraki bölüm$'] },
+        { kind: 'continue', css: [], text: ['^continue watching$', '^i.?m still watching$', '^izlemeye devam et$'] },
+      ],
+    },
+    disney: {
+      label: 'Disney+',
+      hosts: '(^|\\.)disneyplus\\.com$',
+      buttons: [
+        { kind: 'intro', css: ['button[data-testid="skip-intro-button"]', '[data-gv2elementkey="skipIntro"]'], text: ['^skip intro$', '^giriş(i)? atla$'] },
+        { kind: 'recap', css: ['button[data-testid="skip-recap-button"]'], text: ['^skip recap$', '^özeti atla$'] },
+        { kind: 'next', css: ['button[data-testid="up-next-play-button"]'], text: ['^next episode$', '^sonraki bölüm$'] },
+        { kind: 'continue', css: [], text: ['^continue watching$', '^izlemeye devam et$'] },
+      ],
+    },
+  },
+};
+
+// Which streaming site (a key of STREAMING_SKIP.sites) this address is, or ''.
+function streamingSiteFor(hostname, pathname = '/', table = STREAMING_SKIP) {
+  for (const [id, site] of Object.entries(table.sites)) {
+    if (!new RegExp(site.hosts, 'i').test(String(hostname))) continue;
+    if (site.paths && !new RegExp(site.paths).test(String(pathname || '/'))) continue;
+    return id;
+  }
+  return '';
+}
+
+// The scanner. Everything it touches comes in as an argument so a test can drive it with a
+// jsdom page and a fake clock. report({ site, kind }) is told each time a button was pressed.
+function createStreamingSkipper({ doc, win, site, table = STREAMING_SKIP, report, isVisible, setTimer, clearTimer, now }) {
+  const spec = table.sites[site];
+  if (!spec) throw new Error('Unknown streaming site: ' + site);
+  const delayMs = table.delayMs;
+  const set = setTimer || ((fn, ms) => setTimeout(fn, ms));
+  const clear = clearTimer || ((id) => clearTimeout(id));
+  const clock = now || (() => Date.now());
+  const visible = isVisible || ((el) => {
+    if (!el.isConnected) return false;
+    const r = el.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return false;
+    if (typeof el.checkVisibility === 'function') return el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    const cs = (win || doc.defaultView).getComputedStyle(el);
+    return cs.visibility !== 'hidden' && cs.display !== 'none' && parseFloat(cs.opacity) !== 0;
+  });
+  const compiled = spec.buttons.map((b) => ({
+    ...b,
+    guardRe: (b.guard || []).map((g) => new RegExp(g, 'i')),
+    textRe: (b.text || []).map((t) => new RegExp(t, 'i')),
+  }));
+  const textOf = (el) => String(el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+
+  function find(b) {
+    for (const sel of b.css || []) {
+      let list;
+      try { list = doc.querySelectorAll(sel); } catch (err) { console.error('[site-tweaks] bad selector in the streaming table:', sel, err && err.message); continue; }
+      for (const el of list) {
+        if (b.guardRe.length && !b.guardRe.some((re) => re.test(textOf(el)))) continue;
+        if (visible(el)) return el;
+      }
+    }
+    if (!b.textRe.length) return null;
+    for (const el of doc.querySelectorAll('button, [role="button"]')) {
+      const t = textOf(el);
+      if (t.length > 40 || !b.textRe.some((re) => re.test(t))) continue;
+      if (visible(el)) return el;
+    }
+    return null;
+  }
+
+  const pending = new Map();      // element -> { kind, timer }
+  const lastPressed = new Map();  // kind -> time
+  let stopped = false;
+
+  function matches() {
+    const out = [];
+    if (!doc.querySelector('video')) return out;
+    for (const b of compiled) { const el = find(b); if (el) out.push({ kind: b.kind, el, b }); }
+    return out;
+  }
+
+  function press(el, b) {
+    pending.delete(el);
+    if (stopped) return;
+    // Still there, still in view, still the same button: otherwise do nothing.
+    if (!matches().some((m) => m.el === el)) return;
+    const last = lastPressed.get(b.kind);
+    if (last != null && clock() - last < table.cooldownMs) return;
+    lastPressed.set(b.kind, clock());
+    el.click();
+    report({ site, kind: b.kind });
+  }
+
+  function scan() {
+    if (stopped) return;
+    const found = matches();
+    for (const [el, p] of pending) {
+      if (!found.some((m) => m.el === el)) { clear(p.timer); pending.delete(el); }
+    }
+    for (const m of found) {
+      if (pending.has(m.el)) continue;
+      const last = lastPressed.get(m.kind);
+      if (last != null && clock() - last < table.cooldownMs) continue;
+      pending.set(m.el, { kind: m.kind, timer: set(() => press(m.el, m.b), delayMs) });
+    }
+  }
+
+  function stop() {
+    stopped = true;
+    for (const p of pending.values()) clear(p.timer);
+    pending.clear();
+  }
+  return { scan, stop, pendingCount: () => pending.size };
+}
+
 // --- Applier: runs only when loaded as a preload (DOM present) ---
 // The preload runs before the parser creates <html>, so the dom-script path
 // waits for documentElement instead of a plain appendChild (which would
@@ -335,6 +498,33 @@ function tweaksForHost(hostname, options = {}) {
   });
 })();
 
+// --- Streaming-site buttons (opt-in per site; main says which sites are on) ---
+(function () {
+  if (typeof document === 'undefined' || typeof location === 'undefined') return;
+  const site = streamingSiteFor(location.hostname, location.pathname);
+  if (!site) return;
+  let ipc;
+  try { ipc = require('electron').ipcRenderer; } catch { return; /* vex-allow-empty-catch: not running as a preload, nothing to do */ }
+  let on = false;
+  try {
+    const options = ipc.sendSync('compatibility:get') || {};
+    on = Array.isArray(options.streamingSkip) && options.streamingSkip.includes(site);
+  } catch (err) { console.error('[site-tweaks] could not ask Vex whether streaming skip is on:', err && err.message); return; }
+  if (!on) return;
+  const skipper = createStreamingSkipper({
+    doc: document, win: window, site,
+    report: (m) => { try { ipc.send('streamskip:matched', m.site, m.kind); } catch (err) { console.error('[site-tweaks] could not tell Vex a button was pressed:', err && err.message); } },
+  });
+  let queued = false;
+  const later = () => { if (queued) return; queued = true; setTimeout(() => { queued = false; skipper.scan(); }, 250); };
+  const start = () => {
+    new MutationObserver(later).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'disabled'] });
+    skipper.scan();
+  };
+  if (document.documentElement) start();
+  else document.addEventListener('DOMContentLoaded', start, { once: true });
+})();
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SITE_TWEAKS, tweaksForHost };
+  module.exports = { SITE_TWEAKS, tweaksForHost, STREAMING_SKIP, streamingSiteFor, createStreamingSkipper };
 }

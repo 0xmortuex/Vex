@@ -275,6 +275,8 @@ const VexFeatures = {
       what: 'Load none of one site’s pictures, to save data on a slow or metered connection. Per site, undone from the same panel.' },
     { id: 'captive-portal', phrases: 'wifi wi-fi sign in login captive portal hotel airport cafe school network page will not load network login', cat: 'privacy', cmd: 'captive', name: 'Wi-Fi sign-in check',
       what: 'On a café, school or airport network, one press asks a plain page whether the network is holding you at a sign-in, then opens that sign-in page (HTTPS-only leaves its addresses alone until Vex closes) and can pause strict secure DNS for ten minutes. Nothing is asked until you press it; it is also offered on the page that did not load.' },
+    { id: 'streaming-skip', phrases: 'skip intro skip recap next episode are you still watching continue watching netflix prime video disney binge', cat: 'media', cmd: 'streaming-skip', name: 'Skip intro and next episode',
+      what: 'On Netflix, Prime Video and Disney+, presses the Skip Intro, Skip Recap, Next Episode and Continue Watching buttons for you. Off for every site until you turn that site on.' },
     { id: 'siteidentity', cat: 'privacy', cmd: 'siteidentity',
       what: 'Exactly what this page can see about your browser, with a verdict on why a site might be refusing to work.' },
     { id: 'pwhealth', cat: 'privacy', cmd: 'pwhealth',
@@ -1359,7 +1361,7 @@ const VexFeatures = {
       { name: 'This machine', ids: ['resmon', 'downloads', 'backup'] },
     ],
     media: [
-      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
+      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'streaming-skip', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
       { name: 'Capturing what is on screen', ids: ['screenshot', 'screenshot-full', 'record-screen', 'clips', 'markup', 'whiteboard', 'page-images', 'qr'] },
       { name: 'Games and calls', ids: ['gaming', 'game-mode', 'game-guide', 'game-dossier', 'game-patch-radar', 'game-control-center', 'screenshare'] },
     ],

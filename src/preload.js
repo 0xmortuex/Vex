@@ -987,6 +987,9 @@ contextBridge.exposeInMainWorld('vex', {
   captiveCheck: () => ipcRenderer.invoke('captive:check'),
   captiveAllowHttp: (hosts) => ipcRenderer.invoke('captive:allow-http', hosts),
   captivePauseSecureDns: (minutes) => ipcRenderer.invoke('captive:pause-secure-dns', minutes),
+  // Skip intro / next episode on streaming sites, per site, off until turned on (main/streaming-skip.js).
+  streamingSkipGet: () => ipcRenderer.invoke('streamskip:get'),
+  streamingSkipSet: (site, on) => ipcRenderer.invoke('streamskip:set', site, on),
   setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
   // Start with Windows: what Windows holds, and changing it (main/login-item.js)
