@@ -100,10 +100,25 @@ const SiteRulesUI = {
   },
   // The idle timeout (minutes) the person gave for the site, or 0; whether keep-alive is on.
   sessionMinutes(url) { const r = this.forUrl(url); return r && Number.isInteger(r.sessionMin) ? r.sessionMin : 0; },
+  forgetOn(url) { const r = this.forUrl(url); return !!(r && r.forget === true); },
+  // The key a page's rule was saved under (the host or a parent domain), or ''.
+  ruleKey(url) {
+    const h = this.host(url);
+    let best = '';
+    if (!h) return best;
+    for (const key of Object.keys(this.rules())) if ((h === key || h.endsWith('.' + key)) && key.length > best.length) best = key;
+    return best;
+  },
+  // The sites main refuses 'forget' for (src/main/site-rules.js FORGET_PROTECTED): DRM playback and the chat and music panels.
+  FORGET_PROTECTED: ['netflix.com', 'spotify.com', 'discord.com', 'discordapp.com', 'disneyplus.com', 'primevideo.com', 'hulu.com', 'max.com', 'hbomax.com', 'tv.apple.com', 'twitch.tv', 'crunchyroll.com'],
+  forgetProtected(url) {
+    const h = this.host(url);
+    return this.FORGET_PROTECTED.some(p => h === p || h.endsWith('.' + p));
+  },
   keepAliveOn(url) { const r = this.forUrl(url); return !!(r && r.sessionMin && r.keepAlive === true); },
 
   // One value of a rule that is not a plain 'off': sessionMin (whole minutes 1-720, 0 or null removes it and keepAlive with it),
-  // keepAlive (true/false, only with a timeout).
+  // keepAlive (true/false, only with a timeout), forget (true/false, not for a protected site).
   async setField(url, field, value) {
     if (this._isPrivate()) throw new Error('Change this in a normal window — it applies to every window');
     const h = this.host(url);
@@ -117,6 +132,9 @@ const SiteRulesUI = {
     } else if (field === 'keepAlive') {
       if (value && !rule.sessionMin) throw new Error('Set the site’s timeout first');
       if (value) rule.keepAlive = true; else delete rule.keepAlive;
+    } else if (field === 'forget') {
+      if (value && this.forgetProtected(url)) throw new Error(h + ' needs to stay signed in for video, music or chat, so it cannot be forgotten when closed');
+      if (value) rule.forget = true; else delete rule.forget;
     } else {
       throw new Error('Unknown setting: ' + field);
     }

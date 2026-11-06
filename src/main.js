@@ -3879,6 +3879,32 @@ ipcMain.handle('siterules:set', (_e, rules) => {
   return { ok: true, rules: _siteRules };
 });
 ipcMain.handle('siterules:get', () => ({ ok: true, rules: _siteRules }));
+// Forget a site when I close it (main/site-forget.js): the window says the last tab of such a site closed; Vex's quit sweeps the rest.
+const _siteForget = require('./main/site-forget').createSiteForget({
+  getRules: () => _siteRules,
+  sessionFor: (partition) => secureSessions.fromPartition(partition),
+  openPages: (partition) => webContents.getAllWebContents()
+    .filter(w => !w.isDestroyed() && w.getType() === 'webview' && secureSessions.partitionOf(w) === partition)
+    .map(w => ({ id: w.id, url: w.getURL() })),
+  quitPartitions: () => BROWSING_SESSIONS,
+});
+ipcMain.handle('siteforget:run', async (_e, opts) => {
+  try {
+    const { url, partition, exceptPageId } = opts || {};
+    if (typeof url !== 'string' || url.length > 4096) throw new Error('That is not a web address');
+    if (typeof partition !== 'string') throw new Error('The session of the tab is missing');
+    return await _siteForget.afterTabClosed({ url, partition, exceptPageId: Number.isInteger(exceptPageId) ? exceptPageId : null });
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+let _forgetQuitDone = false;
+app.on('will-quit', (event) => {
+  if (_forgetQuitDone) return;
+  _forgetQuitDone = true;
+  event.preventDefault();
+  _siteForget.onQuit()
+    .catch(err => console.error('[SiteForget] could not forget the sites on quit:', err && err.message))
+    .finally(() => app.quit());
+});
 // Lite mode (and the other global switches in main/nav-privacy.js): one flag the request hook reads at once.
 const NavPrivacy = require('./main/nav-privacy');
 const _navPrivacyFile = path.join(userDataPath, 'nav-privacy.json');

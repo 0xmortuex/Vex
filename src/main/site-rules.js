@@ -37,12 +37,17 @@
 //   sessionMin   not a switch: the site logs you out after this many idle
 //                minutes (1 to 720), and Vex warns before. keepAlive (true) is the
 //                separate opt-in to a same-origin request that keeps it signed in.
+//   forget       not a switch: true clears the site's cookies and storage when
+//                the last tab of it closes and when Vex quits (src/main/site-forget.js).
+//                Never for the video, music and chat sites in FORGET_PROTECTED.
 //   ua           not a switch: the site is asked for as 'mobile' or with a
 //                typed User-Agent string (the desktop one is the normal
 //                thing, so it is never stored). Never in a Tor tab.
 const OFF = 'off';
 const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer', 'autoplay', 'lite'];
 const SESSION_MIN_MAX = 720;
+// Sites whose sign-in Vex's panels and DRM playback depend on: 'forget' is refused for them, in the window and again here.
+const FORGET_PROTECTED = ['netflix.com', 'spotify.com', 'discord.com', 'discordapp.com', 'disneyplus.com', 'primevideo.com', 'hulu.com', 'max.com', 'hbomax.com', 'tv.apple.com', 'twitch.tv', 'crunchyroll.com'];
 const UA_MOBILE = 'mobile';
 const UA_MAX = 512;
 
@@ -98,6 +103,30 @@ function keepsReferrer(rules, referrerUrl, requestUrl) {
   return isOff(rules, referrerUrl, 'referrer') || isOff(rules, requestUrl, 'referrer');
 }
 
+// A host or any subdomain of a protected site.
+function forgetProtected(h) {
+  const b = String(h || '').replace(/^www\./, '').toLowerCase();
+  return FORGET_PROTECTED.some(p => b === p || b.endsWith('.' + p));
+}
+
+// The rule's own key (the host or parent domain it was saved under) for a page, or null.
+function ruleKeyFor(rules, url) {
+  const h = host(url);
+  if (!h || !rules) return null;
+  let best = null;
+  for (const key of Object.keys(rules)) {
+    const k = String(key).replace(/^www\./, '').toLowerCase();
+    if ((h === k || h.endsWith('.' + k)) && (best === null || k.length > best.length)) best = k;
+  }
+  return best;
+}
+
+// Forget the site when its last tab closes: only for a site that asked and is not protected.
+function forgets(rules, url) {
+  const rule = ruleFor(rules, url);
+  return !!(rule && rule.forget === true && !forgetProtected(host(url)));
+}
+
 // The idle timeout the person told Vex about, as { minutes, keepAlive }, or null.
 function sessionTimeoutFor(rules, url) {
   const rule = ruleFor(rules, url);
@@ -142,6 +171,7 @@ function clean(rules) {
       kept.sessionMin = rule.sessionMin;
       if (rule.keepAlive === true) kept.keepAlive = true;
     }
+    if (rule && rule.forget === true && !forgetProtected(h)) kept.forget = true;
     if (rule && (rule.ua === UA_MOBILE || validUserAgent(rule.ua))) kept.ua = rule.ua;
     if (Object.keys(kept).length) out[h] = kept;
     if (Object.keys(out).length >= 200) break;
@@ -149,4 +179,4 @@ function clean(rules) {
   return out;
 }
 
-module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, allowsAds, blocksImages, sendsGpc, keepsReferrer, sessionTimeoutFor, liteBlocks, SESSION_MIN_MAX, userAgentFor, validUserAgent, UA_MOBILE, clean };
+module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, allowsAds, blocksImages, sendsGpc, keepsReferrer, sessionTimeoutFor, forgets, forgetProtected, ruleKeyFor, FORGET_PROTECTED, liteBlocks, SESSION_MIN_MAX, userAgentFor, validUserAgent, UA_MOBILE, clean };

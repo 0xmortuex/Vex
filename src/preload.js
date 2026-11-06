@@ -275,6 +275,8 @@ contextBridge.exposeInMainWorld('vex', {
   navPrivacyGet: () => ipcRenderer.invoke('navprivacy:get'),
   navPrivacySet: (change) => ipcRenderer.invoke('navprivacy:set', change),
   onNavPrivacyChanged: (callback) => subscribe('navprivacy:changed', callback),
+  // The last tab of a site with "forget when closed" closed (main/site-forget.js): { url, partition, exceptPageId } -> { ok, skipped?, cleared?, error? }.
+  siteForget: (opts) => ipcRenderer.invoke('siteforget:run', opts),
   // How long a few well-known services take to answer, and yours for comparison.
   netLatency: () => ipcRenderer.invoke('net:latency'),
   // What a word means, asked of a dictionary from the main process.

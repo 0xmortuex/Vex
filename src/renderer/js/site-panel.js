@@ -563,7 +563,11 @@ const SitePanel = {
       checked: SiteRulesUI.keepAliveOn(c.url), disabled: off || tor || !mins || !keepOk,
       note: !keepOk ? 'Not in a private window, a Tor tab or a tab that keeps nothing.'
         : 'Sends the site a small request for this page’s own address every few minutes while you work in the tab, and stops after 30 minutes of no activity. Banks sign you out on purpose; leave this off for them.' });
-    return this._section('session', 'When this site signs you out', html);
+    const prot = SiteRulesUI.forgetProtected(c.url);
+    html += this._switch('forget-site', 'Forget this site when I close it', {
+      checked: SiteRulesUI.forgetOn(c.url), disabled: off || tor || prot,
+      note: prot ? 'This site needs to stay signed in for video, music or chat, so it cannot be forgotten.' : 'Its cookies and stored data are cleared when its last tab closes and when Vex closes. This signs you out of it each time.' });
+    return this._section('session', 'Sign-out and forgetting', html);
   },
 
   // How this site is asked for, and what Vex tells it: its own User-Agent
@@ -831,6 +835,17 @@ const SitePanel = {
         window.showToast?.(this._tr(el.checked ? '{1} is left alone by Lite mode' : '{1} follows Lite mode again', c.host));
         this._paint();
         return;
+      case 'forget-site': {
+        this._mustSave(c);
+        await SiteRulesUI.setField(c.url, 'forget', el.checked);
+        const key = SiteRulesUI.ruleKey(c.url);
+        const others = key ? TabManager.tabs.filter(t => t.id !== c.tab.id && SiteRulesUI.ruleKey(t.url) === key).length : 0;
+        window.showToast?.(el.checked
+          ? this._tr(others ? 'Other tabs of {1} that are open stay as they are until the last one is closed; then it is forgotten' : '{1} is forgotten when its last tab is closed; this signs you out of it each time', c.host)
+          : this._tr('{1} is kept as normal again', c.host));
+        this._paint();
+        return;
+      }
       case 'sess-min': {
         this._mustSave(c);
         const m = parseInt(el.value, 10) || 0;
