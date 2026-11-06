@@ -9,7 +9,7 @@ const { UI_ONLY_CHANNELS } = require('../../src/main/ipc-policy.js');
 const preload = fs.readFileSync('src/preload.js', 'utf8');
 const wire = fs.readFileSync('src/main/automations-wire.js', 'utf8');
 
-const channels = [...wire.matchAll(/h\('(automations:[a-z-]+)'/g)].map(m => m[1]);
+const channels = [...wire.matchAll(/ipcMain\.handle\('(automations:[a-z-]+)'/g)].map(m => m[1]);
 
 describe('page automations IPC', () => {
   it('the main process answers fifteen channels and the preload offers exactly those', () => {

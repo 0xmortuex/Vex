@@ -80,22 +80,21 @@ function registerAutomations({ ipcMain, BrowserWindow, getSession, secretStore, 
     windowFocused: () => { const w = mainWindowOf(); return !!(w && !w.isDestroyed() && w.isFocused() && w.isVisible()); },
     emit: (event) => { const w = mainWindowOf(); if (w && !w.isDestroyed()) w.webContents.send('automations:event', event); },
   });
-  const h = (channel, fn) => ipcMain.handle(channel, async (_e, ...args) => fn(...args));
-  h('automations:state', () => svc.state());
-  h('automations:set-enabled', (on) => svc.setEnabled(on));
-  h('automations:kill', () => svc.kill('pressed in the interface'));
-  h('automations:rearm', () => svc.rearm());
-  h('automations:save', (rec) => svc.save(rec));
-  h('automations:delete', (id) => svc.remove(id));
-  h('automations:run', async (id) => { const r = await svc.startNow(id, { trigger: 'manual' }); return { runId: r.runId }; });
-  h('automations:stop', () => svc.stop());
-  h('automations:decide', (runId, decision) => svc.decide(runId, decision));
-  h('automations:runs', (recId) => svc.runs(recId));
-  h('automations:run-get', (runId) => svc.runGet(runId));
-  h('automations:ack', (ids) => svc.ack(ids));
-  h('automations:export', (id) => svc.exportOne(id));
-  h('automations:import', (text) => svc.importText(text));
-  h('automations:reveal', () => { focusMainWindow('an automation needs you'); return true; });
+  ipcMain.handle('automations:state', async (_e, ...args) => (() => svc.state())(...args));
+  ipcMain.handle('automations:set-enabled', async (_e, ...args) => ((on) => svc.setEnabled(on))(...args));
+  ipcMain.handle('automations:kill', async (_e, ...args) => (() => svc.kill('pressed in the interface'))(...args));
+  ipcMain.handle('automations:rearm', async (_e, ...args) => (() => svc.rearm())(...args));
+  ipcMain.handle('automations:save', async (_e, ...args) => ((rec) => svc.save(rec))(...args));
+  ipcMain.handle('automations:delete', async (_e, ...args) => ((id) => svc.remove(id))(...args));
+  ipcMain.handle('automations:run', async (_e, ...args) => (async (id) => { const r = await svc.startNow(id, { trigger: 'manual' }); return { runId: r.runId }; })(...args));
+  ipcMain.handle('automations:stop', async (_e, ...args) => (() => svc.stop())(...args));
+  ipcMain.handle('automations:decide', async (_e, ...args) => ((runId, decision) => svc.decide(runId, decision))(...args));
+  ipcMain.handle('automations:runs', async (_e, ...args) => ((recId) => svc.runs(recId))(...args));
+  ipcMain.handle('automations:run-get', async (_e, ...args) => ((runId) => svc.runGet(runId))(...args));
+  ipcMain.handle('automations:ack', async (_e, ...args) => ((ids) => svc.ack(ids))(...args));
+  ipcMain.handle('automations:export', async (_e, ...args) => ((id) => svc.exportOne(id))(...args));
+  ipcMain.handle('automations:import', async (_e, ...args) => ((text) => svc.importText(text))(...args));
+  ipcMain.handle('automations:reveal', async (_e, ...args) => (() => { focusMainWindow('an automation needs you'); return true; })(...args));
 
   svc.init().catch(err => console.error('[Automations] failed to start:', err.message));
   return svc;
