@@ -1074,7 +1074,7 @@ const _permHygiene = require('./main/permission-hygiene').createPermissionHygien
   },
 });
 const { savedDecision } = require('./main/permissions');
-const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id), hygiene: _permHygiene });
+const { setUiCamera, setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id), hygiene: _permHygiene });
 require('./main/permission-hygiene').registerPermissionHygiene({ ipcMain, hygiene: _permHygiene, loadDecisions: loadPermissionDecisions, saveDecisions: savePermissionDecisions, setPageDecision,
   getContents: (id) => { const c = webContents.fromId(id); return c && !c.isDestroyed() ? c : null; }, ownerOf: (c) => secureSessions.owner(c), isLocked: () => _vexLocked });
 
@@ -8127,6 +8127,8 @@ ipcMain.handle('sources:resolve-id', async (_event, which, id) => {
 });
 // DOI lookup for the sources list (main/doi-resolve.js): one Crossref request, only when the person presses the button.
 const _doiResolver = require('./main/doi-resolve').createDoiResolver({ fetch: boundedNetFetch });
+// "Check my devices" (js/device-check.js): Vex's own window may open the camera while that card is open, and only then (main/permissions.js).
+ipcMain.handle('devicecheck:camera', (event, on) => setUiCamera(event.sender, on));
 // Lyrics for the song that is playing (main/lyrics.js): one lrclib.net request per song, only while the person has the lyrics card open and has turned
 // lyrics on; the answers are kept in lyrics-cache.json (500 songs). The window never asks for a private, Tor or routed tab (and a private window is refused here).
 const _lyrics = require('./main/lyrics').createLyricsService({ fetch: boundedNetFetch, isOnline: () => net.isOnline(), fs, file: path.join(userDataPath, 'lyrics-cache.json'), version: app.getVersion() });

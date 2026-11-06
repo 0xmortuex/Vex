@@ -263,6 +263,22 @@ async function restoreDecisions(before) {
   await Promise.all([saveContainerDecisions(containers), saveMainDecisions(mergeStore(before.main, loadMainDecisions()))]);
 }
 
+// The camera for Vex's own window, only while its "Check my devices" card is open (js/device-check.js asks for it on opening and gives it
+// back on closing; it also lapses by itself). Everywhere else Vex's own window is never given a camera. The grant belongs to one window.
+const UI_CAMERA_MS = 10 * 60 * 1000;
+const uiCamera = new Map();   // webContents id -> when the grant lapses
+function uiCameraOpen(contents) {
+  const until = contents && uiCamera.get(contents.id);
+  if (!until) return false;
+  if (Date.now() > until) { uiCamera.delete(contents.id); return false; }
+  return true;
+}
+function setUiCamera(contents, on) {
+  if (!isVexUi(contents)) throw new Error('Only Vex’s own window can open its camera for the device check');
+  if (on) uiCamera.set(contents.id, Date.now() + UI_CAMERA_MS); else uiCamera.delete(contents.id);
+  return !!on;
+}
+
 function wirePermissionsOnSession(ses, tag, opts) {
   if (!ses || ses.__vexPermsWired) return;
   ses.__vexPermsWired = true;
@@ -300,6 +316,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
     if (isVexUi(webContents)) {
       const asked = mediaParts(permission, details);
       if (asked.length === 1 && (asked[0] === 'display-capture' || asked[0] === 'microphone')) return callback(true);
+      if (asked.length === 1 && asked[0] === 'camera' && uiCameraOpen(webContents)) return callback(true);
       // Vex's own Paste & Go, "Open a list of links" and the password copy that
       // clears itself read the clipboard, and each asked "null wants to read what
       // you last copied" (a file:// origin prints as null — found 2026-09-29).
@@ -396,6 +413,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // The check names one device: details.mediaType is 'audio' or 'video'.
     const kind = details && details.mediaType;
     if (isVexUi(_wc) && ((permission === 'media' && kind === 'audio') || permission === 'microphone')) return true;
+    if (isVexUi(_wc) && uiCameraOpen(_wc) && ((permission === 'media' && kind === 'video') || permission === 'camera')) return true;
     const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
     // A site in paranoid mode is granted nothing, whatever it was allowed before.
     if (webSafety && webSafety.isParanoid(requestingOrigin)) return false;
@@ -629,6 +647,6 @@ async function restorePageDecisions(snapshot) {
 }
 
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, askAutomaticDownloads, askRiskyDownload, flushPermissions: () => writes };
+return { setUiCamera, setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, askAutomaticDownloads, askRiskyDownload, flushPermissions: () => writes };
 }
 module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi, isDiscordOrigin };

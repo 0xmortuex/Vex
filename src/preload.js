@@ -990,6 +990,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Skip intro / next episode on streaming sites, per site, off until turned on (main/streaming-skip.js).
   streamingSkipGet: () => ipcRenderer.invoke('streamskip:get'),
   streamingSkipSet: (site, on) => ipcRenderer.invoke('streamskip:set', site, on),
+  // Vex's own window may open the camera while the "Check my devices" card is open, and not otherwise (main/permissions.js).
+  deviceCheckCamera: (on) => ipcRenderer.invoke('devicecheck:camera', on),
   // Lyrics for the song that is playing, from lrclib.net, only while the lyrics card is open (main/lyrics.js).
   lyricsGet: (song) => ipcRenderer.invoke('lyrics:get', song),
   lyricsClear: () => ipcRenderer.invoke('lyrics:clear'),

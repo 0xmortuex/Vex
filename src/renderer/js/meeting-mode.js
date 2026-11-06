@@ -144,6 +144,8 @@ const MeetingMode = {
     // The toast says the note is open; nothing opened it (found 2026-09-29).
     this.showNote();
     window.showToast?.('Meeting mode on — reminders held, other tabs muted, note open');
+    // An offer, not an action: nothing is opened until the button is pressed (js/device-check.js).
+    window.showToast?.('Want to check your camera, microphone and speakers first?', 'info', 9000, { action: { label: 'Check my devices', run: async () => { try { if (!window.VexDeviceCheck) await VexLazy.ensure('js/device-check.js'); await window.VexDeviceCheck.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } } });
     return note;
   },
 

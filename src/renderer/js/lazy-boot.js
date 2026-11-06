@@ -39,6 +39,8 @@ const VexBoot = {
     { src: 'js/streaming-skip.js', usage: [] },
     // Lyrics card: only read when its Ctrl+K command or the Lyrics button on Now Playing is used.
     { src: 'js/lyrics-card.js', usage: [] },
+    // "Check my devices": only read when its Ctrl+K command or the offer in Meeting mode is used.
+    { src: 'js/device-check.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },
     { src: 'js/theme-pack-ui.js', usage: [] },
     { src: 'js/this-site.js', usage: [] },
