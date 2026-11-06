@@ -45,8 +45,8 @@ body[data-gui-family="browser"] :is(#vex-logo, #workspace-btn, #sync-indicator,
    site you are on has something switched off, and hiding it is how a site
    ends up quietly broken with nothing on screen to say why. */
 
-/* The icon rail stays only where that browser has one (Firefox, Netscape). */
-body[data-gui-family="browser"]:not([data-sb-launcher="rail"]) #icon-sidebar { display: none !important; }
+/* The icon rail is shown in every look when the person wants a sidebar (js/sidebar-visibility.js hides it for "no"). A look whose
+   real browser has no rail (Chrome, Safari, IE, Edge, Aero) wears its own version of it: section 7. */
 /* Only the workspace BUTTON goes: its list lives inside the switcher, and the
    menu's "Switch Workspace" opens it there, so the switcher stays as an empty
    anchor spanning the toolbar's height - out of the flow, so it takes no
@@ -1028,33 +1028,33 @@ body[data-sb-side] #btn-look-sidebar.active { background: var(--b-btn-hover); co
 
 /* Icon rail (Firefox, Netscape): a flat strip on the toolbar colour, small
    icons, no Vex card or accent bar. */
-body[data-sb-launcher="rail"] #icon-sidebar {
+body[data-sb-side] #icon-sidebar {
   width: var(--b-rail-w, 44px); min-width: var(--b-rail-w, 44px); margin: 0; padding: 6px 0; gap: 2px;
   background: var(--b-toolbar); backdrop-filter: none; -webkit-backdrop-filter: none;
   border: none; border-right: 1px solid var(--b-toolbar-border); border-radius: 0;
 }
-body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) {
+body[data-sb-side] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) {
   width: var(--b-rail-btn, 34px); height: var(--b-rail-btn, 34px); background: transparent; color: var(--b-icon);
   border: 1px solid transparent; border-radius: var(--b-btn-radius); box-shadow: none; transform: none;
 }
-body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon):hover {
+body[data-sb-side] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon):hover {
   background: var(--b-btn-hover); color: var(--b-text); border-color: transparent; transform: none;
 }
-body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon.active {
+body[data-sb-side] #icon-sidebar .sidebar-icon.active {
   /* The chosen icon takes the text colour, not the accent: an accent glyph on
      an accent-tinted pill measured 1.2:1 on some themes. */
   background: var(--b-rail-active, var(--b-btn-hover)); color: var(--b-text); border-color: transparent;
 }
-body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon.active::before { display: none; }
-body[data-sb-launcher="rail"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) svg { width: 18px; height: 18px; }
-body[data-sb-launcher="rail"] #tools-bar { gap: 2px; }
+body[data-sb-side] #icon-sidebar .sidebar-icon.active::before { display: none; }
+body[data-sb-side] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon) svg { width: 18px; height: 18px; }
+body[data-sb-side] #tools-bar { gap: 2px; }
 /* Unread / download badges were sized for Vex's 42px buttons: on these 32px
    ones a "99+" covered the whole icon. Here they hang off the corner. */
-body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon :is(.panel-badge, .icon-badge) {
+body[data-sb-side] #icon-sidebar .sidebar-icon :is(.panel-badge, .icon-badge) {
   top: -3px; right: -5px; min-width: 13px; height: 13px; padding: 0 3px;
   font-size: 8.5px; line-height: 13px; border-radius: 7px;
 }
-body[data-sb-launcher="rail"] .sidebar-separator { width: 24px; background: var(--b-toolbar-border); }
+body[data-sb-side] .sidebar-separator { width: 24px; background: var(--b-toolbar-border); }
 
 /* More rail below: at 125-150% the last icons (Settings, Clock, Work…) sat
    under the window edge with no sign the rail scrolls, so Settings looked
@@ -1062,7 +1062,7 @@ body[data-sb-launcher="rail"] .sidebar-separator { width: 24px; background: var(
    bottom while there is more to scroll to. It is driven by the rail's own
    scroll position, so a rail that fits never shows it, and it fades out as
    the end comes into view. */
-body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar::after {
+body[data-sb-side]:not(.tabs-hidden) #icon-sidebar::after {
   content: ''; position: sticky; bottom: -6px; flex: 0 0 auto; align-self: stretch;
   /* Takes no room: its height and the rail's 2px gap cancel against the
      negative margin, so a rail that fits gains no scroll range from it. */
@@ -1078,7 +1078,7 @@ body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar::after {
 @keyframes vex-rail-more { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
 /* Vex's own rail fades its last 22px when it scrolls (sidebar.css .scrolls);
    here that would fade the chevron away with it. */
-body[data-sb-launcher="rail"] #icon-sidebar.scrolls { mask-image: none; }
+body[data-sb-side] #icon-sidebar.scrolls { mask-image: none; }
 
 /* Firefox: the selected tool sits in a soft accent-tinted square. */
 body:is([data-gui-style="firefox"], [data-gui-style="firefox-dark"]) { --b-rail-active: color-mix(in srgb, var(--b-accent) 16%, transparent); }
@@ -1132,3 +1132,89 @@ body[data-gui-style="terminal"] #icon-sidebar { border: var(--b-t-line) solid va
 body[data-gui-style="terminal"] #icon-sidebar .sidebar-icon.active { background: var(--b-btn-hover); color: var(--vex-accent-fg, var(--b-accent)); }
 body[data-gui-style="terminal"][data-sidebar-panel] #panels-container { border: var(--b-t-line) solid var(--b-toolbar-border); }
 body[data-gui-style="terminal"] #look-sb-head { font: 400 12px var(--b-font); color: var(--b-text-dim); }
+
+/* ---- 8. A rail for every look ---------------------------------------------
+   Chrome, Safari, Internet Explorer, Edge (Fluent) and Aero (Glossy) open their panels from a toolbar button (above). When the
+   person wants a sidebar (js/sidebar-visibility.js; the setup wizard asks) they get the icon rail too, drawn from that look's own
+   materials - the rail skin of section 7 reads the same --b-* tokens, and each look below only changes what is its own: the
+   surface the strip is cut from, the shape and weight of its buttons, and what marks the chosen one. Firefox, Netscape, Glass,
+   Neobrutal and Terminal already had a rail. The folder tiles are skinned per look in css/sidebar-groups.css. */
+/* Chrome's side panel and Edge's sidebar sit on the right: the strip is the window's right edge, the panel opens beside it. */
+body[data-sb-side="right"] #icon-sidebar { order: 3; border-right: none; border-left: 1px solid var(--b-toolbar-border); }
+body.fullscreen[data-sb-side="right"] #icon-sidebar { left: auto; right: 0; transform: translateX(100%); }
+body.fullscreen[data-sb-side="right"] #icon-sidebar:hover { transform: translateX(0); }
+
+/* Chrome: the strip is the grey frame colour, round icon buttons like the toolbar's, the chosen one a soft accent disc. */
+body:is([data-gui-style="chrome"], [data-gui-style="chrome-dark"]) {
+  --b-rail-w: 48px; --b-rail-btn: 34px; --b-card-radius: 10px; --b-folder-radius: 16px;
+  --b-rail-active: color-mix(in srgb, var(--b-accent) 20%, transparent);
+}
+body:is([data-gui-style="chrome"], [data-gui-style="chrome-dark"]) #icon-sidebar { background: var(--b-frame-solid); padding-top: 8px; gap: 4px; }
+
+/* Safari: a sidebar in the window's frame colour, rounded-square buttons, the chosen one a soft accent tile. */
+body[data-gui-style="safari"] {
+  --b-rail-w: 48px; --b-rail-btn: 32px; --b-card-radius: 8px; --b-folder-radius: 10px;
+  --b-rail-active: color-mix(in srgb, var(--b-accent) 18%, transparent);
+}
+body[data-gui-style="safari"] #icon-sidebar { background: var(--b-frame-solid); padding-top: 10px; gap: 4px; }
+
+/* Fluent (Edge's sidebar): Mica, the frame's own gradient, 6px controls, and the short accent pill Windows 11 draws beside the
+   chosen item. */
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) {
+  --b-rail-w: 48px; --b-rail-btn: 36px; --b-card-radius: 8px; --b-folder-radius: 8px;
+  --b-rail-active: var(--b-btn-hover);
+}
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) #icon-sidebar { background: var(--b-frame); padding-top: 8px; gap: 4px; }
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) #icon-sidebar .sidebar-icon { border-radius: 6px; }
+body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) #icon-sidebar .sidebar-icon.active::before {
+  display: block; left: -6px; top: 50%; transform: translateY(-50%); width: 3px; height: 16px; border-radius: 2px; background: var(--b-accent);
+}
+
+/* Internet Explorer on XP: the Explorer bar - a Luna-tinted gradient column, buttons that are small raised cards with a thin
+   blue-grey edge, the chosen one the beige of the toolbar, pressed. */
+body[data-gui-style="xp"] {
+  --b-rail-w: 46px; --b-rail-btn: 32px; --b-card-radius: 3px; --b-folder-radius: 4px;
+  --b-rail-active: var(--b-tab-active);
+}
+body[data-gui-style="xp"] #icon-sidebar {
+  --b-frame-solid: color-mix(in srgb, var(--b-toolbar) 80%, var(--b-accent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--b-toolbar) 88%, var(--b-accent)), color-mix(in srgb, var(--b-toolbar) 72%, var(--b-accent)));
+  border-right-color: var(--b-tab-border, var(--b-toolbar-border)); padding-top: 8px; gap: 4px;
+}
+body[data-gui-style="xp"] :is(#icon-sidebar .sidebar-icon, #tools-bar .tool-icon):hover { border-color: var(--b-btn-hover-border); }
+body[data-gui-style="xp"] #icon-sidebar .sidebar-icon.active {
+  border-color: var(--b-toolbar-border); box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.2), inset -1px -1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Glossy (Aero): the toolbar's glass as a column, every button a small glossy bevelled tile, the chosen one the lit tab.
+   --b-rail-tint is how much of the accent tints the glass, --b-rail-shine the white that runs across it, --b-rail-gloss the gloss on a
+   button. In theme mode all three are gentler: the full gloss and a strong tint washed a dark theme's surface toward grey under the
+   theme's light icons (1.4:1 to 2.4:1 measured), so they are small enough to keep every icon at 3:1 or better. */
+body[data-gui-style="glossy"] {
+  --b-rail-w: 46px; --b-rail-btn: 32px; --b-card-radius: 4px; --b-folder-radius: 6px;
+  --b-rail-active: var(--b-tab-active); --b-rail-gloss: var(--b-gloss); --b-rail-tint: 20%; --b-rail-shine: rgba(255, 255, 255, 0.28);
+}
+body[data-gui-style="glossy"][data-gui-colors="theme"] {
+  --b-rail-gloss: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 60%); --b-rail-tint: 8%; --b-rail-shine: rgba(255, 255, 255, 0.07);
+}
+body[data-gui-style="glossy"] #icon-sidebar {
+  --b-frame-solid: color-mix(in srgb, var(--b-toolbar) calc(100% - var(--b-rail-tint)), var(--b-accent));
+  /* The sheen runs across the pane: the toolbar's runs down 40px, down a whole column it would wash the top icons out. */
+  background: linear-gradient(90deg, var(--b-rail-shine), rgba(255, 255, 255, 0) 80%), color-mix(in srgb, var(--b-toolbar) calc(100% - var(--b-rail-tint)), var(--b-accent));
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.6); padding-top: 8px; gap: 4px;
+}
+body[data-gui-style="glossy"] #icon-sidebar .sidebar-icon {
+  background: var(--b-rail-gloss), var(--b-tab); border-color: var(--b-tab-border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+body[data-gui-style="glossy"] #icon-sidebar .sidebar-icon:hover {
+  background: var(--b-rail-gloss), var(--b-btn-hover); border-color: var(--b-btn-hover-border); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+body[data-gui-style="glossy"] #icon-sidebar .sidebar-icon.active {
+  background: var(--b-rail-gloss), var(--b-tab-active); border-color: var(--b-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -8px 10px color-mix(in srgb, var(--b-accent) 22%, transparent);
+}
+
+/* The rail looks that already had one: only the square shapes the folders need (Firefox keeps the default rounding). */
+body[data-gui-style="win98"] { --b-card-radius: 0; --b-folder-radius: 0; }
+body[data-gui-style="neobrutal"] { --b-card-radius: 0; --b-folder-radius: 0; }
+body[data-gui-style="terminal"] { --b-card-radius: 0; --b-folder-radius: 0; }

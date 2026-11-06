@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "name": "Fixture catalogue",
+  "updated": "2026-11-06",
+  "entries": [
+    { "id": "art-wave", "title": "A great wave", "author": "An Artist", "licence": "PDM-1.0", "sourceUrl": "https://images.example.org/page/wave", "thumbUrl": "https://images.example.org/t/wave.jpg", "fullUrl": "https://images.example.org/f/wave.jpg", "tags": ["sea", "wave"], "category": "art-seascapes", "dominant": "#1d4e6b", "width": 3840, "height": 2160 },
+    { "id": "mist-valley", "title": "Mist in the valley", "author": "Jane Example", "licence": "CC0-1.0", "sourceUrl": "https://images.example.org/page/mist", "thumbUrl": "https://cdn.example.net/t/mist.jpg", "fullUrl": "https://cdn.example.net/f/mist.jpg", "tags": ["mist", "green"], "category": "nature", "dominant": "#4a6b5c" },
+    { "id": "bad-licence", "title": "Wrong licence", "author": "X", "licence": "All rights reserved", "sourceUrl": "https://images.example.org/page/x", "thumbUrl": "https://images.example.org/t/x.jpg", "fullUrl": "https://images.example.org/f/x.jpg", "category": "nature", "dominant": "#101010" },
+    { "id": "elsewhere", "title": "Off the host list", "author": "Y", "licence": "CC0-1.0", "sourceUrl": "https://other.example.com/page/y", "thumbUrl": "https://other.example.com/t/y.jpg", "fullUrl": "https://other.example.com/f/y.jpg", "category": "nature", "dominant": "#202020" },
+    { "id": "mist-valley", "title": "Repeated id", "author": "Z", "licence": "CC0-1.0", "sourceUrl": "https://images.example.org/page/z", "thumbUrl": "https://images.example.org/t/z.jpg", "fullUrl": "https://images.example.org/f/z.jpg", "category": "nature", "dominant": "#303030" }
+  ]
+}

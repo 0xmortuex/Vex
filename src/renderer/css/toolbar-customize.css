@@ -1,0 +1,71 @@
+/* Customize the toolbar (js/toolbar-customize.js): a sidebar panel's button in the toolbar, dragging, the right-click menu title and the
+   "Customize toolbar" dialog. The buttons are .nav-btn children of #top-bar-right, so every look's own toolbar-button rules (Glass's,
+   the browser looks', Classic's) already style them; nothing here paints a colour of its own, only the theme's tokens. */
+
+/* A panel placed in the toolbar: the rail button's icon, with its unread badge. */
+.tb-panel-btn { position: relative; }
+.tb-panel-ico { display: inline-flex; align-items: center; justify-content: center; pointer-events: none; }
+.tb-panel-ico svg, .tb-panel-ico img { width: 16px; height: 16px; object-fit: contain; }
+.tb-panel-btn.active { box-shadow: inset 0 -2px 0 var(--vex-accent, currentColor); }
+.tb-panel-badge {
+  position: absolute; top: 0; right: 0; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box;
+  border-radius: 7px; background: var(--vex-danger, #e5484d); color: var(--on-danger, #fff);
+  font-size: 9px; line-height: 14px; font-weight: 700; text-align: center; pointer-events: none;
+}
+.tb-panel-badge.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; top: 2px; right: 2px; }
+
+/* The browser looks hide the Notes button because Notes is on the rail; put in the toolbar on purpose, it shows (Simple mode still hides it). */
+body[data-gui-family="browser"] #top-bar-right > #btn-notes-top[data-tb-placed] { display: inline-flex !important; }
+
+/* A finger drags a button instead of scrolling the bar. */
+#top-bar-right > [data-tb-id], .tb-overflow-item[data-tb-id] { touch-action: none; }
+.tb-overflow-item[data-tb-id] { cursor: grab; }
+
+/* Dragging a button. */
+body.tb-drag-active { user-select: none; cursor: grabbing; }
+.tb-dragging { opacity: 0.4; }
+.tb-drag-ghost {
+  position: fixed; z-index: 100002; width: 30px; height: 30px; display: grid; place-items: center; pointer-events: none;
+  background: var(--surface, var(--vex-bg-elevated)); color: var(--text, var(--vex-text-primary));
+  border: 1px solid var(--vex-accent, currentColor); border-radius: 8px; box-shadow: var(--vex-elev-3);
+}
+.tb-drag-ghost svg, .tb-drag-ghost img { width: 16px; height: 16px; }
+.tb-drop-marker { position: fixed; z-index: 100002; pointer-events: none; background: var(--vex-accent, currentColor); border-radius: 2px; }
+.tb-drop-marker[hidden] { display: none; }
+.tb-drop-v { width: 3px; }
+.tb-drop-h { height: 3px; }
+/* Dropping on a button swaps places with it. */
+#top-bar .tb-drop-swap { outline: 2px solid var(--vex-accent, currentColor); outline-offset: -2px; }
+
+/* The name of the button a right-click menu is about. */
+.tb-ctx-title { padding: 4px 12px 3px; font-size: 11px; color: var(--text-muted); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The dialog. */
+.tbc-dialog {
+  width: 460px; max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); box-sizing: border-box; padding: 16px;
+  display: flex; flex-direction: column; border-radius: 14px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); box-shadow: 0 18px 48px var(--vex-shadow-color, rgba(0,0,0,0.4)); font-size: 13px;
+}
+.tbc-dialog:focus { outline: none; }
+.tbc-dialog h3 { margin: 0 0 6px; font-size: 15px; }
+.tbc-lead { margin: 0 0 8px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.tbc-body { overflow-y: auto; min-height: 0; overscroll-behavior: contain; padding-right: 4px; }
+.tbc-sec { margin-bottom: 10px; }
+.tbc-sec h4 { margin: 8px 0 4px; font-size: 12px; text-transform: none; }
+.tbc-sec h5 { margin: 10px 0 2px; font-size: 11.5px; font-weight: 600; color: var(--text-muted); }
+.tbc-empty { margin: 2px 0 4px; font-size: 12px; color: var(--text-muted); }
+.tbc-order { list-style: none; margin: 0; padding: 0; }
+.tbc-order li, .tbc-row { display: flex; align-items: center; gap: 8px; padding: 4px 2px; border-bottom: 1px solid var(--border); }
+.tbc-ico { width: 20px; height: 20px; display: inline-grid; place-items: center; flex: 0 0 20px; }
+.tbc-ico svg, .tbc-ico img { width: 16px; height: 16px; object-fit: contain; }
+.tbc-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbc-btn, .tbc-select {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 6px; cursor: pointer;
+  min-width: 26px; height: 26px; font: inherit; font-size: 12px; padding: 0 6px;
+}
+.tbc-btn:hover:not(:disabled), .tbc-select:hover { background: var(--vex-hover-fill, var(--surface)); }
+.tbc-btn:disabled { opacity: 0.4; cursor: default; }
+.tbc-btn:focus-visible, .tbc-select:focus-visible, .tbc-actions button:focus-visible { outline: 2px solid var(--vex-accent, currentColor); outline-offset: 1px; }
+.tbc-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.tbc-actions button { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+.tbc-actions button.primary { background: var(--vex-accent, var(--primary)); color: var(--on-primary, #fff); border-color: transparent; }

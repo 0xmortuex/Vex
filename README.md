@@ -224,9 +224,9 @@ Features that don't exist in other browsers — built by combining Vex's own sta
 | `Ctrl+F` | Find in page | | `Ctrl+R` / `Ctrl+Shift+R` | Reload / hard reload |
 | `Ctrl+Shift+S` | Split screen | | `Ctrl+Shift+P` | Picture‑in‑Picture |
 | `Ctrl+Shift+A` | AI panel | | `Ctrl+J` | Quick ask AI |
-| `Ctrl+Shift+G` | AI group tabs | | `Ctrl+Shift+Z` | Sleep tabs |
-| `Ctrl+Shift+H` | Remember (index) page | | `Ctrl+H` | History |
-| `Ctrl+D` | Bookmark | | `Ctrl+Shift+O` | Save session |
+| `Ctrl+Shift+G` | AI group tabs | | `Ctrl+Shift+Z` | Sleep tab |
+| `Ctrl+Shift+H` | History, searched by meaning (AI) | | `Ctrl+H` | History |
+| `Ctrl+D` | Bookmark | | `Ctrl+Shift+O` | Sessions menu (save or load) |
 | `Ctrl+Shift+Y` | Theme picker | | `Ctrl+Alt+R` | Reading mode |
 | `Ctrl+Alt+N` | Private window | | `F11` / `F12` | Fullscreen / DevTools |
 | `Ctrl+1`…`Ctrl+9` | Jump to tab N | | `Alt+←` / `Alt+→` | Back / forward |

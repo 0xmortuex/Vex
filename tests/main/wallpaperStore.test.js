@@ -197,9 +197,9 @@ describe('downloading a listed picture', () => {
 });
 
 describe('the IPC side', () => {
-  it('registers exactly the seven channels', () => {
+  it('registers exactly the nine channels', () => {
     const names = [];
     registerWallpaperStore({ ipcMain: { handle: (n) => names.push(n) }, dir, fs, path, fetch: async () => { throw new Error('no'); } });
-    expect(names.sort()).toEqual(['wallpaper:catalogue', 'wallpaper:clear-cache', 'wallpaper:download', 'wallpaper:read', 'wallpaper:remove', 'wallpaper:save', 'wallpaper:stats']);
+    expect(names.sort()).toEqual(['wallpaper:builtin', 'wallpaper:cancel', 'wallpaper:catalogue', 'wallpaper:clear-cache', 'wallpaper:download', 'wallpaper:read', 'wallpaper:remove', 'wallpaper:save', 'wallpaper:stats']);
   });
 });
