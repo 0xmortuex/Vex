@@ -181,6 +181,9 @@ const NowPlaying = {
       });
       bar.appendChild(row);
     });
+    // The sleep timer's countdown, while one is running (js/sleep-timer.js).
+    const sleepChip = window.VexSleepTimer && window.VexSleepTimer.active() ? window.VexSleepTimer.chip() : null;
+    if (sleepChip) bar.appendChild(sleepChip);
   },
 };
 // Switching tabs changes which row would sit over a player's own controls.

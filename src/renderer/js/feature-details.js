@@ -144,6 +144,7 @@ const FeatureDetails = {
   'media-grabber': 'Finds what is playing on the page and offers to save it. It works on ordinary media files, not on protected streams.',
   volume: 'One slider from 0 to 500% across every tab, including louder than the video was mixed. For the interview recorded three rooms away.',
   nowplaying: 'Everything making sound, in one place, with the controls for it. The fastest way to find which of forty tabs started talking.',
+  'sleep-timer': 'Falling asleep to a video or music is the usual case: pick 15, 30, 60 or 90 minutes (or "when this video ends") from Ctrl+K, "Sleep Timer". For the last 15 seconds the sound is turned down step by step, then every video and sound in every open tab and panel is paused and its volume put back, so pressing play later is at the level it was. It can also mute the tabs. The time left shows in the Now Playing card and in Ctrl+K, where it can be extended by 15 minutes or cancelled. It never wakes a sleeping tab and never presses play. The clock lives in memory only: closing Vex ends it. It reads and sends nothing, and starts only when you start it.',
   mute: 'Silence one tab, or everything except this one. Ctrl+M on the tab you are on; right-click for the rest.',
   nightaudio: 'Brings quiet dialogue up and holds explosions down on this site, so a film at night does not need a hand on the volume. Remembered per site.',
   videonote: 'Writes a note about the video at the second it is on now, as a link back to that second. One note per video, so it builds into a set of timestamps.',

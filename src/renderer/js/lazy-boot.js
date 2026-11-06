@@ -111,6 +111,8 @@ const VexBoot = {
     { src: 'js/wallpaper-store-ui.js', usage: [] },
     { src: 'js/update-tour.js', usage: ['whats-new-me'] },
     { src: 'js/media-control.js', usage: ['media-control'] },
+    // Sleep timer for media: reads nothing and runs nothing until a press (Ctrl+K, or its row in Now Playing).
+    { src: 'js/sleep-timer.js', usage: [] },
     { src: 'js/media-viewer-host.js', usage: ['media-viewer'] },
     { src: 'js/pdf-highlights.js', usage: ['pdf-highlights'] },
     { src: 'js/pdf-tools-ui.js', usage: ['pdf-tools'] },

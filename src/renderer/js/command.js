@@ -442,6 +442,8 @@ const CommandBar = {
     { id: 'private', label: 'New Incognito Window', hint: 'A window that saves no history, cookies or logins when you close it. Your connection is not hidden — for that, use a Tor tab', shortcut: 'Ctrl+Alt+N', icon: 'incognito', action: () => { if (typeof VexIncognito !== 'undefined') VexIncognito.open(); } },
     { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: 'mute', action: () => TabManager.toggleMuteTab() },
     { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: 'mute', action: () => TabManager.muteAllOtherTabs() },
+    // Stop playing after 15 / 30 / 60 / 90 minutes or when this video ends, with a fade (js/sleep-timer.js, loaded after start-up).
+    { id: 'sleep-timer', get label() { return typeof VexSleepTimer !== 'undefined' && VexSleepTimer.active() ? VexSleepTimer.describe() : 'Sleep Timer'; }, hint: 'Stop all playing media after 15, 30, 60 or 90 minutes, or when this video ends, fading the sound out', icon: 'clock', action: async () => { try { if (!window.VexSleepTimer) await VexLazy.ensure('js/sleep-timer.js'); await VexSleepTimer.open(); } catch (err) { _commandFailed(err); } } },
     // The same slider as Quick Tools > Master Volume (js/master-volume.js); it
     // had no command, so the Library could only describe it.
     { id: 'master-volume', label: 'Master Volume', hint: 'One slider, 0 to 500%, for the sound of every tab', icon: 'sliders', action: () => { if (typeof MasterVolume === 'undefined') throw new Error('Master Volume is not available in this window'); MasterVolume.show(); } },

@@ -483,6 +483,8 @@ const VexFeatures = {
       what: 'One slider from 0 to 500% across every tab — including making a quiet video louder than it was mixed.' },
     { id: 'nowplaying', cat: 'media', name: 'Now Playing', manual: true,
       what: 'Whatever is making sound, in one place, with the controls for it.' },
+    { id: 'sleep-timer', phrases: 'sleep timer stop playing after minutes fall asleep to music video turn off sound fade out when video ends bedtime', cat: 'media', cmd: 'sleep-timer', name: 'Sleep timer',
+      what: 'Stops everything that is playing after 15, 30, 60 or 90 minutes, or when the video ends, fading the sound out over the last 15 seconds. Ctrl+K, "Sleep Timer". It starts only when you start it.' },
     { id: 'mute', phrases: 'mute silence sound audio', cat: 'media', cmd: 'mute',
       what: 'Silence one tab, or every tab except this one.' },
     { id: 'screenshot', phrases: 'screen grab capture picture of the page snip', cat: 'media', cmd: 'screenshot',
@@ -1359,7 +1361,7 @@ const VexFeatures = {
       { name: 'This machine', ids: ['resmon', 'downloads', 'backup'] },
     ],
     media: [
-      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
+      { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'sleep-timer', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
       { name: 'Capturing what is on screen', ids: ['screenshot', 'screenshot-full', 'record-screen', 'clips', 'markup', 'whiteboard', 'page-images', 'qr'] },
       { name: 'Games and calls', ids: ['gaming', 'game-mode', 'game-guide', 'game-dossier', 'game-patch-radar', 'game-control-center', 'screenshare'] },
     ],
