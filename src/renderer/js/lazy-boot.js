@@ -31,6 +31,7 @@ const VexBoot = {
     { src: 'js/voice-control.js', usage: ['voice-control'] },
     { src: 'js/sidebar-groups-ui.js', usage: [] },
     { src: 'js/toolbar-customize.js', usage: [] },
+    { src: 'js/after-downloads-ui.js', usage: [] },
     // Clicking GitHub: the Control Center or github.com, asked or kept (js/sidebar.js loads it on demand if a click comes first).
     { src: 'js/github-open.js', usage: [] },
     // Wi-Fi sign-in check: only read when its button on the page that did not load, or its Ctrl+K command, is pressed.

@@ -21,6 +21,7 @@ const HELD_KEY = 'quiet-hours-held';
 const MAX_HELD = 200;
 const MAX_VIP = 50;
 const MAX_TIMES = 6;
+const MAX_PAUSE_MS = 8 * 60 * 60 * 1000;
 const DEFAULTS = { enabled: false, start: '22:00', end: '07:00', digestTimes: [], vip: [] };
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -59,6 +60,9 @@ function createQuietHours({ store, show, now = () => Date.now(), log, setInterva
   let lastRelease = 0;
   let timer = null;
   let ready = null;
+  // "Pause notifications" from the tray menu: kept in memory only, so a restart
+  // always begins un-paused, and capped so it cannot be forgotten for days.
+  let pausedUntil = 0;
 
   function init() {
     if (!ready) {
@@ -86,12 +90,13 @@ function createQuietHours({ store, show, now = () => Date.now(), log, setInterva
 
   // Why a toast is let through (or held), for the interface and for tests.
   function verdict(opts = {}) {
-    if (!config.enabled) return { pass: true, why: 'off' };
+    const paused = pausedUntil > now();
+    if (!paused && !config.enabled) return { pass: true, why: 'off' };
     if (opts.kind === 'reminder') return { pass: true, why: 'reminder' };
     if (opts.urgent === true) return { pass: true, why: 'urgent' };
     if (isVip(opts.site)) return { pass: true, why: 'vip' };
-    if (!inWindow()) return { pass: true, why: 'outside' };
-    return { pass: false, why: 'quiet' };
+    if (!paused && !inWindow()) return { pass: true, why: 'outside' };
+    return { pass: false, why: paused ? 'paused' : 'quiet' };
   }
 
   function saveHeld() { return store.write(HELD_KEY, held); }
@@ -141,7 +146,9 @@ function createQuietHours({ store, show, now = () => Date.now(), log, setInterva
   // time inside the window has passed since the last release.
   async function tick() {
     await init();
-    if (!config.enabled || !held.length) return { released: 0 };
+    if (!held.length || pausedUntil > now()) return { released: 0 };
+    // Held while paused with quiet hours off: the pause ended, so they go out.
+    if (!config.enabled) return release();
     if (!inWindow()) return release();
     const m = minutesNow();
     const d = new Date(now());
@@ -160,7 +167,23 @@ function createQuietHours({ store, show, now = () => Date.now(), log, setInterva
   }
   function stop() { if (timer) { clearIntervalFn(timer); timer = null; } }
 
-  async function getConfig() { await init(); return { ...config, inWindow: config.enabled && inWindow(), held: held.length }; }
+  // Pause every non-urgent toast for `ms` (at most MAX_PAUSE_MS) or until resume(); what arrives meanwhile is held, then released as one digest.
+  async function pause(ms) {
+    await init();
+    if (!Number.isFinite(ms) || ms <= 0) throw new Error('A pause needs a length of time');
+    pausedUntil = now() + Math.min(ms, MAX_PAUSE_MS);
+    return { paused: true, until: pausedUntil };
+  }
+  async function resume() {
+    await init();
+    pausedUntil = 0;
+    // Quiet hours may still be holding them: only release what the schedule allows.
+    if (held.length && (!config.enabled || !inWindow())) await release();
+    return { paused: false };
+  }
+  const isPaused = () => pausedUntil > now();
+
+  async function getConfig() { await init(); return { ...config, inWindow: config.enabled && inWindow(), held: held.length, paused: isPaused() }; }
   async function setConfig(cfg) {
     await init();
     const next = validateConfig({ ...config, ...cfg });
@@ -173,7 +196,7 @@ function createQuietHours({ store, show, now = () => Date.now(), log, setInterva
   async function heldList() { await init(); return held.map(h => ({ title: h.title, body: h.body, at: h.at, site: h.site || null })); }
   async function dropHeld() { await init(); const n = held.length; held = []; await saveHeld(); return { dropped: n }; }
 
-  return { gated, release, tick, start, stop, getConfig, setConfig, heldList, dropHeld, verdict, inWindow, init };
+  return { gated, release, tick, start, stop, getConfig, setConfig, heldList, dropHeld, verdict, inWindow, init, pause, resume, isPaused };
 }
 
 module.exports = { createQuietHours, validateConfig, normalizeVip, DEFAULTS };

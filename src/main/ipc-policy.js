@@ -88,7 +88,7 @@ const UI_ONLY_CHANNELS = new Set([
   // Which languages the spell checker uses (main.js, js/spell-lang.js).
   'spellcheck:set-languages', 'spellcheck:state',
   'panelguard:throttle',
-  'login-item:get', 'login-item:set', 'clipboard:write-secret', 'clipboard:clear-if', 'open-guest-window',
+  'login-item:get', 'login-item:set', 'tray:get', 'tray:set', 'afterdl:get', 'afterdl:arm', 'afterdl:disarm', 'afterdl:cancel', 'clipboard:write-secret', 'clipboard:clear-if', 'open-guest-window',
   'startup:list', 'startup:signatures', 'applock:make-record', 'applock:stores', 'applock:reset', 'applock:lock-on-minimize', 'photoprep:open', 'photoprep:save','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
   // Saved payment cards (main/cards.js): the list, the full number for a fill the person pressed, saving, editing, removing. Vex's own window only.
   'cards:list', 'cards:reveal', 'cards:has', 'cards:save', 'cards:update', 'cards:delete',
@@ -181,7 +181,7 @@ const UI_ONLY_CHANNELS = new Set([
   // Share a space's address check (main/space-check.js): read-only, but only the interface asks.
   'space:check',
   // Quick look at a finished download (main/download-peek.js): reads a file's contents, so only the interface asks, and main serves only files Vex downloaded.
-  'downloads:peek', 'downloads:peek-hash',
+  'downloads:peek', 'downloads:peek-hash', 'downloads:checksum', 'downloads:checksum-cancel',
   // An AI news toast and the clicks waiting for the interface (js/ai-news.js):
   // raising a notification is never a page's or an extension's call.
   'news:notify', 'news:pending',

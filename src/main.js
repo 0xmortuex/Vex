@@ -132,7 +132,10 @@ const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
 const { createSessionSecurity } = require('./main/session-security');
-const secureSessions = createSessionSecurity({ session, BrowserWindow, webContents, root: __dirname, isPipContents });
+// Keep Vex running in the tray (main/tray-keep.js): made once the profile folder is known, below.
+let _trayKeepInst = null;
+const secureSessions = createSessionSecurity({ session, BrowserWindow, webContents, root: __dirname, isPipContents,
+  beforeClose: (win, host) => !!_trayKeepInst && win === mainWindow && _trayKeepInst.handleClose(win, { isPrivate: !!host.privatePartition }) });
 // "What left this computer" (main/egress-ledger.js): every request Vex itself
 // makes through these two is noted with its host and sizes, never its content.
 // The ledger file lives in the profile folder, so it is created once that path
@@ -1497,10 +1500,10 @@ app.on('browser-window-created', (_e, win) => {
 // Processes ended by Vex quitting, updating or Windows ending the session are
 // not crashes (src/main/exit-kinds.js); everything else still is.
 const _exitWatch = require('./main/exit-kinds').createExitWatch();
-app.on('before-quit', () => _exitWatch.mark('quitting'));
+app.on('before-quit', () => { _exitWatch.mark('quitting'); if (_trayKeepInst) _trayKeepInst.markQuitting(); });
 app.on('browser-window-created', (_e, win) => {
   win.on('query-session-end', () => _exitWatch.mark('closing because Windows is logging off or shutting down'));
-  win.on('session-end', () => _exitWatch.mark('closing because Windows is logging off or shutting down'));
+  win.on('session-end', () => { _exitWatch.mark('closing because Windows is logging off or shutting down'); if (_trayKeepInst) _trayKeepInst.markQuitting(); });
 });
 app.on('child-process-gone', (_e, d) => {
   if (!d) return;
@@ -4075,7 +4078,14 @@ const _safeDownload = require('./main/safe-download').createSafeDownload({
   noteFile: (p) => _downloadService._noteFile(p),
   log: (m) => console.log(m),
 });
+// "When all downloads finish: sleep / shut down" (src/main/after-downloads.js): armed on purpose, never saved. Made just below.
+let _afterDl = null;
 const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
+  onLifecycle: (e) => {
+    if (!_afterDl) return;
+    try { if (e.type === 'start') _afterDl.noteStart(e.id); else _afterDl.noteEnd(e.id, e.state, !!e.byPerson); }
+    catch (err) { console.error('[AfterDownloads] could not follow a download:', err.message); }
+  },
   releases: _releaseDesk,
   assessFile: (ctx) => _safeDownload.assess(ctx),
   prefs: () => _downloadPrefs.current(),
@@ -4092,6 +4102,28 @@ const _downloadService = require('./main/downloads').createDownloadService({ app
     return Array.isArray(list) ? list.filter(d => d && d.state === 'completed').map(d => d.path) : [];
   } });
 const { wireDownloadsOnSession } = _downloadService;
+{
+  const after = require('./main/after-downloads');
+  const tell = (event) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('afterdl:event', event); } catch (err) { console.error('[AfterDownloads] could not tell the window:', err.message); } };
+  const toast = (title, body) => Promise.resolve(notifier.show({ title, body, tag: 'after-downloads', urgent: true })).catch(err => console.error('[AfterDownloads] could not show the notification:', err.message));
+  _afterDl = after.createAfterDownloads({
+    run: after.createCommandRunner({ spawn: require('child_process').spawn, onError: (err, what) => { console.error('[AfterDownloads] the ' + what + ' command failed:', err.message); tell({ kind: 'error', action: what, message: err.message }); } }),
+    notify: (event) => {
+      tell(event);
+      // The window may be hidden or minimised: the countdown and the reasons also go to Windows' notifications.
+      const sleeping = event.action !== 'shutdown';
+      if (event.kind === 'countdown') toast(sleeping ? 'Your PC will go to sleep in a minute' : 'Your PC will shut down in a minute', 'Your downloads are finished. Open Vex and press Cancel to stop it.');
+      else if (event.kind === 'blocked') toast('Your PC was left on', 'A download did not finish, so Vex left your computer as it is.');
+      else if (event.kind === 'error') toast(sleeping ? 'Could not put the PC to sleep' : 'Could not shut the PC down', event.message);
+      else if (event.kind === 'disarmed' && event.why === 'expired') toast('Vex stopped waiting for your downloads', 'It was set more than 12 hours ago, so it was switched off. Set it again if you still want it.');
+    },
+  });
+  app.on('before-quit', () => _afterDl.dispose());
+  ipcMain.handle('afterdl:get', () => _afterDl.state());
+  ipcMain.handle('afterdl:arm', (_e, action) => _afterDl.arm(action));
+  ipcMain.handle('afterdl:disarm', () => _afterDl.disarm());
+  ipcMain.handle('afterdl:cancel', () => _afterDl.cancel());
+}
 
 // === Phase 18: Chrome extension loader ===
 const extensionsDir = path.join(userDataPath, 'extensions');
@@ -10261,6 +10293,14 @@ ipcMain.handle('downloads:peek-hash', async (_e, filePath) => {
   try { return await _downloadPeek.hash(filePath); }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Compare a download with the checksum the publisher printed (src/main/checksum-compare.js): the file is streamed here, locally, with the
+// algorithm the pasted value's length calls for; progress goes back to the asking window; the comparison can be cancelled by its token.
+ipcMain.handle('downloads:checksum', async (e, filePath, pasted, token) => {
+  try {
+    return await _downloadPeek.verify(filePath, pasted, { token, onProgress: (p) => { if (!e.sender.isDestroyed()) e.sender.send('downloads:checksum-progress', { token, ...p }); } });
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('downloads:checksum-cancel', (_e, token) => _downloadPeek.cancel(token));
 ipcMain.handle('downloads:start-drag', async (e, filePath) => {
   try { return await _downloadFiles.startDrag(e.sender, filePath); }
   catch (err) { return { ok: false, error: err.message }; }
@@ -11282,7 +11322,7 @@ ipcMain.handle('updates:install', async (event, version) => {
     _updateLog.add('PROBLEM: Vex could not save your tabs, so it did not close to install the update');
     win.webContents.send('updates:install-failed', { error: 'Vex could not save your tabs, so it did not close to install the update. Try again once the problem it reported is fixed.' });
   }, 9000);
-  win.close();
+  _closeMainForReal(win);
   return { ok: true };
 });
 // The backup made right before an update installs (src/main/update-backups.js,
@@ -11357,13 +11397,18 @@ function _closeOtherProfilesForUpdate() {
     console.log('[Profiles] closing for the update:', open.join(', ') || 'no other profile open', '| reopen after:', reopen.join(', ') || 'none');
   } catch (err) { console.error('[Profiles] could not close the other profiles for the update:', err.message); }
 }
+// Closing the main window to really leave (install an update, restart, another profile's update): never hidden into the tray (main/tray-keep.js).
+function _closeMainForReal(win) {
+  if (_trayKeepInst) { _trayKeepInst.setForceClose(true); setTimeout(() => { if (_trayKeepInst) _trayKeepInst.setForceClose(false); }, 10000).unref(); }
+  win.close();
+}
 function _closeForOtherProfileUpdate() {
   console.log('[Profiles] another profile is installing an update — closing');
   _pendingInstall = null;
   if (!mainWindow || mainWindow.isDestroyed()) { app.quit(); return; }
   const win = mainWindow;
   win.once('closed', () => app.quit());
-  win.close();
+  _closeMainForReal(win);
 }
 function _profilesFromMainWindow(event) {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window manages profiles');
@@ -11704,7 +11749,7 @@ ipcMain.handle('app:restart', () => {
       // Saving gives up after 8 s (session-security.js); a later ordinary
       // close must then not restart.
       setTimeout(() => { if (!win.isDestroyed()) win.removeListener('closed', relaunch); }, 9000);
-      win.close();
+      _closeMainForReal(win);
       return { ok: true };
     }
     app.relaunch({ args }); app.exit(0); return { ok: true };
@@ -11974,6 +12019,26 @@ const _protect = require('./main/protect').registerProtect({
   isLocked: () => _vexLocked,
   log: (m) => console.log(m),
 });
+
+// Keep Vex running in the tray when the window is closed (src/main/tray-keep.js). Off until Settings turns it on.
+_trayKeepInst = require('./main/tray-keep').createTrayKeep({
+  fs, file: path.join(userDataPath, 'tray-prefs.json'), electron: { Tray: require('electron').Tray, Menu, nativeImage },
+  iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
+  getMainWindow: () => mainWindow,
+  // Private windows are not kept while Vex is hidden: they close, which wipes their session as ever.
+  closePrivateWindows: () => { for (const w of BrowserWindow.getAllWindows()) { const h = w.isDestroyed() ? null : secureSessions.owner(w.webContents); if (h && h.privatePartition) w.close(); } },
+  newTab: () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('new-tab'); },
+  reopenMain: () => _reopenMainWindow(null),
+  quitApp: () => app.quit(),
+  quiet: _protect.quiet,
+  notice: (text) => { Promise.resolve(notifier.show({ title: 'Vex', body: text, tag: 'tray-notice', urgent: true })).catch(err => console.error('[Tray] could not show the first-hide notice:', err.message)); },
+  translate: (text) => _i18nMain.t(text),
+  safeMode: !!_boot.safeMode,
+  log: (m) => console.log(m),
+});
+app.whenReady().then(() => _trayKeepInst.start());
+ipcMain.handle('tray:get', () => _trayKeepInst.get());
+ipcMain.handle('tray:set', (_e, on) => _trayKeepInst.set(on));
 
 // What am I signed in to, and the "my session leaked" kill switch (src/main/signed-in.js):
 // cookie names and dates only, across the main profile and the three containers.
@@ -12612,6 +12677,8 @@ ipcMain.handle('privacy:tracker-reset', () => {
 });
 
 app.on('window-all-closed', () => {
+  // Kept running in the tray (main/tray-keep.js): only when the setting is on and the tray icon is there to quit from.
+  if (_trayKeepInst && _trayKeepInst.handleAllClosed()) return;
   app.quit();
 });
 

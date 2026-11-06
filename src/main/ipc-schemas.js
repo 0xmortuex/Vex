@@ -91,6 +91,9 @@ define('repos:pick-folder', []);
 define('downloads:delete-file downloads:start-drag', [string(4096)]);
 // Quick look (main/download-peek.js): a path, which main serves only if Vex downloaded that file.
 define('downloads:peek downloads:peek-hash', [string(4096)]);
+// Compare a download with the published checksum (main/checksum-compare.js, download-peek.js verify): path, the pasted text, a token to cancel by.
+define('downloads:checksum', [string(4096), string(20000), string(64)]);
+define('downloads:checksum-cancel', [string(64)]);
 // Tidy the downloads folder (src/main/download-tidy.js): preview, apply a
 // preview by its id, undo the newest tidy-up. No path ever comes from here.
 define('downloads:tidy-plan', [value => Number.isSafeInteger(value) && value >= 0 && value <= 3650]);
@@ -206,6 +209,9 @@ define('capture:done', [shape({ id: string(40), ok: boolean, said: optional(stri
 define('extensions:set-enabled', [string(160), boolean]);
 define('extensions:set-scope', [string(160), string(20)]);
 define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])]);
+// When all downloads finish: sleep / shut down (main/after-downloads.js).
+define('afterdl:get afterdl:disarm afterdl:cancel', []);
+define('afterdl:arm', [oneOf(['sleep', 'shutdown'])]);
 // The address, and the id the panel knows the download by: main retries it
 // through the session the first attempt used (src/main/downloads.js).
 define('downloads:retry', [web, optional(string(160))]);
@@ -532,6 +538,9 @@ define('automations:import', [string(700000)]);
 // what Windows holds; set it on or off, minimised or not.
 define('login-item:get', []);
 define('login-item:set', [boolean, boolean]);
+// Settings > Keep Vex running in the tray when I close the window (main/tray-keep.js).
+define('tray:get', []);
+define('tray:set', [boolean]);
 define('siterules:set', [object]);
 // The saved decisions one tab's page is held to, by the page's id (main.js).
 define('permissions:list-for-page', [integer]);

@@ -12,7 +12,7 @@ const path = require('path');
 // standing waits in the holding folder for a confirm; without them none is.
 // releases: the record of GitHub release assets that were downloaded (download-desk.js
 // createReleaseDesk), so the window can offer the hash and a VirusTotal link for one.
-function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null, releases = null, inspectFile = null, assessFile = null }) {
+function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null, releases = null, inspectFile = null, assessFile = null, onLifecycle = null }) {
 const { hasRecentGesture } = require('../main-helpers');
 const _broadcastDownloadEvent = broadcast;
 // Live DownloadItems, keyed by the id the renderer knows them by, so the panel
@@ -372,7 +372,7 @@ function wireDownloadsOnSession(ses, tag) {
       // row and a toast for a download the user had just said no to (Chrome
       // shows nothing).
       let announced = false;
-      const announce = () => { if (!announced) { announced = true; emit('download-started', info); } };
+      const announce = () => { if (!announced) { announced = true; emit('download-started', info); if (onLifecycle) onLifecycle({ type: 'start', id: info.id }); } };
       if (!readChosen) announce();
       // Kept across a restart only when asked for (download-resume.js): a second name for the partial file.
       let tracked = null;
@@ -439,6 +439,8 @@ function wireDownloadsOnSession(ses, tag) {
           _removeHeld(heldDir);
         }
         console.log(`[Downloads] (${tag || 'session'}) done:`, info.fileName, state);
+        // "When all downloads finish" (main/after-downloads.js): this one is over, and how.
+        if (onLifecycle) onLifecycle({ type: 'end', id: info.id, state, byPerson });
         const known = _explain.get(info.id);
         if (known) Object.assign(known, { fileName: info.fileName, path: savePath, state, receivedBytes: safeCall(item, 'getReceivedBytes', 0), totalBytes: safeCall(item, 'getTotalBytes', 0) });
         if (state === 'completed') _noteFile(savePath, ephemeral);

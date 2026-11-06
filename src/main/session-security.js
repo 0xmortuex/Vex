@@ -2,7 +2,7 @@ const path = require('path');
 const { fileURLToPath } = require('url');
 const { randomUUID } = require('crypto');
 
-function createSessionSecurity({ session, webContents, root, isPipContents }) {
+function createSessionSecurity({ session, webContents, root, isPipContents, beforeClose = null }) {
   const hosts = new Map();
   const partitions = new WeakMap();
   const sessions = new Set();
@@ -170,6 +170,8 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
     win.on('close', event => {
       if (host.allowClose || win.webContents.isDestroyed()) return;
       event.preventDefault();
+      // Kept running in the tray (main/tray-keep.js): the window is hidden, not saved and closed.
+      if (beforeClose && beforeClose(win, host)) return;
       if (host.flushing) return;
       host.flushing = true;
       win.webContents.send('storage:flush-request');

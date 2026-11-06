@@ -664,10 +664,20 @@ contextBridge.exposeInMainWorld('vex', {
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
+  // When all downloads finish: sleep / shut down (main/after-downloads.js)
+  afterDlGet:            () => ipcRenderer.invoke('afterdl:get'),
+  afterDlArm:            (action) => ipcRenderer.invoke('afterdl:arm', action),
+  afterDlDisarm:         () => ipcRenderer.invoke('afterdl:disarm'),
+  afterDlCancel:         () => ipcRenderer.invoke('afterdl:cancel'),
+  onAfterDlEvent:        (cb) => subscribe('afterdl:event', cb),
   // What a download is, from where, and what to open it with; withHash adds its SHA-256 once finished.
   // Quick look at a finished download: what is inside it, read by main (only files Vex downloaded); the hash only when asked.
   downloadsPeek:         (filePath) => ipcRenderer.invoke('downloads:peek', filePath),
   downloadsPeekHash:     (filePath) => ipcRenderer.invoke('downloads:peek-hash', filePath),
+  // Compare a download with the published checksum (main/checksum-compare.js): file path, the pasted text, a token to cancel it by
+  downloadsChecksum:     (filePath, pasted, token) => ipcRenderer.invoke('downloads:checksum', filePath, pasted, token),
+  downloadsChecksumCancel: (token) => ipcRenderer.invoke('downloads:checksum-cancel', token),
+  onDownloadsChecksumProgress: (cb) => subscribe('downloads:checksum-progress', cb),
   downloadsExplain:      (id, withHash) => ipcRenderer.invoke('downloads:explain', id, !!withHash),
   downloadsRetry:        (url, id) => ipcRenderer.invoke('downloads:retry', url, id),
   downloadsAskWhere:     (url) => ipcRenderer.invoke('downloads:ask-where', url),
@@ -992,6 +1002,9 @@ contextBridge.exposeInMainWorld('vex', {
   // Start with Windows: what Windows holds, and changing it (main/login-item.js)
   loginItemGet: () => ipcRenderer.invoke('login-item:get'),
   loginItemSet: (openAtLogin, startMinimised) => ipcRenderer.invoke('login-item:set', openAtLogin, startMinimised),
+  // Keep Vex running in the tray when the window is closed (main/tray-keep.js)
+  trayGet: () => ipcRenderer.invoke('tray:get'),
+  traySet: (on) => ipcRenderer.invoke('tray:set', on),
 
   // Platform + versions
   platform: process.platform,
