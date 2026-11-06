@@ -1292,6 +1292,8 @@ const VexFeatures = {
       what: 'After a Game mode session, one list of the Vex messages held while you played. Open it with Ctrl+K: Held while you played. On an existing profile it starts off; turn it on in Settings > Held while you played.' },
     { id: 'brief-cards', setting: {"section":"vex-sg-brief-cards","label":"Brief cards"}, feature: 'brief-cards', newer: true, cat: 'unique', name: 'Brief cards', phrases: 'morning brief new tab cards permission summary service status old highlight flagged pages weather warning page changed outage card', manual: true,
       what: 'Four small New Tab and Morning Brief cards: permission summary, service status, an old highlight to revisit, and pages you flagged that changed. On an existing profile it starts off; turn it on in Settings > Brief cards.' },
+    { id: 'game-overlay', setting: {"section":"setting-game-overlay","label":"Game overlay"}, feature: 'game-overlay', newer: true, cat: 'media', name: 'Game overlay', phrases: 'in game overlay hotkey over game guide wiki discord notes timer stopwatch music spotify search roblox borderless always on top click through second screen alt tab', cmd: 'game-overlay',
+      what: 'A small Vex window you open with a hotkey while a game runs: a guide page, Discord, notes, a timer, music buttons and a quick search, without alt-tabbing. It is an ordinary window and never touches the game, so it is safe with anti-cheat. On an existing profile it starts off; turn it on in Settings > Game overlay.' },
   ],
 
   // Everything in one category.

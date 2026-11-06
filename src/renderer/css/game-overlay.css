@@ -1,0 +1,88 @@
+/* The in-game overlay window (renderer/game-overlay.html). It is its own window, so the theme reaches it
+   as custom properties set from Vex's window (main/game-overlay-ipc.js, js/game-overlay.js); nothing here
+   names a colour of its own. The fallbacks are the operating system's own colours, used only for the
+   moment before the theme arrives. */
+
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--vex-bg-base, Canvas); color: var(--vex-text-primary, CanvasText);
+  font-family: var(--vex-font-base, system-ui, sans-serif); font-size: var(--vex-fs-base, 13px); line-height: var(--vex-lh-base, 1.5); }
+
+.card { height: 100%; display: flex; flex-direction: column; background: var(--vex-bg-base, Canvas);
+  border: 1px solid var(--vex-border-medium, GrayText); border-radius: var(--vex-radius-lg, 10px); overflow: hidden; }
+
+/* The bar is the drag handle; every control on it opts out of dragging. */
+.bar { display: flex; align-items: center; gap: var(--vex-space-2, 8px); padding: 6px var(--vex-space-3, 12px); min-height: 38px;
+  background: var(--vex-bg-deep, Canvas); border-bottom: 1px solid var(--vex-border-subtle, GrayText); -webkit-app-region: drag; user-select: none; flex: none; }
+.bar-icon { display: inline-flex; color: var(--vex-accent, Highlight); }
+.bar-title { font-weight: var(--vex-fw-semibold, 600); color: var(--vex-text-primary, CanvasText); }
+.bar-game { color: var(--vex-text-secondary, GrayText); font-size: var(--vex-fs-sm, 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.bar-spacer { flex: 1; }
+.bar-tools { display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag; }
+.lock-state { display: none; align-items: center; gap: 4px; font-size: var(--vex-fs-xs, 11px); font-weight: var(--vex-fw-semibold, 600);
+  color: var(--vex-accent, Highlight); background: var(--vex-accent-glow, transparent); border: 1px solid var(--vex-border-accent, Highlight);
+  border-radius: var(--vex-radius-pill, 999px); padding: 2px 8px; white-space: nowrap; }
+body[data-clickthrough="true"] .lock-state { display: inline-flex; }
+
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.tool { -webkit-app-region: no-drag; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0;
+  background: transparent; color: var(--vex-text-secondary, CanvasText); border: 1px solid transparent; border-radius: var(--vex-radius-md, 6px); }
+.tool:hover { background: var(--vex-hover-fill, transparent); color: var(--vex-text-primary, CanvasText); }
+.tool[aria-pressed="true"] { background: var(--vex-accent-glow, transparent); color: var(--vex-accent, Highlight); border-color: var(--vex-border-accent, Highlight); }
+.btn { -webkit-app-region: no-drag; padding: 6px 12px; background: var(--vex-glass-input, Canvas); color: var(--vex-text-primary, CanvasText);
+  border: 1px solid var(--vex-border-medium, GrayText); border-radius: var(--vex-radius-md, 6px); }
+.btn:hover { background: var(--vex-hover-fill, transparent); border-color: var(--vex-border-accent, Highlight); }
+.btn[aria-pressed="true"] { background: var(--vex-accent-glow, transparent); border-color: var(--vex-border-accent, Highlight); color: var(--vex-accent, Highlight); }
+:is(button, input, textarea, [tabindex]):focus-visible { outline: 2px solid var(--vex-accent, Highlight); outline-offset: 2px; }
+
+.opacity { -webkit-app-region: no-drag; display: inline-flex; align-items: center; gap: 4px; color: var(--vex-text-secondary, CanvasText); font-size: var(--vex-fs-xs, 11px); }
+.opacity input { width: 72px; accent-color: var(--vex-accent, Highlight); }
+body[data-mode="compact"] .opacity-label { display: none; }
+
+.tabs { display: flex; gap: 2px; padding: 6px var(--vex-space-2, 8px) 0; background: var(--vex-bg-base, Canvas); border-bottom: 1px solid var(--vex-border-subtle, GrayText); flex: none; flex-wrap: wrap; }
+.tab { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: transparent; border: 1px solid transparent; border-bottom: 0;
+  color: var(--vex-text-secondary, CanvasText); border-radius: var(--vex-radius-md, 6px) var(--vex-radius-md, 6px) 0 0; }
+.tab:hover { background: var(--vex-hover-fill, transparent); color: var(--vex-text-primary, CanvasText); }
+.tab[aria-selected="true"] { background: var(--vex-bg-elevated, Canvas); color: var(--vex-text-accent, Highlight); border-color: var(--vex-border-subtle, GrayText); font-weight: var(--vex-fw-semibold, 600); }
+
+.stage { flex: 1; min-height: 0; background: var(--vex-bg-elevated, Canvas); position: relative; display: flex; flex-direction: column; }
+.pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--vex-space-2, 8px); padding: var(--vex-space-3, 12px); }
+.pane[hidden] { display: none; }
+.view-slot { flex: 1; min-height: 80px; border: 1px dashed var(--vex-border-subtle, GrayText); border-radius: var(--vex-radius-md, 6px); display: flex; align-items: center; justify-content: center; }
+.slot-msg { margin: 0; padding: var(--vex-space-3, 12px); color: var(--vex-text-secondary, GrayText); text-align: center; }
+.note { margin: 0; color: var(--vex-text-muted, GrayText); font-size: var(--vex-fs-sm, 12px); }
+.error { margin: 0; color: var(--vex-danger, CanvasText); font-size: var(--vex-fs-sm, 12px); min-height: 1.2em; }
+
+textarea { flex: 1; min-height: 80px; resize: none; padding: var(--vex-space-2, 8px); background: var(--vex-glass-input, Canvas); color: var(--vex-text-primary, CanvasText);
+  border: 1px solid var(--vex-border-medium, GrayText); border-radius: var(--vex-radius-md, 6px); }
+input[type="text"] { padding: 6px 10px; background: var(--vex-glass-input, Canvas); color: var(--vex-text-primary, CanvasText); border: 1px solid var(--vex-border-medium, GrayText); border-radius: var(--vex-radius-md, 6px); min-width: 0; }
+
+.timer-read { font-family: var(--vex-font-mono, monospace); font-size: var(--vex-fs-2xl, 28px); text-align: center; padding: var(--vex-space-3, 12px) 0; color: var(--vex-text-primary, CanvasText); }
+.timer-read[data-done="true"] { color: var(--vex-danger, CanvasText); }
+@media (prefers-reduced-motion: no-preference) { .timer-read[data-done="true"] { animation: vex-ov-flash 1s ease-in-out 4; } }
+@keyframes vex-ov-flash { 50% { opacity: 0.35; } }
+.timer-row { display: flex; gap: var(--vex-space-2, 8px); flex-wrap: wrap; justify-content: center; }
+.music-now { margin: 0; text-align: center; min-height: 3em; color: var(--vex-text-primary, CanvasText); }
+.search-row { display: flex; gap: var(--vex-space-2, 8px); }
+.search-row input { flex: 1; }
+
+.foot { flex: none; padding: 4px var(--vex-space-3, 12px); color: var(--vex-text-muted, GrayText); font-size: var(--vex-fs-xs, 11px); border-top: 1px solid var(--vex-border-subtle, GrayText); background: var(--vex-bg-deep, Canvas); }
+
+/* Compact: the bar and one row. */
+.mini { display: flex; align-items: center; gap: var(--vex-space-2, 8px); padding: var(--vex-space-2, 8px) var(--vex-space-3, 12px); background: var(--vex-bg-elevated, Canvas); flex: 1; }
+.mini[hidden] { display: none; }
+.mini-time { padding: 4px 10px; font-family: var(--vex-font-mono, monospace); background: var(--vex-glass-input, Canvas); border: 1px solid var(--vex-border-medium, GrayText); border-radius: var(--vex-radius-md, 6px); color: var(--vex-text-primary, CanvasText); }
+.mini-music { display: inline-flex; gap: 2px; }
+.mini-search { flex: 1; min-width: 0; display: flex; }
+.mini-search input { flex: 1; }
+body[data-mode="compact"] .tabs, body[data-mode="compact"] .stage, body[data-mode="compact"] .foot { display: none; }
+
+/* The hint after a game starts: a single line, click-through. */
+.hint-box { flex: 1; display: flex; align-items: center; justify-content: center; padding: var(--vex-space-3, 12px); background: var(--vex-bg-elevated, Canvas); }
+.hint-box[hidden] { display: none; }
+.hint-text { font-weight: var(--vex-fw-semibold, 600); color: var(--vex-text-primary, CanvasText); text-align: center; }
+body[data-hint="true"] .tabs, body[data-hint="true"] .stage, body[data-hint="true"] .foot, body[data-hint="true"] .mini, body[data-hint="true"] .bar-tools { display: none; }
+
+/* Click-through is visible: a dashed accent frame, as well as the badge on the bar. */
+body[data-clickthrough="true"] .card { border-style: dashed; border-color: var(--vex-border-accent, Highlight); }

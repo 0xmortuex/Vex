@@ -165,6 +165,19 @@ define('rec:finish', [string(80), optional(string(200))]);
 define('rec:cancel', [string(80)]);
 define('capture:submit', [shape({ kind: string(20), text: string(4000) })]);
 define('capture:close capture:open', []);
+// In-game overlay (src/main/game-overlay-ipc.js). The overlay window's own calls carry only what the card shows:
+// a switch, a level, a rectangle for the page view, a line of text. The three "config/toggle/status" calls come from
+// Vex's own window; music-answer is its reply to a music button.
+define('gameoverlay:get gameoverlay:hide gameoverlay:toggle gameoverlay:status', []);
+define('gameoverlay:click-through gameoverlay:interactive gameoverlay:compact', [boolean]);
+define('gameoverlay:opacity', [value => finiteNumber(value) && value >= 0.2 && value <= 1]);
+define('gameoverlay:view', [shape({ panel: oneOf(['guide', 'discord', 'search', 'none']), x: optional(coordinate), y: optional(coordinate), width: optional(coordinate), height: optional(coordinate) })]);
+define('gameoverlay:search', [string(300)]);
+define('gameoverlay:save-notes', [string(20000)]);
+define('gameoverlay:timer', [shape({ mode: oneOf(['stopwatch', 'timer']), running: boolean, startedAt: finiteNumber, elapsedMs: finiteNumber, durationMs: finiteNumber })]);
+define('gameoverlay:music', [oneOf(['toggle', 'next', 'prev', 'status'])]);
+define('gameoverlay:config', [shape({ config: object, tokens: optional(object), searchTemplate: optional(string(300)), lang: optional(oneOf(['en', 'tr'])) })]);
+define('gameoverlay:music-answer', [shape({ id: string(20), ok: boolean, title: optional(string(300)), artist: optional(string(300)), state: optional(string(40)), error: optional(string(500)) })]);
 // The text clips inbox (src/main/capture-inbox.js).
 // Developer bench (renderer js/dev-bench.js; main/request-log.js, response-overrides.js, log-tail.js,
 // pkg-intel.js). Files only ever come from main's own dialogs; the tailer follows a granted id.

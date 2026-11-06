@@ -223,6 +223,12 @@ contextBridge.exposeInMainWorld('vex', {
   onCaptureTake: (cb) => subscribe('capture:take', cb),
   captureDone: (payload) => ipcRenderer.send('capture:done', payload),
   captureOpen: () => ipcRenderer.invoke('capture:open'),
+  // In-game overlay (main/game-overlay-ipc.js): settings in, the hotkey's result back, and the music buttons relayed to the Spotify panel.
+  gameOverlayConfig: (req) => ipcRenderer.invoke('gameoverlay:config', req),
+  gameOverlayToggle: () => ipcRenderer.invoke('gameoverlay:toggle'),
+  gameOverlayStatus: () => ipcRenderer.invoke('gameoverlay:status'),
+  onGameOverlayMusic: (cb) => subscribe('gameoverlay:music-request', cb),
+  gameOverlayMusicAnswer: (answer) => ipcRenderer.send('gameoverlay:music-answer', answer),
   // Safe mode: why this launch is stripped down, and a backup at this first start that failed.
   safeMode: () => ipcRenderer.invoke('app:safe-mode'),
   // "The interface is up": what stops this launch counting as a failed one.
