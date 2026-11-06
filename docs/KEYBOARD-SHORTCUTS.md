@@ -51,11 +51,12 @@ Every key Vex answers, read from the code that answers it.
 | `Ctrl+Shift+O` | Sessions Menu | sessions | main.js before-input-event (Vex window) + registry | the page has it first | fixed | README, Ctrl+K hint |
 | `Ctrl+Shift+L` | Scheduled tasks (Clock panel) | schedules | main.js before-input-event (Vex window) + registry | the page has it first | fixed | README, Ctrl+K hint |
 | `Ctrl+Alt+R` | Reading Mode | reading-mode | registry handler in app.js | passed up before the page | yes | README, Ctrl+K hint |
-| `Ctrl+Alt+S` | Screenshot | screenshot | main.js before-input-event (Vex window) + registry | passed up before the page | fixed | README, Ctrl+K hint |
+| `Ctrl+Alt+S` | Screenshot | screenshot | main.js before-input-event (Vex window) + registry | passed up before the page | fixed | README, FAQ, Ctrl+K hint |
 | `Ctrl+Shift+G` | Organize Tabs with AI | group-tabs | registry handler in app.js | passed up before the page | yes | README, FAQ, Ctrl+K hint |
 | `Ctrl+Alt+M` | Free memory now | free-memory | registry handler in app.js | passed up before the page | yes | Settings list only |
 | `Ctrl+Shift+Y` | Open Theme Picker | toggle-theme | registry handler in app.js | passed up before the page | yes | README, FAQ, Ctrl+K hint |
 | `Ctrl+Alt+D` | Dictate (speak, and it is typed) | dictate | main.js before-input-event (Vex window) + registry | taken before the page | fixed | Ctrl+K hint |
+| `Ctrl+Alt+Shift+V` | Voice control (hold to talk) | voice-control | registry handler in app.js | passed up before the page | yes | FAQ |
 | `Ctrl+Alt+A` | Do the last Ctrl+K command again | do-again | registry handler in app.js | passed up before the page | yes | Ctrl+K hint |
 | `F11` | Fullscreen | fullscreen | main.js before-input-event (Vex window) + registry | taken before the page | fixed | README, Ctrl+K hint |
 | `Ctrl+Alt+U` | Search everything (history, notes, clips, mail, bookmarks) | search-everything | registry runs Ctrl+K command `search-everything` | passed up before the page | yes | Settings list only |

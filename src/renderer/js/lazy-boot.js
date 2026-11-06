@@ -27,6 +27,8 @@ const VexBoot = {
   KEEP: 10,
   LATE_MODULES: [
     { src: 'js/release-checklist.js', usage: ['release-check'] },
+    { src: 'js/voice-match.js', usage: [] },
+    { src: 'js/voice-control.js', usage: ['voice-control'] },
     { src: 'js/sidebar-groups-ui.js', usage: [] },
     { src: 'js/toolbar-customize.js', usage: [] },
     { src: 'js/reminders-tab.js', usage: [] },

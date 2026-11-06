@@ -714,6 +714,15 @@ contextBridge.exposeInMainWorld('vex', {
   transcribeBegin: (name) => ipcRenderer.invoke('transcribe:begin', name),
   transcribeChunk: (token, wavBase64) => ipcRenderer.invoke('transcribe:chunk', token, wavBase64),
   transcribeEnd: (token) => ipcRenderer.invoke('transcribe:end', token),
+  // Voice control (js/voice-control.js; main/voice-ipc.js): the pinned engine and model, and one utterance at a time to the engine.
+  voiceStatus: () => ipcRenderer.invoke('voice:status'),
+  voiceDownload: (id) => ipcRenderer.invoke('voice:download', id),
+  voiceCancelDownload: () => ipcRenderer.invoke('voice:cancel-download'),
+  voiceRemove: (which) => ipcRenderer.invoke('voice:remove', which),
+  voiceTranscribe: (pcm, opts) => ipcRenderer.invoke('voice:transcribe', pcm, opts),
+  voiceCancel: () => ipcRenderer.invoke('voice:cancel'),
+  voiceTestClip: (name) => ipcRenderer.invoke('voice:test-clip', name),
+  onVoiceProgress: (callback) => subscribe('voice:progress', callback),
   // Startup-persistence check (T3-122): read-only.
   startupList: () => ipcRenderer.invoke('startup:list'),
   startupSignatures: () => ipcRenderer.invoke('startup:signatures'),

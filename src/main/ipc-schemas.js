@@ -327,6 +327,12 @@ define('transcribe:set', [shape({ language: optional(value => typeof value === '
 define('transcribe:begin', [optional(string(120))]);
 define('transcribe:chunk', [string(64), string(6 * 1024 * 1024)]);
 define('transcribe:end', [string(64)]);
+// Voice control (main/voice-ipc.js): a file is one of three ids, never a path or a URL; one utterance is at most 60 s of 16-bit 16 kHz audio.
+define('voice:status voice:cancel-download voice:cancel', []);
+define('voice:download', [oneOf(['engine', 'base', 'small'])]);
+define('voice:remove', [oneOf(['all', 'base', 'small'])]);
+define('voice:transcribe', [value => value instanceof Uint8Array && value.length >= 9600 && value.length <= 16000 * 2 * 60, shape({ model: oneOf(['base', 'small']), language: optional(oneOf(['auto', 'tr', 'en'])) })]);
+define('voice:test-clip', [value => typeof value === 'string' && /^[A-Za-z0-9._-]{1,80}\.wav$/.test(value)]);
 define('photoprep:open', []);
 define('photoprep:save', [value => value instanceof Uint8Array && value.length > 0 && value.length <= 40 * 1024 * 1024, string(120)]);
 // urgency / feature / id: the Attention Budget (src/main/notify.js). No urgency is "asked".

@@ -8484,6 +8484,18 @@ require('./main/profile-lock-ipc').registerProfileLock({
   registerTranscribe({ ipcMain, mainWindowOf: () => mainWindow, transcriber: createTranscriber({ store: dataStore, dialog, userDataPath }) });
 }
 
+// Voice control (main/voice-model.js, voice-engine.js, voice-ipc.js): a pinned, checksum-verified whisper.cpp engine and model
+// downloaded on request into <profile>/voice; speech goes to the engine through a named pipe and never to disk.
+{
+  const { createVoiceStore } = require('./main/voice-model');
+  const { createVoiceEngine } = require('./main/voice-engine');
+  const { registerVoice } = require('./main/voice-ipc');
+  const voiceStore = createVoiceStore({ dir: path.join(userDataPath, 'voice'), fetchImpl: _egressFetch(net.fetch.bind(net), { feature: 'Voice control model', kind: 'fetch' }) });
+  const voiceEngine = createVoiceEngine({ store: voiceStore });
+  registerVoice({ ipcMain, store: voiceStore, engine: voiceEngine, mainWindowOf: () => mainWindow, isPackaged: app.isPackaged, testDir: process.env.VEX_VOICE_TEST_DIR || '' });
+  app.on('will-quit', () => voiceEngine.dispose());
+}
+
 // Gmail IMAP/SMTP sidebar panel was reverted — see commit history for Phases 1-3.
 // One-time cleanup: remove any leftover encrypted app-password from disk so it
 // doesn't sit around after the feature was pulled. Safe to remove this block
