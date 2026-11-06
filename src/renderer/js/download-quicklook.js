@@ -101,7 +101,8 @@ const VexQuickLook = (() => {
         h('div', { class: 'dlql-stage' }),
         h('div', { class: 'dlql-foot' },
           h('div', { class: 'dlql-meta' }),
-          h('div', { class: 'dlql-acts' }))));
+          h('div', { class: 'dlql-acts' }),
+          h('div', { class: 'dlql-verify' }))));
     ov.addEventListener('keydown', onKey);
     host.appendChild(ov);
     if (window.VexFocusTrap?.adopt) VexFocusTrap.adopt(ov.firstElementChild, { label: T('Quick look') });
@@ -120,7 +121,7 @@ const VexQuickLook = (() => {
     if (row) { row.focus({ preventScroll: false }); row.scrollIntoView?.({ block: 'nearest' }); }
   }
 
-  function release() { const fns = cleanup; cleanup = []; for (const f of fns) { try { f(); } catch (err) { console.error('[QuickLook] could not release a preview:', err); } } }
+  function release() { cancelVerify(); const fns = cleanup; cleanup = []; for (const f of fns) { try { f(); } catch (err) { console.error('[QuickLook] could not release a preview:', err); } } }
 
   function step(d) {
     if (items.length < 2) return;
@@ -134,6 +135,8 @@ const VexQuickLook = (() => {
     const onButton = t && t.closest && t.closest('button');
     const onMedia = t && /^(AUDIO|VIDEO|INPUT)$/.test(t.tagName);
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
+    // Typing a checksum: Space, Enter and the arrow keys are the text box's, not Quick look's.
+    if (t && /^(TEXTAREA|SELECT)$/.test(t.tagName)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'ArrowLeft' && !(onMedia && t.type === 'range')) { e.preventDefault(); step(-1); return; }
     if (e.key === 'ArrowRight' && !(onMedia && t.type === 'range')) { e.preventDefault(); step(1); return; }
@@ -171,6 +174,7 @@ const VexQuickLook = (() => {
     q('.dlql-meta').replaceChildren();
     q('.dlql-acts').replaceChildren();
     paintActions(dl, kind0);
+    paintVerify(dl);
     // The button that had focus may have just been replaced: keep the keys (Esc, arrows) working.
     if (!ov.contains(document.activeElement)) ov.firstElementChild.focus({ preventScroll: true });
 
@@ -268,6 +272,84 @@ const VexQuickLook = (() => {
     if (!r || !r.ok) { slot.replaceChildren(h('span', { class: 'dlql-bad' }, (r && r.error) || T('Could not work out the hash'))); return; }
     slot.replaceChildren(h('span', { class: 'dlql-bit-k' }, T('SHA-256 hash')), ' ', h('code', { class: 'dlql-code' }, r.sha256), ' ',
       btn(T('Copy the hash'), 'copy', async () => { try { await navigator.clipboard.writeText(r.sha256); window.showToast?.(T('Hash copied')); } catch (err) { window.showToast?.(plain(err), 'error'); } }));
+  }
+
+  // ---- compare with the published checksum ------------------------------------
+  // The person pastes what the download page prints (a plain value, a sha256sum line, Get-FileHash output). MAIN works out the
+  // algorithm from its length, streams the file with it (never the whole file in memory) and answers Match or Mismatch.
+  let verifyToken = null;                        // the comparison running now, if any
+  let verifyBound = false;
+  function bindVerifyProgress() {
+    if (verifyBound || !window.vex || !window.vex.onDownloadsChecksumProgress) return;
+    verifyBound = true;
+    window.vex.onDownloadsChecksumProgress((p) => {
+      if (!ov || !p || p.token !== verifyToken) return;
+      const bar = ov.querySelector('.dlql-vprogress');
+      if (!bar) return;
+      bar.hidden = false;
+      bar.max = p.total || 1; bar.value = p.read;
+      const pct = p.total ? Math.floor((p.read / p.total) * 100) : 0;
+      const label = ov.querySelector('.dlql-vstatus');
+      if (label) label.textContent = fill(T('Checking {1} of {2} ({3}%)'), fmtBytes(p.read), fmtBytes(p.total), pct);
+    });
+  }
+  function cancelVerify() {
+    if (!verifyToken) return;
+    const t = verifyToken;
+    verifyToken = null;
+    window.vex?.downloadsChecksumCancel?.(t)?.catch?.((err) => window.VexProblems?.note('Downloads', 'Could not stop the checksum comparison', err));
+  }
+  function paintVerify(dl) {
+    const box = ov.querySelector('.dlql-verify');
+    bindVerifyProgress();
+    const area = h('textarea', { class: 'dlql-vtext', rows: '2', spellcheck: 'false', autocomplete: 'off', 'aria-label': T('Published checksum'),
+      placeholder: T('Paste the checksum from the download page: a plain value, a sha256sum line, or Get-FileHash output') });
+    const go = h('button', { type: 'button', class: 'dlql-btn', 'data-act': 'verify' }, T('Compare'));
+    const stop = h('button', { type: 'button', class: 'dlql-btn', 'data-act': 'verify-cancel', hidden: true }, T('Cancel'));
+    const bar = h('progress', { class: 'dlql-vprogress', hidden: true, max: '1', value: '0', 'aria-label': T('Checking the file') });
+    const status = h('div', { class: 'dlql-vstatus', role: 'status', 'aria-live': 'polite' });
+    const result = h('div', { class: 'dlql-vresult', role: 'status', 'aria-live': 'polite' });
+    const finish = () => { go.disabled = false; stop.hidden = true; area.disabled = false; bar.hidden = true; status.textContent = ''; };
+    go.addEventListener('click', async () => {
+      const pasted = area.value;
+      result.replaceChildren(); result.className = 'dlql-vresult';
+      if (!pasted.trim()) { result.className = 'dlql-vresult dlql-bad'; result.textContent = T('Paste the checksum from the download page.'); area.focus(); return; }
+      const mine = token;
+      const my = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      verifyToken = my;
+      go.disabled = true; area.disabled = true; stop.hidden = false; bar.hidden = true;
+      status.textContent = T('Checking the file…');
+      let r;
+      try { r = await window.vex.downloadsChecksum(dl.path, pasted, my); } catch (err) { r = { ok: false, error: plain(err) }; }
+      if (mine !== token || !ov || verifyToken !== my) return;     // moved on to another download, or cancelled
+      verifyToken = null;
+      finish();
+      if (r && r.canceled) { result.textContent = T('Cancelled. Nothing was compared.'); return; }
+      if (!r || !r.ok) {
+        result.className = 'dlql-vresult dlql-bad';
+        result.textContent = r && r.template ? fill(T(r.template), ...(r.args || [])) : ((r && r.error) || T('Could not compare the file'));
+        return;
+      }
+      if (r.match) {
+        result.className = 'dlql-vresult dlql-ok';
+        result.replaceChildren(
+          h('strong', null, T('Match.')), ' ', fill(T('This file’s {1} is exactly the value you pasted.'), r.label), ' ',
+          T('That shows the download arrived complete and unchanged. It cannot show that the page you copied the checksum from deserves trust.'));
+      } else {
+        result.className = 'dlql-vresult dlql-bad';
+        result.replaceChildren(
+          h('strong', null, T('Does not match.')), ' ', fill(T('This file’s {1} is'), r.label), ' ', h('code', { class: 'dlql-code' }, r.actual), ' ',
+          T('but you pasted'), ' ', h('code', { class: 'dlql-code' }, r.expected), '. ',
+          T('That does not always mean something is wrong: it may be the checksum of a different version or build, or a mirror may serve another file. A damaged or changed file looks the same. Do not run the file until you know which: check the version on the download page, or download it again from the publisher and compare again.'));
+      }
+    });
+    stop.addEventListener('click', () => {
+      cancelVerify();
+      finish();
+      result.className = 'dlql-vresult';
+      result.textContent = T('Cancelled. Nothing was compared.');
+    });
+    box.replaceChildren(h('div', { class: 'dlql-vlabel' }, T('Compare with the published checksum')), area, h('div', { class: 'dlql-vrow' }, go, stop), bar, status, result);
   }
 
   async function deleteIt(dl) {

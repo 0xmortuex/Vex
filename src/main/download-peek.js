@@ -18,6 +18,8 @@
 // peek(path) -> { ok, kind, name, ext, size, modified, ... } or { ok:false, error }.
 // hash(path) -> { ok, sha256 }, streamed, on request only.
 
+const { parseExpected, sameChecksum, LABEL } = require('./checksum-compare');
+
 const TEXT_CAP = 200 * 1024;
 const CAPS = { image: 20 * 1024 * 1024, pdf: 50 * 1024 * 1024, audio: 60 * 1024 * 1024, video: 100 * 1024 * 1024, zip: 100 * 1024 * 1024, office: 50 * 1024 * 1024 };
 const OFFICE_PART_CAP = 8 * 1024 * 1024;     // one XML part, as declared in the zip
@@ -164,7 +166,48 @@ function createDownloadPeek({ fs, path, crypto, isDownloadedFile, listArchive, o
     return { ok: true, sha256: h.digest('hex'), size: st.size };
   }
 
-  return { peek, hash, check };
+  // === Compare with the published checksum ===================================
+  // verify(filePath, pastedText, { token, onProgress }) reads the file ONCE, as a stream (a chunk at a time,
+  // never the whole file in memory), with the algorithm the pasted checksum's length calls for. It can be
+  // cancelled by token. -> { ok:true, match, algorithm, label, expected, actual, size }
+  //                      | { ok:false, error } | { ok:false, canceled:true }
+  const running = new Map();   // token -> abort()
+  const PROGRESS_MS = 100;
+  async function verify(filePath, pastedText, { token, onProgress } = {}) {
+    const st = check(filePath);
+    const parsed = parseExpected(pastedText, { fileName: path.basename(filePath) });
+    if (!parsed.ok) return { ok: false, error: parsed.error, template: parsed.template, args: parsed.args };
+    if (typeof token !== 'string' || !token || token.length > 64) throw new Error('A comparison needs a token');
+    if (running.has(token)) throw new Error('That comparison is already running');
+    const h = crypto.createHash(parsed.algorithm);
+    let read = 0, last = 0, stream = null, canceled = false;
+    running.set(token, () => { canceled = true; if (stream) stream.destroy(); });
+    try {
+      await new Promise((resolve, reject) => {
+        stream = fs.createReadStream(filePath);
+        stream.on('data', (c) => {
+          h.update(c); read += c.length;
+          const t = Date.now();
+          if (typeof onProgress === 'function' && t - last >= PROGRESS_MS) { last = t; onProgress({ read, total: st.size }); }
+        });
+        stream.on('error', reject);
+        stream.on('close', () => (canceled ? resolve() : null));
+        stream.on('end', resolve);
+      });
+    } finally { running.delete(token); }
+    if (canceled) return { ok: false, canceled: true };
+    if (typeof onProgress === 'function') onProgress({ read: st.size, total: st.size });
+    const actual = h.digest('hex');
+    return { ok: true, match: sameChecksum(actual, parsed.expected), algorithm: parsed.algorithm, label: LABEL[parsed.algorithm], expected: parsed.expected, actual, size: st.size };
+  }
+  function cancel(token) {
+    const stop = running.get(token);
+    if (!stop) return { ok: true, running: false };
+    stop();
+    return { ok: true, running: true };
+  }
+
+  return { peek, hash, check, verify, cancel };
 }
 
 module.exports = { createDownloadPeek, kindOf, extOf, xmlText, CAPS, TEXT_CAP, PROGRAM };

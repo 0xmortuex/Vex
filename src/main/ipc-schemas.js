@@ -91,6 +91,9 @@ define('repos:pick-folder', []);
 define('downloads:delete-file downloads:start-drag', [string(4096)]);
 // Quick look (main/download-peek.js): a path, which main serves only if Vex downloaded that file.
 define('downloads:peek downloads:peek-hash', [string(4096)]);
+// Compare a download with the published checksum (main/checksum-compare.js, download-peek.js verify): path, the pasted text, a token to cancel by.
+define('downloads:checksum', [string(4096), string(20000), string(64)]);
+define('downloads:checksum-cancel', [string(64)]);
 // Tidy the downloads folder (src/main/download-tidy.js): preview, apply a
 // preview by its id, undo the newest tidy-up. No path ever comes from here.
 define('downloads:tidy-plan', [value => Number.isSafeInteger(value) && value >= 0 && value <= 3650]);

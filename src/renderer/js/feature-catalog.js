@@ -1104,6 +1104,8 @@ const VexFeatures = {
       what: 'Before a page opens, Vex looks its address up in a list of reported phishing and malware sites kept on this computer. If it is listed you get a full-page warning with Go back to safety as the main choice. The address is never sent anywhere. Settings > Privacy & security: dangerous sites has the switch, the date of the list and Update now.' },
     { id: 'after-downloads', phrases: 'sleep shutdown shut down turn off pc computer when downloads finish done overnight power off suspend after download', cat: 'work', cmd: 'after-downloads', panel: 'downloads', name: 'Sleep or shut down when downloads finish',
       what: 'In the Downloads panel, choose Put the PC to sleep or Shut the PC down for when all downloads have finished. It is armed on purpose each time, waits 60 seconds with a Cancel, and never fires if a download failed.' },
+    { id: 'checksum-compare', phrases: 'checksum hash sha256 sha-256 sha1 md5 sha512 verify download integrity published hash compare match mismatch sha256sum get-filehash', cat: 'work', panel: 'downloads', name: 'Compare a download with its published checksum',
+      what: 'In Quick look at a finished download, paste the checksum from the download page (a plain value, a sha256sum line or Get-FileHash output) and Vex says Match or Mismatch, working out MD5, SHA-1, SHA-256 or SHA-512 from its length.' },
     { id: 'download-quicklook', feature: 'download-quicklook', newer: true, cat: 'work', name: 'Quick look at downloads', phrases: 'quick look preview download space peek pdf image text csv json markdown audio video archive zip contents sha256 show file', panel: 'downloads', manual: true,
       what: 'Press Space on a finished download (or the eye button, or right-click) to see what is inside it without opening another program: a picture, the first pages of a PDF, text, JSON, a table, audio, video, the names inside an archive, or a clear card for anything else. Left and Right move through your downloads, Esc closes. A program is never run from here.' },
     { id: 'cookie-reject', feature: 'cookie-reject', newer: true, cat: 'privacy', name: 'Reject cookie banners', phrases: 'cookie banner reject cookies consent popup cookie notice decline cookies auto reject accept cookies annoying', cmd: 'safeweb:cookies-site', setting: { section: 'setting-safer-browsing', label: 'Safer browsing helpers' },
@@ -1360,7 +1362,7 @@ const VexFeatures = {
       { name: 'Settling into work', ids: ['focus', 'focusflows', 'meeting', 'jobsetup'] },
       { name: 'Tools, and doing things twice', ids: ['toolbox', 'toolbox-reference', 'toolbox-full', 'toolbox-favourites', 'tool-history', 'automations', 'chains', 'do-again', 'quick-commands', 'dictate'] },
       { name: 'Mail, parcels and money', ids: ['mail', 'triage', 'parcels', 'expenses', 'price-history'] },
-      { name: 'This machine', ids: ['resmon', 'downloads', 'after-downloads', 'backup'] },
+      { name: 'This machine', ids: ['resmon', 'downloads', 'after-downloads', 'checksum-compare', 'backup'] },
     ],
     media: [
       { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },

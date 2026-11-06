@@ -194,3 +194,96 @@ describe('Quick look is one door among the rest', () => {
     expect(SRC).not.toMatch(/\b(?:confirm|prompt|alert)\(/);
   });
 });
+
+describe('compare with the published checksum', () => {
+  const open = async (over = {}) => {
+    const a = dl({ filename: 'setup.exe', path: 'C:\Dl\setup.exe', ...over });
+    DownloadsPanel.downloads = [a]; DownloadsPanel.renderList();
+    VexQuickLook.open(a.id); await flush();
+    return a;
+  };
+  const paste = (text) => { const t = document.querySelector('.dlql-vtext'); t.value = text; };
+  const compare = async () => { document.querySelector('[data-act="verify"]').click(); await flush(); await flush(); };
+
+  it('nothing is read until Compare is pressed; an empty box asks for the checksum', async () => {
+    await open();
+    expect(document.querySelector('.dlql-vtext')).toBeTruthy();
+    window.vex.downloadsChecksum = vi.fn();
+    await compare();
+    expect(window.vex.downloadsChecksum).not.toHaveBeenCalled();
+    expect(document.querySelector('.dlql-vresult').textContent).toMatch(/Paste the checksum/);
+  });
+  it('sends the path, exactly what was pasted and a token, and shows Match', async () => {
+    const a = await open();
+    window.vex.downloadsChecksum = vi.fn(async () => ({ ok: true, match: true, label: 'SHA-256', algorithm: 'sha256', expected: 'a'.repeat(64), actual: 'a'.repeat(64) }));
+    paste('  ' + 'A'.repeat(64) + ' *setup.exe');
+    await compare();
+    const [p, pasted, token] = window.vex.downloadsChecksum.mock.calls[0];
+    expect(p).toBe(a.path); expect(pasted).toBe('  ' + 'A'.repeat(64) + ' *setup.exe'); expect(token).toMatch(/^v/);
+    const res = document.querySelector('.dlql-vresult');
+    expect(res.textContent).toMatch(/Match\./);
+    expect(res.className).toMatch(/dlql-ok/);
+  });
+  it('a mismatch shows both values in plain words and warns against running the file, without alarm', async () => {
+    await open();
+    window.vex.downloadsChecksum = vi.fn(async () => ({ ok: true, match: false, label: 'SHA-256', algorithm: 'sha256', expected: 'b'.repeat(64), actual: 'a'.repeat(64) }));
+    paste('b'.repeat(64));
+    await compare();
+    const res = document.querySelector('.dlql-vresult');
+    expect(res.className).toMatch(/dlql-bad/);
+    expect(res.textContent).toMatch(/Does not match/);
+    expect(res.textContent).toMatch(/different version or build/);
+    expect(res.textContent).toMatch(/Do not run the file/);
+    expect([...res.querySelectorAll('code')].map(c => c.textContent)).toEqual(['a'.repeat(64), 'b'.repeat(64)]);
+  });
+  it('a refusal from main is shown through its template so it can be translated', async () => {
+    await open();
+    window.vex.downloadsChecksum = vi.fn(async () => ({ ok: false, error: 'That is 43 digits long. x', template: 'That is {1} digits long. Vex compares MD5 (32 digits), SHA-1 (40), SHA-256 (64) and SHA-512 (128).', args: [43] }));
+    paste('a'.repeat(43));
+    await compare();
+    expect(document.querySelector('.dlql-vresult').textContent).toMatch(/^That is 43 digits long\. Vex compares MD5/);
+    expect(VexI18nUI.lookup('That is {1} digits long. Vex compares MD5 (32 digits), SHA-1 (40), SHA-256 (64) and SHA-512 (128).', 'tr')).toMatch(/hane/);
+  });
+  it('shows progress, can be cancelled (main is told), and a late answer after moving on is dropped', async () => {
+    let onProgress; let finish;
+    window.vex.onDownloadsChecksumProgress = vi.fn((cb) => { onProgress = cb; });
+    window.vex.downloadsChecksumCancel = vi.fn(async () => ({ ok: true }));
+    await open();
+    window.vex.downloadsChecksum = vi.fn(() => new Promise((r) => { finish = r; }));
+    paste('a'.repeat(64));
+    document.querySelector('[data-act="verify"]').click(); await flush();
+    const token = window.vex.downloadsChecksum.mock.calls[0][2];
+    expect(document.querySelector('[data-act="verify-cancel"]').hidden).toBe(false);
+    expect(document.querySelector('[data-act="verify"]').disabled).toBe(true);
+    onProgress({ token, read: 50 * 1024 * 1024, total: 100 * 1024 * 1024 });
+    expect(document.querySelector('.dlql-vprogress').hidden).toBe(false);
+    expect(document.querySelector('.dlql-vprogress').value).toBe(50 * 1024 * 1024);
+    expect(document.querySelector('.dlql-vstatus').textContent).toMatch(/\(50%\)/);
+    onProgress({ token: 'someone else', read: 1, total: 100 });
+    expect(document.querySelector('.dlql-vstatus').textContent).toMatch(/\(50%\)/);
+    document.querySelector('[data-act="verify-cancel"]').click(); await flush();
+    expect(window.vex.downloadsChecksumCancel).toHaveBeenCalledWith(token);
+    expect(document.querySelector('.dlql-vresult').textContent).toMatch(/Cancelled/);
+    finish({ ok: false, canceled: true }); await flush();
+    expect(document.querySelector('[data-act="verify"]').disabled).toBe(false);
+  });
+  it('closing Quick look while it runs cancels the comparison', async () => {
+    window.vex.downloadsChecksumCancel = vi.fn(async () => ({ ok: true }));
+    await open();
+    window.vex.downloadsChecksum = vi.fn(() => new Promise(() => {}));
+    paste('a'.repeat(64));
+    document.querySelector('[data-act="verify"]').click(); await flush();
+    const token = window.vex.downloadsChecksum.mock.calls[0][2];
+    VexQuickLook.close();
+    expect(window.vex.downloadsChecksumCancel).toHaveBeenCalledWith(token);
+  });
+  it('typing in the box does not trigger Quick look keys (Space closes, Enter opens the file, arrows move on)', async () => {
+    await open();
+    const t = document.querySelector('.dlql-vtext');
+    for (const k of [' ', 'Enter', 'ArrowLeft', 'ArrowRight']) key(t, k);
+    expect(VexQuickLook.isOpen()).toBe(true);
+    expect(window.vex.downloadsOpenFile).not.toHaveBeenCalled();
+    key(t, 'Escape');
+    expect(VexQuickLook.isOpen()).toBe(false);
+  });
+});

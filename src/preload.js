@@ -674,6 +674,10 @@ contextBridge.exposeInMainWorld('vex', {
   // Quick look at a finished download: what is inside it, read by main (only files Vex downloaded); the hash only when asked.
   downloadsPeek:         (filePath) => ipcRenderer.invoke('downloads:peek', filePath),
   downloadsPeekHash:     (filePath) => ipcRenderer.invoke('downloads:peek-hash', filePath),
+  // Compare a download with the published checksum (main/checksum-compare.js): file path, the pasted text, a token to cancel it by
+  downloadsChecksum:     (filePath, pasted, token) => ipcRenderer.invoke('downloads:checksum', filePath, pasted, token),
+  downloadsChecksumCancel: (token) => ipcRenderer.invoke('downloads:checksum-cancel', token),
+  onDownloadsChecksumProgress: (cb) => subscribe('downloads:checksum-progress', cb),
   downloadsExplain:      (id, withHash) => ipcRenderer.invoke('downloads:explain', id, !!withHash),
   downloadsRetry:        (url, id) => ipcRenderer.invoke('downloads:retry', url, id),
   downloadsAskWhere:     (url) => ipcRenderer.invoke('downloads:ask-where', url),

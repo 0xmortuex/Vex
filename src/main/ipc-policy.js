@@ -181,7 +181,7 @@ const UI_ONLY_CHANNELS = new Set([
   // Share a space's address check (main/space-check.js): read-only, but only the interface asks.
   'space:check',
   // Quick look at a finished download (main/download-peek.js): reads a file's contents, so only the interface asks, and main serves only files Vex downloaded.
-  'downloads:peek', 'downloads:peek-hash',
+  'downloads:peek', 'downloads:peek-hash', 'downloads:checksum', 'downloads:checksum-cancel',
   // An AI news toast and the clicks waiting for the interface (js/ai-news.js):
   // raising a notification is never a page's or an extension's call.
   'news:notify', 'news:pending',

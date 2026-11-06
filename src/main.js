@@ -10293,6 +10293,14 @@ ipcMain.handle('downloads:peek-hash', async (_e, filePath) => {
   try { return await _downloadPeek.hash(filePath); }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Compare a download with the checksum the publisher printed (src/main/checksum-compare.js): the file is streamed here, locally, with the
+// algorithm the pasted value's length calls for; progress goes back to the asking window; the comparison can be cancelled by its token.
+ipcMain.handle('downloads:checksum', async (e, filePath, pasted, token) => {
+  try {
+    return await _downloadPeek.verify(filePath, pasted, { token, onProgress: (p) => { if (!e.sender.isDestroyed()) e.sender.send('downloads:checksum-progress', { token, ...p }); } });
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('downloads:checksum-cancel', (_e, token) => _downloadPeek.cancel(token));
 ipcMain.handle('downloads:start-drag', async (e, filePath) => {
   try { return await _downloadFiles.startDrag(e.sender, filePath); }
   catch (err) { return { ok: false, error: err.message }; }

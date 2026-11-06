@@ -222,6 +222,18 @@
 .dlql-code { font-family: var(--vex-font-mono); font-size: 11.5px; word-break: break-all; background: var(--dlql-soft); border-radius: 4px; padding: 1px 5px; }
 .dlql-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* compare with the published checksum */
+.dlql-verify { flex: 1 1 100%; display: flex; flex-direction: column; gap: 6px; min-width: 0; border-top: 1px solid var(--dlql-line); padding-top: 8px; }
+.dlql-vlabel { color: var(--dlql-text2); font-size: 12.5px; }
+.dlql-vtext { width: 100%; box-sizing: border-box; resize: vertical; min-height: 40px; max-height: 120px; font-family: var(--vex-font-mono); font-size: 11.5px; color: var(--text); background: var(--bg); border: 1px solid var(--dlql-line); border-radius: 6px; padding: 6px 8px; }
+.dlql-vtext:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.dlql-vrow { display: flex; gap: 6px; }
+.dlql-vprogress { width: 100%; height: 8px; }
+.dlql-vstatus, .dlql-vresult { font-size: 12.5px; color: var(--dlql-text2); min-width: 0; overflow-wrap: anywhere; }
+.dlql-vresult:empty, .dlql-vstatus:empty { display: none; }
+.dlql-vresult.dlql-ok { color: var(--success); }
+.dlql-vresult.dlql-bad { color: var(--danger); }
+
 /* picture */
 .dlql-imgview { flex: 1; min-height: 0; position: relative; overflow: hidden; cursor: grab; touch-action: none; background: color-mix(in srgb, var(--text) 4%, var(--bg)); }
 .dlql-imgview.is-drag { cursor: grabbing; }
