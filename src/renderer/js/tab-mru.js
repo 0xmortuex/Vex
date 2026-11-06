@@ -36,16 +36,25 @@ const VexTabMru = {
   // next-tab, Ctrl+Shift+Tab for prev-tab, as they come). Main steps the list and lets the key-down
   // reach this window as well, so the registry's own handler must do nothing for it.
   takes(actionId) {
-    if (!this.enabled()) return false;
+    if (!this.active()) return false;
     if (typeof ShortcutsRegistry === 'undefined') return false;
     const combo = ShortcutsRegistry.getShortcut(actionId);
     return combo === 'Ctrl+Tab' || combo === 'Ctrl+Shift+Tab';
   },
 
-  // Main owns the keys, so it has to know whether they are Vex's.
+  // The switcher is on, and Ctrl+Tab and Ctrl+Shift+Tab are still the keys of Next Tab and Previous Tab. Main reads
+  // those two as a pair, so moving either one in Settings gives both back (they went on stepping the list after the
+  // move, found 2026-11-06); the moved key then walks the tabs in strip order like any other key.
+  active() {
+    if (!this.enabled()) return false;
+    if (typeof ShortcutsRegistry === 'undefined') return true;
+    return ShortcutsRegistry.getShortcut('next-tab') === 'Ctrl+Tab' && ShortcutsRegistry.getShortcut('prev-tab') === 'Ctrl+Shift+Tab';
+  },
+
+  // Main owns the keys, so it has to know whether they are Vex's (also after a key is moved: shortcuts-registry.js).
   syncMain() {
     if (!window.vex || typeof window.vex.setMruKeys !== 'function') throw new Error('Ctrl+Tab by recency needs the window bridge (setMruKeys)');
-    window.vex.setMruKeys(this.enabled());
+    window.vex.setMruKeys(this.active());
   },
 
   // ---- the order ---------------------------------------------------------------

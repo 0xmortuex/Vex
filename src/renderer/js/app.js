@@ -1747,7 +1747,9 @@ function vexOwnTextFocused(doc) {
     // Register handlers for every shortcut we can reach from the renderer.
     // Main-process shortcuts in src/main.js keep firing as system-level
     // defaults (they're labelled "system" in the editor).
-    ShortcutsRegistry.register('command-bar',    () => CommandBar?.open?.() ?? CommandBar?.toggle?.());
+    // toggle(), as main's own Ctrl+K does: open() returns nothing, so `open() ?? toggle()` opened the bar and shut it again,
+    // and Ctrl+K did nothing in a private window, which main does not answer for (found 2026-11-06).
+    ShortcutsRegistry.register('command-bar',    () => CommandBar?.toggle?.());
     ShortcutsRegistry.register('keys-sheet', () => { if (typeof KeysSheet !== 'undefined') KeysSheet.toggle(); });
     // Vex watches its own weight and says something once when one thing has
     // clearly been the problem for a minute (js/why-slow.js).
