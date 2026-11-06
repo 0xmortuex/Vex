@@ -265,6 +265,10 @@ const VexFaqData = {
       kw: 'game overlay in game guide wiki discord notes timer hotkey roblox borderless anti-cheat oyun katman rehber kısayol',
       q: 'Can I see a guide or Discord over my game without alt-tabbing?',
       a: 'Yes. Turn on Game overlay in Settings, add a guide page for your game, and press its hotkey while you play. It is an ordinary separate window that never touches the game, so it is safe with anti-cheat; a game in exclusive fullscreen can hide it, so use borderless.' },
+    { id: 'github-open', cat: 'apps', set: 'setting-github-open-mode', path: ['Settings', 'Personalization'],
+      kw: 'github click control center direct ask every time keep always panel tab open choice kontrol merkezi doğrudan sor her seferinde',
+      q: "What happens when I click GitHub, and can I make it always open the same way?",
+      a: "Vex asks whether you want the Control Center, which is Vex’s own GitHub panel with your profile, repositories, pull requests and Actions, or GitHub directly, which opens github.com in a tab. To stop being asked, right-click the GitHub button and choose Keep on Control Center or Keep on Direct, and choose Ask every time to be asked again. The same choice is in Settings under Personalization, and the Control Center needs your GitHub username there." },
   ],
 };
 

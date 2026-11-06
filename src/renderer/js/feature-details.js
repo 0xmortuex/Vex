@@ -232,7 +232,7 @@ const FeatureDetails = {
   'panel-spotify': 'Spotify in the sidebar, playing while you browse. Protected audio works here, which is not true of most Electron browsers.',
   'panel-discord': 'Discord beside the page, with the fix that keeps it connected and optional Vencord support. It is the heaviest panel by far — if memory matters, let it sleep when hidden rather than keeping it awake.',
   'panel-roblox': 'Roblox in its own session, with the censorship bypass for networks that block it.',
-  'panel-github': 'Your GitHub one click away, signed in separately from anything else.',
+  'panel-github': 'Your GitHub one click away, signed in separately from anything else. Clicking GitHub asks whether to open the Control Center (Vex’s own GitHub panel with your profile, repositories, pull requests and Actions, which needs your GitHub username in Settings) or github.com in a tab. Right-click the button and choose Keep on Control Center or Keep on Direct to stop being asked, or Ask every time to be asked again; the choice is one setting, vex.githubOpenMode, that syncs, and Settings under Personalization changes it too.',
   'panel-netflix': 'Netflix in the sidebar; right-click the icon to switch it to Prime Video or Disney+. They share one session, so switching does not sign you out of the others.',
   'panel-authenticator': 'Your 2FA codes generated here, with a ring showing how long each one has left. Add an account by scanning a screenshot of its QR code. Rename an account with its pencil (imports often arrive as just “Account”), and search the list once you have six or more.',
 

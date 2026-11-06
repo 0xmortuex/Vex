@@ -377,7 +377,7 @@ const CommandBar = {
     { id: 'roblox', label: 'Roblox Hub', hint: 'Open Roblox panel', icon: 'gamepad', isPrimary: true, action: () => SidebarManager.openPanel('roblox') },
     // A web panel's page as a tab, still signed in (js/panel-to-tab.js).
     ...((typeof PanelToTab !== 'undefined') ? PanelToTab.commands() : []),
-    { id: 'github', label: 'GitHub', hint: 'Open GitHub panel', icon: 'git', isPrimary: true, action: () => SidebarManager.openPanel('github') },
+    { id: 'github', label: 'GitHub', hint: 'Open GitHub: Control Center or github.com', icon: 'git', isPrimary: true, action: () => SidebarManager.openPanel('github') },
     { id: 'reload', label: 'Reload', hint: 'Reload current tab', shortcut: 'Ctrl+R', icon: 'refresh', action: () => NavLock.run('reload') },
     { id: 'hard-reload', label: 'Hard Reload', hint: 'Clear cache then reload', shortcut: 'Ctrl+Shift+R', icon: 'refresh', action: () => NavLock.run('hardReload') },
     { id: 'history-overlay', label: 'History (quick view)', hint: 'View browsing history in an overlay', icon: 'clipboard', action: () => CommandBar.showHistory() },

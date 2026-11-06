@@ -1042,6 +1042,10 @@ Apps and tools that live beside the page instead of in a tab.
 - **Vencord bridge** (`vencord-bridge`): Reads one small file written by your own Vencord plugin to show Discord mentions, replies and channel catch-ups. Open it with Ctrl+K: Discord mentions (bridge). On an existing profile it starts off; turn it on in Settings > Community and chat tools.
   - Open: Ctrl+K: "Discord mentions (bridge)"; Settings > Community and chat tools.
   - Default: New: starts off on an existing profile until you switch it on.
+- **How GitHub opens** (`github-open`): Your GitHub, one click away: the Control Center (Vex’s own GitHub panel) or github.com in a tab, asked each time or kept.
+  - Catalogue: (`panel-github`).
+  - Open: Ctrl+K: "GitHub".
+  - Default: New: starts off on an existing profile until you switch it on.
 - **panel-whatsapp** (`panel-whatsapp`): WhatsApp beside the page, staying signed in, with unread counts on its icon.
   - Open: Ctrl+K: "WhatsApp"; sidebar panel: whatsapp.
 - **panel-claude** (`panel-claude`): Claude in the sidebar — right-click the icon to switch it to Gemini or ChatGPT instead.
@@ -1052,8 +1056,6 @@ Apps and tools that live beside the page instead of in a tab.
   - Open: sidebar panel: discord.
 - **panel-roblox** (`panel-roblox`): Roblox in its own session, with the censorship bypass if your network blocks it.
   - Open: Ctrl+K: "Roblox"; sidebar panel: roblox.
-- **panel-github** (`panel-github`): Your GitHub, one click away.
-  - Open: Ctrl+K: "GitHub"; sidebar panel: github.
 - **Netflix panel** (`panel-netflix`): Netflix in the sidebar — right-click the icon to switch it to Prime Video or Disney+.
   - Open: sidebar panel: netflix.
 - **Authenticator** (`panel-authenticator`): Your 2FA codes, generated here, with a ring showing how long each one has left.
