@@ -44,6 +44,9 @@ const VexBoot = {
     { src: 'js/settings-sweep2-tr.js', usage: [] },
     { src: 'js/ai-connect.js', usage: [] },
     { src: 'js/ai-bar.js', usage: [] },
+    // Research mode: a sourced brief from some tabs. The core checks every quote against its page; the module is the window, the Settings group and the commands.
+    { src: 'js/research-core.js', usage: [] },
+    { src: 'js/research-mode.js', usage: ['research-mode'] },
     { src: 'js/dialogs-tr.js', usage: [] },
     { src: 'js/drm-help.js', usage: [] },
     { src: 'js/unblock-centre.js', usage: ['unblock-centre'] },

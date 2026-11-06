@@ -149,6 +149,7 @@ const VexTabSelect = {
     add(anyUnmuted ? 'mute' : 'volume', anyUnmuted ? 'Mute' : 'Unmute', () => this.mute());
     add('pin', anyUnpinned ? 'Pin' : 'Unpin', () => this.pin());
     add('star', 'Bookmark', () => this.bookmark());
+    if (typeof VexResearch !== 'undefined' && VexResearch.enabled()) add('book', 'Research', () => { const picked = this.tabs(); this.clear(); return VexResearch.start({ tabs: picked }); });
     if (tabs.length <= this.MAX_SPLIT && typeof SplitScreen !== 'undefined') add('split', 'Side by side', () => this.split());
     add('trash', 'Close', () => this.close(), 'danger');
     add('x', 'Let go', () => this.clear());
