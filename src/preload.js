@@ -419,6 +419,16 @@ contextBridge.exposeInMainWorld('vex', {
   githubTokenClear: () => ipcRenderer.invoke('github:token-clear'),
   githubTokenTest: () => ipcRenderer.invoke('github:token-test'),
   githubGet: (path, opts) => ipcRenderer.invoke('github:get', path, opts),
+  // Bring your own AI key (main/ai-byok.js): a key goes in once and never comes back; answers stream as 'aikey:event'.
+  aiKeyStatus: () => ipcRenderer.invoke('aikey:status'),
+  aiKeySet: (req) => ipcRenderer.invoke('aikey:set-key', req),
+  aiKeyClear: (provider) => ipcRenderer.invoke('aikey:clear-key', provider),
+  aiKeySetModels: (req) => ipcRenderer.invoke('aikey:set-models', req),
+  aiKeyModels: (provider, refresh) => ipcRenderer.invoke('aikey:models', provider, refresh === true),
+  aiKeyTest: (provider) => ipcRenderer.invoke('aikey:test', provider),
+  aiKeyChat: (req) => ipcRenderer.invoke('aikey:chat', req),
+  aiKeyCancel: (id) => ipcRenderer.invoke('aikey:cancel', id),
+  onAiKeyEvent: (cb) => subscribe('aikey:event', cb),
   // Package versions, advisories and one endpoint ping (main/dev-feeds.js).
   devfeedsLatest: (ecosystem, name) => ipcRenderer.invoke('devfeeds:latest', ecosystem, name),
   devfeedsAdvisories: (ecosystem, name, version) => ipcRenderer.invoke('devfeeds:advisories', ecosystem, name, version),

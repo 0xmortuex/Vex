@@ -642,6 +642,13 @@ define('mcp:auth-set', [string(80), string(4096)]);
 // The GitHub read-only token vault (main/github-vault.js) and the developer
 // feeds (main/dev-feeds.js). The token goes in once and never comes back out;
 // the path is checked against a list of read endpoints in main.
+// Bring your own AI key (main/ai-byok.js). The key is a string; everything the window gets back is a result object.
+define('aikey:status', []);
+define('aikey:set-key', [shape({ provider: string(40), key: string(500), baseUrl: optional(string(300)) })]);
+define('aikey:clear-key aikey:test aikey:cancel', [string(64)]);
+define('aikey:set-models', [shape({ provider: string(40), models: object })]);
+define('aikey:models', [string(40), optional(boolean)]);
+define('aikey:chat', [shape({ id: string(64), provider: string(40), tier: optional(string(10)), model: optional(string(200)), maxTokens: optional(finiteNumber), messages: value => Array.isArray(value) && value.length > 0 && value.length <= 200 })]);
 define('github:status github:token-clear github:token-test', []);
 define('github:token-set', [string(400)]);
 define('github:get', [string(400), optional(shape({ authed: optional(boolean) }))]);

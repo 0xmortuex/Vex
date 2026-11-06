@@ -8010,6 +8010,12 @@ ipcMain.handle('cloud:token-save', (_event, token) => {
   if (typeof token !== 'string' || token.length < 24 || token.length > 512) throw new Error('Use a token of 24–512 characters');
   return secretStore.write(path.join(userDataPath, 'ai-token.enc'), token);
 });
+// Bring your own AI key (main/ai-byok.js): a provider's API key (Claude, OpenAI, Gemini, OpenRouter, a custom server) sealed by the OS in
+// ai-keys.enc, never handed back to a window; every provider request is made here and streamed to the window. VEX_TEST_PROVIDER_HOST
+// (a local stand-in server, for tests) is read only in an unpackaged run.
+const _byokTestHost = !app.isPackaged ? String(process.env.VEX_TEST_PROVIDER_HOST || '') : '';
+const _aiByok = require('./main/ai-byok').createByok({ secretStore, file: path.join(userDataPath, 'ai-keys.enc'), fetch: boundedNetFetch, testHost: _byokTestHost });
+require('./main/ai-byok').registerByokIpc({ ipcMain, byok: _aiByok });
 // MCP servers' tokens (js/mcp-client.js), by server id, encrypted like the
 // other secrets. They sat in plain text in vex-persist.json and went into
 // every backup, though PRIVACY.md says backups leave tokens out (security scan

@@ -798,6 +798,9 @@
       permissions: { reads: ['how much each feature keeps; the Recall index size'], writes: ['the caps and retention of the Recall index; the oldest pages go first'], sends: [] } },
     { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiRoute', 'vex.aiLadder'], commands: ['ai-answered-by'],
       permissions: { reads: ['your AI mode and which backend answered'], writes: ['the same AI mode switches Settings already has'], sends: [] } },
+    // Your own AI key (js/ai-keys.js, ai-connect.js, ai-bar.js; src/main/ai-byok.js). The key itself is sealed in the main process and is in no storage key.
+    { id: 'ai-keys', title: 'Connect an AI: your own API key', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiByok.active', 'vex.aiCloudSource'], events: ['vex:ai-keys', 'vex:ai-keys-usage'],
+      permissions: { reads: ['which providers have a saved key (never the key), the models you chose, and this session\'s token count'], writes: ['which provider answers by default and where cloud requests go'], sends: ['The question, page text and chat history of a request, to the AI company whose key you saved, only when a request is sent to it; never from a Tor or private tab, and never what the sensitivity gate holds back'] } },
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],
       permissions: { reads: ['a sign-in code in your mail, when you ask or allow it'], writes: ['the sites you trusted to receive a code'], sends: [] } },
