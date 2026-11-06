@@ -147,3 +147,34 @@ describe('the generator refuses bad input', () => {
     expect(() => G.svg({ ...ok, colors: ['#000000"/><script>', '#111111', '#222222', '#333333', '#444444'] })).toThrow(/#rrggbb/);
   });
 });
+
+describe('the built-in wallpapers speak Turkish', () => {
+  const { VexI18nUI } = require('../../src/renderer/js/i18n-ui.js');
+  const TR = VexI18nUI.TABLE.tr;
+  const has = (t) => Object.prototype.hasOwnProperty.call(TR, t);
+  // A name that is the same word in Turkish may stay English: each with its reason.
+  const SAME_IN_TURKISH = {
+    Nova: 'the astronomy term "nova" is the same word in Turkish',
+    Sonar: 'sonar is the same word in Turkish',
+  };
+
+  // Read while the file is collected, before the tests above add their own made-up wallpapers and groups.
+  const WALLPAPERS = D.generated().map(w => w.title);
+  const GROUPS = D.CATEGORIES.map(c => c.title);
+
+  it('every drawn wallpaper name has a Turkish entry, or is listed as the same word', () => {
+    expect(WALLPAPERS.length).toBeGreaterThanOrEqual(74);
+    expect(WALLPAPERS.filter(t => !has(t) && !SAME_IN_TURKISH[t])).toEqual([]);
+  });
+  it('every wallpaper group title has a Turkish entry', () => {
+    expect(GROUPS.filter(t => !has(t) && !SAME_IN_TURKISH[t])).toEqual([]);
+  });
+  it('the same-word list only names real wallpapers, gives a reason and has no entry of its own', () => {
+    const titles = new Set(WALLPAPERS.concat(GROUPS));
+    for (const [name, why] of Object.entries(SAME_IN_TURKISH)) {
+      expect(titles.has(name), name).toBe(true);
+      expect(why.length, name).toBeGreaterThan(10);
+      expect(has(name), name + ' has an entry, so it needs no exemption').toBe(false);
+    }
+  });
+});
