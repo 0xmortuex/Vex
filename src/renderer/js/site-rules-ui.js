@@ -49,10 +49,13 @@ const SiteRulesUI = {
     try { const o = JSON.parse(localStorage.getItem(this.KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; }
   },
   _isPrivate() { return typeof window !== 'undefined' && !!window.VexTabPolicy?.isPrivateWindow; },
+  // Things that read the rules (js/session-timeout.js) hear of every change, here and from another window.
+  _changed() { try { document.dispatchEvent(new CustomEvent('vex:site-rules-changed')); } catch (err) { window.VexProblems?.note('Site switches', 'Could not announce a change to the per-site switches', err); } },
   async loadMirror() {
     const res = await window.vex.siteRulesGet();
     if (!res || !res.ok || !res.rules || typeof res.rules !== 'object') throw new Error((res && res.error) || 'Could not read the per-site switches');
     this._mirror = res.rules;
+    this._changed();
     return this._mirror;
   },
   save(rules) { try { localStorage.setItem(this.KEY, JSON.stringify(rules)); } catch {} },
@@ -75,6 +78,34 @@ const SiteRulesUI = {
   scriptsOff(url) { return this.isOff(url, 'js'); },
   // A site held to "only when I click": its tabs are built with autoplayPolicy=user-gesture-required (webview.js).
   autoplayOff(url) { return this.isOff(url, 'autoplay'); },
+  // The idle timeout (minutes) the person gave for the site, or 0; whether keep-alive is on.
+  sessionMinutes(url) { const r = this.forUrl(url); return r && Number.isInteger(r.sessionMin) ? r.sessionMin : 0; },
+  keepAliveOn(url) { const r = this.forUrl(url); return !!(r && r.sessionMin && r.keepAlive === true); },
+
+  // One value of a rule that is not a plain 'off': sessionMin (whole minutes 1-720, 0 or null removes it and keepAlive with it),
+  // keepAlive (true/false, only with a timeout).
+  async setField(url, field, value) {
+    if (this._isPrivate()) throw new Error('Change this in a normal window — it applies to every window');
+    const h = this.host(url);
+    if (!h) throw new Error('That is not a web page');
+    const rules = this.rules();
+    const rule = { ...(rules[h] || {}) };
+    if (field === 'sessionMin') {
+      if (value == null || value === 0) { delete rule.sessionMin; delete rule.keepAlive; }
+      else if (Number.isInteger(value) && value >= 1 && value <= 720) rule.sessionMin = value;
+      else throw new Error('A timeout is a whole number of minutes from 1 to 720');
+    } else if (field === 'keepAlive') {
+      if (value && !rule.sessionMin) throw new Error('Set the site’s timeout first');
+      if (value) rule.keepAlive = true; else delete rule.keepAlive;
+    } else {
+      throw new Error('Unknown setting: ' + field);
+    }
+    if (Object.keys(rule).length) rules[h] = rule; else delete rules[h];
+    this.save(rules);
+    await this.push();
+    this._mark(url);
+    return rule;
+  },
   // The site panel's "Block ads and trackers on this site": stored as the
   // 'ads' switch beside the three above (main/site-rules.js), but not one of
   // WHAT — a site the blocker leaves alone is not being held back.
@@ -85,6 +116,7 @@ const SiteRulesUI = {
   async push() {
     const res = await window.vex.siteRulesSet(this.rules());
     if (!res || !res.ok) throw new Error((res && res.error) || 'Could not save these switches');
+    this._changed();
     return res.rules;
   },
 
@@ -218,6 +250,7 @@ if (typeof window !== 'undefined' && SiteRulesUI._isPrivate()) {
       return;
     }
     SiteRulesUI._mirror = rules;
+    SiteRulesUI._changed();
   });
   window.addEventListener('focus', reload);
 }

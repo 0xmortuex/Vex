@@ -297,6 +297,8 @@ const SitePanel = {
 
   // ---- drawing ---------------------------------------------------------------
   _esc(s) { return window.escapeHtml(String(s == null ? '' : s)); },
+  // A sentence with {1}, {2} holes, in the window's language.
+  _tr(text, ...vals) { let out = (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup(text)) || text; vals.forEach((v, i) => { out = out.split('{' + (i + 1) + '}').join(String(v)); }); return out; },
   _ico(name, size = 14) { return VexIcons.svg(name, { size }); },
 
   _switch(act, label, { checked = false, disabled = false, note = '' } = {}) {
@@ -339,6 +341,7 @@ const SitePanel = {
       body += this._behaviourHtml(c);
       body += this._blockingHtml(c);
       body += this._switchesHtml(c);
+      body += this._sessionHtml(c);
       body += this._identityHtml(c);
       body += this._opensHtml(c);
       body += this._dataHtml(c);
@@ -527,6 +530,30 @@ const SitePanel = {
     }
     return this._section('switches', 'What this site is allowed', rows
       + `<p class="sp-note">${this._after ? 'The page reloads when you close this panel.' : 'Every page of this site, in every window.'}</p>` + broken);
+  },
+
+  // The idle timeout the site logs you out at (a site rule, main/site-rules.js); these rows change nothing about the page in front.
+  SESSION_CHOICES: [5, 10, 15, 20, 30, 45, 60, 90, 120],
+  _sessionHtml(c) {
+    if (typeof SiteRulesUI === 'undefined' || !c.web) return '';
+    const off = !c.canSave;
+    const tor = !!(c.tor || c.torRoute);
+    const mins = SiteRulesUI.sessionMinutes(c.url);
+    const choices = [...new Set([...this.SESSION_CHOICES, ...(mins ? [mins] : [])])].sort((a, b) => a - b);
+    // The same rule as VexSessionTimeout.keepAliveAllowed (js/session-timeout.js loads after start-up, so it is not asked here).
+    const keepOk = !c.privateWindow && !c.ephemeral && !tor;
+    let html = `<div class="sp-row">
+      <label class="sp-row-text" for="sp-sess-min"><span class="sp-row-label">This site signs me out after</span><span class="sp-row-note">${this._esc(mins ? 'Vex warns about two minutes before, and says when it has probably happened.' : 'For e-Devlet, school portals, banks and long forms. Vex only warns; it sends nothing.')}</span></label>
+      <select class="sp-select" id="sp-sess-min" data-act="sess-min" ${off || tor ? 'disabled' : ''}>
+        <option value="0" ${mins ? '' : 'selected'}>${this._esc('Not set')}</option>
+        ${choices.map(m => `<option value="${m}" ${m === mins ? 'selected' : ''}>${this._esc(((typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup('{1} minutes')) || '{1} minutes').replace('{1}', m))}</option>`).join('')}
+      </select>
+    </div>`;
+    html += this._switch('sess-keep', 'Stay signed in while this tab is open', {
+      checked: SiteRulesUI.keepAliveOn(c.url), disabled: off || tor || !mins || !keepOk,
+      note: !keepOk ? 'Not in a private window, a Tor tab or a tab that keeps nothing.'
+        : 'Sends the site a small request for this page’s own address every few minutes while you work in the tab, and stops after 30 minutes of no activity. Banks sign you out on purpose; leave this off for them.' });
+    return this._section('session', 'When this site signs you out', html);
   },
 
   // How this site is asked for, and what Vex tells it: its own User-Agent
@@ -784,6 +811,20 @@ const SitePanel = {
         await SiteRulesUI.set(c.url, 'referrer', el.checked);
         this._after = this._after || 'reload';
         window.showToast?.(el.checked ? c.host + ' gets the full referrer' : c.host + ' is trimmed like every other site again');
+        this._paint();
+        return;
+      case 'sess-min': {
+        this._mustSave(c);
+        const m = parseInt(el.value, 10) || 0;
+        await SiteRulesUI.setField(c.url, 'sessionMin', m || null);
+        window.showToast?.(m ? this._tr('Vex will warn you before {1} signs you out after {2} minutes', c.host, m) : this._tr('No sign-out warning for {1}', c.host));
+        this._paint();
+        return;
+      }
+      case 'sess-keep':
+        this._mustSave(c);
+        if (el.checked && !await window.vexConfirm({ title: 'Stay signed in', message: this._tr('{1} signs you out when you are idle, on purpose. While this tab is open and you are working in it, Vex will send {1} a small request (the headers of this page’s own address, with your cookies) every few minutes to keep it from doing that. It stops after 30 minutes without a click or key press in the tab. Banks and payment pages time out to protect you: do not switch this on for them.', c.host), okLabel: 'Keep me signed in', danger: true })) { this._paint(); return; }
+        await SiteRulesUI.setField(c.url, 'keepAlive', el.checked);
         this._paint();
         return;
       case 'route': return this._setRoute(el.value);

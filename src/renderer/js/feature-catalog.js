@@ -275,6 +275,8 @@ const VexFeatures = {
       what: 'Load none of one site’s pictures, to save data on a slow or metered connection. Per site, undone from the same panel.' },
     { id: 'captive-portal', phrases: 'wifi wi-fi sign in login captive portal hotel airport cafe school network page will not load network login', cat: 'privacy', cmd: 'captive', name: 'Wi-Fi sign-in check',
       what: 'On a café, school or airport network, one press asks a plain page whether the network is holding you at a sign-in, then opens that sign-in page (HTTPS-only leaves its addresses alone until Vex closes) and can pause strict secure DNS for ten minutes. Nothing is asked until you press it; it is also offered on the page that did not load.' },
+    { id: 'session-timeout', phrases: 'session timeout logged out e-devlet edevlet exam portal bank signed out idle warning stay signed in keep alive form expires', cat: 'privacy', cmd: 'session-timeout', name: 'Sign-out warning',
+      what: 'For a site that logs you out when you are idle (e-Devlet, school and exam portals, banks, long forms): tell Vex how many minutes it allows and a toast and a small countdown come about two minutes before. Optionally it can keep the page signed in while you work in the tab.' },
     { id: 'siteidentity', cat: 'privacy', cmd: 'siteidentity',
       what: 'Exactly what this page can see about your browser, with a verdict on why a site might be refusing to work.' },
     { id: 'pwhealth', cat: 'privacy', cmd: 'pwhealth',
@@ -1339,7 +1341,7 @@ const VexFeatures = {
       { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint', 'gpc', 'referrer-trim'] },
       { name: 'The connection itself', ids: ['doh', 'https-only', 'captive-portal', 'tor', 'routing', 'routing-all', 'site-routes', 'dpi'] },
       { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window'] },
-      { name: 'One site at a time', ids: ['permissions', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'sitebroken', 'siteidentity'] },
+      { name: 'One site at a time', ids: ['permissions', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'session-timeout', 'sitebroken', 'siteidentity'] },
       { name: 'Your passwords', ids: ['pwhealth'] },
     ],
     reading: [

@@ -269,6 +269,8 @@ contextBridge.exposeInMainWorld('vex', {
   siteRulesSet: (rules) => ipcRenderer.invoke('siterules:set', rules),
   // The switches as they are now, sent to every window whenever they change.
   onSiteRulesChanged: (callback) => subscribe('siterules:changed', callback),
+  // A real click or key press in a page of a site that has a session-timeout warning (js/session-timeout.js): { pageId }.
+  onTabActivity: (callback) => subscribe('session-timeout:activity', callback),
   // How long a few well-known services take to answer, and yours for comparison.
   netLatency: () => ipcRenderer.invoke('net:latency'),
   // What a word means, asked of a dictionary from the main process.

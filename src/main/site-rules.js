@@ -31,11 +31,15 @@
 //                at creation: it cannot be changed on a live page). Vex allows
 //                autoplay everywhere else, because Master Volume's boost needs
 //                a running AudioContext (main.js).
+//   sessionMin   not a switch: the site logs you out after this many idle
+//                minutes (1 to 720), and Vex warns before. keepAlive (true) is the
+//                separate opt-in to a same-origin request that keeps it signed in.
 //   ua           not a switch: the site is asked for as 'mobile' or with a
 //                typed User-Agent string (the desktop one is the normal
 //                thing, so it is never stored). Never in a Tor tab.
 const OFF = 'off';
 const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads', 'images', 'gpc', 'referrer', 'autoplay'];
+const SESSION_MIN_MAX = 720;
 const UA_MOBILE = 'mobile';
 const UA_MAX = 512;
 
@@ -91,6 +95,13 @@ function keepsReferrer(rules, referrerUrl, requestUrl) {
   return isOff(rules, referrerUrl, 'referrer') || isOff(rules, requestUrl, 'referrer');
 }
 
+// The idle timeout the person told Vex about, as { minutes, keepAlive }, or null.
+function sessionTimeoutFor(rules, url) {
+  const rule = ruleFor(rules, url);
+  if (!rule || !Number.isInteger(rule.sessionMin) || rule.sessionMin < 1 || rule.sessionMin > SESSION_MIN_MAX) return null;
+  return { minutes: rule.sessionMin, keepAlive: rule.keepAlive === true };
+}
+
 // A User-Agent a person typed: printable ASCII on one line, nothing else.
 function validUserAgent(ua) {
   return typeof ua === 'string' && ua.length >= 8 && ua.length <= UA_MAX && /^[ -~]+$/.test(ua) && ua.trim() === ua;
@@ -116,6 +127,10 @@ function clean(rules) {
     if (!h || h.length > 253 || !/^[a-z0-9.-]+$/.test(h)) continue;
     const kept = {};
     for (const what of SWITCHES) if (rule && rule[what] === OFF) kept[what] = OFF;
+    if (rule && Number.isInteger(rule.sessionMin) && rule.sessionMin >= 1 && rule.sessionMin <= SESSION_MIN_MAX) {
+      kept.sessionMin = rule.sessionMin;
+      if (rule.keepAlive === true) kept.keepAlive = true;
+    }
     if (rule && (rule.ua === UA_MOBILE || validUserAgent(rule.ua))) kept.ua = rule.ua;
     if (Object.keys(kept).length) out[h] = kept;
     if (Object.keys(out).length >= 200) break;
@@ -123,4 +138,4 @@ function clean(rules) {
   return out;
 }
 
-module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, allowsAds, blocksImages, sendsGpc, keepsReferrer, userAgentFor, validUserAgent, UA_MOBILE, clean };
+module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, allowsAds, blocksImages, sendsGpc, keepsReferrer, sessionTimeoutFor, SESSION_MIN_MAX, userAgentFor, validUserAgent, UA_MOBILE, clean };

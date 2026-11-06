@@ -3849,7 +3849,20 @@ let _hasUaRules = false;
 // webContents id -> the User-Agent its session has, for pages that are
 // carrying a site's own (see the did-start-navigation listener).
 const _siteUaOverridden = new Map();
-const _refreshUaRules = () => { _hasUaRules = Object.values(_siteRules).some(r => typeof r.ua === 'string'); };
+const _refreshUaRules = () => { _hasUaRules = Object.values(_siteRules).some(r => typeof r.ua === 'string'); _hasTimeoutRules = Object.values(_siteRules).some(r => Number.isInteger(r.sessionMin)); };
+// A site with a session-timeout warning (js/session-timeout.js): only then is a tab's real activity reported to its window, at
+// most every 5 seconds per page, as a page id and nothing else.
+let _hasTimeoutRules = false;
+const _activitySentAt = new Map();   // page id -> when its window was last told
+function _reportTabActivity(contents) {
+  if (!_hasTimeoutRules || contents.getType() !== 'webview') return;
+  const t = Date.now();
+  if (t - (_activitySentAt.get(contents.id) || 0) < 5000) return;
+  const host = secureSessions.owner(contents);
+  if (!host || host.win.isDestroyed()) return;
+  _activitySentAt.set(contents.id, t);
+  host.win.webContents.send('session-timeout:activity', { pageId: contents.id });
+}
 _refreshUaRules();
 ipcMain.handle('siterules:set', (_e, rules) => {
   const before = _siteRules;
@@ -7075,9 +7088,9 @@ const _lastGestureAt = new Map();   // page id -> when it last had a click or ke
 function _watchGestures(contents) {
   const id = contents.id;
   contents.on('input-event', (_e, input) => {
-    if (input && _mainHelpers.GESTURE_INPUT_TYPES.has(input.type)) _lastGestureAt.set(id, Date.now());
+    if (input && _mainHelpers.GESTURE_INPUT_TYPES.has(input.type)) { _lastGestureAt.set(id, Date.now()); _reportTabActivity(contents); }
   });
-  contents.once('destroyed', () => { _lastGestureAt.delete(id); _popupBlocker.forget(id); });
+  contents.once('destroyed', () => { _lastGestureAt.delete(id); _activitySentAt.delete(id); _popupBlocker.forget(id); });
 }
 // The pop-up blocker (src/main/popup-blocker.js): a window a page opens with
 // no click or key press of yours on it is refused, unless the site's pop-ups
