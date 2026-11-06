@@ -1457,12 +1457,15 @@ async function waitForRenderer(cdp, timeoutMs) {
 async function waitForStableLayout(cdp, timeoutMs) {
   await evaluate(cdp, `(() => {
     if (window.__vexCheckUiMoves) return;
-    const st = window.__vexCheckUiMoves = { last: performance.now() };
+    const st = window.__vexCheckUiMoves = { last: performance.now(), who: {} };
     const bump = () => { st.last = performance.now(); };
-    const ro = new ResizeObserver(bump);
+    // What moved, by element and by kind of change, so a failure can say it (a CI-only loop is otherwise a mystery).
+    const label = (el) => (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '') || el.tagName.toLowerCase();
+    const note = (k) => { st.who[k] = (st.who[k] || 0) + 1; };
+    const ro = new ResizeObserver((entries) => { bump(); for (const e of entries) note('resize ' + label(e.target)); });
     for (const el of document.querySelectorAll('#top-bar, #top-bar *, #top-tab-bar, #top-tab-bar *, #icon-sidebar, #icon-sidebar *')) ro.observe(el);
-    addEventListener('resize', bump);
-    new MutationObserver(bump).observe(document.body, { attributes: true });
+    addEventListener('resize', () => { bump(); note('window resize'); });
+    new MutationObserver((records) => { bump(); for (const r of records) note('body attr ' + r.attributeName); }).observe(document.body, { attributes: true });
   })()`);
   const QUIET_MS = 1500;
   const deadline = Date.now() + timeoutMs;
@@ -1471,7 +1474,8 @@ async function waitForStableLayout(cdp, timeoutMs) {
     if (quiet >= QUIET_MS) return;
     await sleep(Math.max(100, QUIET_MS - quiet));
   }
-  throw new Error('the chrome never stopped moving — something in it changed size at least every ' + (QUIET_MS / 1000) + 's for ' + Math.round(timeoutMs / 1000) + 's, so no measurement would describe what the user sees');
+  const who = await evaluate(cdp, 'JSON.stringify(Object.entries(window.__vexCheckUiMoves.who).sort((a, b) => b[1] - a[1]).slice(0, 8))').catch(() => '[]');
+  throw new Error('the chrome never stopped moving — something in it changed size at least every ' + (QUIET_MS / 1000) + 's for ' + Math.round(timeoutMs / 1000) + 's, so no measurement would describe what the user sees. What moved most (count): ' + who);
 }
 
 // TRAP 3. The profile says the wizard is done before Vex starts, so it is never
