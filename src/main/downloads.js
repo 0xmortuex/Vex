@@ -12,7 +12,7 @@ const path = require('path');
 // standing waits in the holding folder for a confirm; without them none is.
 // releases: the record of GitHub release assets that were downloaded (download-desk.js
 // createReleaseDesk), so the window can offer the hash and a VirusTotal link for one.
-function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null, releases = null, inspectFile = null }) {
+function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null, releases = null, inspectFile = null, assessFile = null }) {
 const { hasRecentGesture } = require('../main-helpers');
 const _broadcastDownloadEvent = broadcast;
 // Live DownloadItems, keyed by the id the renderer knows them by, so the panel
@@ -461,7 +461,7 @@ function wireDownloadsOnSession(ses, tag) {
         // Report the real byte counts: a server that sent no Content-Length leaves
         // totalBytes at 0, and the panel used to copy that 0 over the received
         // count and then render a completed download as "0 B".
-        emit('download-complete', {
+        const complete = (safe) => emit('download-complete', {
           id: info.id,
           fileName: info.fileName,
           state,
@@ -470,9 +470,21 @@ function wireDownloadsOnSession(ses, tag) {
           ephemeral,
           release,
           fileCheck,
+          safe,
           receivedBytes: safeCall(item, 'getReceivedBytes', 0),
           totalBytes: safeCall(item, 'getTotalBytes', 0)
         });
+        // The Safe Download Assistant (safe-download.js): the verdict is ready before the window hears the file is done. It reads
+        // only local facts; a failed check is said on the row as "could not be checked", never as clean.
+        if (state === 'completed' && assessFile) {
+          Promise.resolve().then(() => assessFile({ path: savePath, fileName: info.fileName, url: info.url, chain, noClick: !!auto }))
+            .catch((err) => {
+              console.error('[Downloads] the safety check of ' + info.fileName + ' failed:', err.message);
+              return { level: 'gray', headline: { en: 'This file could not be checked', tr: 'Bu dosya denetlenemedi' }, reasons: [{ id: 'unreadable', level: 'info', en: 'The safety check failed: ' + String(err.message).slice(0, 160), tr: 'Güvenlik denetimi başarısız oldu: ' + String(err.message).slice(0, 160) }], top: null, canQuarantine: false, noPreview: false };
+            })
+            .then(complete)
+            .catch((err) => console.error('[Downloads] could not report the finished download ' + info.fileName + ':', err.message));
+        } else complete(null);
       };
       if (heldDone) finish(heldDone);
       else item.once('done', (_e, state) => finish(state));

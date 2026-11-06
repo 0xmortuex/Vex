@@ -211,6 +211,8 @@ const VexQuickLook = (() => {
   }
 
   async function draw(stage, dl, info, mine) {
+    // A "zip bomb" (Safe Download Assistant, js/safe-download-ui.js) is never previewed.
+    if (info.kind === 'archive' && dl && dl.safe && dl.safe.noPreview) { stage.append(card(dl, info, { problem: T('Vex will not preview this archive: it unpacks to far more than its size, which is how a zip bomb works.') })); return; }
     if (info.tooBig) { stage.append(card(dl, info, { problem: fill(T('This file is too big to preview here. The limit is {1}.'), fmtBytes(info.tooBig)) })); return; }
     switch (info.kind) {
       case 'image': return drawImage(stage, info);
