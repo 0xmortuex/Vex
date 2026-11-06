@@ -13,6 +13,13 @@ const FILE = 'language.txt';
 
 // English -> Turkish. {1}, {2} stand for a value the code puts in; it is carried across as it is.
 const TR = {
+  // Page automations (main/automations.js): the notifications it builds itself.
+  'An automation needs you': 'Bir otomasyonun sana ihtiyacı var',
+  'An automation is waiting for your approval': 'Bir otomasyon onayını bekliyor',
+  'Automation failed': 'Otomasyon başarısız oldu',
+  'Automation needs you': 'Otomasyonun sana ihtiyacı var',
+  'Automation': 'Otomasyon',
+  'Automation: ': 'Otomasyon: ',
   'Choose the passwords file you exported': 'Dışa aktardığınız parola dosyasını seçin',
   'Password export (CSV)': 'Parola dışa aktarımı (CSV)',
   'Choose a picture to prepare': 'Hazırlanacak bir resim seçin',

@@ -143,7 +143,8 @@ function createAutomations({ store, notifier, osScheduler, now = () => Date.now(
       send({ type: 'approval', request: entry.req });
       // A run nobody is watching reaches the person as a toast, from the main process.
       if (!windowFocused() || (active && active.trigger !== 'manual')) {
-        notifier.show({ title: req.kind === 'fill' ? 'An automation needs you' : 'An automation is waiting for your approval', body: (req.name || 'Automation') + ': ' + (req.label || '') + (req.why ? ' (' + req.why + ')' : ''), tag: 'automation-' + req.runId, kind: 'automation' })
+        const toastBody = (req.name || 'Automation') + ': ' + (req.label || '') + (req.why ? ' (' + req.why + ')' : '');
+        notifier.show({ title: req.kind === 'fill' ? 'An automation needs you' : 'An automation is waiting for your approval', body: toastBody, tag: 'automation-' + req.runId, kind: 'automation' })
           .catch(err => note('[Automations] the approval toast was refused: ' + err.message));
       }
     });

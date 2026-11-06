@@ -14523,7 +14523,6 @@ const VexI18nUI = {
       'Add an AI summary?': 'YZ özeti eklensin mi?',
       'After each run, the values this automation read are sent to your AI service to be summarised. Nothing is sent unless this step is here. It is always the last step.': 'Her çalıştırmadan sonra, bu otomasyonun okuduğu değerler özetlenmek üzere YZ hizmetinize gönderilir. Bu adım yoksa hiçbir şey gönderilmez. Her zaman son adımdır.',
       'Add the step': 'Adımı ekle',
-      'Run now': 'Şimdi çalıştır',
       'Switch on Page automations?': 'Sayfa otomasyonları açılsın mı?',
       'Page automations record what you do on a site and repeat it later, in a window of their own, using the logins that session already has. They never fill passwords, codes or card numbers, and they always ask before anything that looks like submitting, buying, paying, sending, posting, deleting or transferring. You can stop everything at any time.': 'Sayfa otomasyonları bir sitede yaptıklarınızı kaydeder ve daha sonra kendi pencerelerinde, o oturumda zaten bulunan girişleri kullanarak tekrarlar. Parola, kod veya kart numarası asla doldurmazlar; göndermek, satın almak, ödemek, paylaşmak, silmek veya havale etmek gibi görünen her şeyden önce her zaman sorarlar. Her şeyi istediğiniz an durdurabilirsiniz.',
       'Switch on': 'Aç',
