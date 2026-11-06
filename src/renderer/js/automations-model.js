@@ -393,7 +393,7 @@
         step = { type: 'enter', target, label: `Press Enter in "${clip(label(), 40)}"` };
       } else if (ev.t === 'read') {
         if (isSensitive(target || {})) continue;   // a secret field is never read
-        step = { type: 'read', target, as: clip(ev.as || label() || 'value', 40), label: `Read "${clip(label() || 'the page', 40)}"` };
+        step = { type: 'read', target, as: clip(ev.as || label() || 'value', 40), label: `Read "${clip(ev.as || label() || 'the page', 40)}"` };
       }
       if (!step) continue;
       try { steps.push(cleanStep(step, steps.length)); } catch (e) { /* a step that cannot be made safe is left out; the bar shows the count */ continue; }   // vex-allow-empty-catch: the recorder shows how many events were not turned into steps

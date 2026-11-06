@@ -15,7 +15,6 @@
 const VexAutomations = {
   ID: 'page-automations',
   ON_KEY: 'vex.automations.enabled',
-  POLL_MS: 500,
   _state: null,
   _rec: null,           // the recording in progress { name, partition, steps, paused, tabId, wv, timer, ... }
   _approval: null,
@@ -322,8 +321,18 @@ const VexAutomations = {
     const name = await window.vexPrompt({ title: autoTr('Record an automation'), message: autoTr('Name this automation. Then do the job once on the page: click, choose, type. Vex never records passwords, codes or card numbers.'), value: this._host(url), okLabel: autoTr('Start recording') });
     if (!name) return null;
     this._style();
-    const rec = this._rec = { name: String(name).slice(0, 80), partition, tabId: tab.id, wv, steps: [{ ...M.cleanStep({ type: 'open', url: first.url, urlTrimmed: first.trimmed }, 0) }], paused: false, timer: null, dropped: 0, picking: false };
-    await wv.executeJavaScript(G.call('recStart', []));
+    const nonce = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const rec = this._rec = { name: String(name).slice(0, 80), partition, tabId: tab.id, wv, nonce, steps: [{ ...M.cleanStep({ type: 'open', url: first.url, urlTrimmed: first.trimmed }, 0) }], paused: false, dropped: 0, picking: false };
+    // The page reports each event as a console line carrying this recording's own token (see automations-guest.js).
+    const prefix = '__vexrec:' + nonce + ':';
+    rec.onMsg = (e) => {
+      if (!this._rec || typeof e.message !== 'string' || !e.message.startsWith(prefix)) return;
+      let ev;
+      try { ev = JSON.parse(e.message.slice(prefix.length)); } catch (err) { this._fail(new Error('The page sent a recording event that could not be read')); return; }
+      try { this._ingest([ev]); } catch (err) { this._fail(err); }
+    };
+    wv.addEventListener('console-message', rec.onMsg);
+    await wv.executeJavaScript(G.call('recStart', [nonce]));
     const onNav = (e) => {
       if (!this._rec || e.isMainFrame === false) return;
       // A page the recorded click or Enter led to is part of that step; an address the person typed is a step of its own.
@@ -332,40 +341,29 @@ const VexAutomations = {
         catch (err) { this._fail(err); }
       }
     };
-    const onReady = () => { if (this._rec) wv.executeJavaScript(G.call('recStart', [])).catch(err => this._fail(err)); };
+    const onReady = () => { if (this._rec) wv.executeJavaScript(G.call('recStart', [nonce])).catch(err => this._fail(err)); };
     rec.onNav = onNav; rec.onReady = onReady;
     wv.addEventListener('did-navigate', onNav);
     wv.addEventListener('dom-ready', onReady);
-    if (typeof VexJobs === 'undefined') throw new Error('The job scheduler is not loaded');
-    rec.job = VexJobs.every('Automation recorder', this.POLL_MS, () => this._recTick().catch(err => this._fail(err)), { feature: 'page-automations' });
     this._drawBar();
     return rec;
   },
 
-  async _recTick() {
-    const rec = this._rec; if (!rec || rec.busy) return;
-    rec.busy = true;
-    try {
-      let events;
-      try { events = await rec.wv.executeJavaScript(this.G().call('recDrain', [])); rec.fails = 0; }
-      catch (err) {
-        // A page that is navigating refuses a script for a moment; six refusals in a row (three seconds) are a real problem and are shown.
-        rec.fails = (rec.fails || 0) + 1;
-        if (rec.fails < 6) return;
-        rec.fails = 0;
-        throw err;
-      }
-      if (!Array.isArray(events) || !events.length) return;
-      if (events.some(e => e.t === 'click' || e.t === 'enter')) this._lastAction = Date.now();
-      if (rec.paused) return;   // taken from the page and thrown away: a paused recording writes nothing
-      const before = rec.steps.length;
-      const M = this.M();
-      rec.steps = M.stepsFromEvents(events, rec.steps);
-      rec.dropped += Math.max(0, events.length - Math.max(0, rec.steps.length - before));
-      if (rec.steps.length >= M.LIMITS.maxSteps) { window.showToast?.(autoTr('That is the most steps one automation can have. Recording stopped.')); await this.stopRecording(); return; }
-      rec.picking = false;
-      this._drawBar();
-    } finally { rec.busy = false; }
+  // Events arrive from the page one at a time, as they happen.
+  _ingest(events) {
+    const rec = this._rec; if (!rec) return;
+    if (events.some(e => e.t === 'click' || e.t === 'enter')) this._lastAction = Date.now();
+    if (rec.paused) return;   // a paused recording writes nothing
+    const before = rec.steps.length;
+    const M = this.M();
+    rec.steps = M.stepsFromEvents(events, rec.steps);
+    rec.dropped += Math.max(0, events.length - Math.max(0, rec.steps.length - before));
+    rec.picking = false;
+    this._drawBar();
+    if (rec.steps.length >= M.LIMITS.maxSteps) {
+      window.showToast?.(autoTr('That is the most steps one automation can have. Recording stopped.'));
+      this.stopRecording().catch(err => this._fail(err));
+    }
   },
 
   _drawBar() {
@@ -394,7 +392,7 @@ const VexAutomations = {
 
   async _endRecording() {
     const rec = this._rec; if (!rec) return null;
-    rec.job.stop();
+    rec.wv.removeEventListener('console-message', rec.onMsg);
     rec.wv.removeEventListener('did-navigate', rec.onNav);
     rec.wv.removeEventListener('dom-ready', rec.onReady);
     let tail = [];
@@ -616,7 +614,7 @@ const VexAutomations = {
     const api = this._api();
     body.append(this._el('div', { style: 'font-size:12px;color:var(--text-muted);margin:2px 0 8px', text: autoTr('Record a job on a site once, then run it again from here, from Ctrl+K or on a schedule. It runs in a window of its own, in the session you recorded it in, and uses the logins that session already has.') }));
     const status = this._el('div', { role: 'status', style: 'font-size:12px;margin:6px 0' });
-    body.append(PS.toggle({ text: autoTr('Allow page automations'), hint: autoTr('Off by default'), checked: this.enabled(), onChange: (v) => this.setEnabled(v) }));
+    body.append(PS.toggle({ text: autoTr('Allow page automations'), checked: this.enabled(), onChange: (v) => this.setEnabled(v) }));
     const list = this._el('div');
     const draw = (st) => {
       list.textContent = '';
@@ -655,8 +653,8 @@ const VexAutomations = {
       'At most 60 steps and 12 pages in a recording, 15 minutes a run, 6 runs an hour for each automation and 20 overall. No loops. One automation runs at a time.',
       'Not in private, Tor or routed tabs. Never downloads or installs a file. Recordings are encrypted on this computer and never synced; Export leaves out everything you typed.',
       'A click that submits a form by script, a file chooser, pop-ups and frames from other sites are not handled.'];
-    const ul = this._el('ul', { style: 'margin:0;padding-left:18px;font-size:12px;color:var(--text-muted)' });
-    for (const r of rules) ul.append(this._el('li', { text: autoTr(r) }));
+    const ul = this._el('div', { style: 'font-size:12px;color:var(--text-muted)' });
+    for (const r of rules) ul.append(this._el('div', { style: 'margin:4px 0;padding-left:12px;border-left:2px solid var(--border)', text: autoTr(r) }));
     body.append(ul);
     this.refresh().then(draw).catch(err => { status.textContent = this._msg(err); });
     return body;

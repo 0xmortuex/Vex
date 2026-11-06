@@ -317,10 +317,15 @@
       if (tag !== 'INPUT') return !!el.isContentEditable;
       return !/^(button|submit|checkbox|radio|image|reset|file|color|range)$/i.test(el.type || 'text');
     }
-    kit.recStart = function () {
+    // With a nonce, every event is sent out at once as a console line the window listens for (a page that navigates
+    // straight after a click would otherwise take the buffered events with it); without one they are buffered for recDrain.
+    kit.recStart = function (nonce) {
       if (kit._rec && kit._rec.on) return 'already';
       var rec = kit._rec = { on: true, events: [], pick: false, hot: null };
-      var push = function (e) { if (rec.events.length < 300) rec.events.push(e); };
+      var push = function (e) {
+        if (nonce) { console.log('__vexrec:' + nonce + ':' + JSON.stringify(e)); return; }
+        if (rec.events.length < 300) rec.events.push(e);
+      };
       var onInput = function (e) {
         if (e.isTrusted && typeof e.inputType === 'string' && /^(insertText|insertFromPaste|insertFromDrop|deleteContent|insertCompositionText|insertLineBreak|historyUndo|historyRedo)/.test(e.inputType) && e.target) e.target.__vexTyped = true;
       };
@@ -345,7 +350,9 @@
         if (rec.pick) {
           e.preventDefault(); e.stopPropagation();
           rec.pick = false; if (rec.hot) { rec.hot.style.outline = rec.hotOutline || ''; rec.hot = null; }
-          push({ t: 'read', target: describe(t), as: nameOf(t).slice(0, 40) });
+          // A value changes between runs, so the step finds it by where it is (id or position), never by its text.
+          var rd = describe(t); rd.name = ''; rd.text = '';
+          push({ t: 'read', target: rd, as: (rd.id || rd.near || 'value').slice(0, 40) });
           return;
         }
         if (!e.isTrusted) return;

@@ -149,6 +149,25 @@ describe('the recorder', () => {
     r.fire('click', r.doc.getElementById('b'));
     expect(r.events().map(e => e.t)).toEqual(['click']);
   });
+  it('with a token every event leaves the page at once as a console line (a click that navigates cannot take it along)', () => {
+    const p = page('<button id="b">Go</button><span id="gpa">3.7</span>');
+    const lines = [];
+    p.dom.window.console.log = (m) => lines.push(m);
+    const listeners = [];
+    const add = p.doc.addEventListener.bind(p.doc);
+    p.doc.addEventListener = (type, fn, cap) => { listeners.push({ type, fn }); add(type, fn, cap); };
+    expect(p.call('recStart', 'tok123')).toBe('ok');
+    for (const l of listeners.filter(x => x.type === 'click')) l.fn({ isTrusted: true, target: p.doc.getElementById('b'), preventDefault() {}, stopPropagation() {} });
+    expect(lines).toHaveLength(1);
+    expect(lines[0].startsWith('__vexrec:tok123:')).toBe(true);
+    expect(JSON.parse(lines[0].slice('__vexrec:tok123:'.length))).toMatchObject({ t: 'click', target: { name: 'Go' } });
+    expect(p.call('recDrain')).toEqual([]);
+    // a read value is found by its id, never by the text it shows today
+    p.call('recPick', true);
+    for (const l of listeners.filter(x => x.type === 'click')) l.fn({ isTrusted: true, target: p.doc.getElementById('gpa'), preventDefault() {}, stopPropagation() {} });
+    const read = JSON.parse(lines[1].slice('__vexrec:tok123:'.length));
+    expect(read).toMatchObject({ t: 'read', as: 'gpa', target: { name: '', text: '', css: '#gpa' } });
+  });
   it('stops cleanly and a second start reports the first', () => {
     const r = recorder('<button id="b">Go</button>');
     expect(r.call('recStart')).toBe('already');
