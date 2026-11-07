@@ -56,6 +56,8 @@ const VexBoot = {
     { src: 'js/device-check.js', usage: [] },
     // Check my connection speed: the Ctrl+K command registers itself; nothing runs until it is pressed.
     { src: 'js/speed-test.js', usage: [] },
+    // Find with a regular expression: the Ctrl+K command registers itself; the bar and the worker exist only after it is used.
+    { src: 'js/regex-find.js', usage: [] },
     // Feature packs: the inbox row's button and the one-time offer; the screen itself is built when it is opened.
     { src: 'js/feature-packs.js', usage: [] },
     // Sign-out warning for sites that log you out: does nothing unless a site has a timeout saved (site panel).

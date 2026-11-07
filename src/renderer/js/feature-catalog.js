@@ -57,6 +57,8 @@ const VexFeatures = {
     { id: 'find-in-page', cat: 'reading', name: 'Find on this page', keys: 'Ctrl+F', manual: true,
       phrases: 'find search on the page look for a word ctrl f',
       what: 'Press Ctrl+F to find a word on the page you are reading, with every match counted.' },
+    { id: 'regex-find', feature: 'regex-find', newer: true, phrases: 'regex regular expression pattern match grep search page text highlight count matches wildcard', cat: 'reading', cmd: 'regex-find', name: 'Find with regular expression',
+      what: 'Search the page in front with a pattern (a JavaScript regular expression), highlight every match and count them. Use Ctrl+K: Find With Regular Expression.' },
     { id: 'search-engine', cat: 'look', name: 'Which search engine', setting: { id: 'setting-search-engine' },
       phrases: 'search engine google duckduckgo bing brave default search',
       what: 'Which search engine the address bar uses — Google, DuckDuckGo, Brave or Bing.' },
@@ -1397,7 +1399,7 @@ const VexFeatures = {
       { name: 'Your passwords', ids: ['pwhealth', 'secrets-lifeboat', 'mass-signout'] },
     ],
     reading: [
-      { name: 'Getting to the words', ids: ['reading-mode', 'readfree', 'copyunlock', 'doctext', 'find-in-page', 'page-nav', 'site-search', 'image-text'] },
+      { name: 'Getting to the words', ids: ['reading-mode', 'readfree', 'copyunlock', 'doctext', 'find-in-page', 'regex-find', 'page-nav', 'site-search', 'image-text'] },
       { name: 'Getting through them', ids: ['readaloud', 'speedread', 'bionic', 'accessibility', 'caret-browsing', 'zoom', 'dictionary'] },
       { name: 'In another language', ids: ['translate', 'translate-side'] },
       { name: 'Keeping what you read', ids: ['save-pdf', 'save-page', 'archive-page', 'archive-library', 'annotations', 'cards', 'cite', 'pagediff'] },
