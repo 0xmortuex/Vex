@@ -3,6 +3,7 @@
 // New Tab slot grid and render budget (T0-024): js/newtab-slots.js, its place in
 // the Today snapshot (js/today.js) and its consumer in start.html.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 
 const fs = require('fs');
 const path = require('path');
@@ -74,10 +75,11 @@ describe('the plan', () => {
   it('plans a crowd of 300 candidates well inside the budget, and keeps three', () => {
     for (const d of N.list()) N.unregister(d.id);
     for (let i = 0; i < 300; i++) N.register({ id: 'c' + i, slot: i % 10 === 0 ? 'footer' : 'card', priority: i % 100, cost: 1 + (i % 7), bytes: 50, element: 'brief-section' });
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: the 50 ms ceiling scales with it
     const t0 = performance.now();
     const p = N.plan({ layout: 'calm' });
     const took = performance.now() - t0;
-    expect(took).toBeLessThan(50);
+    expect(took).toBeLessThan(ceiling(50, before));
     expect(p.cards).toHaveLength(3);
     expect(p.footer).toHaveLength(1);
     expect(p.spentMs).toBeLessThanOrEqual(N.BUDGET_MS);

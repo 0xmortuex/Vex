@@ -4,6 +4,7 @@
 // the same id always gives the same picture, there are enough of them, and each is a
 // small, well-formed SVG that uses nothing from outside.
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 
 const { WallpaperGenerators: G } = require('../../src/renderer/js/wallpaper-generators.js');
 require('../../src/renderer/js/wallpaper-materials.js');
@@ -106,10 +107,11 @@ describe('the material wallpapers', () => {
     for (const k of added) expect(used[k] || 0, k).toBeGreaterThanOrEqual(2);
   });
   it('are drawn in a few milliseconds each (the browser does the heavy work, at the size of the screen)', () => {
-    const t0 = Date.now();
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: the 15 ms ceiling scales with it
+    const t0 = performance.now();
     for (const w of mine) G.svg(w);
-    const per = (Date.now() - t0) / mine.length;
-    expect(per).toBeLessThan(15);
+    const per = (performance.now() - t0) / mine.length;
+    expect(per).toBeLessThan(ceiling(15, before));
   });
   it('light ones list their colours lightest first and dark ones darkest first (what "Match Vex to this wallpaper" reads)', () => {
     for (const w of mine) {

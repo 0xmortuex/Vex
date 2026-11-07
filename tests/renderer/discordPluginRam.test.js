@@ -124,7 +124,7 @@ describe('the table and the section text', () => {
 });
 
 describe('the code that runs inside Discord', () => {
-  const run = (code, window) => vm.runInNewContext(code, { window, Vencord: window.Vencord }, { timeout: 2000 });
+  const run = (code, window) => vm.runInNewContext(code, { window, Vencord: window.Vencord }, { timeout: 30000 });   // a hang guard only: the code is tiny, but a stalled CI worker once recorded a spurious vm timeout in a sibling test
   const settingsWindow = () => {
     const plugins = { A: { enabled: true }, B: { enabled: false }, MessageLogger: { enabled: true }, Odd: {} };
     return { Vencord: { Settings: { plugins } }, plugins };

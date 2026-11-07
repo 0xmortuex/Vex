@@ -83,7 +83,7 @@ async function boot(doc, opts = {}) {
     const info = document.getElementById('dv-info').textContent;
     const state = document.querySelector('.dv-state-title');
     if (!info && !(state && !/Reading|okunuyor/.test(state.textContent))) throw new Error('not ready');
-  }, { timeout: 8000 });
+  }, { timeout: 30000 });   // a poll: returns as soon as the page is ready; a loaded CI runner needs far longer than 8 s to draw it
 }
 
 const $ = (sel) => document.querySelector(sel);
@@ -143,12 +143,12 @@ describe('JSON', () => {
     const q = $('#dv-q');
     q.value = 'needle';
     q.dispatchEvent(new window.Event('input', { bubbles: true }));
-    await vi.waitFor(() => expect($('#dv-count').textContent).toBe('1 / 1'), { timeout: 3000 });
+    await vi.waitFor(() => expect($('#dv-count').textContent).toBe('1 / 1'), { timeout: 20000 });
     await vi.waitFor(() => expect($$('mark.dv-hit').map((m) => m.textContent)).toContain('needle'));
     expect($('.dv-row.dv-current')).toBeTruthy();
     q.value = 'zzz';
     q.dispatchEvent(new window.Event('input', { bubbles: true }));
-    await vi.waitFor(() => expect($('#dv-count').textContent).toBe('No matches'), { timeout: 3000 });
+    await vi.waitFor(() => expect($('#dv-count').textContent).toBe('No matches'), { timeout: 20000 });
   });
 
   it('shows the same bytes as numbered, coloured lines in Raw, and remembers the choice per kind', async () => {
@@ -253,7 +253,7 @@ describe('CSV', () => {
     await vi.waitFor(() => expect($$('.dv-grow').length).toBe(3));
     $('#dv-q').value = 'ayşe';
     $('#dv-q').dispatchEvent(new window.Event('input', { bubbles: true }));
-    await vi.waitFor(() => expect($$('.dv-grow').length).toBe(1), { timeout: 3000 });
+    await vi.waitFor(() => expect($$('.dv-grow').length).toBe(1), { timeout: 20000 });
     expect($('#dv-count').textContent).toBe('1 of 3 rows');
     expect($('.dv-grow mark.dv-hit').textContent).toBe('Ayşe');
   });
@@ -318,7 +318,7 @@ describe('plain text, logs and source', () => {
     expect($$('.tk-del').length).toBe(8);
     $('#dv-q').value = 'needle';
     $('#dv-q').dispatchEvent(new window.Event('input', { bubbles: true }));
-    await vi.waitFor(() => expect($('#dv-count').textContent).toBe('1 / 1'), { timeout: 3000 });
+    await vi.waitFor(() => expect($('#dv-count').textContent).toBe('1 / 1'), { timeout: 20000 });
     await vi.waitFor(() => expect($('mark.dv-hit.dv-current').textContent).toBe('Needle'));
     expect($('mark.dv-hit').closest('.dv-line').getAttribute('data-l')).toBe('42');
     // a typed line number
@@ -374,7 +374,7 @@ describe('plain text, logs and source', () => {
       mount.grow('three\nfour\n');
       await vi.advanceTimersByTimeAsync(1600);
     } finally { vi.useRealTimers(); }
-    await vi.waitFor(() => expect($$('.dv-line').length).toBe(4), { timeout: 3000 });
+    await vi.waitFor(() => expect($$('.dv-line').length).toBe(4), { timeout: 20000 });
     expect(calls.fetch.some(([, range]) => range === 'bytes=8-')).toBe(true);
     expect($$('.dv-code').map((c) => c.textContent)).toEqual(['one', 'two', 'three', 'four']);
     follow.checked = false;

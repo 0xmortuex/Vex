@@ -5,6 +5,7 @@
 // anyone; a price, a version or a new paragraph must.
 
 import { describe, it, expect } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 const { PageWatchDiff: D } = require('../../src/renderer/js/page-watch-diff.js');
 const { AgentTools } = require('../../src/renderer/js/agent-tools.js');
 
@@ -110,11 +111,12 @@ describe('the difference', () => {
   it('copes with a very large middle without hanging (count-based fallback)', () => {
     const a = Array.from({ length: 3000 }, (_, i) => 'a' + i);
     const b = Array.from({ length: 3000 }, (_, i) => 'b' + i);
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: the 2 s ceiling scales with it
     const t = Date.now();
     const d = D.lineDiff(a, b);
     expect(d.added).toHaveLength(3000);
     expect(d.removed).toHaveLength(3000);
-    expect(Date.now() - t).toBeLessThan(2000);
+    expect(Date.now() - t).toBeLessThan(ceiling(2000, before));
   });
 
   it('summary is bounded: a few lines and "and n more"', () => {

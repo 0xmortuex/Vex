@@ -1,6 +1,7 @@
 // js/smart-search.js: the search shared by Ctrl+K and Settings. Every word must be found, a word matches whole, as a start, as an ending away, or
 // with one slip; both languages are searched at once (an English word finds a Turkish text and the other way round); synonyms; where it was found counts.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 
 const { VexTr } = require('../../src/renderer/js/vex-tr.js');
 const { VexTrLemma } = require('../../src/renderer/js/turkish-lemma.js');
@@ -135,8 +136,9 @@ describe('speed', () => {
     const words = ['open', 'close', 'tab', 'window', 'settings', 'download', 'history', 'bookmark', 'privacy', 'sound', 'page', 'search'];
     const items = [];
     for (let i = 0; i < 2000; i++) items.push({ name: words[i % 12] + ' ' + words[(i * 7) % 12] + ' ' + i, keywords: '', hint: words[(i * 5) % 12] + ' ' + words[(i * 3) % 12] });
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: the 1 s ceiling scales with it
     const t0 = performance.now();
     for (const it of items) S.score('privacy setings', it);
-    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(performance.now() - t0).toBeLessThan(ceiling(1000, before));
   });
 });

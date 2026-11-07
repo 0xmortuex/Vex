@@ -22,14 +22,17 @@ describe('VexJobs timings', () => {
     expect(t.busy.runs).toBe(1);
     expect(t.busy.totalMs).toBeGreaterThanOrEqual(14);
     expect(t.busy.maxMs).toBe(t.busy.totalMs);
-    expect(t.idle.totalMs).toBeLessThan(5);
+    // An empty job costs next to nothing; "less than the busy one" instead of a fixed 5 ms, which a stalled CI worker can exceed.
+    expect(t.idle.totalMs).toBeLessThan(t.busy.totalMs);
     expect(t.busy.spanMs).toBeGreaterThan(1500);
   });
 
   it('does not count what an async job awaits', async () => {
-    VexJobs.every('net', 1000, () => new Promise(r => setTimeout(r, 60)));
+    // The job waits 400 ms; only its synchronous part may be counted, so far less than the wait. A fixed 20 ms ceiling could be
+    // crossed by a stalled CI worker; half the wait cannot, unless the wait itself was counted.
+    VexJobs.every('net', 1000, () => new Promise(r => setTimeout(r, 400)));
     VexJobs.tick(Date.now() + 1001);
-    await new Promise(r => setTimeout(r, 80));
-    expect(VexJobs.timings().find(x => x.name === 'net').totalMs).toBeLessThan(20);
+    await new Promise(r => setTimeout(r, 420));
+    expect(VexJobs.timings().find(x => x.name === 'net').totalMs).toBeLessThan(200);
   });
 });

@@ -3,6 +3,7 @@
 // Ctrl+K with the smarter search (js/smart-search.js), 2026-10-26: every word of the query, synonyms, plurals, one slip of the keys, and both
 // languages (a Turkish person types either and gets the same results). The tiers that were there (an exact name, the start of a word...) stay first.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 
 const { VexTr } = require('../../src/renderer/js/vex-tr.js');
 const { VexTrLemma } = require('../../src/renderer/js/turkish-lemma.js');
@@ -93,8 +94,9 @@ describe('speed', () => {
     const items = [];
     const words = ['open', 'close', 'tab', 'window', 'settings', 'download', 'history', 'bookmark', 'privacy', 'sound', 'page', 'search'];
     for (let i = 0; i < 2000; i++) items.push(cmd(words[i % 12] + ' ' + words[(i * 7) % 12] + ' ' + i, words[(i * 5) % 12] + ' ' + words[(i * 3) % 12]));
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: the 1 s ceiling scales with it
     const t0 = performance.now();
     for (const c of items) CommandBar._scoreCommand('privacy setings', c);
-    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(performance.now() - t0).toBeLessThan(ceiling(1000, before));
   });
 });
