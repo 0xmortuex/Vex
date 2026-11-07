@@ -14,8 +14,10 @@ jobs:
     # (~30 min with every look and settings layout), the smoke matrix and the package.
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Actions are pinned to the full commit of a release tag, so a moved or hijacked tag cannot change what runs here.
+      # To update one: gh api repos/<owner>/<repo>/git/ref/tags/<tag> (dereference an annotated tag), check the commit exists, change both the SHA and the comment.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: npm
@@ -46,6 +48,12 @@ jobs:
       - run: npm run pack -- --config.directories.output=scratchpad/ci-package
         env:
           VEX_SKIP_VMP_VERIFY: '1'
+      # The packaged app must carry the Electron fuses package.json asks for, its asar must match the integrity record in
+      # Vex.exe, and the vendored third-party files must be the ones recorded in scripts/vendor-manifest.json.
+      - run: node scripts/verify-fuses.js scratchpad/ci-package/win-unpacked
+      - run: node scripts/vendor-manifest.js --check --asar scratchpad/ci-package/win-unpacked/resources/app.asar
+      # A CycloneDX bill of materials from package-lock.json (no network); fails if the lockfile can no longer be described.
+      - run: node scripts/gen-sbom.js --check
       - run: npm run smoke
         env:
           VEX_SMOKE_EXECUTABLE: scratchpad/ci-package/win-unpacked/Vex.exe

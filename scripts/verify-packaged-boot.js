@@ -44,6 +44,9 @@ function check() {
   // The fuses (package.json build.electronFuses) must really be in the built exe before it is started or shipped.
   const fuses = spawnSync(process.execPath, [path.join(__dirname, 'verify-fuses.js'), path.join(dist, 'win-unpacked')], { cwd: root, stdio: 'inherit', windowsHide: true });
   if (fuses.status !== 0) throw new Error('the built Vex does not have the Electron fuses package.json asks for — NOT uploading it. See the output above.');
+  // The vendored third-party files inside the built app.asar must be the ones recorded in scripts/vendor-manifest.json.
+  const vendor = spawnSync(process.execPath, [path.join(__dirname, 'vendor-manifest.js'), '--check', '--asar', path.join(dist, 'win-unpacked', 'resources', 'app.asar')], { cwd: root, stdio: 'inherit', windowsHide: true });
+  if (vendor.status !== 0) throw new Error('the vendored third-party files in the built app differ from scripts/vendor-manifest.json — NOT uploading it. See the output above.');
   console.log(`verify-packaged-boot: starting the built Vex ${pkg.version} …`);
   const r = spawnSync(process.execPath, [path.join(__dirname, 'verify-smoke-boot.js')], {
     cwd: root, stdio: 'inherit', windowsHide: true,
