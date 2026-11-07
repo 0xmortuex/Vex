@@ -989,6 +989,25 @@ app.on('open-url', (event, url) => {
 
 // Storage helpers
 const userDataPath = app.getPath('userData');
+// === "What changed since the last launch" (src/main/integrity-report.js) ====
+// The configuration files are hashed HERE, before Vex touches them; the program
+// files are hashed after start-up (and only when their size or date changed).
+// The Attention Inbox asks for the answer through integrity:report.
+let _integritySignatureMode = () => 'unknown';   // set once the updater exists
+const _integrity = require('./main/integrity-report').createIntegrityReport({
+  fs, userDataPath, appDir: path.dirname(process.execPath), execPath: process.execPath, appVersion: app.getVersion(), packaged: app.isPackaged,
+  shortcuts: app.isPackaged && process.platform === 'win32' ? [
+    { id: 'start-menu', file: process.env.APPDATA ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Vex.lnk') : null },
+    { id: 'desktop', file: path.join(app.getPath('desktop'), 'Vex.lnk') },
+  ] : [],
+  readShortcut: (file) => shell.readShortcutLink(file),
+  signatureMode: () => _integritySignatureMode(),
+  writeFile: (file, text) => { fs.writeFileSync(file + '.tmp', text); fs.renameSync(file + '.tmp', file); },
+  log: console,
+});
+try { if (app.isPackaged) _integrity.captureConfigs(); } catch (err) { console.error('[Integrity] could not read the configuration files at start:', err.message); }
+app.on('will-quit', () => _integrity.recordQuit());
+app.whenReady().then(() => { setTimeout(() => { _integrity.run(); }, 20000).unref(); });
 {
   const egressLedger = require('./main/egress-ledger');
   _egress = egressLedger.createEgressLedger({ file: path.join(userDataPath, 'egress-ledger.json'), fs, log: (m) => console.error(m) });
@@ -11320,6 +11339,7 @@ const _updater = require('./main/updates').createUpdater({
   spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList, addTurkishNotes: _mainHelpers.addTurkishNotes,
   journal: _updateLog, staged: _updState.createStagedStore({ fs, dir: _updatesDir }), copy: _updateCopy, keepFiles: () => _updateRollback.keepFiles(),
 });
+_integritySignatureMode = () => _updater.signatureMode();
 _updateLog.add(`Vex ${app.getVersion()} started (${_updateCopy ? _updateCopy.kind : 'unknown copy'}${_updateCopy ? ', ' + _updateCopy.folder : ''})`);
 // A downloaded update from an earlier run is still there to install.
 try { _updater.restoreStaged(); } catch (err) { console.error('[Updates] could not look for a downloaded update:', err.message); _updateLog.add('PROBLEM: ' + err.message); }
@@ -11492,6 +11512,12 @@ const _health = require('./main/health-check').createHealthCheck({
 function _healthFromMainWindow(event) {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can run the health check');
 }
+// What changed since the last launch (src/main/integrity-report.js, js/integrity-notes.js). Read-only for the caller: it only learns which kinds of change were seen.
+ipcMain.handle('integrity:report', async (event) => {
+  _healthFromMainWindow(event);
+  try { return await _integrity.run(); }
+  catch (err) { console.error('[Integrity] report failed:', err); return { ok: false, error: err.message, notes: [] }; }
+});
 ipcMain.handle('health:scan', (event) => {
   _healthFromMainWindow(event);
   try { return { ok: true, ..._health.scan() }; }

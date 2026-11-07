@@ -40,6 +40,8 @@ const VexBoot = {
     { src: 'js/streaming-skip.js', usage: [] },
     // Lyrics card: only read when its Ctrl+K command or the Lyrics button on Now Playing is used.
     { src: 'js/lyrics-card.js', usage: [] },
+    // What changed since the last launch: asks main once (after its own 20 s delay) and writes Attention Inbox rows only when something differs.
+    { src: 'js/integrity-notes.js', usage: [] },
     // "Check my devices": only read when its Ctrl+K command or the offer in Meeting mode is used.
     { src: 'js/device-check.js', usage: [] },
     // Sign-out warning for sites that log you out: does nothing unless a site has a timeout saved (site panel).

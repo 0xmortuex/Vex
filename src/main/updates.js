@@ -708,7 +708,10 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
   // The command for an installer file (also the kept older one a rollback runs), for the same target.
   const planFor = (file, target) => ({ file, args: installerArgs(INSTALLER_ARGS, target), script: /\.cmd$/i.test(file), target: target || null });
 
-  return { check, notes, download, cancel, prepareInstall, launch, planFor, cleanup, restoreStaged, stagedUpdate, baseInstallerFile,
+  // 'on': a public key is embedded and every feed is verified; 'off': none is (as before); 'broken': the key file is unreadable.
+  const signatureMode = () => (keyError ? 'broken' : keyList.length ? 'on' : 'off');
+
+  return { check, notes, download, cancel, prepareInstall, launch, planFor, cleanup, restoreStaged, stagedUpdate, baseInstallerFile, signatureMode,
     get downloading() { return active ? active.version : null; } };
 }
 
