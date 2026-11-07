@@ -263,10 +263,13 @@ async function restoreDecisions(before) {
   await Promise.all([saveContainerDecisions(containers), saveMainDecisions(mergeStore(before.main, loadMainDecisions()))]);
 }
 
-// The camera for Vex's own window, only while its "Check my devices" card is open (js/device-check.js asks for it on opening and gives it
-// back on closing; it also lapses by itself). Everywhere else Vex's own window is never given a camera. The grant belongs to one window.
-const UI_CAMERA_MS = 10 * 60 * 1000;
+// The camera for Vex's own window, only while its "Check my devices" card is open. It is a short LEASE: js/device-check.js asks on
+// opening and renews it every 30 s while the card is visible and the window has focus, and gives it back on closing. If the card
+// crashes, hangs or is forgotten, nothing renews it and it lapses after UI_CAMERA_MS. The window navigating, reloading, crashing or
+// closing ends it at once. Everywhere else Vex's own window is never given a camera. The grant belongs to one window.
+const UI_CAMERA_MS = 2 * 60 * 1000;
 const uiCamera = new Map();   // webContents id -> when the grant lapses
+const uiCameraWatched = new Set();   // webContents ids that already end the grant on navigation, a crash or closing
 function uiCameraOpen(contents) {
   const until = contents && uiCamera.get(contents.id);
   if (!until) return false;
@@ -275,7 +278,17 @@ function uiCameraOpen(contents) {
 }
 function setUiCamera(contents, on) {
   if (!isVexUi(contents)) throw new Error('Only Vex’s own window can open its camera for the device check');
-  if (on) uiCamera.set(contents.id, Date.now() + UI_CAMERA_MS); else uiCamera.delete(contents.id);
+  if (on) {
+    uiCamera.set(contents.id, Date.now() + UI_CAMERA_MS);
+    if (!uiCameraWatched.has(contents.id)) {
+      uiCameraWatched.add(contents.id);
+      const end = () => { uiCamera.delete(contents.id); };
+      // A reload or a new page in the window's main frame (not a sub-frame, not a #fragment or pushState change within the page).
+      contents.on('did-start-navigation', (e) => { if (e && e.isMainFrame && !e.isSameDocument) end(); });
+      contents.on('render-process-gone', end);
+      contents.once('destroyed', () => { end(); uiCameraWatched.delete(contents.id); });
+    }
+  } else uiCamera.delete(contents.id);
   return !!on;
 }
 
