@@ -169,6 +169,7 @@ function createWallpaperStore({ dir, fs, path, fetch, streamFetch, builtin, now 
       fs.mkdirSync(dir, { recursive: true });
       const out = { url, fetchedAt: now(), doc: v };
       const tmp = path.join(dir, 'catalogue.json.tmp');
+      // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
       fs.writeFileSync(tmp, JSON.stringify(out));
       fs.renameSync(tmp, path.join(dir, 'catalogue.json'));
       return shape(out, { cached: false });

@@ -8,6 +8,8 @@
 //           for one that already had data); true or false after.
 //
 // Kept in the profile (nav-privacy.json) so the first request of the next start is already covered.
+const { atomicWriteSync } = require('./file-store');
+
 const DEFAULTS = { lite: false, unwrap: null };
 
 function clean(raw) {
@@ -33,7 +35,7 @@ function load(fs, file, log = console) {
 }
 
 function save(fs, file, state) {
-  fs.writeFileSync(file, JSON.stringify(clean(state)));
+  atomicWriteSync(file, JSON.stringify(clean(state)), { fsImpl: fs });
 }
 
 // A change from the window: only keys it may send, each checked. -> the new state, or throws.

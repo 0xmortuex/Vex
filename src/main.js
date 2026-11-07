@@ -175,7 +175,33 @@ ipcMain.on('storage:flush-failed', event => {
   clearTimeout(host.flushTimer);
   host.flushing = false;
   host.win.webContents.send('vex:toast', 'Changes could not be saved. Retry closing after the storage error is resolved.');
+  _offerFlushRescue(host);
 });
+// Saving failed while closing (a full or failing disk): the owner gets a way out that does not depend on the page
+// (src/main/flush-rescue.js): an emergency copy in Documents and quit, quit without saving, or try again.
+function _offerFlushRescue(host) {
+  if (host.rescuing || !host.win || host.win.isDestroyed()) return;
+  host.rescuing = true;
+  _diskGuard.warnIfLow().catch(err => console.error('[DiskGuard] could not look at the free space:', err.message));
+  require('./main/flush-rescue').offerFlushRescue({
+    dialog, win: host.win, reason: 'storage:flush-failed',
+    snapshot: () => Promise.race([
+      host.win.webContents.executeJavaScript('VexBackup.snapshot().then(d => JSON.stringify(d, null, 2))'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('the window did not answer in time')), 15000)),
+    ]),
+    documentsDir: () => app.getPath('documents'),
+    // A new file (flag wx never overwrites one); any failure, a full disk included, is raised to the dialog.
+    writeNewFile: (file, text) => fs.writeFileSync(file, text, { flag: 'wx' }),
+    closeNow: () => {
+      host.allowClose = true;
+      if (host.win === mainWindow) _exitWatch.mark(_pendingInstall ? 'installing an update' : 'closing');
+      host.win.close();
+    },
+    retryClose: () => { if (!host.win.isDestroyed()) host.win.close(); },
+    log: console,
+  }).catch(err => console.error('[FlushRescue] the save-failed dialog failed:', err.message))
+    .finally(() => { host.rescuing = false; });
+}
 // A tab's back list, kept with the tab so its page can be built again with
 // it after sleep, a reopen or a restart (session-security.js, carryHistory).
 // The page is one of the asking window's own (ipc-policy.js, TARGET_CHANNELS).
@@ -595,7 +621,7 @@ function readPopoutState() {
   try { return JSON.parse(fs.readFileSync(POPOUT_STATE_FILE(), 'utf8')) || {}; } catch { return {}; }
 }
 function writePopoutState(state) {
-  try { fs.writeFileSync(POPOUT_STATE_FILE(), JSON.stringify(state || {})); } catch { /* ignore */ }
+  try { require('./main/file-store').atomicWriteSync(POPOUT_STATE_FILE(), JSON.stringify(state || {})); } catch { /* ignore */ }
 }
 function applyDoH() {
   try {
@@ -1909,6 +1935,8 @@ ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok
 
 ipcMain.on('app:started', () => {
   _bootGuard.started();
+  _attentionNotes.markReady(true);
+  _diskGuard.warnIfLow().catch(err => console.error('[DiskGuard] could not look at the free space:', err.message));
   // The interface is up: a version that just replaced another has passed its trial.
   try {
     const ready = _updateRollback.markReady();
@@ -2396,7 +2424,7 @@ ipcMain.handle('clips:folder', async (_e, pick) => {
     const result = await dialog.showOpenDialog({ title: 'Where your clips are', properties: ['openDirectory'] });
     if (result.canceled || !result.filePaths[0]) return { ok: false, cancelled: true, dir: _clipsDir };
     _clipsDir = result.filePaths[0];
-    try { fs.writeFileSync(_clipsFile, JSON.stringify({ dir: _clipsDir })); } catch { /* it still works this session */ }
+    try { require('./main/file-store').atomicWriteSync(_clipsFile, JSON.stringify({ dir: _clipsDir })); } catch { /* it still works this session */ }
   }
   return { ok: true, dir: _clipsDir, guesses: clips.guesses(app.getPath('home')) };
 });
@@ -2426,7 +2454,7 @@ function _secondScreen() {
     _secondScreenLazy = require('./main/second-screen').createSecondScreen({
       BrowserWindow, screen: require('electron').screen, session,
       readState: () => { try { return JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch (err) { if (err.code === 'ENOENT') return {}; throw err; } },
-      writeState: (o) => { try { fs.writeFileSync(stateFile, JSON.stringify(o)); } catch (err) { console.error('[SecondScreen] could not remember the window:', err.message); } },
+      writeState: (o) => { try { require('./main/file-store').atomicWriteSync(stateFile, JSON.stringify(o)); } catch (err) { console.error('[SecondScreen] could not remember the window:', err.message); } },
       isGameRunning: () => !!_mergedGameState().game,
     });
   }
@@ -3250,7 +3278,7 @@ let _devOverrides = null;
 try {
   _devOverrides = require('./main/response-overrides').createOverrides({
     load: () => (fs.existsSync(DEV_OVERRIDES_FILE) ? JSON.parse(fs.readFileSync(DEV_OVERRIDES_FILE, 'utf-8')) : null),
-    save: (data) => { const tmp = DEV_OVERRIDES_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(data), 'utf-8'); fs.renameSync(tmp, DEV_OVERRIDES_FILE); },
+    save: (data) => { require('./main/file-store').atomicWriteSync(DEV_OVERRIDES_FILE, JSON.stringify(data)); },
     readFile: { stat: (p) => fs.statSync(p), read: (p) => fs.readFileSync(p) },
     pageUrlOf: (id) => _pageUrlOf(id),
   });
@@ -3755,7 +3783,7 @@ ipcMain.handle('crawl:fetch', async (_e, url, accept) => {
 // Screen recordings, appended to a temporary file chunk by chunk so a long
 // recording never sits in memory (src/main/recordings.js).
 const _recordings = require('./main/recordings').createRecordings({
-  fs, path, dialog, app, downloadFolder: _chosenDownloadFolder,
+  fs, path, dialog, app, downloadFolder: _chosenDownloadFolder, guard: { require: (o) => _diskGuard.require(o) },
   dir: path.join(app.getPath('userData'), 'recordings-in-progress'),
   randomId: () => require('crypto').randomBytes(8).toString('hex'),
 });
@@ -3767,7 +3795,7 @@ ipcMain.handle('rec:own-window', (e) => {
   if (!win) throw new Error('No window to record');
   return win.getMediaSourceId();
 });
-ipcMain.handle('rec:start', (_e, ext) => { try { return { ok: true, ..._recordings.start(ext) }; } catch (err) { return { ok: false, error: err.message }; } });
+ipcMain.handle('rec:start', async (_e, ext) => { try { return { ok: true, ...(await _recordings.startChecked(ext)) }; } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:chunk', async (_e, id, bytes) => { try { return { ok: true, ...(await _recordings.chunk(id, bytes)) }; } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:finish', async (_e, id, name) => { try { return await _recordings.finish(id, name, _askingWindow(_e)); } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:cancel', async (_e, id) => { try { return await _recordings.cancel(id); } catch (err) { return { ok: false, error: err.message }; } });
@@ -3820,7 +3848,7 @@ try { _downloadRules = JSON.parse(fs.readFileSync(_rulesFile, 'utf8')); } catch 
 if (!Array.isArray(_downloadRules)) _downloadRules = [];
 ipcMain.handle('downloads:set-rules', (_e, rules) => {
   _downloadRules = Array.isArray(rules) ? rules.slice(0, 50) : [];
-  try { fs.writeFileSync(_rulesFile, JSON.stringify(_downloadRules)); return { ok: true }; }
+  try { require('./main/file-store').atomicWriteSync(_rulesFile, JSON.stringify(_downloadRules)); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 // Settings > Downloads: the folder downloads go to, and "Ask where to save
@@ -3878,8 +3906,31 @@ ipcMain.handle('downloads:reset-prefs', () => {
 // page that loads before the window is ready is already covered.
 const SiteRules = require('./main/site-rules');
 const _siteRulesFile = path.join(userDataPath, 'site-rules.json');
-let _siteRules = {};
-try { _siteRules = SiteRules.clean(JSON.parse(fs.readFileSync(_siteRulesFile, 'utf8'))); } catch { _siteRules = {}; }
+// Things the main process has to tell the owner (main/attention-notes.js): kept until the window is up, then sent as
+// Attention Inbox rows (js/attention-inbox.js, vex:attention-rows).
+const _attentionNotes = require('./main/attention-notes').createAttentionNotes({
+  file: path.join(userDataPath, 'pending-notes.json'),
+  send: (rows) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    mainWindow.webContents.send('vex:attention-rows', rows);
+    return true;
+  },
+  log: console,
+});
+// Free space on the drive the profile lives on (main/disk-guard.js): a warning below 2 GB, and a refusal before a large write
+// (the update download, the pre-update backup, voice models, recordings) that would leave under 512 MB.
+const _diskGuard = require('./main/disk-guard').createDiskGuard({ dir: userDataPath, notes: _attentionNotes, log: console });
+// A damaged site-rules.json is kept aside, the backup is put back if it is good, and the owner is told either way
+// (main/site-rules-store.js): the rules are never dropped silently.
+const _siteRulesLoad = require('./main/site-rules-store').loadSiteRules({ file: _siteRulesFile, clean: SiteRules.clean });
+let _siteRules = _siteRulesLoad.rules;
+{
+  const note = require('./main/site-rules-store').siteRulesNote(_siteRulesLoad.outcome);
+  if (note) {
+    console.error('[SiteRules] site-rules.json could not be read (' + (_siteRulesLoad.error && _siteRulesLoad.error.message) + '): ' + _siteRulesLoad.outcome + '; the damaged file was kept as ' + _siteRulesLoad.corruptCopy);
+    _attentionNotes.post(note);
+  }
+}
 // Whether any site has its own User-Agent: the request path asks the page of
 // every request only when one does.
 let _hasUaRules = false;
@@ -3904,7 +3955,7 @@ _refreshUaRules();
 ipcMain.handle('siterules:set', (_e, rules) => {
   const before = _siteRules;
   _siteRules = SiteRules.clean(rules);
-  try { fs.writeFileSync(_siteRulesFile, JSON.stringify(_siteRules)); }
+  try { require('./main/file-store').atomicWriteSync(_siteRulesFile, JSON.stringify(_siteRules)); }
   catch (err) { return { ok: false, error: err.message }; }
   _refreshUaRules();
   // Every window hears of the change at once. A private window keeps a copy
@@ -4278,17 +4329,36 @@ const _extraExtSessions = new Set();
 let _extStateError = null;
 
 // A corrupt enabled/disabled file must not silently re-enable everything the
-// user turned off, so the reason is logged AND reported to the manager.
+// user turned off. It fails CLOSED: a good backup is put back, otherwise every
+// installed extension counts as disabled until the owner switches the wanted
+// ones on (extensions:set-enabled rewrites the list, atomically, with the rest
+// still off). The reason is logged, shown in the manager and sent to the
+// Attention Inbox once. (main/extensions.js readDisabledFailClosed)
+let _extStateReported = false;
+function _extensionFolderNames() {
+  if (!fs.existsSync(extensionsDir)) return [];
+  return fs.readdirSync(extensionsDir, { withFileTypes: true })
+    .filter(e => e.isDirectory() && !e.name.startsWith('.') && fs.existsSync(path.join(extensionsDir, e.name, 'manifest.json')))
+    .map(e => e.name);
+}
 function _readDisabledFolders() {
-  try {
-    const disabled = extHelpers.readDisabled(extensionsDir);
+  const r = extHelpers.readDisabledFailClosed(extensionsDir, _extensionFolderNames, { keepCopy: !_extStateReported });
+  if (r.state === 'ok') {
     _extStateError = null;
-    return disabled;
-  } catch (err) {
-    _extStateError = `Enabled/disabled state is unreadable (${err.message}) — every extension is being treated as enabled.`;
-    console.error('[Extensions]', _extStateError);
-    return new Set();
+    _extStateReported = false;
+    return r.disabled;
   }
+  _extStateError = r.state === 'closed'
+    ? 'The list of which extensions are on could not be read, so every extension is switched off until you review them. Switch on the ones you want.'
+    : null;
+  if (!_extStateReported) {
+    _extStateReported = true;
+    console.error('[Extensions] the enabled/disabled list could not be read (' + r.error.message + '): ' + (r.state === 'closed' ? 'every extension is treated as DISABLED' : 'the last good copy was put back') + '; the damaged file was kept as ' + r.corruptCopy);
+    _attentionNotes.post(r.state === 'closed'
+      ? { feature: 'extensions-state', id: 'closed', label: 'Extensions', title: 'Your extensions were switched off', body: 'Vex could not read which extensions you had on, so it switched them all off to be safe. Open Extensions and switch on the ones you want.', action: { label: 'Review extensions', key: 'review' } }
+      : { feature: 'extensions-state', id: 'recovered', label: 'Extensions', title: 'Your extension list was restored from a backup', body: 'The saved list of which extensions are on could not be read, so Vex put back the last good copy. A switch made just before may be missing.' });
+  }
+  return r.disabled;
 }
 
 function _copyDirRecursive(src, dest) {
@@ -4497,7 +4567,7 @@ function _prepareContentShim(extPath) {
   if (_contentShimText === null) _contentShimText = extHelpers.contentShimSource(fs.readFileSync(path.join(__dirname, 'preload-extension-sw.js'), 'utf-8'));
   const shimPath = path.join(extPath, extHelpers.CONTENT_SHIM_FILE);
   if (!fs.existsSync(shimPath) || fs.readFileSync(shimPath, 'utf-8') !== _contentShimText) fs.writeFileSync(shimPath, _contentShimText);
-  if (plan.manifest) fs.writeFileSync(manifestPath, JSON.stringify(plan.manifest, null, 2));
+  if (plan.manifest) require('./main/file-store').atomicWriteSync(manifestPath, JSON.stringify(plan.manifest, null, 2));
 }
 
 async function _loadExtensionEverywhere(extPath, manifest) {
@@ -5142,7 +5212,7 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
     try {
       const placed = JSON.parse(fs.readFileSync(placedManifest, 'utf-8').replace(/^\uFEFF/, ''));
       placed.key = opts.manifestKey;
-      fs.writeFileSync(placedManifest, JSON.stringify(placed, null, 2));
+      require('./main/file-store').atomicWriteSync(placedManifest, JSON.stringify(placed, null, 2));
     } catch (err) {
       fs.rmSync(destFolder, { recursive: true, force: true });
       return { ok: false, error: 'Could not write the extension\'s key into its manifest: ' + err.message };
@@ -5438,7 +5508,7 @@ ipcMain.handle('discord:install-vencord', async () => {
     try {
       const buf = fs.readFileSync(localZip);
       if (buf && buf.length >= 50000) {
-        try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: localZip })); } catch {}
+        try { require('./main/file-store').atomicWriteSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: localZip })); } catch {}
         const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
         if (r.ok) return { ...r, source: 'local:' + localZip };
       }
@@ -5502,7 +5572,7 @@ ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
     const buf = fs.readFileSync(zipPath);
     _vlog(`install-local: read ${buf ? buf.length : 0} bytes`);
     if (!buf || buf.length < 50000) return { ok: false, error: 'build zip too small / not a real build' };
-    try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: zipPath })); } catch {}
+    try { require('./main/file-store').atomicWriteSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: zipPath })); } catch {}
     _vlog(`install-local: before=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
     const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
     _dedupeVencordFolders();
@@ -5610,7 +5680,7 @@ function _removeExtensionFolder(folderName) {
     fs.rmSync(extPath, { recursive: true, force: true });
     // Its toolbar pin goes with it.
     const pins = _readExtPins();
-    if (!_extPinsError && pins.includes(folderName)) fs.writeFileSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins.filter(f => f !== folderName), null, 1));
+    if (!_extPinsError && pins.includes(folderName)) require('./main/file-store').atomicWriteSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins.filter(f => f !== folderName), null, 1));
     // Drop any leftover state so re-installing the same extension later doesn't
     // come back disabled, or inherit the old copy's failure message.
     _extLoadErrors.delete(folderName);
@@ -6033,7 +6103,7 @@ async function _extTellInstalled(ses, ext) {
   try {
     const now = _readExtInstalls();
     now[folder] = { ...(now[folder] || {}), [partition]: version };
-    fs.writeFileSync(EXT_INSTALLS_FILE, JSON.stringify(now, null, 1));
+    require('./main/file-store').atomicWriteSync(EXT_INSTALLS_FILE, JSON.stringify(now, null, 1));
   } catch (err) { console.error(`[Extensions] ${folder}: could not record that it was told it is installed — ${err.message}`); }
 }
 
@@ -6081,7 +6151,7 @@ ipcMain.handle('extensions:set-pinned', (_event, folder, pinned) => {
   if (pinned) pins.push(folder);
   try {
     fs.mkdirSync(extensionsDir, { recursive: true });
-    fs.writeFileSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins, null, 1));
+    require('./main/file-store').atomicWriteSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins, null, 1));
   } catch (err) { return { ok: false, error: `Could not save it: ${err.message}` }; }
   _extUiChanged();
   return { ok: true, pinned: !!pinned };
@@ -8658,7 +8728,7 @@ require('./main/profile-lock-ipc').registerProfileLock({
   const { createVoiceStore } = require('./main/voice-model');
   const { createVoiceEngine } = require('./main/voice-engine');
   const { registerVoice } = require('./main/voice-ipc');
-  const voiceStore = createVoiceStore({ dir: path.join(userDataPath, 'voice'), fetchImpl: _egressFetch(net.fetch.bind(net), { feature: 'Voice control model', kind: 'fetch' }) });
+  const voiceStore = createVoiceStore({ dir: path.join(userDataPath, 'voice'), fetchImpl: _egressFetch(net.fetch.bind(net), { feature: 'Voice control model', kind: 'fetch' }), guard: { require: (o) => _diskGuard.require(o) } });
   const voiceEngine = createVoiceEngine({ store: voiceStore });
   registerVoice({ ipcMain, store: voiceStore, engine: voiceEngine, mainWindowOf: () => mainWindow, isPackaged: app.isPackaged, testDir: process.env.VEX_VOICE_TEST_DIR || '' });
   app.on('will-quit', () => voiceEngine.dispose());
@@ -8851,6 +8921,7 @@ function createWindow() {
     log: (m) => console.error(m),
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  mainWindow.webContents.on('did-start-loading', () => _attentionNotes.markReady(false));
 
   // Show + focus the window once the first frame is ready. A transparent,
   // frameless window shown before paint can render blank (you see through it).
@@ -9511,7 +9582,9 @@ app.whenReady().then(() => {
   } catch (err) { console.warn('[Cleanup] Memory data cleanup failed:', err.message); }
   // Temp files a cut-off save left behind, in the folders Vex saves into
   // (src/main/temp-cleanup.js).
-  require('./main/temp-cleanup').removeStaleTemps([userDataPath, storagePath])
+  // gotTheLock: this process holds the profile's single-instance lock, so no other Vex is writing here and a
+  // 10-minute-old leftover is safe to remove; a temp file of a write running right now never is (file-store isTempInUse).
+  require('./main/temp-cleanup').removeStaleTemps([userDataPath, storagePath], { holdsProfileLock: gotTheLock, inUse: require('./main/file-store').isTempInUse })
     .then(({ removed, failed }) => {
       if (removed.length) console.log(`[Cleanup] Removed ${removed.length} leftover temp file(s):`, removed.map(f => path.basename(f)).join(', '));
       for (const f of failed) console.error('[Cleanup] Could not remove leftover temp file', f.file, '-', f.error);
@@ -11347,6 +11420,7 @@ const _updater = require('./main/updates').createUpdater({
   fs, dir: _updatesDir, currentVersion: app.getVersion(),
   spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList, addTurkishNotes: _mainHelpers.addTurkishNotes,
   journal: _updateLog, staged: _updState.createStagedStore({ fs, dir: _updatesDir }), copy: _updateCopy, keepFiles: () => _updateRollback.keepFiles(),
+  guard: { require: (o) => _diskGuard.require(o) },
 });
 _updateLog.add(`Vex ${app.getVersion()} started (${_updateCopy ? _updateCopy.kind : 'unknown copy'}${_updateCopy ? ', ' + _updateCopy.folder : ''})`);
 // A downloaded update from an earlier run is still there to install.
@@ -11491,9 +11565,10 @@ ipcMain.handle('updates:install', async (event, version) => {
 // _updateBackups, made next to the boot guard): the same file Settings › Backup
 // saves, kept in userData/backups (newest 5), and listed there with a Restore
 // button (js/backup.js).
-ipcMain.handle('updates:backup-save', (event, version, text) => {
+ipcMain.handle('updates:backup-save', async (event, version, text) => {
   _updatesFromMainWindow(event);
   try {
+    await _diskGuard.require({ need: Buffer.byteLength(String(text || '')) * 3, what: 'the backup before the update' });
     const saved = _updateBackups.save(version, text);
     console.log('[Updates] backup before the update saved:', saved.file, saved.bytes, 'bytes', saved.removed.length ? '(removed ' + saved.removed.join(', ') + ')' : '');
     return { ok: true, name: saved.name, bytes: saved.bytes };
@@ -11857,7 +11932,8 @@ ipcMain.handle('widevine:retry', () => {
       const ls = JSON.parse(fs.readFileSync(lsPath, 'utf8'));
       if (ls && ls.updateclientdata) {
         delete ls.updateclientdata;
-        fs.writeFileSync(lsPath, JSON.stringify(ls));
+        // Chromium's own Local State holds the os_crypt key that opens saved cookies and passwords: never truncate it first.
+        require('./main/file-store').atomicWriteSync(lsPath, JSON.stringify(ls));
       }
     } catch (e) { console.warn('[Widevine] could not reset Local State:', e && e.message); }
     console.log('[Widevine] reset component state; relaunching for clean install');
@@ -12624,6 +12700,7 @@ ipcMain.handle('fx:rates', async () => {
     const j = await res.json();
     if (j && j.rates) {
       _fxCache = { base: j.base_code || 'USD', rates: j.rates, at: Date.now() };
+      // vex-allow-plain-write: a currency-rate cache, fetched again on a miss
       try { fs.writeFileSync(file, JSON.stringify(_fxCache)); } catch {}
       return _fxCache;
     }

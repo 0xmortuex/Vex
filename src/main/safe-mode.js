@@ -21,6 +21,7 @@
 //   updated by then, so a failed backup cannot stop the update, but it is
 //   never only a line in a log.
 const path = require('path');
+const { atomicWriteSync } = require('./file-store');
 
 const STATE = 'boot-state.json';
 const FAILS_BEFORE_SAFE = 2;
@@ -51,7 +52,7 @@ function createBootGuard({ dir, fs, argv = [], version = '0.0.0', backupFirstSta
   }
 
   function write(state) {
-    try { fs.writeFileSync(stateFile, JSON.stringify(state)); return true; }
+    try { atomicWriteSync(stateFile, JSON.stringify(state), { fsImpl: fs }); return true; }
     catch (err) { note('[SafeMode] could not record the boot state: ' + err.message); return false; }
   }
 

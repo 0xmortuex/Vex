@@ -18,6 +18,8 @@
 // minimised window. Private windows are closed when the window is hidden.
 'use strict';
 
+const { atomicWriteSync } = require('./file-store');
+
 // Why a window is closing. 'user' is the X button / Alt+F4; everything else is a real close.
 const CLOSE_REASONS = Object.freeze(['user', 'quit', 'session-end', 'update', 'restart', 'profile', 'tray-quit']);
 
@@ -58,7 +60,7 @@ function createTrayKeep({
   let tray = null;
   let quitting = false;
   let forceClose = false;
-  const write = () => fs.writeFileSync(file, JSON.stringify(prefs));
+  const write = () => atomicWriteSync(file, JSON.stringify(prefs), { fsImpl: fs });
 
   const win = () => { const w = getMainWindow(); return w && !w.isDestroyed() ? w : null; };
   const t = (s) => translate(s);

@@ -32,6 +32,10 @@ describe('store', () => {
   const fsOf = (files) => ({
     readFileSync: (f) => { if (!(f in files)) { const e = new Error('no'); e.code = 'ENOENT'; throw e; } return files[f]; },
     writeFileSync: (f, d) => { files[f] = d; },
+    // the atomic write (main/file-store.js) goes through a temp file and a rename
+    mkdirSync: () => {}, openSync: (f) => { files[f] = ''; return f; }, fsyncSync: () => {}, closeSync: () => {},
+    copyFileSync: (f, g) => { if (!(f in files)) { const e = new Error('no'); e.code = 'ENOENT'; throw e; } files[g] = files[f]; },
+    renameSync: (f, g) => { files[g] = files[f]; delete files[f]; }, rmSync: (f) => { delete files[f]; },
   });
   it('round-trips and says null when nothing was saved', () => {
     const s = createPlacementStore({ fs: fsOf({}), file: 'w.json' });

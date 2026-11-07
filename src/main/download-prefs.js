@@ -6,6 +6,7 @@
 // script in the window cannot point downloads at a folder of its choosing.
 // No folder saved means the Downloads folder, the default.
 const path = require('path');
+const { atomicWriteSync } = require('./file-store');
 
 function createDownloadPrefs({ fs, file, defaultFolder }) {
   let prefs = { folder: null, ask: false, mediaNames: false, resume: false, askTypes: [] };
@@ -26,7 +27,7 @@ function createDownloadPrefs({ fs, file, defaultFolder }) {
       };
     }
   } catch (err) { console.error('[Downloads] could not read where downloads go, using the Downloads folder:', err.message); }
-  const write = () => fs.writeFileSync(file, JSON.stringify(prefs));
+  const write = () => atomicWriteSync(file, JSON.stringify(prefs), { fsImpl: fs });
   // A list of file extensions without the dot: lowercase letters and digits, at most 30 of them.
   function cleanTypes(list) {
     if (!Array.isArray(list)) return [];

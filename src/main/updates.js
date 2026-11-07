@@ -167,7 +167,7 @@ function pickInstaller(yml, { allowScript = false } = {}) {
 // `journal` ({ add(line) }), `staged` (createStagedStore), `copy` (installKind's
 // answer) and `keepFiles` (installers a rollback still needs) are optional: the
 // updater works without them, but then nothing is remembered between runs.
-function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spawn, log = console, now = () => Date.now(), parseChangelogList, addTurkishNotes = (list) => list, platform = process.platform, journal = null, staged = null, copy = null, keepFiles = () => [] }) {
+function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spawn, log = console, now = () => Date.now(), parseChangelogList, addTurkishNotes = (list) => list, platform = process.platform, journal = null, staged = null, copy = null, keepFiles = () => [], guard = null }) {
   if (typeof fetch !== 'function') throw new Error('createUpdater needs fetch');
   let release = null;       // { version, releasedAt, file, notes } from the last good check
   let active = null;        // { version, controller } while downloading
@@ -492,6 +492,16 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
       state.result = 'error'; state.error = cannot;
       problem('refused to download ' + version + ': ' + cannot);
       return { ok: false, code: 'not-installed', error: cannot };
+    }
+    // A full disk fails this download half-way and leaves nothing useful: asked first (main/disk-guard.js).
+    if (guard) {
+      try { await guard.require({ need: release.file.size, what: 'the update download' }); }
+      catch (err) {
+        if (err.code !== 'EDISKLOW') throw err;
+        state.result = 'error'; state.error = err.message;
+        problem('refused to download ' + version + ': ' + err.message);
+        return { ok: false, code: 'disk', error: err.message };
+      }
     }
     const f = feed();
     const file = release.file;

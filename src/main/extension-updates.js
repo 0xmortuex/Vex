@@ -32,6 +32,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { atomicWriteSync } = require('./file-store');
 
 const UPDATE_SERVER = 'https://clients2.google.com/service/update2/crx';
 const FIRST_CHECK_MS = 2 * 60 * 1000;
@@ -171,7 +172,7 @@ function readState(extensionsDir) {
 }
 function writeState(extensionsDir, state) {
   fs.mkdirSync(extensionsDir, { recursive: true });
-  fs.writeFileSync(statePath(extensionsDir), JSON.stringify({ ...state, history: (state.history || []).slice(-HISTORY_MAX) }, null, 2));
+  atomicWriteSync(statePath(extensionsDir), JSON.stringify({ ...state, history: (state.history || []).slice(-HISTORY_MAX) }, null, 2));
 }
 
 // ---- metered connection ------------------------------------------------------------

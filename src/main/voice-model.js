@@ -65,7 +65,7 @@ function hostAllowed(url, hosts) {
   return hosts.some(h => host === h || host.endsWith('.' + h));
 }
 
-function createVoiceStore({ dir, fetchImpl, catalogue, fsImpl = fs, now = Date.now } = {}) {
+function createVoiceStore({ dir, fetchImpl, catalogue, fsImpl = fs, now = Date.now, guard = null } = {}) {
   if (!dir || typeof dir !== 'string') throw new Error('The voice folder is missing');
   if (typeof fetchImpl !== 'function') throw new Error('A fetch function is needed to download the voice files');
   const engineEntry = (catalogue && catalogue.engine) || ENGINE;
@@ -157,6 +157,7 @@ function createVoiceStore({ dir, fetchImpl, catalogue, fsImpl = fs, now = Date.n
       fsImpl.rmSync(staging, { recursive: true, force: true });
       throw new Error('The engine zip does not contain whisper-cli.exe. It was not installed.');
     }
+    // vex-allow-plain-write: written inside a staging folder that is renamed into place as a whole
     fsImpl.writeFileSync(path.join(staging, 'engine.json'), JSON.stringify({ sha256: engineEntry.sha256, url: engineEntry.url, files: written.sort(), at: new Date(now()).toISOString() }, null, 2));
     fsImpl.rmSync(engineDir, { recursive: true, force: true });
     fsImpl.renameSync(staging, engineDir);
@@ -170,6 +171,8 @@ function createVoiceStore({ dir, fetchImpl, catalogue, fsImpl = fs, now = Date.n
     const isEngine = id === 'engine';
     const entry = isEngine ? engineEntry : models[id];
     if (!entry) throw new Error('Unknown voice file: ' + String(id).slice(0, 40));
+    // The engine is downloaded and then unpacked, so it needs room for both; asked before anything is requested (main/disk-guard.js).
+    if (guard) await guard.require({ need: entry.bytes * (isEngine ? 2 : 1), what: 'the voice download' });
     const controller = new AbortController();
     active = { id, controller };
     try {

@@ -49,6 +49,7 @@ function readJson(fs, file) {
 function writeJson(fs, dir, file, value) {
   fs.mkdirSync(dir, { recursive: true });
   const tmp = file + '.tmp';
+  // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
   fs.writeFileSync(tmp, JSON.stringify(value));
   fs.renameSync(tmp, file);
 }

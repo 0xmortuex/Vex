@@ -11,11 +11,16 @@
 // not searched below), only regular files named exactly like atomicWrite's
 // temp files, and only ones older than a day, so a save still in progress in
 // another Vex window is never touched.
+//
+// A start-up sweep that holds the profile's single-instance lock (so no other Vex is running on this profile) may
+// use a much shorter age, 10 minutes: an interrupted save is then cleaned at the next start instead of a day later
+// (audit A13). It still never touches a temp file a write of THIS process is using (`inUse`).
 
 const fs = require('fs');
 const path = require('path');
 
 const MIN_AGE_MS = 24 * 60 * 60 * 1000;
+const LOCKED_MIN_AGE_MS = 10 * 60 * 1000;
 // "<name>.<uuid v4>.tmp", as file-store.js's atomicWrite names them.
 const ATOMIC_TEMP = /^.+\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp$/;
 
@@ -23,7 +28,10 @@ function isVexTemp(name) { return ATOMIC_TEMP.test(name); }
 
 // Returns { removed: [paths], failed: [{ file, error }] }. A folder that does
 // not exist yet is fine; any other error reading a folder is raised.
-async function removeStaleTemps(dirs, { now = Date.now(), minAgeMs = MIN_AGE_MS, fsp = fs.promises } = {}) {
+// holdsProfileLock: true only when this process holds the profile's single-instance lock, i.e. no other Vex process
+// can be writing here; it lowers the age from a day to 10 minutes. inUse(file): true for a temp file a live write owns.
+async function removeStaleTemps(dirs, { now = Date.now(), minAgeMs = null, holdsProfileLock = false, inUse = () => false, fsp = fs.promises } = {}) {
+  if (minAgeMs === null) minAgeMs = holdsProfileLock === true ? LOCKED_MIN_AGE_MS : MIN_AGE_MS;
   const removed = [];
   const failed = [];
   for (const dir of dirs) {
@@ -33,6 +41,7 @@ async function removeStaleTemps(dirs, { now = Date.now(), minAgeMs = MIN_AGE_MS,
     for (const entry of entries) {
       if (!entry.isFile() || !isVexTemp(entry.name)) continue;
       const file = path.join(dir, entry.name);
+      if (inUse(file)) continue;
       try {
         const st = await fsp.lstat(file);
         if (!st.isFile() || now - st.mtimeMs < minAgeMs) continue;
@@ -47,4 +56,4 @@ async function removeStaleTemps(dirs, { now = Date.now(), minAgeMs = MIN_AGE_MS,
   return { removed, failed };
 }
 
-module.exports = { removeStaleTemps, isVexTemp, MIN_AGE_MS };
+module.exports = { removeStaleTemps, isVexTemp, MIN_AGE_MS, LOCKED_MIN_AGE_MS };

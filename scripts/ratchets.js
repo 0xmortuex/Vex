@@ -15,6 +15,12 @@
 //                            button) is listed in the allowlist; one nobody asked for goes through
 //                            VexAttention so the quiet switch, Game mode and the caps apply. Only the direct
 //                            call is counted; the tolerant wrapper forms (showToast?.(...)) are button results.
+//   no-plain-config-write  A2  src/main, src/main.js: no fs.writeFileSync of a JSON config file. writeFileSync
+//                            truncates first, so a power cut or a kill leaves an empty or half-written settings file.
+//                            Use atomicWriteSync / atomicWrite (src/main/file-store.js: temp file, fsync, one .bak,
+//                            rename). A write that is safe another way (a temp file + rename already, a cache that is
+//                            rebuilt, another program's file) carries, in a comment on the line(s) before it or inside
+//                            the call, `vex-allow-plain-write: <reason>`.
 //   no-silent-catch  T0-008  src/**: no empty catch and no .catch(() => {});
 //                            report with VexProblems.note(...) or rethrow.
 //                            A deliberate one carries, inside the block,
@@ -29,6 +35,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const ALLOWLIST = path.join(__dirname, 'ratchet-allowlist.json');
 const MARKER = 'vex-allow-empty-catch:';
+const PLAIN_WRITE_MARKER = 'vex-allow-plain-write:';
 
 // Replace comments with spaces and the inside of string/template literals with
 // spaces, keeping every newline and offset, so the rules can look at code only.
@@ -114,6 +121,28 @@ function findSilentCatches(src) {
   return hits;
 }
 
+// A writeFileSync( call whose arguments mention JSON.stringify or a .json name (the file or the text is a config).
+// A marker in the call or in the two lines above it excuses it.
+function findPlainConfigWrites(src) {
+  const code = mask(src);
+  const hits = [];
+  for (const m of code.matchAll(/\bwriteFileSync\s*\(/g)) {
+    const open = m.index + m[0].length - 1;
+    let depth = 0, j = open;
+    for (; j < code.length; j++) {
+      if (code[j] === '(') depth++;
+      else if (code[j] === ')' && --depth === 0) break;
+    }
+    const args = src.slice(open, j + 1);
+    if (!/JSON\s*\.\s*stringify|\.json\b/.test(args)) continue;
+    let from = m.index;
+    for (let k = 0; k < 3 && from > 0; k++) from = Math.max(0, src.lastIndexOf('\n', from - 1));
+    if (src.slice(from, j + 1).includes(PLAIN_WRITE_MARKER)) continue;
+    hits.push({ line: lineOf(src, m.index), text: 'writeFileSync of a JSON config' });
+  }
+  return hits;
+}
+
 const RULES = {
   'no-raw-interval': {
     why: 'use VexJobs.every(...) (js/jobs.js) so Game mode, battery and a hidden window pause it',
@@ -124,6 +153,12 @@ const RULES = {
     why: 'unasked messages go through VexAttention.notify(opts, () => showToast(...)); a toast for something the person just pressed is listed in the allowlist',
     dirs: ['src/renderer/js'],
     find: findUngatedToasts,
+  },
+  'no-plain-config-write': {
+    why: 'save it with atomicWriteSync / atomicWrite (src/main/file-store.js) so a power cut cannot leave it empty; a write that is already safe carries "' + PLAIN_WRITE_MARKER + ' <reason>"',
+    dirs: ['src/main'],
+    files: ['src/main.js'],
+    find: findPlainConfigWrites,
   },
   'no-silent-catch': {
     why: 'report with VexProblems.note(area, message, err) or let the error propagate; a deliberate one needs "' + MARKER + ' <reason>" inside the block',
@@ -148,11 +183,12 @@ function scan(root = ROOT) {
   const counts = {};
   for (const [name, rule] of Object.entries(RULES)) {
     counts[name] = {};
-    for (const dir of rule.dirs) {
-      for (const file of walk(path.join(root, dir))) {
-        const hits = rule.find(fs.readFileSync(file, 'utf8'));
-        if (hits.length) counts[name][path.relative(root, file).split(path.sep).join('/')] = hits.length;
-      }
+    const files = [];
+    for (const dir of rule.dirs) files.push(...walk(path.join(root, dir)));
+    for (const f of rule.files || []) if (fs.existsSync(path.join(root, f))) files.push(path.join(root, f));
+    for (const file of files) {
+      const hits = rule.find(fs.readFileSync(file, 'utf8'));
+      if (hits.length) counts[name][path.relative(root, file).split(path.sep).join('/')] = hits.length;
     }
   }
   return counts;
@@ -208,7 +244,7 @@ function init(root = ROOT) {
   return next;
 }
 
-module.exports = { mask, findRawIntervals, findUngatedToasts, findSilentCatches, scan, compare, check, tighten, init, RULES, ALLOWLIST, MARKER };
+module.exports = { mask, findRawIntervals, findUngatedToasts, findSilentCatches, findPlainConfigWrites, scan, compare, check, tighten, init, RULES, ALLOWLIST, MARKER };
 
 if (require.main === module) {
   const arg = process.argv[2];

@@ -47,6 +47,26 @@ const AttentionInbox = {
   },
   _save(rows) { localStorage.setItem(this.KEY, JSON.stringify(rows)); },
 
+  // Opens Settings on the section whose heading starts with `heading`.
+  _openSettingsSection(heading) {
+    SidebarManager.openPanel('settings');
+    const want = String(heading).toLowerCase();
+    let tries = 0;
+    const attempt = () => {
+      for (const g of document.querySelectorAll('#panel-settings .setting-group')) {
+        const label = g.querySelector('.setting-label');
+        if (label && label.textContent.trim().toLowerCase().startsWith(want)) {
+          if (typeof SettingsUI !== 'undefined' && typeof SettingsUI.reveal === 'function') SettingsUI.reveal(g);
+          g.scrollIntoView({ block: 'start' });
+          return;
+        }
+      }
+      if (++tries < 20) setTimeout(attempt, 100);
+      else window.showToast?.('Could not find the Settings section "' + heading + '"', 'error');
+    };
+    attempt();
+  },
+
   list() { return this._read(); },
   count() { return this._read().length; },
 
@@ -254,6 +274,17 @@ if (typeof window !== 'undefined') {
       document.getElementById('btn-attention')?.addEventListener('click', () => AttentionInbox.toggle());
       document.addEventListener('vex:attention-changed', () => AttentionInbox.refresh());
       AttentionInbox.refresh();
+      // Rows the main process posted (main/attention-notes.js): a damaged settings file that was restored, extensions
+      // switched off, a nearly full disk. They are safety notices about the owner's data, so they are added directly
+      // (a muted feature or a full day does not hold them back); with the inbox switched off they are shown as a toast.
+      window.vex?.onAttentionRows?.((rows) => {
+        for (const row of Array.isArray(rows) ? rows : []) {
+          try {
+            if (!AttentionInbox.add(row)) window.showToast?.(row.title, 'warning');
+          } catch (err) { window.VexProblems?.note('attention', 'A notice from Vex could not be shown', err); }
+        }
+      });
+      AttentionInbox.handle('extensions-state', (key) => { if (key === 'review') AttentionInbox._openSettingsSection('Extensions'); });
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
   }

@@ -31,6 +31,7 @@
 
 const nodeFs = require('fs');
 const nodePath = require('path');
+const { atomicWriteSync } = require('./file-store');
 
 const WEBHOOK_RE = /^https:\/\/(?:(?:canary|ptb)\.)?(?:discord|discordapp)\.com\/api\/webhooks\/(\d{15,25})\/([A-Za-z0-9_-]{30,120})$/;
 const MAX_CONTENT = 2000;
@@ -229,7 +230,7 @@ function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, statusSe
     const folder = await pickFolder();
     if (!folder) return { ok: false, canceled: true };
     if (!fs.statSync(folder).isDirectory()) throw new Error('That is not a folder');
-    fs.writeFileSync(bridgeConfigFile, JSON.stringify({ v: 1, folder: nodePath.resolve(folder), grantedAt: now() }));
+    atomicWriteSync(bridgeConfigFile, JSON.stringify({ v: 1, folder: nodePath.resolve(folder), grantedAt: now() }), { fsImpl: fs });
     return { ok: true, ...bridgeStatus() };
   }
   function bridgeForget() {
@@ -260,7 +261,7 @@ function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, statusSe
     try { last = Number(JSON.parse(fs.readFileSync(statusSeqFile, 'utf8')).seq) || 0; }
     catch (err) { if (!err || err.code !== 'ENOENT') throw new Error('The status counter is not readable: ' + err.message, { cause: err }); }
     const seq = Math.max(last + 1, Math.floor(now() / 1000));
-    fs.writeFileSync(statusSeqFile, JSON.stringify({ seq }));
+    atomicWriteSync(statusSeqFile, JSON.stringify({ seq }), { fsImpl: fs });
     return seq;
   }
   async function statusWrite(req = {}) {
@@ -286,6 +287,7 @@ function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, statusSe
       try { st = fs.lstatSync(f); } catch (err) { if (!err || err.code !== 'ENOENT') throw err; }
       if (st && !st.isFile()) throw new Error(nodePath.basename(f) + ' is a link or a folder, and is not written');
     }
+    // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
     fs.writeFileSync(tmp, JSON.stringify(body));
     fs.renameSync(tmp, file);
     return { ok: true, seq: body.seq, action: body.action };

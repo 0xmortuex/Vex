@@ -6,6 +6,7 @@
 // the version they happened under, and Health shows the last week of them.
 // Nothing leaves the machine.
 const path = require('path');
+const { atomicWriteSync } = require('./file-store');
 
 const FILE = 'crash-log.json';
 const KEEP = 100;
@@ -25,7 +26,7 @@ function createCrashLog({ dir, fs, version = '', now = () => Date.now(), log }) 
   function add(kind, detail) {
     const list = all();
     list.push({ at: now(), kind: String(kind), detail: String(detail || '').slice(0, 300), version });
-    try { fs.writeFileSync(file, JSON.stringify(list.slice(-KEEP))); return true; }
+    try { atomicWriteSync(file, JSON.stringify(list.slice(-KEEP)), { fsImpl: fs }); return true; }
     catch (err) { note('[CrashLog] could not record a crash: ' + err.message); return false; }
   }
 

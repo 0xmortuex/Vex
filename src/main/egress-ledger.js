@@ -104,6 +104,7 @@ function createEgressLedger({ file, fs, now = () => Date.now(), max = MAX, maxAg
     if (!entries) return false;
     try {
       const tmp = file + '.tmp';
+      // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
       fs.writeFileSync(tmp, JSON.stringify({ v: 1, entries }));
       fs.renameSync(tmp, file);
       return true;

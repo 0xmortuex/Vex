@@ -10,6 +10,7 @@
 // Nothing here ever deletes a file, runs one, opens one, or sends anything anywhere. All the lookups are local. A file Vex cannot
 // read is reported as "could not be checked" (gray), never as clean.
 const path = require('path');
+const { atomicWriteSync } = require('./file-store');
 const { judge, cleanSettings, DEFAULT_SETTINGS } = require('./download-verdict');
 const { gatherFacts } = require('./download-facts');
 
@@ -21,7 +22,7 @@ function createSafeDownload({ fs, file, quarantineDir, signatureOf, threatCheck 
     if (fs.existsSync(file)) settings = cleanSettings(JSON.parse(fs.readFileSync(file, 'utf8')));
   } catch (err) { console.error('[SafeDownload] could not read the saved choices, using the defaults:', err.message); }
 
-  const write = () => fs.writeFileSync(file, JSON.stringify(settings));
+  const write = () => atomicWriteSync(file, JSON.stringify(settings), { fsImpl: fs });
   const get = () => ({ on: settings.on, strictness: settings.strictness, checks: { ...settings.checks }, quarantineDir });
   function set(patch) {
     if (!patch || typeof patch !== 'object') throw new Error('Nothing to change');

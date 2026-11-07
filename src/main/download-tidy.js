@@ -56,6 +56,7 @@ function createDownloadTidy({ fs, logFile, onMoved, motw, now = () => Date.now()
   function writeLog(entries) {
     // Written beside, then renamed over: a crash cannot leave half a log.
     const tmp = logFile + '.tmp';
+    // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
     fs.writeFileSync(tmp, JSON.stringify(entries.slice(-50), null, 1));
     fs.renameSync(tmp, logFile);
   }

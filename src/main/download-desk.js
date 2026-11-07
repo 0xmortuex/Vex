@@ -233,6 +233,7 @@ function createModDesk({ fs, logFile, openZip, validateZip, motw, now = () => Da
   }
   function writeLog(entries) {
     const tmp = logFile + '.tmp';
+    // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
     fs.writeFileSync(tmp, JSON.stringify(entries.slice(-50), null, 1));
     fs.renameSync(tmp, logFile);
   }

@@ -157,6 +157,25 @@ describe('download', () => {
     expect(fetch.mock.calls.find(c => c[0] === GH_EXE)[1]).toMatchObject({ redirect: 'follow' });
   });
 
+  it('a nearly full disk refuses the download before anything is requested (A4, simulated statfs)', async () => {
+    const guard = require('../../src/main/disk-guard.js').createDiskGuard({ dir, statfs: async () => ({ bavail: 100, bsize: 1024 * 1024 }), log: { warn() {}, error() {} } });
+    const u = make({ guard });
+    await u.check();
+    fetch.mockClear();
+    const r = await u.download('2.35.0');
+    expect(r).toMatchObject({ ok: false, code: 'disk' });
+    expect(r.error).toMatch(/not enough free space/);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(fs.readdirSync(dir)).toEqual([]);
+  });
+
+  it('a disk with room lets the same download through', async () => {
+    const guard = require('../../src/main/disk-guard.js').createDiskGuard({ dir, statfs: async () => ({ bavail: 100000, bsize: 1024 * 1024 }), log: { warn() {}, error() {} } });
+    const u = make({ guard });
+    await u.check();
+    expect(await u.download('2.35.0')).toMatchObject({ ok: true });
+  });
+
   it('a checksum mismatch is refused and the file deleted', async () => {
     const tampered = Buffer.from(INSTALLER); tampered[1000] ^= 1;
     routes.set(GH_EXE, () => respond(streamOf(tampered), { length: tampered.length }));

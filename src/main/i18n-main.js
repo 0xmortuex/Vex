@@ -26,6 +26,14 @@ const TR = {
   'Pictures': 'Resimler',
   'Save the prepared picture as a new file': 'Hazırlanan resmi yeni bir dosya olarak kaydedin',
   'Vex cannot open this profile': 'Vex bu profili açamıyor',
+  // Saving failed while closing (main/flush-rescue.js) and the free-space guard (main/disk-guard.js).
+  'Vex could not save': 'Vex kaydedemedi',
+  'Vex could not save your changes.': 'Vex değişikliklerinizi kaydedemedi.',
+  'The disk may be full or not writable, so your latest changes were not saved. You can keep an emergency copy of your settings in Documents (Settings > Backup can restore it), quit anyway, or try again after freeing some space.': 'Disk dolu ya da yazılamaz durumda olabilir, bu yüzden son değişiklikleriniz kaydedilmedi. Ayarlarınızın bir acil durum kopyasını Belgeler’de saklayabilir (Ayarlar > Yedek bunu geri yükleyebilir), yine de çıkabilir ya da yer açtıktan sonra yeniden deneyebilirsiniz.',
+  'The emergency copy could not be saved: {1}. Free some space and try again, or quit without saving.': 'Acil durum kopyası kaydedilemedi: {1}. Biraz yer açıp yeniden deneyin ya da kaydetmeden çıkın.',
+  'Save an emergency copy to Documents and quit': 'Acil durum kopyasını Belgeler’e kaydet ve çık',
+  'Quit without saving': 'Kaydetmeden çık',
+  'There is not enough free space on the drive Vex keeps your data on. Free some space and try again.': 'Vex’in verilerinizi tuttuğu sürücüde yeterli boş alan yok. Biraz yer açıp yeniden deneyin.',
   '{1} Nothing was changed. To get your data back without Vex, close Vex and run: node scripts/profile-decrypt.js --profile "<profile folder>" (see docs/profile-lock.md).':
     '{1} Hiçbir şey değiştirilmedi. Verilerinizi Vex olmadan geri almak için Vex’i kapatın ve şunu çalıştırın: node scripts/profile-decrypt.js --profile "<profile folder>" (bkz. docs/profile-lock.md).',
   'Vex cannot ask for the passphrase': 'Vex parolayı soramıyor',

@@ -31,6 +31,7 @@ function read(dir) {
 function write(dir, state) {
   fs.mkdirSync(dir, { recursive: true });
   const tmp = filePath(dir) + '.new';
+  // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
   fs.writeFileSync(tmp, JSON.stringify(Object.fromEntries(GRANTS.map(g => [g, (state && state[g]) || {}])), null, 2));
   fs.renameSync(tmp, filePath(dir));
 }

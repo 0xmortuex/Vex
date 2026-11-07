@@ -87,6 +87,7 @@ function createLyricsService({ fetch, isOnline = () => true, fs = null, file = '
     if (!fs || !file || saveTimer) return;
     saveTimer = schedule(() => {
       saveTimer = null;
+      // vex-allow-plain-write: a lyrics cache, fetched again on a miss
       try { fs.writeFileSync(file, JSON.stringify({ v: 1, entries: [...cache.entries()] })); }
       catch (err) { console.error('[Lyrics] the lyrics cache could not be saved:', err.message); }
     });

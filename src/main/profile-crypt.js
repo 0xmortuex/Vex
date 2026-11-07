@@ -290,6 +290,7 @@ function createProfileCrypt({ userDataPath, fsMod = nodeFs, kdf = KDF_DEFAULT, n
       if (!back.equals(bytes)) throw new ProfileLockError('VERIFY_FAILED', 'The backup snapshot of ' + rel + ' did not read back the same');
       entries.push({ rel, name, sha256: sha256(bytes), bytes: bytes.length });
     });
+    // vex-allow-plain-write: a new file inside a new snapshot folder, so there is no earlier copy to lose
     fsMod.writeFileSync(nodePath.join(snapDir, 'manifest.json'), JSON.stringify({ at: now(), entries }));
     return entries;
   }

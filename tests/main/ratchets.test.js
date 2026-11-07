@@ -80,3 +80,32 @@ describe('unasked toasts (T0-019)', () => {
     }
   });
 });
+
+describe('plain config writes (A2)', () => {
+  it('flags a writeFileSync of JSON, and of a .json file, and not other writes', () => {
+    expect(R.findPlainConfigWrites('fs.writeFileSync(file, JSON.stringify(x));')).toHaveLength(1);
+    expect(R.findPlainConfigWrites("fs.writeFileSync(path.join(dir, 'a.json'), text);")).toHaveLength(1);
+    expect(R.findPlainConfigWrites('fsImpl.writeFileSync(temp, JSON.stringify(items));')).toHaveLength(1);
+    expect(R.findPlainConfigWrites('fs.writeFileSync(file, bytes);')).toHaveLength(0);
+    expect(R.findPlainConfigWrites('atomicWriteSync(file, JSON.stringify(x));')).toHaveLength(0);
+    expect(R.findPlainConfigWrites('fs.writeFileSync(fd, bytes)')).toHaveLength(0);
+  });
+  it('accepts a write with a reason in the lines above it, and nothing else', () => {
+    expect(R.findPlainConfigWrites('// vex-allow-plain-write: a cache\nfs.writeFileSync(f, JSON.stringify(x));')).toHaveLength(0);
+    expect(R.findPlainConfigWrites('// vex-allow-plain-write: a cache\n\n\n\n\nfs.writeFileSync(f, JSON.stringify(x));')).toHaveLength(1);
+  });
+  it('scan reads src/main and src/main.js in a temp tree', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ratchet-'));
+    try {
+      fs.mkdirSync(path.join(dir, 'src', 'main'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'src', 'main', 'x.js'), 'fs.writeFileSync(f, JSON.stringify(a));\n');
+      fs.writeFileSync(path.join(dir, 'src', 'main.js'), 'fs.writeFileSync(f, JSON.stringify(a));\nfs.writeFileSync(g, JSON.stringify(b));\n');
+      expect(R.scan(dir)['no-plain-config-write']).toEqual({ 'src/main/x.js': 1, 'src/main.js': 2 });
+      const r = R.compare(R.scan(dir), { 'no-plain-config-write': {} });
+      expect(r.errors).toHaveLength(2);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+  it('the real tree has no unexcused plain write of a JSON config in src/main', () => {
+    expect(R.scan()['no-plain-config-write'] || {}).toEqual({});
+  });
+});
