@@ -792,7 +792,6 @@ const VexDialogsTr = {
   'Name, e.g. Game server': 'Ad, örn. Oyun sunucusu',
   'Name of your own program': 'Kendi programınızın adı',
   'Arguments, one per line (no quote marks)': 'Bağımsız değişkenler, satır başına bir tane (tırnak işareti yok)',
-  'Arguments, one per line': 'Bağımsız değişkenler, satır başına bir tane',
   'Let the system pick a free port': 'Sistem boş bir bağlantı noktası seçsin',
   'Stop after': 'Şundan sonra dur',
   'Find in log': 'Günlükte bul',
