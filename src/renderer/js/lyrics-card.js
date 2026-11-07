@@ -147,7 +147,7 @@ const VexLyrics = {
     title.textContent = this._t('Lyrics');
     const x = document.createElement('button');
     x.type = 'button';
-    x.textContent = '×';
+    x.innerHTML = typeof VexIcons !== 'undefined' ? VexIcons.svg('x', { size: 13 }) : '';
     x.setAttribute('aria-label', 'Close');
     x.title = 'Close';
     x.style.cssText = 'border:none;background:none;color:var(--text-muted);font-size:16px;cursor:pointer;line-height:1';

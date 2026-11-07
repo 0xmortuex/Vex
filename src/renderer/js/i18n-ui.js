@@ -6590,6 +6590,7 @@ const VexI18nUI = {
       'Continue watching': 'İzlemeye devam et',
       'Copy a report': 'Rapor kopyala',
       'Report copied. Nothing was sent.': 'Rapor kopyalandı. Hiçbir şey gönderilmedi.',
+      'Could not copy the report: {1}': 'Rapor kopyalanamadı: {1}',
       'Check my devices': 'Cihazlarımı denetle',
       'Nothing is recorded or sent. The camera and microphone are turned off again when you close this.': 'Hiçbir şey kaydedilmez veya gönderilmez. Bunu kapattığınızda kamera ve mikrofon yeniden kapanır.',
       'Camera': 'Kamera',
