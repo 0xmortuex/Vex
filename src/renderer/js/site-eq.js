@@ -299,7 +299,7 @@ const VexSiteEq = {
       for (const w of this._webviewsOf(host).concat(wv && !this._webviewsOf(host).includes(wv) ? [wv] : [])) this.applyToWebview(w, c);
       if (keep) {
         if (persist) {
-          try { this.save(url, c); note.textContent = this.isNeutral(c) ? `${host} is flat again.` : `Kept for ${host}.`; }
+          try { this.save(url, c); note.textContent = this.isNeutral(c) ? `${host} is flat again.` : `Sound settings kept for ${host}.`; }
           catch (err) { window.showToast?.(err.message, 'error'); }
         } else note.textContent = 'This tab is private, so this is not kept.';
       }
@@ -310,7 +310,7 @@ const VexSiteEq = {
         catch (err) { status.textContent = `Could not check the page: ${(err && err.message) || 'unknown'}`; }
       }, 1500);
     };
-    if (!this.isNeutral(cfg)) note.textContent = `Kept for ${host}.`;
+    if (!this.isNeutral(cfg)) note.textContent = `Sound settings kept for ${host}.`;
   },
 };
 

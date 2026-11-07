@@ -257,7 +257,7 @@ const VexSoundPolicy = {
     this._held.delete(triggerKey);
     if (!list || !list.length) return 0;
     const n = await this._resumeSources(list.map(h => h.key));
-    if (n) this._record('resume', 'Resumed ' + n + ' player' + (n === 1 ? '' : 's'), why, [], null);
+    if (n) this._record('resume', 'Resumed ' + n + ' player' + VexPlural.s(n), why, [], null);
     return n;
   },
 
