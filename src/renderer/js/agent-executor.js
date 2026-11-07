@@ -29,7 +29,53 @@ const SCHEDULED_PRIVATE = 'A scheduled task does not open or read pages on this 
 const SCHEDULED_TOOLS = ['navigate', 'go_back', 'go_forward', 'reload', 'scroll', 'extract_elements', 'extract_text', 'screenshot', 'wait', 'search_in_page', 'web_search', 'read_url', 'save_note', 'finish'];
 
 const AgentExecutor = {
+  // Every tool call goes past the agent policy first (main/agent-policy.js: per-tool allow / ask / deny, a list
+  // of sites no agent may touch, a daily budget) and is written to the audit log (host and result code only,
+  // never page text). A build without the policy bridge runs as before; if the bridge is there and cannot
+  // answer, the call is refused (fail closed).
   async executeTool(toolName, params, context = {}) {
+    const bridge = typeof window !== 'undefined' ? window.vex : null;
+    if (!bridge || typeof bridge.agentPolicyCheck !== 'function') return this._executeToolChecked(toolName, params, context);
+    const priv = !!(window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow);
+    let url = '', decision = 'allow';
+    try {
+      const wv = (context && context.webview) || (typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null);
+      url = params && typeof params.url === 'string' && params.url ? params.url : (wv && typeof wv.getURL === 'function' ? String(wv.getURL() || '') : '');
+      url = url.slice(0, 2048);
+      const verdict = await bridge.agentPolicyCheck({ tool: String(toolName).slice(0, 40), ...(url ? { url } : {}) });
+      if (!verdict || verdict.ok !== true) throw new Error((verdict && verdict.error) || 'no answer');
+      if (verdict.decision === 'deny') return { ok: false, error: 'Your agent policy does not allow this: ' + (verdict.reason === 'host-denied' ? 'that site is on the blocked list' : verdict.reason === 'budget' ? 'the daily limit of agent steps is used up' : 'the tool ' + toolName + ' is switched off') };
+      if (verdict.decision === 'ask') {
+        const yes = typeof window.vexConfirm === 'function' && await window.vexConfirm({ title: 'Allow this agent step?', message: 'Your agent policy asks before the agent takes this step.' + ' [' + toolName + (url ? ', ' + (this._hostOf(url) || '') : '') + ']', okLabel: 'Allow once' });
+        decision = yes ? 'ask-allowed' : 'ask-blocked';
+        if (!yes) {
+          if (!priv) await this._auditCall(bridge, toolName, url, decision, 'denied-user');
+          return { ok: false, error: 'You did not allow this step' };
+        }
+      }
+    } catch (err) {
+      console.error('[AgentPolicy] could not check the policy, the step is refused:', err);
+      return { ok: false, error: 'The agent policy could not be checked, so this step was not run: ' + ((err && err.message) || err) };
+    }
+    const out = await this._executeToolChecked(toolName, params, context);
+    if (!priv) await this._auditCall(bridge, toolName, url, decision, out && out.ok ? 'ok' : (out && /Private tabs are excluded/.test(String(out.error)) ? 'denied-private' : 'error'));
+    return out;
+  },
+
+  // The host name of an address, for the words in a prompt (never the path or query).
+  _hostOf(url) { try { return new URL(String(url)).hostname; } catch { return ''; } },
+
+  async _auditCall(bridge, tool, url, decision, result) {
+    try {
+      const r = await bridge.agentAuditRecord({ tool: String(tool).slice(0, 40), ...(url ? { url } : {}), decision, result });
+      if (!r || r.ok !== true) throw new Error((r && r.error) || 'no answer');
+    } catch (err) {
+      console.error('[AgentAudit] could not write the audit line:', err);
+      window.VexProblems?.note('Agent activity', 'A step the agent took could not be written to the activity log', err);
+    }
+  },
+
+  async _executeToolChecked(toolName, params, context = {}) {
     params = params || {};
     const wv = context.webview || WebviewManager.getActiveWebview();
     if (context.scheduled && !SCHEDULED_TOOLS.includes(toolName)) {

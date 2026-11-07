@@ -190,6 +190,8 @@ const VexBoot = {
     { src: 'js/dark-mode.js', usage: [] },
     // Page automations: record a job on a site and replay it. The rules and the in-page code load the first time they are used (VexLazy.ensure).
     { src: 'js/page-automations.js', usage: ['page-automations'] },
+    // AI agent activity: the Settings section (policy and activity log) and its Ctrl+K command. Main does the work; nothing is read until the section is opened.
+    { src: 'js/agent-activity-ui.js', usage: [] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

@@ -8602,6 +8602,21 @@ ipcMain.handle('webhook:list', (_e, since) => _localSvcReply(async () => ({ requ
 ipcMain.handle('webhook:get', (_e, id) => _localSvcReply(async () => ({ request: _webhookInspector.get(id) })));
 ipcMain.handle('webhook:clear', () => _localSvcReply(async () => _webhookInspector.clear()));
 app.on('will-quit', () => { _webhookInspector.stop().catch(err => console.error('[Webhook] could not stop on quit:', err && err.message)); });
+// Agent policy and audit trail (main/agent-policy.js, agent-audit.js, agent-policy-ipc.js): ONE rulebook that the in-app agent
+// asks (agentpolicy:check) and that an outside MCP client is held to, and an append-only log of who asked for what (host and
+// result code only, never page text). Vex's own window only; nothing here reaches the network.
+const _agentControl = require('./main/agent-policy-ipc').createAgentControl({ fs, dir: userDataPath, atomicWriteSync: require('./main/file-store').atomicWriteSync });
+require('./main/agent-policy-ipc').registerAgentControlIpc({
+  ipcMain, control: _agentControl,
+  isPrivate: (event) => !!(secureSessions.owner(event.sender) || {}).privatePartition,
+  chooseExportFile: async () => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { title: 'Export the agent activity log', defaultPath: 'vex-agent-activity.txt', filters: [{ name: 'Text', extensions: ['txt'] }] };
+    const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
+    return r.canceled ? null : r.filePath;
+  },
+  writeFile: (file, text) => fs.promises.writeFile(file, text, 'utf8'),
+});
 const _feedbackRelay = require('./main/feedback-relay').createFeedbackRelay({ fetch: boundedNetFetch });
 ipcMain.handle('feedback:send', (_event, url, payload) => _feedbackRelay.send(url, payload));
 ipcMain.handle('cloud:request', async (_event, body) => {
