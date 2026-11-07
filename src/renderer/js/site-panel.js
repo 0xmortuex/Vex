@@ -51,6 +51,10 @@ const SitePanel = {
     { id: 'midi', name: 'MIDI devices', icon: 'music' },
     { id: 'automatic-downloads', name: 'Automatic downloads', icon: 'download',
       note: 'Several files the page downloads by itself. A file you click always downloads.' },
+    // Asked since src/main/web-permissions-extra.js; a private window asks every time and keeps nothing.
+    { id: 'keyboardLock', name: 'Keep keys like Esc in full screen', icon: 'keyboard' },
+    { id: 'window-management', name: 'See all your screens', icon: 'monitor' },
+    { id: 'idle-detection', name: 'Know when you are away', icon: 'clock' },
   ],
   CONTAINERS: ['work', 'personal', 'shopping'],
 
@@ -426,7 +430,10 @@ const SitePanel = {
         </select>
       </div>`;
     };
+    // Sign-in and payment boxes from another site, one row per third-party site (kept as "storage-access:<site>").
+    const storage = Object.keys(decisions).filter(k => k.startsWith(o + '::storage-access:')).map(k => k.slice(o.length + 2));
     let html = shown.map(p => row(p.id, p.name, p.icon, this._permValue(decisions, o, p.id), p.noAsk, p.note)).join('');
+    html += storage.map(p => row(p, this._tr('Saved data of {1} inside this site', p.slice('storage-access:'.length)), 'shield', this._permValue(decisions, o, p), false, '')).join('');
     html += external.map(p => row(p, 'Open ' + p.slice('external:'.length) + ': links in another program', 'link', this._permValue(decisions, o, p), false, '')).join('');
     // Pop-ups this page tried to open and the blocker refused (js/popup-blocked.js).
     const refused = typeof PopupBlocked !== 'undefined' && c.pageId != null ? PopupBlocked.forPage(c.pageId) : null;

@@ -20,6 +20,8 @@ const PermissionPrompts = (() => {
     clipboard: _svg('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>'),
     shield:  _svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
     external: _svg('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>'),
+    keyboard: _svg('<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'),
+    clock:   _svg('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'),
     download: _svg('<path d="M12 4v11"/><polyline points="7 10 12 15 17 10"/><line x1="5" y1="20" x2="19" y2="20"/>')
   };
   // `ask` finishes the sentence "<site> wants to …"; `label` names the thing
@@ -39,11 +41,25 @@ const PermissionPrompts = (() => {
     'clipboard-read': { icon: ICONS.clipboard, ask: 'read what you last copied', label: 'clipboard' },
     // A page's second download with no click (src/main/downloads.js).
     'automatic-downloads': { icon: ICONS.download, ask: 'download several files', label: 'automatic downloads', note: 'It started another download by itself. A file you click always downloads.' },
+    // Four requests Vex used to refuse without asking (src/main/web-permissions-extra.js). `full` is the whole
+    // sentence after the site's name, translated as one piece (the verb ends a Turkish sentence); {1} is a site.
+    'keyboardLock':   { icon: ICONS.keyboard, full: 'wants to take over some keyboard keys (like Esc) while this page is full screen', label: 'keyboard keys in full screen', note: 'Without this, Esc leaves full screen at once.' },
+    'window-management': { icon: ICONS.screen, full: 'wants to see all your screens and place windows on them', label: 'all your screens' },
+    'idle-detection': { icon: ICONS.clock, full: 'wants to know when you are away from the computer', label: 'knowing when you are away' },
+    // A page from another site, shown inside this one, asking for its own cookies and data back (the tracker hosts never get here).
+    'storage-access': { icon: ICONS.shield, full: 'wants to use its own saved data and sign-in while shown inside {1}', label: 'its saved data inside another site', note: 'Sign-in and payment boxes need this. You can take it back in Settings.' },
     // A program or script from a site with no standing (src/main/web-safety.js).
     'risky-download': { icon: ICONS.shield, ask: 'send you a file that can run code', label: 'a risky download', note: 'The file waits unopened until you decide.' }
   };
 
   function _esc(s) { return window.escapeHtml(s); }
+  // The person's language for the texts added with the four requests above; everything older here is as it was.
+  const _t = (text, ...args) => {
+    const hit = typeof window.vexTr === 'function' ? window.vexTr(text) : text;
+    return String(hit).replace(/\{(\d)\}/g, (_m, i) => (args[Number(i) - 1] == null ? '' : String(args[Number(i) - 1])));
+  };
+  // "storage-access:<site>" (kept per third-party site) is one permission, 'storage-access', for its words.
+  const _kind = (permission) => (/^storage-access:/.test(permission || '') ? 'storage-access' : permission);
 
   // One prompt on screen at a time; the rest wait their turn. A second request
   // used to remove the first without answering it, and main then denied that
@@ -51,7 +67,7 @@ const PermissionPrompts = (() => {
   // asked (found 2026-09-29). A request for the same site and permission as
   // one already open or waiting joins it, and one answer settles both.
   const _queue = [];   // [{ data, ids: [id, ...] }]; _queue[0] is the one on screen
-  const _key = (d) => (d.origin || '') + '::' + (d.permission || '');
+  const _key = (d) => (d.origin || '') + '::' + (d.permission || '') + (d.embeddedIn ? '::' + d.embeddedIn : '');
 
   function showPrompt(data) {
     const d = data || {};
@@ -75,7 +91,7 @@ const PermissionPrompts = (() => {
 
   function _show(entry) {
     const { origin, permission } = entry.data;
-    const info = LABELS[permission]
+    const info = LABELS[_kind(permission)]
       || (/^external:/.test(permission || '') ? _external(entry.data) : null)
       || { icon: ICONS.shield, ask: 'use: ' + (permission || 'unknown'), label: permission || 'unknown' };
     // once: main keeps no "allow" for this one (an Office link that fetches a
@@ -91,6 +107,9 @@ const PermissionPrompts = (() => {
       ? `<button class="btn-danger-sm" data-decision="deny" data-remember="false">Don't download</button>
         <button class="btn-secondary-sm" data-decision="allow" data-remember="false">Download anyway</button>
         ${entry.data.remember === false || (entry.data.risk && entry.data.risk.quarantine) ? '' : '<button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow from this site</button>'}`
+      : entry.data.choice === 'this-time'
+      ? `<button class="btn-danger-sm" data-decision="deny" data-remember="false">${_esc(_t('Block this time'))}</button>
+        <button class="btn-primary-sm" data-decision="allow" data-remember="false">${_esc(_t('Allow this time'))}</button>`
       : entry.data.choice === 'allow-block'
       ? `<button class="btn-danger-sm" data-decision="deny" data-remember="${keep}">Block</button>
         <button class="btn-primary-sm" data-decision="allow" data-remember="${keep}">Allow</button>`
@@ -120,9 +139,17 @@ const PermissionPrompts = (() => {
       const reason = !riskyFile && risk.reason ? `<div class="perm-risk-reason">${_esc(risk.reason)}</div>` : '';
       return `<div class="perm-risk perm-risk-${_esc(level)}">${head}${line ? `<div class="perm-risk-line">${_esc(line)}</div>` : ''}${reason}${reasons}${quiet}</div>`;
     })();
-    const messageHtml = riskyFile
+    // The four newer requests carry their whole sentence (`full`) and are translated; the older ones are as they were.
+    const fresh = !!info.full;
+    const noteText = fresh && info.note ? _t(info.note) : info.note;
+    let embeddedHost = '';
+    try { embeddedHost = entry.data.embeddedIn ? new URL(entry.data.embeddedIn).host : ''; } catch { embeddedHost = String(entry.data.embeddedIn || ''); }
+    const messageHtml = fresh
+      ? `<strong>${_esc(_t(info.full, embeddedHost))}</strong>${noteText ? ` <span class="perm-note">${_esc(noteText)}</span>` : ''}`
+      : riskyFile
       ? `is sending <strong>${_esc(entry.data.fileName || 'a file')}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}`
       : `wants to <strong>${_esc(info.ask)}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}`;
+    const labelText = fresh ? _t(info.label) : info.label;
 
     const prompt = document.createElement('div');
     prompt.className = 'permission-prompt';
@@ -154,7 +181,7 @@ const PermissionPrompts = (() => {
       prompt.classList.remove('show');
       setTimeout(() => prompt.remove(), 250);
       _next();
-      window.showToast?.(`${origin} → ${info.label}: blocked after two minutes without an answer — the site can ask again`, 'info', 4000);
+      window.showToast?.(`${origin} → ${labelText}: blocked after two minutes without an answer — the site can ask again`, 'info', 4000);
     };
     const respond = async (decision, remember) => {
       if (answered) return;
@@ -174,9 +201,9 @@ const PermissionPrompts = (() => {
       if (typeof window.showToast === 'function') {
         // One that waited past main's two-minute limit was already refused
         // there, so "Allowed" would be untrue.
-        if (failed) { window.showToast(`Could not answer ${origin} → ${info.label}: ${failed}`, 'error', 4000); return; }
+        if (failed) { window.showToast(`Could not answer ${origin} → ${labelText}: ${failed}`, 'error', 4000); return; }
         const how = remember === 'session' ? ' for this visit' : remember === 'day' ? ' for a day' : remember === false ? (entry.data.choice === 'allow-block' ? ' for this tab' : ' this time') : '';
-        window.showToast(`${decision === 'allow' ? 'Allowed' : 'Blocked'}${how}: ${origin} \u2192 ${info.label}`, 'info', 3000);
+        window.showToast(`${decision === 'allow' ? 'Allowed' : 'Blocked'}${how}: ${origin} \u2192 ${labelText}`, 'info', 3000);
       }
     };
     // "Don't warn me about this site": the site goes on the allow list; this
