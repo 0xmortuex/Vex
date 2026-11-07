@@ -51,7 +51,7 @@ describe('the device gate in main.js', () => {
   it('asks only the grant store, with the session it guards — no "request in flight" pass', () => {
     const at = main.indexOf('ses.setDevicePermissionHandler(');
     expect(at).toBeGreaterThan(-1);
-    const body = main.slice(at, at + 400);
+    const body = main.slice(at, at + 800);
     expect(body).toMatch(/return _hidGrants\.isGranted\(tag, details\.origin, d\.vendorId, d\.productId\);/);
     expect(main).not.toMatch(/_isHidRequestActive|_markHidRequestActive/);
     expect(perms).not.toMatch(/_markHidRequestActive/);

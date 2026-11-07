@@ -1429,6 +1429,18 @@ function vexOwnTextFocused(doc) {
   // WebHID device chooser (navigator.hid.requestDevice)
   if (typeof HidPicker !== 'undefined') HidPicker.init();
 
+  // Web Serial / WebUSB chooser (navigator.serial.requestPort / navigator.usb.requestDevice). The picker file loads when a page asks;
+  // if it cannot load, the request is cancelled at once so the page is told no instead of waiting.
+  if (window.vexDevices?.onSelectRequest) {
+    window.vexDevices.onSelectRequest((req) => {
+      VexLazy.ensure('js/device-picker.js').then(() => window.DevicePicker.show(req)).catch((err) => {
+        window.VexProblems?.note('Devices', 'The device chooser could not open', err);
+        window.vexDevices.respond({ id: req.id, deviceId: '' }).catch((e) => console.error('[Devices] could not cancel the request:', e));
+      });
+    });
+    window.vexDevices.rendererReady();
+  }
+
   // Peek overlay — shift+click a link → floating preview
   if (typeof VexPeek !== 'undefined') VexPeek.init();
 

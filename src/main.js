@@ -3337,6 +3337,8 @@ function wireWebHidOnSession(ses, tag) {
   // chooser. The chooser lists the devices without asking here (measured on
   // Electron 42), so no request in flight needs every device opened to it.
   ses.setDevicePermissionHandler((details) => {
+    // A session has ONE device handler, so Web Serial and WebUSB are answered here too (main/device-chooser.js).
+    if (details && (details.deviceType === 'serial' || details.deviceType === 'usb')) return _deviceChooser.isDeviceGranted(tag, details);
     if (!details || details.deviceType !== 'hid') return false;
     const d = details.device || {};
     return _hidGrants.isGranted(tag, details.origin, d.vendorId, d.productId);
@@ -3360,6 +3362,14 @@ ipcMain.handle('hid:select-respond', (_e, payload) => {
   try { pending.callback(deviceId || ''); } catch (err) { return { ok: false, error: err.message }; }
   return { ok: true };
 });
+
+// === Web Serial and WebUSB — navigator.serial.requestPort() / navigator.usb.requestDevice() chooser ===
+// Same pattern as WebHID above; the rules and the measured event shapes are in src/main/device-chooser.js.
+// Nothing is scanned: a list exists only while a page's request is in flight. A grant is kept only when the
+// person ticks "remember" (src/main/device-grants.js), and ends by the permission-hygiene days when that is on.
+const _deviceGrants = require('./main/device-grants').createDeviceGrants({ userDataPath });
+const _deviceChooser = require('./main/device-chooser').createDeviceChooser({ ipcMain, webContents, secureSessions, grants: _deviceGrants, hygiene: _permHygiene, webSafety: _webSafety });
+_deviceChooser.registerIpc();
 
 // Lighter Discord (src/main/discord-lite.js): set by the renderer's switch.
 const { isHeavyDiscordMedia, stillVersionOf } = require('./main/discord-lite');
@@ -9594,6 +9604,10 @@ function createWindow() {
   wireWebHidOnSession(session.defaultSession, 'default');
   wireWebHidOnSession(secureSessions.fromPartition('persist:main'), 'persist:main');
   partitions.forEach(p => wireWebHidOnSession(secureSessions.fromPartition(p), p));
+  // Web Serial / WebUSB chooser: the same sessions (its device gate is the HID handler's, above: a session has one).
+  _deviceChooser.wireOnSession(session.defaultSession, 'default');
+  _deviceChooser.wireOnSession(secureSessions.fromPartition('persist:main'), 'persist:main');
+  partitions.forEach(p => _deviceChooser.wireOnSession(secureSessions.fromPartition(p), p));
 
   // Screen share (getDisplayMedia) — fan out the picker to every session a page
   // can run in, so Discord Go Live / Share Screen works.

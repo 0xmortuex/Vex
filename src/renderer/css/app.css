@@ -1115,6 +1115,9 @@ body.private-mode #vex-logo::after {
 .hid-device-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hid-device-ids { color: var(--vex-text-muted); font-size: 11px; font-family: 'JetBrains Mono', monospace; flex-shrink: 0; }
 .hid-empty { color: var(--vex-text-muted); font-size: 12px; padding: 12px 4px; text-align: center; }
+.device-picker-warn { text-align: left; padding: 4px 2px 8px; }
+.device-picker-remember { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--vex-text-primary); margin: 0 2px 12px; cursor: pointer; }
+.device-picker-site { color: var(--vex-text-primary); }
 .hid-picker-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .hid-picker .btn-link {
   background: none; border: none; color: var(--vex-text-secondary);
