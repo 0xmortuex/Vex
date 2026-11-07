@@ -183,7 +183,7 @@ describe('no text is half translated, word by word', () => {
     }
     if (process.env.VEX_HALF_REPORT) fs.writeFileSync(process.env.VEX_HALF_REPORT, found.join('\n'));
     expect(found.length, 'Half-translated by a template:\n' + found.join('\n')).toBeLessThanOrEqual(HALF_BASELINE);
-  });
+  }, 120000); // scans the whole renderer: 16 s on a PC, over 30 s on a two-core CI runner, and it grows with the code
 });
 // Two older pieces of the unit-calculator pack ("From 80 to 100 is an increase of 25%") still go through the template "From {1} to {2}": the count may only go down.
 const HALF_BASELINE = 2;
