@@ -469,7 +469,7 @@ function _recordTracker(reqUrl, wcId) {
   } catch {}
 }
 function privacyLoad() {
-  try { const fs = require('fs'); if (fs.existsSync(PRIVACY_FILE())) privacyCfg = { ...privacyCfg, ...JSON.parse(fs.readFileSync(PRIVACY_FILE(), 'utf8')) }; } catch {}
+  try { const fs = require('fs'); if (fs.existsSync(PRIVACY_FILE())) privacyCfg = { ...privacyCfg, ...require('./main/versioned-json').unwrap(JSON.parse(fs.readFileSync(PRIVACY_FILE(), 'utf8'))) }; } catch {}
   privacyCfg = _headerPrivacy(privacyCfg);
   return privacyCfg;
 }
@@ -1040,7 +1040,7 @@ app.whenReady().then(() => { setTimeout(() => { _integrity.run(); }, 20000).unre
 
 // Local sidebar config (userData/sidebar-config.json) — lets the renderer
 // fetch personalized tool URLs that must stay out of the public repo.
-registerSidebarConfigIpc(ipcMain, userDataPath);
+registerSidebarConfigIpc(ipcMain, userDataPath, () => secretStore);   // the queue secret is kept sealed (SecretStore)
 
 // === Download tracking helper (hoisted so private-window sessions can reuse it) ===
 // skipPrivate: not to private windows (a normal window's download was listed
@@ -1121,6 +1121,20 @@ ipcMain.handle('threat:set-auto-update', (_e, on) => _threatList.setAutoUpdate(o
 ipcMain.handle('threat:update', () => _threatList.update());
 ipcMain.handle('threat:forget-host', (_e, host) => _threatList.forgetHost(host));
 ipcMain.handle('threat:continue-log', () => _threatList.continueLog());
+// Keep Vex's cache under a size (src/main/cache-budget.js): opt-in, off by default. Clears only each partition's HTTP cache and Code Cache.
+const _cacheBudget = require('./main/cache-budget').createCacheBudget({
+  userDataPath, fs, log: (m) => console.error(m),
+  sessionFor: (partition) => secureSessions.fromPartition(partition),
+  partitionsInUse: () => new Set(webContents.getAllWebContents().filter(c => !c.isDestroyed()).map(c => secureSessions.partitionOf(c)).filter(Boolean)),
+  isGaming: () => !!(_mergedGameState().game || _gameModeSession.active()),
+  isQuiet: () => !!(_protect && _protect.quiet && _protect.quiet.isQuietNow()),
+  idleSeconds: () => require('electron').powerMonitor.getSystemIdleTime(),
+});
+app.whenReady().then(() => _cacheBudget.start());
+app.on('will-quit', () => _cacheBudget.stop());
+ipcMain.handle('cachebudget:status', () => _cacheBudget.status());
+ipcMain.handle('cachebudget:set', (_e, patch) => _cacheBudget.set(patch));
+ipcMain.handle('cachebudget:run', () => _cacheBudget.clear());
 // Share a space (js/share-space-ui.js): the review asks which of the addresses in a space are look-alikes or reported dangerous sites.
 // Local lookups only; no address is loaded or sent anywhere (src/main/space-check.js).
 ipcMain.handle('space:check', (_e, urls) => {
@@ -2209,7 +2223,7 @@ function recallStore() {
   let records = [];
   try {
     const fsx = require('fs');
-    if (fsx.existsSync(RECALL_FILE())) records = JSON.parse(fsx.readFileSync(RECALL_FILE(), 'utf8'));
+    if (fsx.existsSync(RECALL_FILE())) records = require('./main/versioned-json').unwrap(JSON.parse(fsx.readFileSync(RECALL_FILE(), 'utf8')));
     if (!Array.isArray(records)) records = [];
   } catch { records = []; }
   const before = records.length;

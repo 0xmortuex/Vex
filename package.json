@@ -129,6 +129,12 @@
         "name": "HTML Document",
         "description": "HTML Document",
         "role": "Viewer"
+      },
+      {
+        "ext": "pdf",
+        "name": "PDF Document",
+        "description": "PDF Document",
+        "role": "Viewer"
       }
     ],
     "protocols": [

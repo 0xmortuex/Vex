@@ -30,8 +30,15 @@ describe('normalizeLaunchArg', () => {
     expect(normalizeLaunchArg('C:\\x\\page.htm')).toMatch(/^file:\/\/\//);
   });
 
-  it('rejects non-html drive paths', () => {
-    expect(normalizeLaunchArg('C:\\Users\\foo\\readme.pdf')).toBeNull();
+  it('accepts a PDF drive path (Vex is offered under Open with for PDF files)', () => {
+    const out = normalizeLaunchArg('C:\\Users\\foo\\readme.pdf');
+    expect(out).toMatch(/^file:\/\/\//);
+    expect(out).toMatch(/readme\.pdf$/);
+    expect(out).not.toContain('\\');
+    expect(normalizeLaunchArg('readme.pdf')).toBeNull();
+  });
+
+  it('rejects other drive paths', () => {
     expect(normalizeLaunchArg('C:\\Users\\foo\\script.js')).toBeNull();
   });
 

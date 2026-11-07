@@ -919,6 +919,9 @@ define('threat:status threat:update threat:continue-log', []);
 define('threat:set-enabled threat:set-auto-update', [boolean]);
 define('threat:forget-host', [string(253)]);
 // Safe Download Assistant (src/main/safe-download.js, js/safe-download-ui.js): its Settings and Quarantine. Vex's own window only.
+// Cache budget (src/main/cache-budget.js, js/cache-budget-ui.js): the switch and size, what would be cleared, and clearing now. Vex's own window only.
+define('cachebudget:status cachebudget:run', []);
+define('cachebudget:set', [shape({ enabled: optional(boolean), limitGB: optional(finiteNumber) })]);
 define('safedl:get', []);
 define('safedl:set', [value => object(value) && (value.on === undefined || boolean(value.on)) && (value.strictness === undefined || ['relaxed', 'normal', 'strict'].includes(value.strictness)) && (value.checks === undefined || (object(value.checks) && Object.keys(value.checks).length <= 4 && Object.values(value.checks).every(boolean)))]);
 define('safedl:quarantine', [string(4096)]);

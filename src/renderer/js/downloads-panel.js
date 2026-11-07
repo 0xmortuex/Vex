@@ -148,6 +148,8 @@ const DownloadsPanel = {
     // doesn't fight the CSS transition. An interrupted row used to keep Pause.
     if (wasPaused !== dl.paused || wasState !== dl.state) this._replaceRow(dl);
     else this._patchRow(dl);
+    // Tell the one-time offer to carry unfinished downloads on after a restart (js/download-resume-offer.js).
+    if (wasState !== 'interrupted' && dl.state === 'interrupted') document.dispatchEvent(new CustomEvent('vex:download-interrupted', { detail: { id: dl.id, totalBytes: dl.totalBytes, canResume: dl.canResume, ephemeral: !!dl.ephemeral } }));
     // And the toolbar button, which is where most people watch a download.
     // This was missing: only start and finish told it anything, so its bar and
     // its drop-down sat at 0% for the whole transfer and then jumped to done.

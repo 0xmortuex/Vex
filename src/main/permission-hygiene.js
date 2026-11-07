@@ -29,6 +29,7 @@
 const fs = require('fs');
 const path = require('path');
 const { atomicWriteSync } = require('./file-store');
+const { unwrap } = require('./versioned-json');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // What decays, in the names permissions.js stores them under.
@@ -85,7 +86,7 @@ function createPermissionHygiene({ file = null, now = () => Date.now(), emit = (
     let raw = null;
     try { raw = fs.readFileSync(file, 'utf8'); } catch (err) { if (err.code !== 'ENOENT') throw new Error('Permission hygiene settings could not be read: ' + err.message, { cause: err }); }
     if (raw) {
-      const saved = JSON.parse(raw);
+      const saved = unwrap(JSON.parse(raw)) || {};
       config = cleanConfig(saved.config || {});
       pins = saved.pins && typeof saved.pins === 'object' && !Array.isArray(saved.pins) ? saved.pins : {};
     }

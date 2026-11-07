@@ -163,7 +163,7 @@ function _loadKnown() {
   if (_known) return _known;
   const fs = require('fs');
   try {
-    if (fs.existsSync(_knownFile())) _known = JSON.parse(fs.readFileSync(_knownFile(), 'utf8'));
+    if (fs.existsSync(_knownFile())) _known = require('./versioned-json').unwrap(JSON.parse(fs.readFileSync(_knownFile(), 'utf8')));
     else {
       // Once, the first time: the finished files already in the panel's list,
       // downloaded before this record was kept.

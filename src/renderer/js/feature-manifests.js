@@ -583,6 +583,9 @@
     // (kept in main, like Web safety's sensitivity), so there is no VexUsage row and no vex.* key.
     { id: 'threat-list', title: 'Warnings for known dangerous sites', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['threat:settings', 'threat:test'],
       permissions: { reads: ['the address of each page you open, only to look it up in a list on this computer'], writes: ['the downloaded list (a set of hashes, no names), the sites you chose to trust, and a note of each time you chose Continue anyway'], sends: ['About once a day, a request for the public list file (a plain GET with no cookies); none of your addresses are in it'] } },
+    // Keep Vex’s cache under a size (src/main/cache-budget.js, js/cache-budget-ui.js): off by default; its switch and size are kept in main (cache-budget.json), so there is no VexUsage row and no vex.* key.
+    { id: 'cache-budget', title: 'Keep the cache under a size', group: 'Storage', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['cachebudget:settings'],
+      permissions: { reads: ['the sizes of the cache folders of each site, read-only and with a time limit'], writes: ['only when you switch it on or press Clear now: removes each site’s HTTP cache and Code Cache; never cookies, logins, saved data or offline storage'], sends: [] } },
     // Safe Download Assistant (src/main/safe-download.js, js/safe-download-ui.js): its switch is the one in Settings > Safe downloads (kept in main, like
     // Web safety's sensitivity), so there is no VexUsage row and no vex.* key. Kill switch: turn it off there and no download is checked.
     { id: 'safe-download', title: 'Safe Download Assistant', group: 'Web safety', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['safedl:settings'],
