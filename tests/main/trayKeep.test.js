@@ -219,8 +219,8 @@ describe('wiring in main.js and session-security.js', () => {
     expect(body.indexOf('handleAllClosed')).toBeLessThan(body.indexOf('app.quit()'));
   });
   it('every quit path marks the tray as quitting: before-quit and session-end', () => {
-    expect(main).toMatch(/app\.on\('before-quit', \(\) => \{ _exitWatch\.mark\('quitting'\); if \(_trayKeepInst\) _trayKeepInst\.markQuitting\(\)/);
-    expect(main).toMatch(/win\.on\('session-end', \(\) => \{[^}]*markQuitting/);
+    expect(main).toMatch(/app\.on\('before-quit', \(\) => \{ if \(_trayKeepInst\) _trayKeepInst\.markQuitting\(\); \}\);/);
+    expect(main).toMatch(/win\.on\('session-end', \(\) => \{ if \(_trayKeepInst\) _trayKeepInst\.markQuitting\(\); \}\);/);
   });
   it('the three programmatic window closes (update, other profile update, restart) go through _closeMainForReal', () => {
     expect((main.match(/^\s+_closeMainForReal\(win\);/gm) || []).length).toBe(3);

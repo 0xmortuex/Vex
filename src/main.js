@@ -1500,10 +1500,12 @@ app.on('browser-window-created', (_e, win) => {
 // Processes ended by Vex quitting, updating or Windows ending the session are
 // not crashes (src/main/exit-kinds.js); everything else still is.
 const _exitWatch = require('./main/exit-kinds').createExitWatch();
-app.on('before-quit', () => { _exitWatch.mark('quitting'); if (_trayKeepInst) _trayKeepInst.markQuitting(); });
+app.on('before-quit', () => _exitWatch.mark('quitting'));
+app.on('before-quit', () => { if (_trayKeepInst) _trayKeepInst.markQuitting(); });
 app.on('browser-window-created', (_e, win) => {
   win.on('query-session-end', () => _exitWatch.mark('closing because Windows is logging off or shutting down'));
-  win.on('session-end', () => { _exitWatch.mark('closing because Windows is logging off or shutting down'); if (_trayKeepInst) _trayKeepInst.markQuitting(); });
+  win.on('session-end', () => _exitWatch.mark('closing because Windows is logging off or shutting down'));
+  win.on('session-end', () => { if (_trayKeepInst) _trayKeepInst.markQuitting(); });
 });
 app.on('child-process-gone', (_e, d) => {
   if (!d) return;
