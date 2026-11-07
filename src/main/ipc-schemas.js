@@ -627,6 +627,32 @@ define('recall:search', [string(512), optional(shape({
 }))]);
 define('recall:limits', [shape({ days: optional(value => Number.isInteger(value) && value >= 7 && value <= 3650), maxMB: optional(value => Number.isFinite(value) && value >= 1 && value <= 64), maxPages: optional(value => Number.isInteger(value) && value >= 100 && value <= 10000) })]);
 define('recall:forget', [shape({ url: optional(web), host: optional(string(253)) })]);
+// Datasets kept from page tables (src/main/evodata-ipc.js). The sizes follow js/evodata-core.js LIMITS; main checks them again.
+const keptId = string(60);
+const keptRow = value => Array.isArray(value) && value.length <= 200 && value.every(c => typeof c === 'string' && c.length <= 2000);
+const keptRows = value => Array.isArray(value) && value.length <= 5000 && value.every(keptRow);
+define('recall:dataset-list recall:dataset-clear', []);
+define('recall:dataset-get recall:dataset-delete', [keptId]);
+define('recall:dataset-create', [shape({
+  name: string(200), rows: keptRows, header: optional(value => value === 'auto' || typeof value === 'boolean'), keyColumn: optional(string(200)),
+  source: optional(shape({ url: string(1000), title: optional(string(300)) })), watchId: optional(string(80)), allowEmpty: optional(boolean),
+})]);
+define('recall:dataset-append', [keptId, keptRows, optional(string(200))]);
+define('recall:dataset-append-watch', [string(80), keptRow]);
+define('recall:dataset-set-watch', [keptId, optional(string(80))]);
+define('recall:dataset-export', [keptId, oneOf(['csv', 'csv-semicolon', 'json'])]);
+// Text versions of kept pages (src/main/evodata-versions-ipc.js).
+define('recall:versions-list recall:versions-clear', []);
+define('recall:versions-of recall:versions-forget', [keptId]);
+define('recall:versions-keep', [web, optional(string(300))]);
+define('recall:versions-kept', [web]);
+define('recall:versions-save recall:versions-save-kept', [web, optional(string(300)), string(300000)]);
+define('recall:versions-text', [keptId, finiteNumber]);
+define('recall:versions-diff', [keptId, finiteNumber, finiteNumber]);
+// Extra things remembered in Recall (src/main/evodata-extras-ipc.js).
+define('recall:extra-list recall:extra-clear', []);
+define('recall:extra-remove', [keptId]);
+define('recall:extra-add', [shape({ kind: oneOf(['clip', 'file', 'reminder', 'note']), text: string(4000), title: optional(string(300)), url: optional(string(1000)) })]);
 // Recall by meaning (src/main/recall-vectors.js): the embedding model and the
 // local Ollama address, the hosts Recall is told to stay out of, and how many
 // pages one step may read.

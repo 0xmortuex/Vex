@@ -1390,6 +1390,12 @@ const VexFeatures = {
       what: 'For a short link, right-click it or use Ctrl+K and Vex follows the redirects for you, without cookies and without reading any page, then shows the site it really leads to and a warning for a lookalike, with Open or Copy. It only happens when you ask, and each step appears in the list of what left this computer.' },
     { id: 'bookmark-dupes', feature: 'bookmark-dupes', newer: true, cat: 'work', name: 'Find duplicate bookmarks', phrases: 'duplicate bookmarks same page saved twice clean up bookmarks merge repeated favourites remove copies', cmd: 'bookmark-dupes',
       what: 'Lists the bookmarks that point at the same page, ignoring a #fragment, a trailing slash and utm_ tracking tags, so you can merge them (keep one of each) or remove the ones you tick. Nothing changes until you press a button, and Undo brings every removed bookmark back.' },
+    { id: 'kept-datasets', feature: 'kept-datasets', newer: true, cat: 'data', name: 'Datasets from pages', phrases: 'dataset datasets table rows columns csv json excel spreadsheet append veri kumesi tablo', cmd: 'datasets-open',
+      what: 'Keep a table from a page as a dataset on this computer: add more rows later without repeats, filter and sort it, and export it as CSV for Excel or as JSON. It starts off; switch it on from Ctrl+K: Datasets from Pages. Nothing leaves this computer.' },
+    { id: 'page-versions', feature: 'page-versions', newer: true, cat: 'reading', name: 'Page text versions', phrases: 'page versions text diff compare changed snapshot kept word by word since last time', cmd: 'page-versions-open',
+      what: 'Mark a page and Vex keeps its readable text each time you save a version or a page watch sees it change: up to 20 versions per page, compared word by word, with one line on what changed since last time. It starts off; no pictures, and nothing leaves this computer.' },
+    { id: 'recall-extras', feature: 'recall-extras', newer: true, cat: 'reading', name: 'Remembered in Recall', phrases: 'recall remember clip selection note reminder downloaded file name find later hatirla', cmd: 'recall-extras-open',
+      what: 'Add things to Recall by hand: the text you selected on a page, a downloaded file\'s name, a reminder or a note. Recall search then finds them with their type, apart from the pages Recall indexes. It starts off; nothing is added by itself and nothing leaves this computer.' },
   ],
 
   // Everything in one category.

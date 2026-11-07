@@ -150,13 +150,18 @@ const TableExtract = {
   },
 
   // ---- the page ----------------------------------------------------------------
-  async pick(wv) {
+  // Point at a table or list on the page and get its cleaned rows. { kind, caption, rows }
+  async read(wv) {
     const policy = window.VexTabPolicy;
     if (!wv) throw new Error('Open a page first');
     if (policy && !policy.canReadWebview(wv)) throw new Error('Tables are not read from private, Tor or routed tabs');
     window.showToast?.('Click a table or list on the page. Escape cancels.');
     const result = await window.vexGuestEval(wv, '(' + vexTablePick.toString() + ')(60000)', true, 65000);
-    const data = this.clean(result);
+    return this.clean(result);
+  },
+
+  async pick(wv) {
+    const data = await this.read(wv);
     if (typeof VexUsage !== 'undefined') VexUsage.touch('table-extract');
     return this.show(data, wv);
   },
@@ -202,6 +207,17 @@ const TableExtract = {
       } catch (err) { status.textContent = err.message; }
     });
     bar.append(copy('Copy CSV', 'csv'), copy('Copy Markdown', 'md'), copy('Copy for a sheet (tabs)', 'tsv'), note);
+    // Keep it as a dataset (js/kept-datasets.js; off until switched on). Not from a page that is left alone (a bank, a sign-in).
+    const keepers = window.VexKeptDatasets;
+    if (keepers && keepers.enabled()) {
+      const keepBtn = (label, run) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.style.cssText = btn; b.textContent = label;
+        b.addEventListener('click', () => { Promise.resolve().then(() => run(data, wv, close)).catch(err => { status.textContent = err.message; }); });
+        return b;
+      };
+      bar.append(keepBtn('Keep as a dataset', (d, w, c) => keepers.keep(d, w, c)), keepBtn('Add to a dataset', (d, w, c) => keepers.addTo(d, w, c)));
+    }
     body.append(sub, pre, bar, status);
     return close;
   },

@@ -623,6 +623,9 @@ const PageWatch = {
       const text = watch.kind === 'text' ? page.text : String(value);
       D.pushSnapshot(snaps, id, { at: now, text, hash: D.fingerprint([text]) }, { ...D.LIMITS, perWatch: settings.maxSnapshots });
       this._saveSnaps(snaps);
+      // The features that keep data from watched pages (js/kept-datasets.js, js/page-versions.js; both off until switched on)
+      // hear of every first look and change here. Nothing is asked of the page again.
+      if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:page-watch-snapshot', { detail: { watchId: id, url: watch.url, title: watch.title, kind: watch.kind, at: now, value: String(value), why: verdict.why || '', summary: verdict.summary || '', first: !prev, text } }));
     }
     // Never twice for the same new value.
     let announce = verdict.changed;

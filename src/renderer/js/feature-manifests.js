@@ -955,6 +955,15 @@
       permissions: { reads: ['the link you ask about'], writes: ['nothing'], sends: ['A HEAD request, with no cookies, to the link’s site and to each site it redirects to (up to 8), listed as Short link preview in the egress ledger; never the page itself'] } },
     { id: 'bookmark-dupes', title: 'Find duplicate bookmarks', killSwitch: 'none', group: 'Tab comforts', maturity: 'new', storageKeys: [], commands: ['bookmark-dupes'],
       permissions: { reads: ['your saved bookmarks'], writes: ['removes the duplicate bookmarks you pick or merge, with Undo'], sends: [] } },
+    // ---- Wave 5: pages as data the person keeps (js/kept-datasets.js) ----
+    { id: 'kept-datasets', title: 'Datasets from pages', maturity: 'new', storageKeys: ['vex.keptDatasets.enabled'], commands: ['dataset-keep', 'datasets-open'],
+      permissions: { reads: ['the table you point at on a page, never from a private, Tor or routed tab and never from a bank, payment, sign-in, mail or health page'], writes: ['your datasets, as their own files in the profile folder (at most 50 datasets, 5,000 rows and 5 MB each), and a CSV or JSON file where you choose to save one'], sends: [] } },
+    // ---- Wave 5: text versions of a page (js/page-versions.js) ----
+    { id: 'page-versions', title: 'Page text versions', maturity: 'new', storageKeys: ['vex.pageVersions.enabled'], commands: ['page-versions-keep', 'page-versions-save', 'page-versions-open'],
+      permissions: { reads: ['the readable text of a page you marked, only when you save a version or a page watch on it sees a change; never from a private, Tor or routed tab and never from a bank, payment, sign-in, mail or health page'], writes: ['the text versions, as their own files in the profile folder (at most 100 pages, 20 versions each, 200 KB of text per version)'], sends: [] } },
+    // ---- Wave 5: things added to Recall by hand (js/recall-extras.js) ----
+    { id: 'recall-extras', title: 'Remembered in Recall', maturity: 'new', storageKeys: ['vex.recallExtras.enabled'], commands: ['recall-remember-selection', 'recall-remember-note', 'recall-remember-reminder', 'recall-remember-download', 'recall-extras-open'],
+      permissions: { reads: ['the text you selected on a page, the name of a download you pick, or the words you type; never from a private, Tor or routed tab and never from a bank, payment, sign-in, mail or health page'], writes: ['a small file in the profile folder with the things you added (at most 500, 400 KB in all); the page index in recall.json is not touched'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');
