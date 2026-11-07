@@ -1131,7 +1131,6 @@ const VexI18nUI = {
       'Reload pages when I am back online': 'Çevrimiçi olduğumda sayfaları yeniden yükle',
       'When your connection comes back, Vex offers to reload the pages that failed only because you were offline, once for each failure. It can also reload them by itself in the background if you turn that on; it is off until you do. A missing site or a certificate problem is never retried this way.': 'Bağlantınız geri geldiğinde Vex, yalnızca çevrimdışı olduğunuz için yüklenemeyen sayfaları her hata için bir kez yeniden yüklemeyi önerir. İsterseniz bunu arka planda kendiliğinden de yapabilir; siz açana kadar kapalıdır. Bulunamayan bir site ya da sertifika sorunu bu yolla asla yeniden denenmez.',
       'You are back online. Reload the pages that did not load?': 'Yeniden çevrimiçisiniz. Yüklenmeyen sayfalar yeniden yüklensin mi?',
-      'Reload': 'Yeniden yükle',
       'Offer to reload when I am back online': 'Çevrimiçi olduğumda yeniden yüklemeyi öner',
       'Only for a page that failed because there was no internet, once per failure. Not for a missing site or a certificate problem.': 'Yalnızca internet olmadığı için yüklenemeyen sayfa için, her hata başına bir kez. Bulunamayan site ya da sertifika sorunu için değil.',
       'Reload those pages by itself when I am back online': 'Çevrimiçi olduğumda bu sayfaları kendiliğinden yeniden yükle',
