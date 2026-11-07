@@ -965,6 +965,9 @@ define('agentpolicy:set', [shape({ tools: object, denyHosts: value => Array.isAr
 define('agentpolicy:check', [shape({ tool: string(40), url: optional(string(2048)) })]);
 define('agentaudit:record', [shape({ tool: string(40), url: optional(string(2048)), decision: oneOf(['allow', 'ask-allowed', 'ask-blocked', 'deny']), result: oneOf(['ok', 'error', 'denied-policy', 'denied-host', 'denied-budget', 'denied-private', 'denied-sensitive', 'denied-user', 'busy', 'too-large', 'unavailable', 'invalid']) })]);
 define('agentaudit:list', [optional(value => Number.isSafeInteger(value) && value > 0 && value <= 1000)]);
+// Vex as an MCP server (main/mcp-server-ipc.js): Vex's own window only.
+define('evomcp:status evomcp:rotate-token', []);
+define('evomcp:set-enabled', [boolean]);
 function validate(channel, args) {
   if (channel.startsWith('@ghostery/')) return; // Vendor-owned API; the outer policy still bounds JSON and verifies its sender.
   const checks = schemas.get(channel);

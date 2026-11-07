@@ -48,8 +48,11 @@ function createAgentControl({ fs, dir, now = () => Date.now(), atomicWriteSync, 
     return { ...answer, host: h };
   }
 
+  // Is this host on the blocked list? (for a check made after the host became known; does not count a call)
+  const hostBlocked = (host) => policyLib.hostMatches(get().denyHosts, host);
+
   const resultFor = (reason) => RESULT_FOR_REASON[reason] || 'denied-policy';
-  return { get, set, check, audit, budget, resultFor };
+  return { get, set, check, hostBlocked, audit, budget, resultFor };
 }
 
 // The channels. `isPrivate(event)` says whether a message comes from a private window; those are never

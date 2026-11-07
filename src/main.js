@@ -8617,6 +8617,44 @@ require('./main/agent-policy-ipc').registerAgentControlIpc({
   },
   writeFile: (file, text) => fs.promises.writeFile(file, text, 'utf8'),
 });
+// Vex as an MCP server (main/mcp-server.js, main/mcp-server-ipc.js): OFF until the person switches it on in Settings, then a
+// loopback-only (127.0.0.1) server for an outside AI tool with four tools (list_tabs, read_page_text, open_url, search_history),
+// a sealed access token shown once, every call checked against the agent policy and written to the audit log. Opening a page
+// is approved by the person, every time, in a box main shows. Stopped when switched off and when Vex quits.
+let _mcpPromptOpen = false;
+const _evoMcp = require('./main/mcp-server-ipc').createEvoMcp({
+  fs, dir: userDataPath, secretStore, atomicWriteSync: require('./main/file-store').atomicWriteSync, http: require('http'),
+  control: _agentControl, version: app.getVersion(),
+  confirm: async ({ title, message, okLabel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'warning', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
+  approve: async ({ client, tool, host, detail }) => {
+    if (_mcpPromptOpen) return 'busy';
+    _mcpPromptOpen = true;
+    try {
+      const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+      if (win) win.show();
+      const opts = { type: 'warning', title: 'Vex', message: tool === 'open_url' ? client + ' wants to open ' + host : client + ' wants to use ' + tool + (host ? ' on ' + host : ''),
+        detail: tool === 'open_url' ? detail + '\n\nVex opens it in a new background tab only if you choose Allow once.' : detail, buttons: ['Allow once', 'Block'], defaultId: 1, cancelId: 1, noLink: true };
+      const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+      return r.response === 0 ? 'allow' : 'block';
+    } finally { _mcpPromptOpen = false; }
+  },
+  callBridge: async (method, arg) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, code: 'unavailable' };
+    return mainWindow.webContents.executeJavaScript(`typeof VexMcpBridge === 'undefined' ? { ok: false, code: 'unavailable' } : VexMcpBridge[${JSON.stringify(method)}](${JSON.stringify(arg === undefined ? null : arg)})`);
+  },
+  openTab: (url) => {
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('There is no Vex window to open it in');
+    mainWindow.webContents.send('tab:create-from-external', { url, background: true });
+  },
+});
+require('./main/mcp-server-ipc').registerEvoMcpIpc({ ipcMain, evo: _evoMcp });
+app.on('will-quit', () => { _evoMcp.shutdown().catch(err => console.error('[McpServer] could not stop on quit:', err && err.message)); });
+app.whenReady().then(() => _evoMcp.autostart()).catch(err => console.error('[McpServer] could not start at launch:', err && err.message));
 const _feedbackRelay = require('./main/feedback-relay').createFeedbackRelay({ fetch: boundedNetFetch });
 ipcMain.handle('feedback:send', (_event, url, payload) => _feedbackRelay.send(url, payload));
 ipcMain.handle('cloud:request', async (_event, body) => {

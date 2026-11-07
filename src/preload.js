@@ -549,6 +549,10 @@ contextBridge.exposeInMainWorld('vex', {
   agentAuditList: (limit) => ipcRenderer.invoke('agentaudit:list', limit),
   agentAuditClear: () => ipcRenderer.invoke('agentaudit:clear'),
   agentAuditExport: () => ipcRenderer.invoke('agentaudit:export'),
+  // Vex as an MCP server (main/mcp-server-ipc.js).
+  evoMcpStatus: () => ipcRenderer.invoke('evomcp:status'),
+  evoMcpSetEnabled: (on) => ipcRenderer.invoke('evomcp:set-enabled', on),
+  evoMcpRotateToken: () => ipcRenderer.invoke('evomcp:rotate-token'),
   webhookStart: (req) => ipcRenderer.invoke('webhook:start', req),
   webhookStop: () => ipcRenderer.invoke('webhook:stop'),
   webhookStatus: () => ipcRenderer.invoke('webhook:status'),

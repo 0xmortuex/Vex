@@ -1052,6 +1052,8 @@ const VexFeatures = {
       what: 'Lists the dev servers you added (a folder plus one of a few fixed commands, a QEMU virtual machine recipe, or a program of your own that you pick with fixed arguments) and lets you start and stop them from Vex. Reach it from Ctrl+K with "Local services". On an existing profile it starts off; turn it on in Settings > Local services.' },
     { id: 'agent-activity', newer: true, cat: 'ai', name: 'AI agent activity', phrases: 'agent policy audit log mcp rules allow block ask who did what activity budget permissions',  cmd: 'agent-activity',
       what: 'Sets what the AI agent and any outside AI tool may do (allow, ask each time or block per tool, blocked sites, a daily limit) and lists what they did, without keeping page text. Reach it from Ctrl+K with "AI agent activity and rules".' },
+    { id: 'mcp-server', newer: true, cat: 'ai', name: 'Vex as an MCP server', phrases: 'mcp server claude desktop claude code let ai use vex expose tabs history token localhost connect external agent', cmd: 'mcp-server',
+      what: 'Lets an AI tool you run (Claude Code, or Claude Desktop through mcp-remote) look at your open tabs and history and ask you to open a page. Off until you switch it on in Settings; it listens on this computer only, needs an access token, never types or clicks, and every call is logged and checked against your agent policy. Reach it from Ctrl+K with "MCP server for AI tools".' },
     { id: 'webhook-inspector', feature: 'webhook-inspector', newer: true, cat: 'dev', name: 'Webhook inspector', phrases: 'webhook request inspector localhost port receiver http post payload debug callback capture incoming', cmd: 'webhook-inspector',
       what: 'Listens on a port of 127.0.0.1 that you choose and lists every request that arrives, so you can see what a webhook really sends. Reach it from Ctrl+K with "Webhook inspector". On an existing profile it starts off; turn it on in Settings > Webhook inspector.' },
     { id: 'reading-triage', feature: 'reading-triage', newer: true, cat: 'reading', name: 'Reading triage by goals', phrases: 'read later queue prioritise prioritize rank what to read goals skim drop backlog reading list sort', cmd: 'reading-triage',
@@ -1385,7 +1387,7 @@ const VexFeatures = {
     ],
     ai: [
       { name: 'Asking it things', ids: ['ai-panel', 'askvex', 'summarize', 'selection-bar', 'compose', 'tabmentions', 'chatfile', 'show-thinking', 'twomodels'] },
-      { name: 'Having it do the work', ids: ['agent', 'agent-activity', 'agent-pause', 'agent-schedule', 'teach', 'skills', 'schedules', 'tabai'] },
+      { name: 'Having it do the work', ids: ['agent', 'agent-activity', 'mcp-server', 'agent-pause', 'agent-schedule', 'teach', 'skills', 'schedules', 'tabai'] },
       { name: 'Which model, and what it knows about you', ids: ['ai-router', 'ondevice', 'smallmodel', 'personas', 'ai-memory', 'routelearn', 'mcp'] },
       { name: 'Finding what you have read', ids: ['recall', 'recall-meaning', 'remember', 'catchup', 'screenshot-code'] },
     ],
