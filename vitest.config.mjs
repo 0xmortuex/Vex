@@ -16,6 +16,6 @@ export default defineConfig({
     // One temp root per run, removed when it ends (tests/global-setup.js).
     globalSetup: ['tests/global-setup.js'],
     // The plural helper every renderer module may use (js/vex-plural.js).
-    setupFiles: ['tests/setup-plural.js'],
+    setupFiles: ['tests/setup-plural.js', 'tests/setup-waitfor.js'],
   },
 });
