@@ -10580,7 +10580,7 @@ const VexI18nUI = {
       'Sleep after (minutes)': 'Şu kadar dakika sonra uyut',
       'Memory Saver': 'Bellek tasarrufu',
       'Block ads and trackers': 'Reklamları ve izleyicileri engelle',
-      'Tab Layout': 'Sekme düzeni', 'GUI Style': 'Arayüz stili',
+      'Tab Layout': 'Sekme yerleşimi', 'GUI Style': 'Arayüz stili',
       'Horizontal (top bar, like Chrome)': 'Yatay (üst çubuk, Chrome gibi)',
       'Vertical (left sidebar)': 'Dikey (sol kenar çubuğu)',
       'Fill sign-in codes from your email': 'E-postanızdaki giriş kodlarını doldur',
