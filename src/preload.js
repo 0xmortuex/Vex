@@ -924,6 +924,12 @@ contextBridge.exposeInMainWorld('vex', {
     forgetHost: (host) => ipcRenderer.invoke('threat:forget-host', host),
     continueLog: () => ipcRenderer.invoke('threat:continue-log'),
   },
+  // Cache budget (main/cache-budget.js): sizes per site, what would be cleared, the switch and size, and clearing now.
+  cacheBudget: {
+    status: () => ipcRenderer.invoke('cachebudget:status'),
+    set: (patch) => ipcRenderer.invoke('cachebudget:set', patch),
+    run: () => ipcRenderer.invoke('cachebudget:run'),
+  },
   // Safe Download Assistant (main/safe-download.js): the Settings choices, and Quarantine for a file Vex downloaded. The verdict itself arrives with download-complete.
   safeDownload: {
     get: () => ipcRenderer.invoke('safedl:get'),

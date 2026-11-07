@@ -202,6 +202,8 @@ const VexBoot = {
     { src: 'js/focus-scenes.js', usage: [] },
     // One-time Attention Inbox offer to carry unfinished downloads on after a restart (off by default; the button is the choice).
     { src: 'js/download-resume-offer.js', usage: [] },
+    // Keep Vex’s cache under a size (opt-in, off by default): the Settings section and its Ctrl+K command. The work is in main (src/main/cache-budget.js).
+    { src: 'js/cache-budget-ui.js', usage: [] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

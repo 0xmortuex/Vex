@@ -1121,6 +1121,20 @@ ipcMain.handle('threat:set-auto-update', (_e, on) => _threatList.setAutoUpdate(o
 ipcMain.handle('threat:update', () => _threatList.update());
 ipcMain.handle('threat:forget-host', (_e, host) => _threatList.forgetHost(host));
 ipcMain.handle('threat:continue-log', () => _threatList.continueLog());
+// Keep Vex's cache under a size (src/main/cache-budget.js): opt-in, off by default. Clears only each partition's HTTP cache and Code Cache.
+const _cacheBudget = require('./main/cache-budget').createCacheBudget({
+  userDataPath, fs, log: (m) => console.error(m),
+  sessionFor: (partition) => secureSessions.fromPartition(partition),
+  partitionsInUse: () => new Set(webContents.getAllWebContents().filter(c => !c.isDestroyed()).map(c => secureSessions.partitionOf(c)).filter(Boolean)),
+  isGaming: () => !!(_mergedGameState().game || _gameModeSession.active()),
+  isQuiet: () => !!(_protect && _protect.quiet && _protect.quiet.isQuietNow()),
+  idleSeconds: () => require('electron').powerMonitor.getSystemIdleTime(),
+});
+app.whenReady().then(() => _cacheBudget.start());
+app.on('will-quit', () => _cacheBudget.stop());
+ipcMain.handle('cachebudget:status', () => _cacheBudget.status());
+ipcMain.handle('cachebudget:set', (_e, patch) => _cacheBudget.set(patch));
+ipcMain.handle('cachebudget:run', () => _cacheBudget.clear());
 // Share a space (js/share-space-ui.js): the review asks which of the addresses in a space are look-alikes or reported dangerous sites.
 // Local lookups only; no address is loaded or sent anywhere (src/main/space-check.js).
 ipcMain.handle('space:check', (_e, urls) => {
