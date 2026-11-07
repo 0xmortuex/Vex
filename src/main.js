@@ -106,20 +106,17 @@ try {
 // back/forward; OptimizationGuide* download/hold on-device ML models Vex doesn't
 // use; Translate is Chromium's built-in translator (Vex has its own). Turning
 // them off trades a little convenience for lower resting memory.
-let _memorySaver = false;
-try {
-  const _fs = require('fs'), _path = require('path');
-  const _pf = _path.join(app.getPath('userData'), 'vex-persist.json');
-  const _j = JSON.parse(_fs.readFileSync(_pf, 'utf-8'));
-  _memorySaver = _j['vex.memorySaver'] === '1' || _j['vex.memorySaver'] === 1;
-} catch {}
+// The file (~2.5 MB) is read and parsed ONCE for both launch switches (main/boot-persist.js).
+const _bootPersist = require('./main/boot-persist');
+const _bootRead = _bootPersist.readBootPersist({ fs: require('fs'), path: require('path'), userData: app.getPath('userData') });
+let _memorySaver = _bootPersist.memorySaverOn(_bootRead);
 // Smooth scrolling (Settings > Tabs and navigation): Chromium's own, on unless the person switched it off. A launch
 // switch, so it is read from the same persisted file and takes a restart.
-try {
-  const _sf = require('fs'), _sp = require('path');
-  const _sj = JSON.parse(_sf.readFileSync(_sp.join(app.getPath('userData'), 'vex-persist.json'), 'utf-8'));
-  if (_sj['vex.smoothScroll'] === 'off') app.commandLine.appendSwitch('disable-smooth-scrolling');
-} catch (err) { if (!err || err.code !== 'ENOENT') console.warn('[Startup] could not read the smooth scrolling choice:', err && err.message); }
+{
+  const _smooth = _bootPersist.smoothScrollChoice(_bootRead);
+  if (_smooth.off) app.commandLine.appendSwitch('disable-smooth-scrolling');
+  if (_smooth.warning) console.warn(_smooth.warning);
+}
 let _disableFeatures = 'SpareRendererForSitePerProcess';
 if (_memorySaver) {
   _disableFeatures += ',BackForwardCache,OptimizationGuideModelDownloading,OptimizationHints,Translate';
