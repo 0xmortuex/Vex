@@ -156,7 +156,7 @@ const VexCacheBudgetUI = {
     this._started = true;
     if (!window.VexSettingsGroups) throw new Error('VexSettingsGroups is not loaded');
     VexSettingsGroups.register({
-      id: this.ID, title: this.TITLE, before: 'about',
+      id: 'cache-budget', title: this.TITLE, before: 'about',
       keywords: 'cache size storage disk space clear code cache http cache discord whatsapp keep under gb housekeeping',
       render: (body) => this.render(body),
     });

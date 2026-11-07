@@ -26,7 +26,7 @@ const OsHookUI = {
   },
   open() {
     if (typeof SettingsUI === 'undefined' || typeof SettingsUI.openSection !== 'function') throw new Error('Settings is not available in this window');
-    SettingsUI.openSection('setting-' + this.ID);
+    SettingsUI.openSection('setting-os-hook');
   },
 
   // The window's two events. A private window reports nothing.
@@ -111,7 +111,7 @@ if (typeof window !== 'undefined') {
   window.OsHookUI = OsHookUI;
   OsHookUI.listen();
   if (typeof VexSettingsGroups !== 'undefined') {
-    VexSettingsGroups.register({ id: OsHookUI.ID, title: 'Program hook (developer)', keywords: 'run program event hook download finished reminder exam ci red command script automation', before: 'about', render: (body) => OsHookUI.render(body) });
+    VexSettingsGroups.register({ id: 'os-hook', title: 'Program hook (developer)', keywords: 'run program event hook download finished reminder exam ci red command script automation', before: 'about', render: (body) => OsHookUI.render(body) });
   }
   if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
     VexExtras.registerCommand({ id: 'os-hook', label: 'Run a program on a Vex event', hint: 'Start a program of your choice when a download finishes, a reminder fires, exam mode is armed or CI goes red', icon: 'terminal', action: () => { try { OsHookUI.open(); } catch (err) { OsHookUI.fail('Program hook', err); } } });

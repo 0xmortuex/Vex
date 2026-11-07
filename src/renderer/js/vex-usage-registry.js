@@ -448,6 +448,7 @@ const VexUsageRegistry = {
       GameHolds: () => (typeof GameHolds !== 'undefined' ? GameHolds : null),
       VexBriefCards: () => (typeof VexBriefCards !== 'undefined' ? VexBriefCards : null),
       VexAutomations: () => (typeof VexAutomations !== 'undefined' ? VexAutomations : null),
+      VexClearRecent: () => (typeof VexClearRecent !== 'undefined' ? VexClearRecent : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)

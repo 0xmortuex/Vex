@@ -96,7 +96,7 @@ const McpServerUI = {
   },
   open() {
     if (typeof SettingsUI === 'undefined' || typeof SettingsUI.openSection !== 'function') throw new Error('Settings is not available in this window');
-    SettingsUI.openSection('setting-' + this.ID);
+    SettingsUI.openSection('setting-mcp-server');
   },
 
   // The two ways to connect a client, with the real address and token. Shown once, next to the token.
@@ -171,7 +171,7 @@ if (typeof window !== 'undefined') {
   window.VexMcpBridge = VexMcpBridge;
   window.McpServerUI = McpServerUI;
   if (typeof VexSettingsGroups !== 'undefined') {
-    VexSettingsGroups.register({ id: McpServerUI.ID, title: 'MCP server for AI tools', keywords: 'mcp server claude desktop claude code ai tool token localhost expose tabs', before: 'about', render: (body) => McpServerUI.render(body) });
+    VexSettingsGroups.register({ id: 'mcp-server', title: 'MCP server for AI tools', keywords: 'mcp server claude desktop claude code ai tool token localhost expose tabs', before: 'about', render: (body) => McpServerUI.render(body) });
   }
   if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
     VexExtras.registerCommand({ id: 'mcp-server', label: 'MCP server for AI tools', hint: 'Let Claude Desktop or Claude Code use your Vex, with your approval and a log', icon: 'plug', action: () => { try { McpServerUI.open(); } catch (err) { McpServerUI.fail('MCP server', err); } } });

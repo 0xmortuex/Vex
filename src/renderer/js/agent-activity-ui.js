@@ -38,7 +38,7 @@ const AgentActivityUI = {
 
   open() {
     if (typeof SettingsUI === 'undefined' || typeof SettingsUI.openSection !== 'function') throw new Error('Settings is not available in this window');
-    SettingsUI.openSection('setting-' + this.ID);
+    SettingsUI.openSection('setting-agent-activity');
   },
 
   render(body) {
@@ -129,7 +129,7 @@ const AgentActivityUI = {
 if (typeof window !== 'undefined') {
   window.AgentActivityUI = AgentActivityUI;
   if (typeof VexSettingsGroups !== 'undefined') {
-    VexSettingsGroups.register({ id: AgentActivityUI.ID, title: 'AI agent activity', keywords: 'agent policy audit log mcp allow block ask budget history who asked', before: 'about', render: (body) => AgentActivityUI.render(body) });
+    VexSettingsGroups.register({ id: 'agent-activity', title: 'AI agent activity', keywords: 'agent policy audit log mcp allow block ask budget history who asked', before: 'about', render: (body) => AgentActivityUI.render(body) });
   }
   if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
     VexExtras.registerCommand({ id: 'agent-activity', label: 'AI agent activity and rules', hint: 'See what the AI agent and outside tools did, and set what they may do', icon: 'shield', action: () => { try { AgentActivityUI.open(); } catch (err) { AgentActivityUI.fail('AI agent activity', err); } } });
