@@ -500,6 +500,53 @@ const DiscordTheme = {
     return { css: this.css(ThemeStudio.colorsFromTheme(id), meta ? meta.label : id), theme: id };
   },
 
+  // ---- pinning a real theme's file (src/main/content-pin.js) ------------------
+
+  // The bridge to main; null where there is none (a test, a plain browser tab).
+  _pinApi() {
+    const v = typeof window !== 'undefined' ? window.vex : null;
+    return v && v.themePin && typeof v.themePin.check === 'function' ? v.themePin : null;
+  },
+
+  // Takes the plan for a real theme (a link) and checks the file behind it against its pin. A file that is new to Vex is pinned
+  // and the link is used as before. A file that CHANGED upstream is not applied: the copy kept at the first check is used instead
+  // (a { css } plan), and the owner is told once per change. If the check itself failed, the kept copy is used when there is one;
+  // without one the link is used and the problem is reported. Returns the plan to apply.
+  async checkPin(plan) {
+    const api = this._pinApi();
+    const real = plan && plan.link ? this.realFor(plan.theme) : null;
+    if (!api || !real) return plan;
+    const r = await api.check(plan.theme, real.url);
+    if (!r) throw new Error('The theme check did not answer');
+    if (!r.ok) {
+      window.VexProblems?.note('Discord theme', 'The ' + real.name + ' theme file could not be checked against its pin', new Error(r.error || 'unknown'));
+      return typeof r.css === 'string' ? { css: r.css, theme: plan.theme, pinned: true } : plan;
+    }
+    if (r.status !== 'changed') return plan;
+    if (r.announce && window.AttentionInbox) {
+      window.AttentionInbox.add({
+        feature: 'theme-pin', id: plan.theme, label: 'Theme changes',
+        title: 'The theme "{1}" changed upstream'.replace('{1}', real.name),
+        body: 'The theme’s file on its maker’s site is no longer the one Vex saved, so Vex keeps using its saved copy. Dismiss keeps it; “Use the new version” switches to the new file. Vex cannot judge whether the change is safe, so look at the theme’s GitHub page if you did not expect it.',
+        action: { label: 'Use the new version', key: 'accept:' + plan.theme },
+      });
+    }
+    return { css: r.css, theme: plan.theme, pinned: true };
+  },
+
+  // The inbox button: "Use the new version" pins what the theme site serves now.
+  async acceptPin(key) {
+    const id = String(key || '').replace(/^accept:/, '');
+    const real = this.realFor(id);
+    const api = this._pinApi();
+    if (!real || !api) throw new Error('That theme cannot be updated from here');
+    const r = await api.accept(id, real.url);
+    if (!r || !r.ok) throw new Error((r && r.error) || 'The new theme file could not be pinned');
+    window.showToast?.('The new version of "{1}" is in use'.replace('{1}', real.name));
+    if (this.isOn()) await this.applyAll();
+    return true;
+  },
+
   // The script run in the Discord page. It touches only Vex's own link (the
   // one ending in LINK_MARK) and Vex's own file (FILE) — except when the user
   // clicked "Pause my other themes while matching" (opts.pause), which takes
@@ -605,7 +652,10 @@ const DiscordTheme = {
   // answer; null when the page is not Discord.
   async applyTo(wv, plan, opts) {
     if (!this.isDiscordUrl(this._url(wv))) return null;
-    if (plan === undefined) plan = this.plan();
+    if (plan === undefined) {
+      plan = this.plan();
+      if (plan && plan.link && this._pinApi()) plan = await this.checkPin(plan);
+    }
     // Off: whatever a pause took comes back, along with Vex's entries going.
     const record = plan ? null : this.paused();
     const o = { ...(opts || {}) };
@@ -687,7 +737,8 @@ const DiscordTheme = {
     this._queued = true;
     const run = this._chain.then(async () => {
       this._queued = false;
-      const plan = this.plan();
+      let plan = this.plan();
+      if (plan && plan.link && this._pinApi()) plan = await this.checkPin(plan);
       const out = [];
       for (const wv of this.pages()) {
         try {
@@ -818,7 +869,7 @@ const DiscordTheme = {
     if (!host) return;
     host.innerHTML = `
       <div class="setting-toggle-row">
-        <span>Match Discord to my Vex theme<br><span style="font-size:11.5px;color:var(--text-muted)">Discord in Vex (the panel or a tab) takes on your colour theme through Vencord, and changes with it. A theme named after a BetterDiscord theme loads that real theme: Discord downloads its CSS from the theme's own site (GitHub Pages, or jsDelivr for a few) — a request you did not click. Any other theme is coloured by Vex, nothing downloaded. Your own Vencord themes and QuickCSS are kept; off removes only what Vex added. Needs Vencord.</span></span>
+        <span>Match Discord to my Vex theme<br><span style="font-size:11.5px;color:var(--text-muted)">Discord in Vex (the panel or a tab) takes on your colour theme through Vencord, and changes with it. A theme named after a BetterDiscord theme loads that real theme: Discord downloads its CSS from the theme's own site (GitHub Pages, or jsDelivr for a few) — a request you did not click. Vex also downloads that file once to remember its fingerprint; if the maker changes it later, Vex keeps the old copy and asks you first. That catches a changed file, not everything: a program running as you could edit the fingerprint. Any other theme is coloured by Vex, nothing downloaded. Your own Vencord themes and QuickCSS are kept; off removes only what Vex added. Needs Vencord.</span></span>
         <label class="toggle" style="flex-shrink:0"><input type="checkbox" id="setting-discord-theme" aria-label="Match Discord to my Vex theme"><span class="toggle-slider"></span></label>
       </div>
       <div id="discord-theme-state" role="status" style="font-size:11.5px;color:var(--text-muted);margin-top:4px"></div>

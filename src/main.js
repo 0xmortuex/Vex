@@ -11800,6 +11800,27 @@ ipcMain.handle('integrity:report', async (event) => {
   try { return await _integrity.run(); }
   catch (err) { console.error('[Integrity] report failed:', err); return { ok: false, error: err.message, notes: [] }; }
 });
+// A real Discord theme's file pinned by its hash (src/main/content-pin.js, js/discord-theme.js). The fetch goes through the egress ledger
+// as "Discord theme check" and only to the hosts the theme list uses (content-pin.js refuses any other).
+const _themePin = require('./main/content-pin').createContentPin({
+  dir: path.join(userDataPath, 'theme-pins'), fs,
+  fetchText: async (url) => {
+    const res = await boundedNetFetch(url, { redirect: 'error', maxBytes: 1024 * 1024 + 1, timeoutMs: 20000, egress: { feature: 'Discord theme check', kind: 'fetch' } });
+    if (!res.ok) throw new Error('The theme site answered ' + res.status);
+    return res.text();
+  },
+  log: console,
+});
+ipcMain.handle('themepin:check', async (event, id, url) => {
+  _healthFromMainWindow(event);
+  try { return await _themePin.check(id, url); }
+  catch (err) { console.error('[ThemePin] check failed:', err); return { ok: false, error: err.message }; }
+});
+ipcMain.handle('themepin:accept', async (event, id, url) => {
+  _healthFromMainWindow(event);
+  try { return await _themePin.accept(id, url); }
+  catch (err) { console.error('[ThemePin] accept failed:', err); return { ok: false, error: err.message }; }
+});
 ipcMain.handle('health:scan', (event) => {
   _healthFromMainWindow(event);
   try { return { ok: true, ..._health.scan() }; }

@@ -97,6 +97,8 @@ define('backup:auto-read', [string(120)]);
 // agreed to the ones that need a yes; an undo names the run it returned.
 define('health:scan', []);
 define('integrity:report', []);
+// A real Discord theme's file is pinned by its hash (main/content-pin.js): the theme id and its address; main checks both again.
+define('themepin:check themepin:accept', [string(40), string(400)]);
 define('health:fix', [value => Array.isArray(value) && value.length > 0 && value.length <= 200 && value.every(string(300)), optional(boolean)]);
 define('health:undo', [value => typeof value === 'string' && /^\d{8}-\d{6}(?:-\d{1,3})?$/.test(value)]);
 define('file:inspect', [string(4096), optional(string(4096))]);

@@ -284,6 +284,8 @@ if (typeof window !== 'undefined') {
           } catch (err) { window.VexProblems?.note('attention', 'A notice from Vex could not be shown', err); }
         }
       });
+      // A real Discord theme changed upstream (js/discord-theme.js checkPin): "Use the new version" pins the new file.
+      AttentionInbox.handle('theme-pin', (key) => window.DiscordTheme.acceptPin(key).catch((err) => { window.VexProblems?.note('Discord theme', 'The new theme version could not be used', err); }));
       AttentionInbox.handle('extensions-state', (key) => { if (key === 'review') AttentionInbox._openSettingsSection('Extensions'); });
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
