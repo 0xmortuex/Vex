@@ -541,6 +541,7 @@ const cookieRef = {
 const timestamp = value => value == null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
 define('dict:lookup', [string(40)]);
 define('net:latency', []);
+define('speedtest:run', []);
 define('games:free', []);
 define('system:memory', []);
 // The channels to ask about: a kind and a name each, nothing else.

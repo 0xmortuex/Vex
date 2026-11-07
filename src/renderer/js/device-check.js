@@ -447,12 +447,16 @@ const VexDeviceCheck = {
     }, this.TONE_MS + 100);
   },
 
+  // The lowest time to a neutral host in one netLatency() answer (undefined: none answered). Shared with the speed test.
+  lowestBaselineMs(res) {
+    if (!res || !res.ok) throw new Error((res && res.error) || 'The check could not run');
+    return (res.results || []).filter((r) => r.baseline && Number.isFinite(r.ms)).map((r) => r.ms).sort((a, b) => a - b)[0];
+  },
   async _connection(c) {
     try {
       const res = await window.vex.netLatency();
       if (this._open !== c) return;
-      if (!res || !res.ok) throw new Error((res && res.error) || 'The check could not run');
-      const ms = (res.results || []).filter((r) => r.baseline && Number.isFinite(r.ms)).map((r) => r.ms).sort((a, b) => a - b)[0];
+      const ms = this.lowestBaselineMs(res);
       const st = this.pingState(ms);
       this._set(c, 'connection', st.state, st.text);
     } catch (err) {

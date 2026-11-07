@@ -284,6 +284,7 @@ contextBridge.exposeInMainWorld('vex', {
   linkUnwrapAllowOnce: (opts) => ipcRenderer.invoke('linkunwrap:allow-once', opts),
   // How long a few well-known services take to answer, and yours for comparison.
   netLatency: () => ipcRenderer.invoke('net:latency'),
+  speedTestRun: () => ipcRenderer.invoke('speedtest:run'),
   // What a word means, asked of a dictionary from the main process.
   dictLookup: (word) => ipcRenderer.invoke('dict:lookup', word),
   cookiesList: (opts) => ipcRenderer.invoke('cookies:list', opts),

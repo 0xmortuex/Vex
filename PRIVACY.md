@@ -195,6 +195,7 @@ Choose "Prefer local" to keep requests on your PC while Ollama is running (a fai
 | Dictionary | Wiktionary (en.wiktionary.org) | The word |
 | Currency converter | open.er-api.com | Nothing but the request (rates are saved for 12 hours) |
 | Free games list | Epic Games and Steam | Nothing but the request |
+| Speed test (only when you run Ctrl+K › Check My Connection Speed; never by itself) | speed.cloudflare.com (Cloudflare's public speed-test address) | One plain download request for a fixed 10 MB test file: no cookies and nothing about you or your pages, only your IP address as with any request. The result is shown and forgotten. It is listed in "what left this computer" as Speed test |
 | RSS feeds | The addresses you added | A normal request, when you open the feeds or a digest runs |
 | Link checker and site crawler | The sites you check (no cookies are sent) | A normal request |
 | Userscripts: install or update from an address | The address you give (no cookies are sent) | A normal request, only when you press the button; nothing is fetched in the background |

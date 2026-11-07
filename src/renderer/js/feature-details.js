@@ -246,6 +246,7 @@ const FeatureDetails = {
   'open-links': 'Paste a pile of links — a list, a comma mess, a chat message — and each opens in its own tab. It finds the addresses in the mess rather than asking you to tidy it first.',
   triage: 'Sorts unread mail into what wants an answer, what is worth a look, and bulk grouped by sender. It reads, it never sends, and nothing is marked read on the server.',
   latency: 'Times your own connection against Discord, Steam, Riot, Roblox, Epic and YouTube and says in one sentence whether it is you or them. For the argument you have with yourself every time a game lags.',
+  'speed-test': 'It reads nothing from your pages or files. It keeps nothing: the result is shown and forgotten. It sends one plain download request (no cookies, nothing about you) to speed.cloudflare.com, only when you run Check My Connection Speed, and the request is listed in "what left this computer" as Speed test. The delay comes from the same neutral-host measurement the Device check uses and sends no data. It is never run by itself, and it is closed in private windows.',
 
   // ---- Sidebar panels ------------------------------------------------------
   'panel-whatsapp': 'WhatsApp beside the page, staying signed in, with unread counts on its icon. It sleeps when hidden unless you keep it awake.',

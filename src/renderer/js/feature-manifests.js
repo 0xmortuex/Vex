@@ -932,6 +932,8 @@
     { id: 'feature-packs', title: 'Feature packs', group: 'Minimal Vex', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.featurePacks'], commands: ['feature-packs'],
       usesKeys: ['vex.registry', 'vex.commandUsage'],
       permissions: { reads: ['which features are switched off and waiting', 'your command counts, to put the ones you use first'], writes: ['when it was offered, and what the last Apply turned on'], sends: [] } },
+    { id: 'speed-test', title: 'Connection speed test', group: 'Connection speed test', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['speed-test'],
+      permissions: { reads: ['nothing from your pages or files'], writes: [], sends: ['One plain 10 MB download request to speed.cloudflare.com (no cookies, nothing about you), only when you press the command; listed in what left this computer as Speed test'] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

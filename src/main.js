@@ -2541,6 +2541,18 @@ ipcMain.handle('net:latency', async () => {
   }
 });
 
+// === Check my connection speed =============================================
+// Only when the person presses it: one fixed 10 MB download from speed.cloudflare.com, in the egress ledger as "Speed test"
+// (src/main/speed-test.js). Nothing about the person is sent.
+ipcMain.handle('speedtest:run', async () => {
+  const speed = require('./main/speed-test');
+  try {
+    return await speed.runSpeedTest({ fetchImpl: _egressFetch(net.fetch.bind(net), { feature: 'Speed test', kind: 'fetch' }) });
+  } catch (err) {
+    return { ok: false, error: (err && err.message) || 'The speed test failed' };
+  }
+});
+
 // === RSS fetch (renderer fetch would be CORS-blocked for arbitrary feeds) ===
 ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
   try {
