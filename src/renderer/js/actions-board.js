@@ -40,8 +40,19 @@ const ActionsBoard = {
       branch: String(run.head_branch || ''),
       at: Date.parse(run.updated_at || run.created_at || '') || 0,
       url: /^https:\/\/github\.com\//.test(String(run.html_url || '')) ? String(run.html_url) : '',
+      pr: this.prNumber(run),
     };
   },
+  // The pull request a run belongs to: GitHub's own list on the run, else the "(#123)" a squash merge
+  // puts at the end of the commit title. 0 when there is none (no extra request is made to find one).
+  prNumber(run) {
+    const list = run && Array.isArray(run.pull_requests) ? run.pull_requests : [];
+    const n = Number(list[0] && list[0].number);
+    if (Number.isInteger(n) && n > 0) return n;
+    const m = /\(#(\d{1,9})\)\s*$/.exec(String((run && run.display_title) || '').split('\n')[0]);
+    return m ? Number(m[1]) : 0;
+  },
+  prUrl(repo, run) { return run && run.pr && this.parseRepo(repo) ? 'https://github.com/' + repo + '/pull/' + run.pr : ''; },
   // 'running' | 'passed' | 'failed' | 'other'
   verdict(r) {
     if (!r) return 'other';
@@ -58,7 +69,7 @@ const ActionsBoard = {
   // ---- state ----------------------------------------------------------------------------
   state() {
     const s = DevDeskUtil.read(this.KEY, () => ({ repos: [], seen: {}, rows: {}, branches: {}, at: 0 }));
-    for (const k of ['seen', 'rows', 'branches']) if (!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = {};
+    for (const k of ['seen', 'rows', 'branches', 'notified']) if (!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = {};
     if (!Array.isArray(s.repos)) s.repos = [];
     return s;
   },
@@ -113,7 +124,7 @@ const ActionsBoard = {
         const data = await GitHubVault.json('/repos/' + repo + '/actions/runs' + q);
         const run = data && Array.isArray(data.workflow_runs) && data.workflow_runs[0];
         s.rows[repo] = run ? this.summarize(run) : null;
-        if (run && this.isRed(repo, s.rows[repo], s.seen) && before[repo] !== s.rows[repo].id) this._tell(repo, s.rows[repo]);
+        if (run && this.isRed(repo, s.rows[repo], s.seen) && before[repo] !== s.rows[repo].id) this._tell(repo, s.rows[repo], s);
       } catch (err) {
         errors[repo] = err.message;
       }
@@ -124,9 +135,42 @@ const ActionsBoard = {
     document.dispatchEvent(new CustomEvent('vex:actions-board'));
     return s;
   },
-  _tell(repo, run) {
+  _tell(repo, run, s) {
     if (typeof VexAttention === 'undefined') return;
-    VexAttention.suggest({ feature: this.FEATURE, label: 'Actions board', id: repo + '#' + run.id, title: repo + ': ' + run.name + ' failed on ' + run.branch, body: 'Open the board to see it. Nothing was re-run.' });
+    const id = repo + '#' + run.id;
+    const title = repo + ': ' + run.name + ' failed on ' + run.branch;
+    const body = 'Open the board to see it. Nothing was re-run.';
+    VexAttention.suggest({ feature: this.FEATURE, label: 'Actions board', id, title, body, action: run.url ? { label: 'Open run', key: 'run' } : undefined });
+    if (this.osNotifyOn() && s && this.shouldOsNotify(repo, run, s)) this._osTell(repo, run, s, id, title, body);
+  },
+
+  // ---- Windows notification when the default branch goes red (opt-in) -------------------------
+  OS_KEY: 'vex.actionsBoard.osNotify',
+  osNotifyOn() {
+    try { return localStorage.getItem(this.OS_KEY) === 'on'; }
+    catch (err) { console.error('[ActionsBoard] the notify switch could not be read:', err.message); return false; }
+  },
+  setOsNotify(on) { localStorage.setItem(this.OS_KEY, on ? 'on' : 'off'); },
+  // Once per run id of a repository, and only for a red run (a pure check; the board tests call it).
+  shouldOsNotify(repo, run, s) {
+    return this.verdict(run) === 'failed' && !!run.id && !(s.notified && s.notified[repo] === run.id);
+  },
+  _osTell(repo, run, s, id, title, body) {
+    s.notified[repo] = run.id;
+    const A = VexAttention;
+    // The same gate as the endpoint-health notice: main judges quiet hours, Game mode and the focus/wind-down state,
+    // and a feature muted or shown less never reaches Windows. A held-back one waits in the Attention Inbox.
+    A.osNotify({ feature: this.FEATURE, label: 'Actions board', urgency: 'useful', id, title, body, action: run.url ? { label: 'Open run', key: 'run' } : undefined })
+      .catch(err => DevDeskUtil.fail('Actions board', err));
+    if (this.prUrl(repo, run)) A.suggest({ feature: this.FEATURE, label: 'Actions board', id: id + ':pr', title: repo + ': pull request #' + run.pr, body: 'The change that went red.', action: { label: 'Open PR', key: 'pr' } });
+  },
+  // The Attention Inbox buttons: the row's id holds "owner/repo#runId[:pr]".
+  openFromInbox(key, row) {
+    const repo = String(row && row.sub || '').split('#')[0];
+    const run = this.state().rows[repo];
+    const url = key === 'pr' ? this.prUrl(repo, run) : (run && run.url);
+    if (!url) throw new Error('That run is no longer on the board');
+    TabManager.createTab(url, true);
   },
 
   start() {
@@ -197,6 +241,8 @@ const ActionsBoard = {
     body.appendChild(S.toggle('Actions board', this.enabled(), (on) => { this.setEnabled(on); redraw(); }));
     if (!this.enabled()) return;
     body.appendChild(S.button('Open the board', () => { try { this.open(); } catch (err) { fail(err); } }));
+    body.appendChild(S.note('When the newest run on a default branch fails, Windows can tell you once (Open run and Open PR wait in the Attention Inbox). It follows quiet hours, Game mode and focus.'));
+    body.appendChild(S.toggle('Windows notification when a build goes red', this.osNotifyOn(), (on) => { this.setOsNotify(on); redraw(); }));
     for (const r of this.state().repos) {
       const row = DevDeskUtil.el('div', 'setting-toggle-row');
       row.append(DevDeskUtil.el('span', '', r), S.button('Remove', () => { try { this.removeRepo(r); redraw(); } catch (err) { fail(err); } }, 'danger'));
@@ -217,6 +263,7 @@ if (typeof window !== 'undefined') {
   window.ActionsBoard = ActionsBoard;
   ActionsBoard.sync();
   ActionsBoard.registerCommands();
+  if (typeof AttentionInbox !== 'undefined' && typeof AttentionInbox.handle === 'function') AttentionInbox.handle(ActionsBoard.FEATURE, (key, row) => ActionsBoard.openFromInbox(key, row));
   document.addEventListener('DOMContentLoaded', () => { ActionsBoard.sync(); ActionsBoard.registerCommands(); });
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { ActionsBoard };

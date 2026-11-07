@@ -389,7 +389,7 @@
     { id: 'dev-ports-pair', title: 'Dev ports', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.devPorts', 'vex.devPorts.enabled'],
       jobs: ['Dev ports'], budget: { jobMsPerMin: 60, fetchesPerHour: 0 },
       permissions: { reads: ['whether the localhost ports you paired answer (a local connect only)'], writes: ['your pairs; reloads a tab when its port comes back'], sends: [] } },
-    { id: 'actions-board', title: 'Actions board', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.actionsBoard', 'vex.actionsBoard.enabled'],
+    { id: 'actions-board', title: 'Actions board', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.actionsBoard', 'vex.actionsBoard.enabled', 'vex.actionsBoard.osNotify'],
       jobs: ['Actions board'], commands: ['actionsboard:open'], budget: { fetchesPerHour: 40 },
       permissions: { reads: ['the newest GitHub Actions run of each listed repository'], writes: ['the board and which failures you saw'], sends: ['Read requests to api.github.com through the GitHub vault'] } },
     { id: 'lyrics', title: 'Lyrics', group: 'Games and media', maturity: 'new', storageKeys: ['vex.lyrics.prefs'],
