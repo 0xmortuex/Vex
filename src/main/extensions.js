@@ -8,7 +8,7 @@
 // so the manager can show it instead of silently listing a half-broken entry.
 const fs = require('fs');
 const path = require('path');
-const { atomicWriteSync } = require('./file-store');
+const { atomicWriteSync, keepCorruptCopy } = require('./file-store');
 
 const DISABLED_FILE = '.disabled.json';
 
@@ -116,6 +116,38 @@ function readDisabled(extensionsDir) {
   const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
   if (!Array.isArray(parsed)) throw new Error('Extension state file is corrupt: expected an array of folder names');
   return new Set(parsed.filter(name => typeof name === 'string'));
+}
+
+// The on/off list read so that a failure never switches extensions ON. A list that cannot be read used to be treated
+// as "nothing is disabled", which silently re-enabled every extension the owner had turned off. Now:
+//   readable                -> { state: 'ok' }
+//   unreadable, .bak good   -> the damaged file is kept aside (.corrupt-*), the backup is put back: { state: 'recovered' }
+//   unreadable, no good .bak -> FAIL CLOSED: every installed extension (allFolders()) counts as disabled until the owner
+//                              switches the wanted ones back on (each switch-on rewrites the list, atomically, with
+//                              the others still off): { state: 'closed' }
+// `keepCopy: false` (a later look at the same failure) does not copy or restore again, it only answers.
+function readDisabledFailClosed(extensionsDir, allFolders, { keepCopy = true, now = Date.now() } = {}) {
+  try { return { state: 'ok', disabled: readDisabled(extensionsDir) }; }
+  catch (error) {
+    const file = disabledPath(extensionsDir);
+    let corruptCopy = null;
+    if (keepCopy) {
+      try { corruptCopy = keepCorruptCopy(file, now); }
+      catch (copyError) { error.keepError = copyError.message; }
+    }
+    let backup = null;
+    try {
+      const parsed = JSON.parse(fs.readFileSync(file + '.bak', 'utf-8'));
+      if (Array.isArray(parsed)) backup = new Set(parsed.filter(name => typeof name === 'string'));
+    } catch (backupError) { error.backupError = backupError.message; }
+    if (backup) {
+      // backup:false: the .bak stays the good copy it is (copying the damaged file over it would destroy it).
+      // If putting it back fails (a full disk), the backup still answers for this look and the failure is reported.
+      if (keepCopy) { try { atomicWriteSync(file, JSON.stringify([...backup], null, 2), { backup: false }); } catch (restoreError) { error.restoreError = restoreError.message; } }
+      return { state: 'recovered', disabled: backup, error, corruptCopy };
+    }
+    return { state: 'closed', disabled: new Set(allFolders()), error, corruptCopy };
+  }
 }
 
 function writeDisabled(extensionsDir, folders) {
@@ -372,7 +404,7 @@ module.exports = {
   FILE_ACCESS_FILE, fileUrlPatterns, readFileAccess, writeFileAccess, migrateFileAccess,
   DISABLED_FILE, SCOPE_FILE, BROWSING_PARTITIONS, APP_PARTITIONS,
   readMessages, localize, slugFromName, pickIcon, pickPages, clampPopupSize,
-  archiveProblem, disabledPath, readDisabled, writeDisabled,
+  archiveProblem, disabledPath, readDisabled, readDisabledFailClosed, writeDisabled,
   REMOVING_FILE, readRemoving, writeRemoving,
   contentHosts, partitionsFor, readScopes, writeScopes
 };

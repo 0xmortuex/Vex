@@ -4270,17 +4270,36 @@ const _extraExtSessions = new Set();
 let _extStateError = null;
 
 // A corrupt enabled/disabled file must not silently re-enable everything the
-// user turned off, so the reason is logged AND reported to the manager.
+// user turned off. It fails CLOSED: a good backup is put back, otherwise every
+// installed extension counts as disabled until the owner switches the wanted
+// ones on (extensions:set-enabled rewrites the list, atomically, with the rest
+// still off). The reason is logged, shown in the manager and sent to the
+// Attention Inbox once. (main/extensions.js readDisabledFailClosed)
+let _extStateReported = false;
+function _extensionFolderNames() {
+  if (!fs.existsSync(extensionsDir)) return [];
+  return fs.readdirSync(extensionsDir, { withFileTypes: true })
+    .filter(e => e.isDirectory() && !e.name.startsWith('.') && fs.existsSync(path.join(extensionsDir, e.name, 'manifest.json')))
+    .map(e => e.name);
+}
 function _readDisabledFolders() {
-  try {
-    const disabled = extHelpers.readDisabled(extensionsDir);
+  const r = extHelpers.readDisabledFailClosed(extensionsDir, _extensionFolderNames, { keepCopy: !_extStateReported });
+  if (r.state === 'ok') {
     _extStateError = null;
-    return disabled;
-  } catch (err) {
-    _extStateError = `Enabled/disabled state is unreadable (${err.message}) — every extension is being treated as enabled.`;
-    console.error('[Extensions]', _extStateError);
-    return new Set();
+    _extStateReported = false;
+    return r.disabled;
   }
+  _extStateError = r.state === 'closed'
+    ? 'The list of which extensions are on could not be read, so every extension is switched off until you review them. Switch on the ones you want.'
+    : null;
+  if (!_extStateReported) {
+    _extStateReported = true;
+    console.error('[Extensions] the enabled/disabled list could not be read (' + r.error.message + '): ' + (r.state === 'closed' ? 'every extension is treated as DISABLED' : 'the last good copy was put back') + '; the damaged file was kept as ' + r.corruptCopy);
+    _attentionNotes.post(r.state === 'closed'
+      ? { feature: 'extensions-state', id: 'closed', label: 'Extensions', title: 'Your extensions were switched off', body: 'Vex could not read which extensions you had on, so it switched them all off to be safe. Open Extensions and switch on the ones you want.', action: { label: 'Review extensions', key: 'review' } }
+      : { feature: 'extensions-state', id: 'recovered', label: 'Extensions', title: 'Your extension list was restored from a backup', body: 'The saved list of which extensions are on could not be read, so Vex put back the last good copy. A switch made just before may be missing.' });
+  }
+  return r.disabled;
 }
 
 function _copyDirRecursive(src, dest) {
