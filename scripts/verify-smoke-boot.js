@@ -51,7 +51,10 @@ child.stdout.on('data', onData);
 child.stderr.on('data', onData);
 
 // The DRM check waits for the Widevine component to download on a fresh profile.
-const harnessMs = process.env.VEX_DRM_SMOKE === '1' ? 240000 : 60000;
+// The security and UI variants run dozens of cases (private sessions, two looks with forced colours, print to PDF): about 15 s on a PC and
+// 47 s unpackaged on the shared CI runner, which leaves no room for a packaged start on a slower day (one such run timed out at 60 s).
+const heavyCases = process.env.VEX_SECURITY_SMOKE === '1' || process.env.VEX_UI_SMOKE === '1';
+const harnessMs = process.env.VEX_DRM_SMOKE === '1' ? 240000 : heavyCases ? 150000 : 60000;
 const timer = setTimeout(() => finish(false, `harness timeout (no SMOKE line in ${harnessMs / 1000}s)`), harnessMs);
 
 // Kill the app, wait for it to really be gone, then drop its profile.
@@ -74,7 +77,7 @@ function finish(ok, detail) {
   clearTimeout(timer);
   console.log(`\nRESULT: ${ok ? 'PASS' : 'FAIL'} — ${detail || ''}`);
   if (!ok) {
-    const tail = buf.split('\n').slice(-25).join('\n');
+    const tail = buf.split('\n').slice(-80).join('\n');
     console.log('--- last output ---\n' + tail);
   }
   cleanup().then(() => process.exit(ok ? 0 : 1));
