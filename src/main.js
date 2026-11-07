@@ -1453,6 +1453,13 @@ function _diagEvent(kind, detail) {
   console.error(`[Diagnostics] ${kind}: ${detail}`);
 }
 _diagMark('main-loaded');
+// The main process blocked for over two seconds is written in the crash log with the last IPC channel
+// (src/main/stall-watch.js). Cheap while idle; rate-limited.
+const _stallWatch = require('./main/stall-watch').createStallWatch({ perf: require('perf_hooks'), crashLog: _crashLog, log: (m) => console.error(m) });
+app.whenReady().then(() => {
+  _stallWatch.start();
+  require('electron').powerMonitor.on('resume', () => _stallWatch.markResumed());
+});
 app.whenReady().then(() => {
   _diagMark('app-ready');
   // Right-click Vex on the taskbar › "Start in safe mode": the way in when an
