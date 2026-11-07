@@ -373,6 +373,7 @@ const AgentLoop = {
     // Where this run may act without asking (see _offTask).
     this._allowedSites = new Set();
     this._currentSite = null;
+    this._shieldReset();
     for (const m of String(goal).matchAll(/https?:\/\/[^\s)"']+/g)) this._allowSite(m[0]);
     for (const m of String(goal).matchAll(/\b([a-z0-9-]+\.(?:com|org|net|io|co\.uk|dev|app|gg|tv|edu|gov|de|fr|nl|se|tr))\b/gi)) { this._allowSite('https://' + m[1]); this._allowSite('https://www.' + m[1]); }
     try { const wv = WebviewManager.getActiveWebview(); if (wv && wv.getURL) this._allowSite(wv.getURL()); } catch {}
@@ -418,6 +419,7 @@ const AgentLoop = {
           } catch {}
         }
         this._currentSite = this._originOf(pageContext && pageContext.url);
+        pageContext = this._shieldPage(pageContext);
 
         this._renderStep('thinking', 'Thinking... (step ' + iteration + ')', 'loading');
 
@@ -624,6 +626,7 @@ const AgentLoop = {
         // needs a way back, and "which of these six notes did it write?" is
         // not one.
         if (lastResult && lastResult.undo && this._run) { this._run.undo.push(lastResult.undo); delete lastResult.undo; }
+        lastResult = this._shieldResult(decision, lastResult);
         toolCallHistory.add(decision.tool, decision.parameters || {}, lastResult);
         this._history.push({ role: 'user', content: JSON.stringify({ toolResult: this._forHistory(lastResult) }) });
 
@@ -922,6 +925,7 @@ const AgentLoop = {
     // the user did not point it is still asked about.
     this._allowedSites = new Set();
     this._currentSite = null;
+    this._shieldReset();
     try { const wv = WebviewManager.getActiveWebview(); if (wv && wv.getURL) this._allowSite(wv.getURL()); } catch {}
     for (const m of String(macro.goal || '').matchAll(/https?:\/\/[^\s)"']+/g)) this._allowSite(m[0]);
     document.getElementById('ai-send')?.classList.add('running');
@@ -1176,9 +1180,65 @@ const AgentLoop = {
     localStorage.setItem(this.TRUST_KEY, JSON.stringify(this.trustedSites().filter(s => s !== origin)));
   },
 
+  // ---- the shield: page text is data (AgentShield / AgentTaint in js/agent-safety.js) --------------
+  // This REDUCES prompt-injection risk; it does not remove it. What the model reads from a page is cut of instruction-like text
+  // and wrapped as untrusted data. If anything was cut, the run is "tainted" and the person is asked before a step that sends text
+  // out, opens a site the run has not been on, or touches the saved logins or the clipboard.
+  _shieldReset() {
+    this._shield = typeof AgentTaint !== 'undefined' ? new AgentTaint() : null;
+    this._shieldN = 0;
+  },
+  _shieldKnown(origin) {
+    return origin === this._currentSite || this._allowedSites.has(origin) || this.trustedSites().includes(origin);
+  },
+  // Counts what was cut, tells the person once per origin, and remembers it for the gate.
+  _shieldNote(removed, origin) {
+    if (!this._shield) return;
+    if (this._shield.note(origin, removed)) {
+      this._renderStep('shield', 'This page contains text that tries to give the AI orders. Vex took it out of what the AI reads, and will ask you before the AI sends text out, opens another site, or uses your logins or clipboard.', 'warn');
+    }
+  },
+  _shieldResult(decision, res) {
+    if (!this._shield || !res || !res.ok || typeof AgentShield === 'undefined' || typeof AgentShield.guard !== 'function') return res;
+    const origin = this._currentSite || '';
+    const g = AgentShield.guard(decision.tool, res.result, { n: ++this._shieldN, origin });
+    if (!g) return res;
+    this._shieldNote(g.removed, origin);
+    return { ...res, result: g.result };
+  },
+  _shieldPage(ctx) {
+    if (!this._shield || !ctx || typeof ctx.text !== 'string' || !ctx.text || typeof AgentShield === 'undefined') return ctx;
+    const c = AgentShield.sanitize(ctx.text, { skip: AgentShield.PAGE_SKIP });
+    this._shieldNote(c.removed, this._currentSite || '');
+    return { ...ctx, text: AgentShield.label({ n: 0, origin: ctx.url, title: '', text: c.text, removed: c.removed }) };
+  },
+  // The extra yes. Never skipped by Auto-approve, Always-on-this-site or an approved plan.
+  async _shieldGate(decision) {
+    const need = this._shield ? this._shield.need(decision, (o) => this._shieldKnown(o)) : '';
+    if (!need) return null;
+    const message = need === 'vault' ? 'The AI read text on a page that tries to give it orders, and now it wants to use your saved logins or the clipboard. Vex cannot tell whether this step is the page talking. Allow this step?'
+      : need === 'sends' ? 'The AI read text on a page that tries to give it orders, and now it wants to send text out (typing into a page, searching, or an outside tool). Vex cannot tell whether this step is the page talking. Allow this step?'
+      : 'The AI read text on a page that tries to give it orders, and now it wants to open a site it has not been on. Vex cannot tell whether this step is the page talking. Allow this step?';
+    if (typeof vexConfirm !== 'function') {
+      this._renderStep('denied', 'Blocked: the confirmation dialog is unavailable.', 'error');
+      return false;
+    }
+    const ok = await this._dialog(vexConfirm({
+      title: 'A page tried to give the AI orders',
+      message: message + '\n\n' + decision.tool + ' ' + JSON.stringify(decision.parameters || {}).slice(0, 300),
+      okLabel: 'Allow this step', cancelLabel: 'Do not allow', danger: true,
+    }));
+    if (ok) this._shield.allow(decision, (o) => this._shieldKnown(o));
+    return !!ok;
+  },
+
   async _checkPermission(decision) {
     const intent = decision.intent || 'action';
     const isSafe = SAFE_TOOLS.includes(decision.tool);
+
+    // A page that tried to give the AI orders earlier in this run: the person decides, whatever the mode says.
+    const shielded = this._shield ? await this._shieldGate(decision) : null;
+    if (shielded !== null) return shielded;
 
     // A page the user never asked for is asked about whatever the mode is.
     const off = this._offTask(decision);
@@ -1529,6 +1589,10 @@ const AgentLoop = {
     const history = [];
     let lastResult = null;
     let pendingImage = null;
+    // Page text is data here too (AgentShield / AgentTaint, js/agent-safety.js). Nobody is there to ask, so a step that would
+    // send text out or open another site after a page tried to give orders ends the run instead.
+    const shield = typeof AgentTaint !== 'undefined' && typeof AgentShield !== 'undefined' ? new AgentTaint() : null;
+    let shieldN = 0;
 
     for (let i = 0; i < maxIter; i++) {
       const wv = opts.webview;
@@ -1541,6 +1605,11 @@ const AgentLoop = {
           const text = await PageContext.extractPageContext(wv);
           pageContext = { url: dom.url, title: dom.title, elements: dom.elements, text: text?.text || '' };
         } catch {}
+      }
+      if (shield && pageContext && pageContext.text) {
+        const c = AgentShield.sanitize(pageContext.text, { skip: AgentShield.PAGE_SKIP });
+        shield.note(this._originOf(pageContext.url) || '', c.removed);
+        pageContext = { ...pageContext, text: AgentShield.label({ n: 0, origin: pageContext.url, title: '', text: c.text, removed: c.removed }) };
       }
 
       if (documentUrl !== wv.getURL?.() || documentGeneration !== wv._navigationGeneration) throw new Error('Scheduled page changed during extraction');
@@ -1569,7 +1638,14 @@ const AgentLoop = {
       }
 
       if (opts.signal?.aborted || wv.isConnected === false) throw new Error('Scheduled task cancelled');
+      if (shield && shield.need(decision, (o) => o === this._originOf(wv.getURL?.()) || o === this._originOf(opts.startUrl))) {
+        throw new Error('Stopped for safety: a page this task read tried to give the AI orders, and its next step (' + decision.tool + ') would send text out, open another site or use your logins. Nothing was done.');
+      }
       lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {}, { webview: wv, scheduled: true, startUrl: opts.startUrl });
+      if (shield && lastResult && lastResult.ok) {
+        const g = AgentShield.guard(decision.tool, lastResult.result, { n: ++shieldN, origin: this._originOf(wv.getURL?.()) || '' });
+        if (g) { shield.note(this._originOf(wv.getURL?.()) || '', g.removed); lastResult = { ...lastResult, result: g.result }; }
+      }
       if (lastResult && lastResult.image) { pendingImage = lastResult.image; delete lastResult.image; }
       // One search that found nothing, or one site that refused to be read, is
       // something to work around: the model is told, and tries another. A
