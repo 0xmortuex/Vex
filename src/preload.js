@@ -399,6 +399,16 @@ contextBridge.exposeInMainWorld('vex', {
   recallMeaningStep: (args) => ipcRenderer.invoke('recall:meaning-step', args),
   recallMeaningSearch: (q, args) => ipcRenderer.invoke('recall:meaning-search', q, args),
   recallMeaningForget: () => ipcRenderer.invoke('recall:meaning-forget'),
+  // Datasets kept from page tables (src/main/evodata-ipc.js).
+  datasetList: () => ipcRenderer.invoke('recall:dataset-list'),
+  datasetGet: (id) => ipcRenderer.invoke('recall:dataset-get', id),
+  datasetCreate: (args) => ipcRenderer.invoke('recall:dataset-create', args),
+  datasetAppend: (id, rows, keyColumn) => ipcRenderer.invoke('recall:dataset-append', id, rows, keyColumn),
+  datasetAppendWatch: (watchId, row) => ipcRenderer.invoke('recall:dataset-append-watch', watchId, row),
+  datasetSetWatch: (id, watchId) => ipcRenderer.invoke('recall:dataset-set-watch', id, watchId),
+  datasetDelete: (id) => ipcRenderer.invoke('recall:dataset-delete', id),
+  datasetClear: () => ipcRenderer.invoke('recall:dataset-clear'),
+  datasetExport: (id, format) => ipcRenderer.invoke('recall:dataset-export', id, format),
   // Knowledge base: what you keep, searchable on this PC (src/main/knowledge-ipc.js).
   kbPlan: (entries, covers) => ipcRenderer.invoke('kb:plan', entries, covers),
   kbPut: (items, args) => ipcRenderer.invoke('kb:put', items, args),

@@ -136,6 +136,10 @@ const VexBoot = {
     { src: 'js/day-shape.js', usage: ['day-shape'] },
     { src: 'js/whats-new-me.js', usage: ['whats-new-me'] },
     { src: 'js/pointer-fx.js', usage: ['custom-cursor', 'click-effect'] },
+    // Wave 5, pages as data the person keeps (all off until switched on): the shared helpers and the pure rules, then the datasets screen.
+    { src: 'js/kept-common.js', usage: [] },
+    { src: 'js/evodata-core.js', usage: [] },
+    { src: 'js/kept-datasets.js', usage: ['kept-datasets'] },
     // The Wallpaper Store: pictures drawn by code (data, generators), the painter shared with the New Tab, the logic and API (window.VexWallpapers) and its screen.
     { src: 'js/wallpaper-generators.js', usage: [] },
     { src: 'js/wallpaper-data.js', usage: [] },

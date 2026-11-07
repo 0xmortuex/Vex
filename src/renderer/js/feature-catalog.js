@@ -1360,6 +1360,8 @@ const VexFeatures = {
       what: 'Four small New Tab and Morning Brief cards: permission summary, service status, an old highlight to revisit, and pages you flagged that changed. On an existing profile it starts off; turn it on in Settings > Brief cards.' },
     { id: 'game-overlay', setting: {"section":"setting-game-overlay","label":"Game overlay"}, feature: 'game-overlay', newer: true, cat: 'media', name: 'Game overlay', phrases: 'in game overlay hotkey over game guide wiki discord notes timer stopwatch music spotify search roblox borderless always on top click through second screen alt tab', cmd: 'game-overlay',
       what: 'A small Vex window you open with a hotkey while a game runs: a guide page, Discord, notes, a timer, music buttons and a quick search, without alt-tabbing. It is an ordinary window and never touches the game, so it is safe with anti-cheat. On an existing profile it starts off; turn it on in Settings > Game overlay.' },
+    { id: 'kept-datasets', feature: 'kept-datasets', newer: true, cat: 'data', name: 'Datasets from pages', phrases: 'dataset datasets table rows columns csv json excel spreadsheet append veri kumesi tablo', cmd: 'datasets-open',
+      what: 'Keep a table from a page as a dataset on this computer: add more rows later without repeats, filter and sort it, and export it as CSV for Excel or as JSON. It starts off; switch it on from Ctrl+K: Datasets from Pages. Nothing leaves this computer.' },
   ],
 
   // Everything in one category.

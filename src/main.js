@@ -2331,6 +2331,11 @@ ipcMain.handle('recall:forget', async (_e, target) => {
     return { ok: true, removed };
   } catch (err) { return { ok: false, removed: 0, error: err.message }; }
 });
+// Datasets kept from page tables (main/evodata-ipc.js): their own small files in <userData>/kept-pages; recall.json is not touched.
+require('./main/evodata-ipc').registerDatasets({
+  ipcMain, dialog, windowOf: (e) => _askingWindow(e), baseDir: () => app.getPath('userData'),
+  downloadsDir: () => _chosenDownloadFolder() || app.getPath('downloads'),
+});
 // Recall by meaning. These never throw to the panel: a sentence comes back.
 function meaningFail(err) { return { ok: false, state: 'error', message: err && err.message ? err.message : String(err) }; }
 ipcMain.handle('recall:meaning-status', async (_e, args) => {

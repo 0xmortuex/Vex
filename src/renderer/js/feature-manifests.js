@@ -932,6 +932,9 @@
     { id: 'feature-packs', title: 'Feature packs', group: 'Minimal Vex', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.featurePacks'], commands: ['feature-packs'],
       usesKeys: ['vex.registry', 'vex.commandUsage'],
       permissions: { reads: ['which features are switched off and waiting', 'your command counts, to put the ones you use first'], writes: ['when it was offered, and what the last Apply turned on'], sends: [] } },
+    // ---- Wave 5: pages as data the person keeps (js/kept-datasets.js) ----
+    { id: 'kept-datasets', title: 'Datasets from pages', maturity: 'new', storageKeys: ['vex.keptDatasets.enabled'], commands: ['dataset-keep', 'datasets-open'],
+      permissions: { reads: ['the table you point at on a page, never from a private, Tor or routed tab and never from a bank, payment, sign-in, mail or health page'], writes: ['your datasets, as their own files in the profile folder (at most 50 datasets, 5,000 rows and 5 MB each), and a CSV or JSON file where you choose to save one'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');
