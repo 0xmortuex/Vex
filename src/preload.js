@@ -826,6 +826,16 @@ contextBridge.exposeInMainWorld('vex', {
     onProgress: (cb) => subscribe('updates:progress', cb),
     onInstallFailed: (cb) => subscribe('updates:install-failed', cb),
   },
+  // The encrypted secrets lifeboat (src/main/secrets-lifeboat.js, js/secrets-lifeboat.js): the window gets counts, never a secret.
+  lifeboat: {
+    exportSecrets: (passphrase, includeCards) => ipcRenderer.invoke('lifeboat:export', passphrase, includeCards),
+    pick: () => ipcRenderer.invoke('lifeboat:pick'),
+    verify: (token, passphrase) => ipcRenderer.invoke('lifeboat:verify', token, passphrase),
+    plan: (token, passphrase) => ipcRenderer.invoke('lifeboat:plan', token, passphrase),
+    restore: (token, passphrase, confirmed, replace) => ipcRenderer.invoke('lifeboat:restore', token, passphrase, confirmed, replace),
+    pickLast: () => ipcRenderer.invoke('lifeboat:pick-last'),
+    live: () => ipcRenderer.invoke('lifeboat:live'),
+  },
   // Backup coverage, the restore rehearsal and the rolling automatic backup (src/main/backup-stores.js, auto-backups.js; js/backup.js, js/auto-backup.js).
   backup: {
     collectMain: () => ipcRenderer.invoke('backup:collect-main'),

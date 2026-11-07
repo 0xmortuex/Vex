@@ -101,6 +101,13 @@ async function makeScryptRecord(secret) {
   return { kdf: 'scrypt', ...SCRYPT_DEFAULT, salt, hash: key.toString('base64') };
 }
 
+// The 32-byte key a scrypt record's own cost and salt give for `secret`: what makeScryptRecord's hash is, made again
+// (the secrets lifeboat seals its file with it, and opens it with the cost the file names). The cost is bounded here too.
+async function deriveScryptKey(secret, record) {
+  if (!record || record.kdf !== 'scrypt' || typeof record.salt !== 'string' || !scryptParamsOk(record)) throw new Error('The key settings cannot be read');
+  return hashScrypt(secret, record.salt, record);
+}
+
 // readRecord() -> the stored 'vex.lockPin' value (a JSON string), or nothing.
 // store: { load() -> { fails, rounds, waitUntil } | null, save(state) }, both
 // may be async. Main keeps it in a file, so a restart no longer hands out
@@ -178,4 +185,4 @@ function fileStore(file, { atomicWrite } = {}) {
   };
 }
 
-module.exports = { createLockGate, parseRecord, pinMatches, makeScryptRecord, secretShapeOk, SCRYPT_DEFAULT, PASSPHRASE_MIN, PASSPHRASE_MAX, fileStore, waitFor, waitText, ITERATIONS, MAX_FAILS, WAIT_MS, MAX_WAIT_MS };
+module.exports = { createLockGate, parseRecord, pinMatches, makeScryptRecord, deriveScryptKey, secretShapeOk, SCRYPT_DEFAULT, PASSPHRASE_MIN, PASSPHRASE_MAX, fileStore, waitFor, waitText, ITERATIONS, MAX_FAILS, WAIT_MS, MAX_WAIT_MS };

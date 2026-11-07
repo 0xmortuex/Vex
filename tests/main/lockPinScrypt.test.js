@@ -1,7 +1,7 @@
 // T3-123: a PIN or passphrase stored with scrypt, made and checked by the main process. The old
 // PBKDF2 records keep working (tests/main/lockPin.test.js).
 import { describe, it, expect } from 'vitest';
-const { createLockGate, parseRecord, makeScryptRecord, secretShapeOk, SCRYPT_DEFAULT, PASSPHRASE_MIN, PASSPHRASE_MAX } = require('../../src/main/lock-pin.js');
+const { createLockGate, parseRecord, makeScryptRecord, deriveScryptKey, secretShapeOk, SCRYPT_DEFAULT, PASSPHRASE_MIN, PASSPHRASE_MAX } = require('../../src/main/lock-pin.js');
 
 describe('scrypt records', () => {
   it('makes a record that names its own cost and does not contain the secret', async () => {
@@ -62,5 +62,16 @@ describe('the gate with a scrypt record', () => {
   it('a too-long or non-string secret is refused before the record is read', async () => {
     const gate = createLockGate({ readRecord: () => { throw new Error('must not be read'); } });
     for (const s of ['x'.repeat(PASSPHRASE_MAX + 1), 12345678, undefined]) expect((await gate.tryUnlock(s)).ok).toBe(false);
+  });
+});
+
+describe('deriveScryptKey (the secrets file is sealed with it)', () => {
+  it('gives the key a record holds as its hash, only for the same secret, and refuses a cost it should not run', async () => {
+    const rec = await makeScryptRecord('correct horse battery');
+    expect((await deriveScryptKey('correct horse battery', rec)).toString('base64')).toBe(rec.hash);
+    expect((await deriveScryptKey('another one entirely', rec)).toString('base64')).not.toBe(rec.hash);
+    await expect(deriveScryptKey('x', { ...rec, N: 2 ** 30 })).rejects.toThrow(/cannot be read/);
+    await expect(deriveScryptKey('x', { ...rec, kdf: 'pbkdf2' })).rejects.toThrow(/cannot be read/);
+    await expect(deriveScryptKey('x', null)).rejects.toThrow(/cannot be read/);
   });
 });

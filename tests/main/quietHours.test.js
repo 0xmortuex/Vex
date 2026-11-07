@@ -118,3 +118,19 @@ describe('quiet hours', () => {
     expect(() => validateConfig({ digestTimes: new Array(7).fill('10:00') })).toThrow();
   });
 });
+
+describe('isQuietNow (for work that should keep still, such as the automatic backup)', () => {
+  it('is false until the settings are read, true inside the window or while paused, false outside', async () => {
+    const c = clock(23);
+    const q = createQuietHours({ store: memStore(), show: vi.fn(), now: c.now, setIntervalFn: () => null });
+    expect(q.isQuietNow()).toBe(false);                    // not read yet: never claims quiet
+    await q.init();
+    expect(q.isQuietNow()).toBe(false);                    // off
+    await q.setConfig({ enabled: true, start: '22:00', end: '07:00' });
+    expect(q.isQuietNow()).toBe(true);
+    c.set(12);
+    expect(q.isQuietNow()).toBe(false);
+    await q.pause(60 * 1000);
+    expect(q.isQuietNow()).toBe(true);                     // "pause notifications" counts
+  });
+});

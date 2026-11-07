@@ -454,6 +454,7 @@ const VexBackup = {
       + '<input type="file" id="bk-file" accept="application/json,.json" class="vexsr-input" aria-label="Backup file to restore">'
       + '<button id="bk-restore" class="vexsr-x">Restore</button>'
       + '<button id="bk-test" class="vexsr-x">Test this backup</button>'
+      + '<button id="bk-secrets" class="vexsr-x">Encrypted secrets file…</button>'
       + '</div>'
       + '<div id="bk-report" class="vexsr-list" hidden></div>'
       // Made by Vex itself around each update (src/main/update-backups.js).
@@ -505,6 +506,12 @@ const VexBackup = {
       try { data = await this.read(file); }
       catch (err) { msg(err.message, true); return; }
       await this._restore(data, m, msg);
+    });
+    m.querySelector('#bk-secrets').addEventListener('click', () => {
+      const go = () => window.VexSecretsLifeboat.open();
+      if (window.VexSecretsLifeboat) { go(); return; }
+      if (window.VexLazy && typeof window.VexLazy.ensure === 'function') window.VexLazy.ensure('js/secrets-lifeboat.js').then(go).catch(err => msg('The secrets file feature could not be loaded: ' + err.message, true));
+      else msg('The secrets file feature is not available here', true);
     });
     m.querySelector('#bk-test').addEventListener('click', async () => {
       const file = m.querySelector('#bk-file').files[0];

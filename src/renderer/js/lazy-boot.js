@@ -29,6 +29,8 @@ const VexBoot = {
     { src: 'js/release-checklist.js', usage: ['release-check'] },
     // Automatic backup (opt-in): asks main a few minutes after start-up whether one is due; with the switch off, main says no at once.
     { src: 'js/auto-backup.js', usage: [] },
+    // Encrypted secrets file (export / check / restore): opened from the backup dialog or Ctrl+K; main does the work.
+    { src: 'js/secrets-lifeboat.js', usage: [] },
     { src: 'js/voice-match.js', usage: [] },
     { src: 'js/voice-control.js', usage: ['voice-control'] },
     { src: 'js/sidebar-groups-ui.js', usage: [] },

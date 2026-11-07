@@ -2622,7 +2622,7 @@ ipcMain.handle('vex-lock:verify', async (e, pin) => {
 const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing, load: _vaultLoad, save: _vaultSave } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked,
   dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), breachCheckOn: () => _readPersistString('vex.breachCheck', false) === true, onChange: () => _syncSecretsChanged() });
 // Saved payment cards (main/cards.js): encrypted like the vault, this device only, no CVV kept.
-const { flushCards } = require('./main/cards').createCardService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
+const { flushCards, load: _cardsLoad, save: _cardsSave } = require('./main/cards').createCardService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
 // A copied password or one-time code, cleared after 30 s by the main process
 // even when Vex no longer has the focus (main/secret-clipboard.js).
 require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard, app });
@@ -2981,6 +2981,70 @@ ipcMain.handle('totp:delete', async (_e, id) => {
 // "Transfer accounts" QR (main/totp-transfer.js).
 const _totpTransfer = require('./main/totp-transfer').registerTotpTransfer({ ipcMain, dialog, app, windowFor: (e) => BrowserWindow.fromWebContents(e.sender),
   load: totpLoad, save: totpSave, validate: (entry) => _totpCode(entry.secret, entry), isLocked: () => _vexLocked });
+
+// === The encrypted secrets lifeboat (src/main/secrets-lifeboat.js; the window half is js/secrets-lifeboat.js) ===
+// Saved logins, authenticator seeds and (if ticked) cards, plus the LIST of passkeys, sealed with a passphrase the person
+// types and never stored, so a Windows reinstall or a lost DPAPI key does not destroy them. The file is written and read
+// here; the window only ever sees counts. The passphrase is an argument of one call: it is not kept, written or logged.
+const _lifeboat = require('./main/secrets-lifeboat').createLifeboat({
+  vault: { load: () => _vaultLoad(), save: (list) => _vaultSave(list) },
+  totp: { load: totpLoad, save: totpSave, validate: (entry) => _totpCode(entry.secret, entry) },
+  cards: { load: _cardsLoad, save: _cardsSave },
+  passkeys: { list: () => _passkeys.list() },
+  cleanCard: require('./main/cards').cleanCard,
+  files: { vault: path.join(userDataPath, 'vault.dat'), totp: path.join(userDataPath, 'totp.dat'), cards: path.join(userDataPath, 'cards.dat') },
+  backupsDir: path.join(userDataPath, 'backups'),
+  isLocked: () => _vexLocked,
+  log: (m) => console.log(m),
+});
+// The file the person picked for a restore, by a one-time token (so the window never names a path).
+const _lifeboatPicked = new Map();
+async function _lifeboatReply(event, work) {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can use the secrets lifeboat');
+    _refuseWhileLocked();
+    return await work();
+  } catch (err) {
+    // The message is words about the failure; it never carries a secret (secrets-lifeboat.js).
+    return { ok: false, error: err.message };
+  }
+}
+const _lifeboatStamp = () => new Date().toISOString().slice(0, 10);
+ipcMain.handle('lifeboat:export', (event, passphrase, includeCards) => _lifeboatReply(event, async () => {
+  const picked = await dialog.showSaveDialog(mainWindow, { title: 'Save the encrypted secrets file', defaultPath: path.join(app.getPath('documents'), `Vex secrets ${_lifeboatStamp()}.vexsecrets`), filters: [{ name: 'Vex encrypted secrets', extensions: ['vexsecrets'] }] });
+  if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
+  const r = await _lifeboat.exportToFile(picked.filePath, passphrase, { includeCards: includeCards === true });
+  return { ok: true, ...r, path: picked.filePath };
+}));
+ipcMain.handle('lifeboat:pick', (event) => _lifeboatReply(event, async () => {
+  const picked = await dialog.showOpenDialog(mainWindow, { title: 'Choose an encrypted secrets file', filters: [{ name: 'Vex encrypted secrets', extensions: ['vexsecrets'] }], properties: ['openFile'] });
+  if (picked.canceled || !picked.filePaths || !picked.filePaths[0]) return { ok: false, canceled: true };
+  const token = require('crypto').randomBytes(16).toString('hex');
+  _lifeboatPicked.set(token, picked.filePaths[0]);
+  setTimeout(() => _lifeboatPicked.delete(token), 10 * 60 * 1000).unref?.();
+  return { ok: true, token, name: path.basename(picked.filePaths[0]) };
+}));
+const _lifeboatFile = (token) => { const f = _lifeboatPicked.get(token); if (!f) throw new Error('Choose the file again'); return f; };
+ipcMain.handle('lifeboat:verify', (event, token, passphrase) => _lifeboatReply(event, async () => ({ ok: true, ...(await _lifeboat.verifyFile(_lifeboatFile(token), passphrase)) })));
+ipcMain.handle('lifeboat:plan', (event, token, passphrase) => _lifeboatReply(event, async () => ({ ok: true, ...(await _lifeboat.plan(_lifeboatFile(token), passphrase)) })));
+ipcMain.handle('lifeboat:restore', (event, token, passphrase, confirmed, replace) => _lifeboatReply(event, async () => {
+  const r = await _lifeboat.restoreFromFile(_lifeboatFile(token), passphrase, { confirmed: confirmed === true, replace: replace === true });
+  _lifeboatPicked.delete(token);
+  return { ok: true, ...r };
+}));
+// The newest automatic safety copy a restore made, by token (no dialog): "go back to before the restore".
+ipcMain.handle('lifeboat:pick-last', (event) => _lifeboatReply(event, async () => {
+  const dir = path.join(userDataPath, 'backups');
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch (err) { if (err.code !== 'ENOENT') throw err; }
+  const last = names.filter(n => /^secrets-before-restore-\d{14}\.vexsecrets$/.test(n)).sort().pop();
+  if (!last) return { ok: false, error: 'There is no safety copy from an earlier restore' };
+  const token = require('crypto').randomBytes(16).toString('hex');
+  _lifeboatPicked.set(token, path.join(dir, last));
+  setTimeout(() => _lifeboatPicked.delete(token), 10 * 60 * 1000).unref?.();
+  return { ok: true, token, name: last };
+}));
+ipcMain.handle('lifeboat:live', (event) => _lifeboatReply(event, async () => ({ ok: true, counts: _lifeboat.liveCounts() })));
 
 // Only decisions still in force: an "Allow for a day" that has run out is as
 // if never made (savedDecision), so it is not listed as allowed either.
