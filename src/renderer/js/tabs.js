@@ -2929,6 +2929,39 @@ const TabManager = {
     await this._guardSleep(pick, gain, now);
   },
 
+  // The tabs holding the most memory, other than `exceptId` (a page that just ran out of it), that could be put
+  // to sleep: not the tab in front, not one playing sound or recording, not asleep already. Tabs that share a
+  // process count once. -> [{ tab, mb }], heaviest first, at most `n`, each worth at least GUARD_MIN_TAB_MB.
+  GUARD_MIN_TAB_MB: 50,
+  async heaviestSleepable(n, exceptId) {
+    if (!(window.vex && typeof window.vex.tabMemory === 'function')) return [];
+    const cands = this.tabs.filter(t => t.id !== exceptId && t.id !== this.activeTabId && !t.sleeping && !t._lazy
+      && !(t.audible && !t.muted) && !this.isCapturing(t));
+    const wcOf = new Map();
+    for (const t of cands) {
+      const wv = WebviewManager.webviews.get(t.id);
+      if (!wv || typeof wv.getWebContentsId !== 'function') continue;
+      try { wcOf.set(t, wv.getWebContentsId()); } catch { /* not attached yet */ }
+    }
+    if (!wcOf.size) return [];
+    const mem = await window.vex.tabMemory([...wcOf.values()]);
+    const rows = [];
+    for (const [t, wc] of wcOf) {
+      const row = mem && mem.byId && mem.byId[wc];
+      if (row) rows.push({ tab: t, mb: row.memKB / 1024, pid: row.pid });
+    }
+    rows.sort((a, b) => b.mb - a.mb);
+    const seen = new Set();
+    const out = [];
+    for (const r of rows) {
+      if (out.length >= n) break;
+      if (seen.has(r.pid) || r.mb < this.GUARD_MIN_TAB_MB) continue;
+      seen.add(r.pid);
+      out.push({ tab: r.tab, mb: r.mb });
+    }
+    return out;
+  },
+
   async _guardSleep(pick, gain, now) {
     let slept = 0, pinnedSlept = 0, freed = 0;
     for (const t of pick) {
