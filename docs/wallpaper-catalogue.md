@@ -3,7 +3,7 @@
 The Wallpaper Store has 74 wallpapers that Vex draws itself (nothing is downloaded for those). It also
 ships a list of **2000 free pictures** (`src/main/data/wallpaper-catalogue.json`, built by
 `scripts/build-wallpaper-catalogue.js`), and it can show a second list that you host. Set that list's
-address in **Settings > Wallpapers > Photo list address**; the default is empty.
+address in the **Photo list address** field in the Wallpaper Store's settings; the default is empty.
 
 ## What Vex contacts, and when
 
@@ -11,7 +11,7 @@ Vex ships **no picture files**: the built-in list holds addresses, not images. B
 **is** used, and the store **does** contact the picture hosts while it is open:
 
 * **Only when the Wallpaper Store is open** (and "Show online wallpapers" is on, which it is by default;
-  switch it off in Settings > Wallpapers and Vex makes no wallpaper request to any host at all):
+  turn off "Show online wallpapers" in the Wallpaper Store and Vex makes no wallpaper request to any host at all):
   a small preview is requested when a card scrolls into view, and the full picture is requested only when
   someone applies that wallpaper. Applied pictures are kept in Vex's own folder (at most 80 MB, least
   recently used go first), so applying one again later needs no request.
