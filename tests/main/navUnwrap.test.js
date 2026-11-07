@@ -220,7 +220,7 @@ describe('where main applies it', () => {
     expect(body).toMatch(/return \{ redirectURL: unwrapped \};/);
   });
   it('a link opened in a new tab is skipped too, with no Undo (its page is not the one clicked)', () => {
-    expect(main).toMatch(/url: _unwrapTarget\(contents, url, \{ newTab: true \}\) \|\| url,/);
+    expect(main).toMatch(/const url = _unwrapTarget\(contents, details\.url, \{ newTab: true \}\) \|\| details\.url;\s*win\.webContents\.send\('tab:create-from-external', \{\s*url,/);
   });
   it('Undo lets the wrapper through once, for that tab and address, for 30 seconds', () => {
     expect(main).toMatch(/ipcMain\.handle\('linkunwrap:allow-once'[\s\S]{0,500}_unwrapBypass\.set\(pageId, \{ url, until: Date\.now\(\) \+ 30000 \}\)/);

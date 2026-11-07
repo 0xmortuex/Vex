@@ -316,6 +316,12 @@ Blocking, isolation, Tor, and the things that follow you.
 - **Unblock centre** (`unblock-centre`): When a site fails to load in a way that looks like a block, a bar offers to open just that site by encrypted DNS, a split handshake or the ByeDPI helper, none of which needs administrator rights, and remembers which worked. The Unblock centre lists the sites, with a switch, Test now and Forget for each, and one switch for all of it.
   - Open: Ctrl+K: "Unblock centre"; Settings > Unblock centre.
   - Default: New: starts off on an existing profile until you switch it on.
+- **Lite mode** (`lite-mode`): For slow Wi-Fi or a phone hotspot: one switch that stops every web page from loading pictures and web fonts and stops video from starting by itself. A badge on the toolbar says it is on, and a site can be left out of it.
+  - Open: Settings > Privacy.
+  - Default: New: starts off on an existing profile until you switch it on.
+- **Skip tracking redirect links** (`link-unwrap`): A link you click that goes through google.com/url, facebook.com/l.php and similar redirect pages goes straight to the real page, so those companies do not hear of the click. On for new profiles, off for existing ones until you turn it on; a site can be left out.
+  - Open: Settings > Privacy.
+  - Default: New: starts off on an existing profile until you switch it on.
 - **Cheat tools and fake updates** (`download-guard`): Holds a download whose name looks like a cheat or exploit tool or a fake update, and asks you before it is kept.
   - Open: Settings > Web safety.
   - Default: always on, no switch.
@@ -427,12 +433,8 @@ Blocking, isolation, Tor, and the things that follow you.
   - Open: Ctrl+K: "Check If This Network Needs A Sign-In".
 - **Sign-out warning** (`session-timeout`): For a site that logs you out when you are idle (e-Devlet, school and exam portals, banks, long forms): tell Vex how many minutes it allows and a toast and a small countdown come about two minutes before. Optionally it can keep the page signed in while you work in the tab.
   - Open: Ctrl+K: "Warn Me Before This Site Signs Me Out".
-- **Lite mode** (`lite-mode`): For slow Wi-Fi or a phone hotspot: one switch that stops every web page from loading pictures and web fonts and stops video from starting by itself. A badge on the toolbar says it is on, and a site can be left out of it.
-  - Open: Ctrl+K: "Lite mode".
 - **Forget a site when I close it** (`forget-site`): For a site you only use on a shared or school computer: when the last tab of it closes, and when Vex closes, its cookies and stored data are cleared. This signs you out of it each time. Per site, never for video, music and chat sites.
   - Open: Ctrl+K: "Forget This Site When I Close It".
-- **Skip tracking redirect links** (`link-unwrap`): A link you click that goes through google.com/url, facebook.com/l.php and similar redirect pages goes straight to the real page, so those companies do not hear of the click. On for new profiles, off for existing ones until you turn it on; a site can be left out.
-  - Open: Ctrl+K: "Skip tracking redirect links".
 - **siteidentity** (`siteidentity`): Exactly what this page can see about your browser, with a verdict on why a site might be refusing to work.
   - Open: Ctrl+K: "Show This Site's Browser Identity".
 - **pwhealth** (`pwhealth`): Finds the passwords you reused, the weak ones, and the accounts with no second factor — checked on your machine, never sent away.
