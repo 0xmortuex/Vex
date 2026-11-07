@@ -50,6 +50,8 @@ beforeEach(() => {
     return { all: true, results: [{ ok: true, value: v }] };
   });
   window.showToast = vi.fn();
+  window.VexPlural = { s: (n) => (n === 1 ? '' : 's') };
+  globalThis.VexPlural = window.VexPlural;
   window.VexUndo = { offer: vi.fn(() => ({})) };
   window.VexLedger = { note: vi.fn(), registerStop: vi.fn() };
   window.VexTabPolicy = { isPrivateWindow: false, canReadWebview: () => true };

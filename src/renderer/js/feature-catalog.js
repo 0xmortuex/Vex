@@ -497,7 +497,7 @@ const VexFeatures = {
       what: 'One slider from 0 to 500% across every tab — including making a quiet video louder than it was mixed.' },
     { id: 'nowplaying', cat: 'media', name: 'Now Playing', manual: true,
       what: 'Whatever is making sound, in one place, with the controls for it.' },
-    { id: 'sleep-timer', phrases: 'sleep timer stop playing after minutes fall asleep to music video turn off sound fade out when video ends bedtime', cat: 'media', cmd: 'sleep-timer', name: 'Sleep timer',
+    { id: 'sleep-timer', phrases: 'stop playing after minutes fall asleep to music video turn off sound fade out when video ends bedtime', cat: 'media', cmd: 'sleep-timer', name: 'Stop playing after a while',
       what: 'Stops everything that is playing after 15, 30, 60 or 90 minutes, or when the video ends, fading the sound out over the last 15 seconds. Ctrl+K, "Sleep Timer". It starts only when you start it.' },
     { id: 'sound-policy', phrases: 'one sound at a time pause other tabs when one plays auto pause music during calls discord meet zoom teams microphone in use resume after call exempt', cat: 'media', cmd: 'sound-policy', name: 'One sound at a time', setting: { section: 'vex-sg-sound-policy', label: 'One sound at a time' },
       what: 'When a tab starts playing, pauses the other playing tabs (with an Undo), and during a call (the microphone in use) pauses everything else and plays it again when the call ends. Both rules are off until you switch them on; Ctrl+K, "Why Did That Stop Playing?" says why something stopped.' },

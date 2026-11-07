@@ -262,7 +262,7 @@ describe('the box in the volume slider', () => {
     expect(E.for(a.url).bass).toBe(8);
     expect(E.for(b.url).bass).toBe(8);
     expect(E.for(other.url).bass).toBe(0);
-    expect(box.textContent).toContain('Kept for example.com.');
+    expect(box.textContent).toContain('Sound settings kept for example.com.');
   });
 
   it('mono and Back to flat', () => {
