@@ -435,15 +435,15 @@
     { id: 'exam-planner', title: 'Exam countdown planner', group: 'Exams', maturity: 'new', storageKeys: ['vex.exams', 'vex.exams.enabled'], usesKeys: ['vex.focusOS', 'vex.reminders.recent'],
       jobs: ['Exam planner'], commands: ['exams'],
       permissions: quiet({ reads: ['your calendar, reminders and Focus OS blocks to find free time'], writes: ['exams; reminders and a Focus OS goal, only after you confirm'] }) },
-    { id: 'exam-safe-mode', title: 'Exam-day pack and exam mode', group: 'Exam-day pack', maturity: 'new', storageKeys: ['vex.examMode', 'vex.examMode.enabled'], commands: ['exam-pack'],
-      permissions: quiet({ reads: ['the pages you list'], writes: ['packs; while on, holds update checks and sync, keeps tabs awake and Vex quiet'] }) },
+    { id: 'exam-safe-mode', title: 'Exam-day pack and exam mode', group: 'Exam-day pack', maturity: 'new', storageKeys: ['vex.examMode', 'vex.examMode.enabled', 'vex.examMode.link'], usesKeys: ['vex.exams'], commands: ['exam-pack'],
+      permissions: quiet({ reads: ['the pages you list and the timed exams in your exam planner'], writes: ['packs and, after you say yes, a schedule to turn exam mode on at an exam's start; while on, holds update checks and sync, keeps tabs awake and Vex quiet'] }) },
     { id: 'paper-session', title: 'Past-paper session recorder', group: 'Past papers', maturity: 'new', storageKeys: ['vex.paperSessions', 'vex.paperSessions.enabled'], commands: ['paper-session'],
       permissions: quiet({ reads: ['text you selected on a page, when you log a question'], writes: ['papers, questions and scores'] }) },
     { id: 'course-spaces', title: 'Course spaces', group: 'Courses', maturity: 'new', storageKeys: ['vex.courses', 'vex.courses.enabled', 'vex.courses.tags', 'vex.courses.pretag'], usesKeys: ['vex.projectSpaces', 'vex.projectSpaces.active', 'vex.notes', 'vex.readLater', 'vex.downloads'], commands: ['courses', 'subject-view'],
       permissions: quiet({ reads: ['your project spaces, exams, notes, read-later list, download history and the clips inbox'], writes: ['courses and their units; the course tag of an item (a separate map, the lists are not changed); the last page of a course; switches space only when you ask'] }) },
     { id: 'paper-brief', title: 'Paper brief', group: 'Paper brief', maturity: 'new', storageKeys: ['vex.paperBrief.enabled'], commands: ['paper-brief'], budget: { jobMsPerMin: 4000 },
       permissions: { reads: ['a PDF you choose'], writes: ['a note, only when you save it'], sends: [] } },
-    { id: 'mun-dossier', title: 'Model UN dossier', group: 'Model UN dossier', maturity: 'new', storageKeys: ['vex.mun', 'vex.mun.enabled'], usesKeys: ['vex.researchBoard', 'vex.notes'], commands: ['mun-dossier'],
+    { id: 'mun-dossier', title: 'Model UN dossier', group: 'Model UN dossier', maturity: 'new', storageKeys: ['vex.mun', 'vex.mun.enabled'], usesKeys: ['vex.researchBoard', 'vex.notes', 'vex.sources', 'vex.sources.prefs'], commands: ['mun-dossier'],
       permissions: quiet({ reads: ['the research board and the page you ask to add from'], writes: ['dossiers and notes with their sources'] }) },
     // ---- Wave 4 fold-ins: add-ons to FlashMind, the knowledge base and the agent ---------------
     { id: 'study-entry', title: 'Study entry points', group: 'Study entry points', maturity: 'new', storageKeys: ['vex.studyEntry.enabled', 'vex.studyEntry.vocab', 'vex.studyEntry.mistakesRead'],
@@ -723,7 +723,7 @@
     { id: 'pdf-highlights', title: 'PDF highlights', group: 'PDF highlights', maturity: 'new', storageKeys: ['vex.pdfHighlights', 'vex.pdfHighlights.prefs'], usesKeys: ['vex.notes'],
       commands: ['pdf-highlight-save', 'pdf-highlights'], permissions: { reads: ['the passage you paste and the page number the PDF viewer shows, when you ask'], writes: ['your PDF highlights and, if you left it on, a PDF highlights note'], sends: [] } },
     // Research mode (js/research-core.js, js/research-mode.js): a short brief from some tabs in which every claim is checked against its page.
-    { id: 'research-mode', title: 'Research mode', group: 'Research mode', maturity: 'new', storageKeys: ['vex.research.prefs', 'vex.research.briefs'], usesKeys: ['vex.notes'], budget: { storageKB: 700 },
+    { id: 'research-mode', title: 'Research mode', group: 'Research mode', maturity: 'new', storageKeys: ['vex.research.prefs', 'vex.research.briefs'], usesKeys: ['vex.notes', 'vex.sources', 'vex.sources.prefs'], budget: { storageKB: 700 },
       commands: ['research-mode', 'research-briefs'], permissions: { reads: ['the text of the tabs you choose, never a private, Tor, bank, mail or sign-in tab or a page that holds a secret'], writes: ['your research briefs (claims, short quotes and addresses, not the page text) and, when you press Save to Notes, a note'], sends: ['The text of the pages you chose (cut to the size the preview shows) to your AI backend, only when that backend is the cloud one, after the preview shows what leaves'] } },
     // Vex's own viewer for office documents and e-books (src/renderer/office-viewer, main/office-viewer.js, js/office-viewer-host.js). It replaces the download these
     // files used to start, so it is on for everyone, an existing profile included; where a book was left and its highlights live in the viewer's own page, not in a vex.* key.
@@ -903,7 +903,7 @@
       storageKeys: ['vex.sourceBadge.enabled', 'vex.sourceBadge.chip', 'vex.sourceBadge.predatory'], commands: ['source-badge'],
       permissions: quiet({ reads: ['the page you ask about, or every page you open once the chip is on: its address, date, byline, publisher and links'], writes: ['the sites you add to your own publisher list'] }) },
     { id: 'mun-toolkit', title: 'MUN toolkit', group: 'Study helpers', maturity: 'new',
-      storageKeys: ['vex.munToolkit', 'vex.munToolkit.enabled'], usesKeys: ['vex.snippets', 'vex.notes'], commands: ['mun-toolkit', 'mun-motion'],
+      storageKeys: ['vex.munToolkit', 'vex.munToolkit.enabled'], usesKeys: ['vex.snippets', 'vex.notes', 'vex.mun', 'vex.sources', 'vex.sources.prefs'], commands: ['mun-toolkit', 'mun-motion'],
       permissions: quiet({ reads: ['your snippets, to avoid a duplicate'], writes: ['the conference date, ticks, stats and stance notes; snippets and notes only after you confirm'] }) },
     { id: 'speech-timer', title: 'Speech timer and speakers list', group: 'Study helpers', maturity: 'new',
       storageKeys: ['vex.speechTimer', 'vex.speechTimer.enabled'], commands: ['speech-timer'],

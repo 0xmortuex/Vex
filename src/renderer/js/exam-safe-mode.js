@@ -118,14 +118,17 @@ const VexExamSafeMode = {
   // kind: 'sync' | 'updates'
   holds(kind) { return this.active() && (kind === 'sync' || kind === 'updates'); },
 
-  activate(packId, now = Date.now()) {
+  // opts.until: end at that instant instead of after the pack's minutes (the calendar link ends with the exam).
+  // opts.linkExam: the planner exam that armed it, so changing or deleting that exam can disarm it again.
+  activate(packId, now = Date.now(), opts = {}) {
     if (!this.enabled()) throw new Error('Exam safe mode is switched off in Settings');
     const d = this._read();
     if (d.active && d.active.until > now) throw new Error('Exam safe mode is already on');
     const p = packId ? d.packs.find(x => x.id === packId) : null;
     if (packId && !p) throw new Error('That pack is gone');
     const minutes = p ? p.minutes : 120;
-    d.active = { packId: packId || '', startedAt: now, until: now + minutes * 60000, online: !!(p && p.online) };
+    const until = Number.isFinite(opts.until) && opts.until > now ? opts.until : now + minutes * 60000;
+    d.active = { packId: packId || '', startedAt: now, until, online: !!(p && p.online), ...(opts.linkExam ? { linkExam: String(opts.linkExam) } : {}) };
     this._write(d);
     this._c = null;
     this._apply(d.active);
@@ -191,12 +194,151 @@ const VexExamSafeMode = {
     this._bar = bar;
   },
 
+  // ---- the link with the exam planner (W4) ------------------------------------------------------------------
+  // An exam added to the planner WITH a time is offered once, in the Attention Inbox: "Keep Vex quiet during this
+  // exam?". Only a yes arms anything, and only at that exam's start, through activate() above, with the bar and a
+  // toast: never silently. No answer, a dismissed row, an exam moved or deleted after the yes, a switched-off exam
+  // mode: nothing arms (and an armed mode that this exam started is ended again if the exam goes away).
+  // A Vex that was closed at the start arms when it next opens ONLY while the exam is still running, until the end of
+  // it; after the end it never arms (the entry is just closed). Exams that were already in the planner when the link
+  // first ran are not offered. The exam length is 2 hours (the planner keeps no length); "End exam mode" is always
+  // on the bar. The exam CALENDAR (exam-calendar.js) keeps dates without a time, so it has no start to arm at.
+  // Stored in vex.examMode.link: { v: 1, since, exams: { [examId]: { state: 'offered'|'yes'|'done', start, minutes, title } } }.
+  LINK_KEY: 'vex.examMode.link',
+  LINK_MINUTES: 120,
+  LINK_FEATURE: 'exam-safe-mode',
+  linkRead() {
+    let raw = null;
+    try { raw = localStorage.getItem(this.LINK_KEY); } catch (err) { throw new Error('The exam mode schedule could not be read: ' + err.message, { cause: err }); }
+    const d = { v: 1, since: 0, exams: {} };
+    if (!raw) return d;
+    let o;
+    try { o = JSON.parse(raw); } catch (err) { throw new Error('The saved exam mode schedule is damaged: ' + err.message, { cause: err }); }
+    if (o && Number.isFinite(o.since)) d.since = o.since;
+    if (o && o.exams && typeof o.exams === 'object') {
+      for (const [id, e] of Object.entries(o.exams)) {
+        if (e && ['offered', 'yes', 'done'].includes(e.state) && Number.isFinite(e.start)) d.exams[id] = { state: e.state, start: e.start, minutes: Number.isFinite(e.minutes) ? e.minutes : this.LINK_MINUTES, title: String(e.title || '').slice(0, 100) };
+      }
+    }
+    return d;
+  },
+  linkWrite(d) {
+    try { localStorage.setItem(this.LINK_KEY, JSON.stringify(d)); }
+    catch (err) { throw new Error('The exam mode schedule could not be saved: ' + err.message, { cause: err }); }
+  },
+  _linkExams() {
+    if (typeof VexExamPlanner === 'undefined') return [];
+    return VexExamPlanner.list().filter(e => e.hasTime === true);
+  },
+  _linkDisarm(examId, now) {
+    const a = this._read().active;
+    if (a && a.linkExam === examId && a.until > now) { this.deactivate('exam-changed'); return true; }
+    return false;
+  },
+  // Offers new timed exams, forgets the ones that were moved or deleted. -> { offered, dropped }
+  linkSync(now = Date.now()) {
+    const out = { offered: 0, dropped: 0 };
+    const d = this.linkRead();
+    if (!d.since) { d.since = now; this.linkWrite(d); }           // exams already in the planner now are never offered
+    if (!this.enabled()) return out;
+    const byId = new Map(this._linkExams().map(e => [e.id, e]));
+    for (const [id, e] of Object.entries(d.exams)) {
+      const exam = byId.get(id);
+      if (exam && exam.date === e.start) continue;
+      // Deleted, or moved: the old answer was about another time. A moved exam is offered again below.
+      this._linkDisarm(id, now);
+      delete d.exams[id];
+      out.dropped++;
+    }
+    for (const exam of byId.values()) {
+      if (d.exams[exam.id] || exam.date <= now || !(exam.createdAt >= d.since)) continue;
+      d.exams[exam.id] = { state: 'offered', start: exam.date, minutes: this.LINK_MINUTES, title: exam.title };
+      out.offered++;
+      if (typeof VexAttention !== 'undefined') {
+        VexAttention.suggest({ feature: this.LINK_FEATURE, id: 'link:' + exam.id + ':' + exam.date, label: 'Exam mode',
+          title: 'Keep Vex quiet during this exam?', body: (exam.course ? exam.course + ': ' : '') + exam.title + ', ' + new Date(exam.date).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+          action: { label: 'Turn it on then', key: 'arm:' + exam.id } });
+      }
+    }
+    this.linkWrite(d);
+    this._linkSchedule(now);
+    return out;
+  },
+  // The person said yes. Arms at the start of the exam (at once if it is running now, never after its end).
+  linkAnswer(examId, now = Date.now()) {
+    const d = this.linkRead();
+    const e = d.exams[examId];
+    const exam = e ? this._linkExams().find(x => x.id === examId) : null;
+    if (!e || !exam || exam.date !== e.start) throw new Error('That exam is gone or was moved, so there is nothing to turn on');
+    if (e.start + e.minutes * 60000 <= now) { e.state = 'done'; this.linkWrite(d); throw new Error('That exam is already over'); }
+    e.state = 'yes';
+    this.linkWrite(d);
+    window.showToast?.('Exam mode will turn on at ' + new Date(e.start).toTimeString().slice(0, 5), 'info', 5000);
+    return this.linkTick(now);
+  },
+  // Takes a yes back before it happens.
+  linkCancel(examId) {
+    const d = this.linkRead();
+    if (!d.exams[examId]) return false;
+    delete d.exams[examId];
+    this.linkWrite(d);
+    this._linkSchedule();
+    return true;
+  },
+  // Arms the exams whose time has come. -> the ids armed
+  linkTick(now = Date.now()) {
+    const armed = [];
+    const d = this.linkRead();
+    const byId = new Map(this._linkExams().map(e => [e.id, e]));
+    let changed = false;
+    for (const [id, e] of Object.entries(d.exams)) {
+      if (e.state !== 'yes') continue;
+      const end = e.start + e.minutes * 60000;
+      const exam = byId.get(id);
+      if (!exam || exam.date !== e.start) { delete d.exams[id]; changed = true; continue; }      // moved or deleted behind our back
+      if (now >= end) { e.state = 'done'; changed = true; continue; }                               // over: never arm after the end
+      if (now < e.start) continue;
+      e.state = 'done'; changed = true;                                                              // one try only: ending the mode by hand is not undone
+      try {
+        const a = this.activate('', now, { until: end, linkExam: id });
+        armed.push(id);
+        window.showToast?.('Exam mode is on until ' + new Date(a.until).toTimeString().slice(0, 5), 'info', 6000);
+      } catch (err) { window.VexProblems?.note('Exam mode', 'The exam mode set for "' + e.title + '" could not start', err); }
+    }
+    if (changed) this.linkWrite(d);
+    this._linkSchedule(now);
+    return armed;
+  },
+  // One timer, only while a yes is waiting; at most an hour long, so a changed clock is noticed.
+  _linkSchedule(now = Date.now()) {
+    if (this._linkTimer) { clearTimeout(this._linkTimer); this._linkTimer = null; }
+    let d;
+    try { d = this.linkRead(); } catch (err) { window.VexProblems?.note('Exam mode', 'The schedule could not be read', err); return; }
+    const waits = Object.values(d.exams).filter(e => e.state === 'yes' && e.start + e.minutes * 60000 > now).map(e => Math.max(0, e.start - now));
+    if (!waits.length) return;
+    this._linkTimer = setTimeout(() => {
+      this._linkTimer = null;
+      try { this.linkTick(Date.now()); } catch (err) { window.VexProblems?.note('Exam mode', 'The schedule could not run', err); }
+    }, Math.max(1000, Math.min(Math.min(...waits), 3600e3)));
+  },
+  linkWaiting() { return Object.entries(this.linkRead().exams).filter(([, e]) => e.state === 'yes').map(([id, e]) => ({ id, ...e })); },
+
   // Called once at start: a mode that was on when Vex closed is picked up again (or ended if its time is over).
   init() {
     if (this._wired) return;
     this._wired = true;
     const a = this._active();
     if (a) this._apply(a);
+    // The planner link: look once now (an exam whose time came while Vex was closed), then on every change of the exams.
+    const run = (fn) => { try { fn(); } catch (err) { window.VexProblems?.note('Exam mode', 'The calendar link could not run', err); } };
+    if (typeof AttentionInbox !== 'undefined') {
+      AttentionInbox.handle(this.LINK_FEATURE, (key) => {
+        if (typeof key !== 'string' || !key.startsWith('arm:')) return;
+        try { this.linkAnswer(key.slice(4)); } catch (err) { window.showToast?.(err.message, 'error'); }
+      });
+    }
+    document.addEventListener('vex:exams-changed', () => run(() => { this.linkSync(); this.linkTick(); }));
+    run(() => { this.linkSync(); this.linkTick(); });
   },
 
   // ---- pages -------------------------------------------------------------------------
@@ -328,6 +470,12 @@ const VexExamSafeMode = {
     el.appendChild(G.note('Before an exam: a card with what to bring and when to leave, your pages in tabs, offline copies. During it: one switch that keeps Vex quiet, with no update checks or sync. It never hides anything from an exam\'s proctoring.'));
     el.appendChild(G.button('Exam-day pack and exam mode', () => this.open(), { primary: true }));
     if (this.active()) el.appendChild(G.note('Exam mode is on until ' + new Date(this.until()).toTimeString().slice(0, 5) + '.'));
+    let waiting = [];
+    try { waiting = this.linkWaiting(); } catch (err) { window.VexProblems?.note('Exam mode', 'The schedule could not be read', err); }
+    for (const w of waiting) {
+      el.appendChild(G.note('Exam mode will turn on for ' + w.title + ' at ' + new Date(w.start).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + '.'));
+      el.appendChild(G.button('Cancel that', () => { try { this.linkCancel(w.id); window.showToast?.('Cancelled'); } catch (err) { window.showToast?.(err.message, 'error'); } }));
+    }
   },
 };
 

@@ -665,6 +665,7 @@ const VexResearch = {
       this._btn(T('Copy as Markdown'), () => this.copyMarkdown(brief).catch(err => this._fail(err)), { primary: true }),
       this._btn(T('Save to Notes'), () => { try { this.saveToNotes(brief); } catch (err) { this._fail(err); } }),
       this._btn(T('Export .md'), () => { try { this.exportMarkdown(brief); } catch (err) { this._fail(err); } }),
+      this._btn(T('Save sources'), () => { try { this.saveSources(brief); } catch (err) { this._fail(err); } }, { label: T('Keep the pages of this brief as source records, to cite them and link them in a dossier') }),
       this._btn(T('Update'), () => { close(); this.update(brief).catch(err => this._fail(err)); }, { label: T('Read the same pages again and write a new brief') }),
       this._btn(T('Past briefs'), () => { close(); this.openHistory(); }),
       this._btn(T('Close'), close),
@@ -682,6 +683,14 @@ const VexResearch = {
     if (typeof VexStudyNotes === 'undefined') throw new Error('Notes are not available here');
     VexStudyNotes.addNote({ title: this.T('Research brief') + ': ' + brief.title, content: this.markdown(brief), tags: ['research'], sourceUrl: brief.sources[0] ? brief.sources[0].url : '', sourceTitle: brief.sources[0] ? brief.sources[0].title : '' });
     window.showToast?.(this.T('Saved to Notes'), 'success', 3500);
+  },
+  // Explicit only (the "Save sources" button): the pages of the brief become Sources records, so they can be cited and
+  // linked from a Model UN dossier. Nothing is read or sent; a page already kept is not duplicated.
+  saveSources(brief) {
+    if (typeof VexSources === 'undefined') throw new Error('Sources are not available here');
+    const r = VexSources.saveFromBrief(brief.sources.map(s => ({ title: s.title, url: s.url })));
+    window.showToast?.(this.T('Sources saved: {1} new, {2} already kept', r.created, r.existing), 'success', 3500);
+    return r;
   },
   fileName(brief) {
     const slug = this.core().norm(brief.title).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'brief';

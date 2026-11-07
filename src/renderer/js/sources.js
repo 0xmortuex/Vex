@@ -389,8 +389,36 @@ const VexSources = {
     if (rec && rec.url) document.dispatchEvent(new CustomEvent('vex:source-cited', { detail: { url: rec.url, title: rec.title, via: 'sources' } }));
     return text;
   },
-  allText(style) {
-    return VexCiteStyles.bibliography(style || this.style(), this.list(), { md: false });
+  // ids (optional): only those records, e.g. the sources a dossier points at. Without it, every record, as before.
+  allText(style, ids) {
+    let list = this.list();
+    if (Array.isArray(ids)) { const want = new Set(ids); list = list.filter(r => want.has(r.id)); }
+    return VexCiteStyles.bibliography(style || this.style(), list, { md: false });
+  },
+
+  // The pages of a research brief ({ title, url } each) kept as source records. Only when the person presses
+  // the button (never automatic). No page is read and nothing is sent: the record holds the address and the title
+  // the brief already had, so it can be completed later with "Keep this page as a source" or the DOI lookup.
+  // A page already kept (same address, tracking parameters ignored) is not duplicated. -> { ids, created, existing, skipped }
+  saveFromBrief(pages, { now = Date.now() } = {}) {
+    if (!this.enabled()) throw new Error('Sources is switched off in Settings');
+    const list = this.list();
+    const ids = [];
+    let created = 0, existing = 0, skipped = 0;
+    for (const p of Array.isArray(pages) ? pages : []) {
+      const url = String((p && p.url) || '');
+      const why = typeof VexPageSensitivity !== 'undefined' && /^https?:\/\//i.test(url) ? VexPageSensitivity.reason(url) : null;
+      if (!/^https?:\/\//i.test(url) || why) { skipped++; continue; }
+      let host = '';
+      try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { host = ''; }
+      const fresh = this.normalize({ kind: 'webpage', title: (p && p.title) || url, site: host, url, accessed: this._ymd(now), at: now });
+      const old = this.find(list, fresh);
+      if (old) { existing++; if (!ids.includes(old.id)) ids.push(old.id); continue; }
+      list.unshift(fresh); ids.push(fresh.id); created++;
+    }
+    if (created) this._save(list);
+    if (typeof VexUsage !== 'undefined') VexUsage.touch('sources');
+    return { ids, created, existing, skipped };
   },
 
   // ---- the list ----------------------------------------------------------------------------

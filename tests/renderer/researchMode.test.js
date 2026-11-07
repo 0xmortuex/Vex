@@ -537,6 +537,19 @@ describe('taking the brief away', () => {
     expect(button('Save to Notes')).toBeTruthy();
     expect(button('Export .md')).toBeTruthy();
   });
+  it('W4: "Save sources" keeps the brief pages as Sources records, once, and only when pressed', async () => {
+    const brief = await make();
+    globalThis.VexCiteStyles = (await import('../../src/renderer/js/cite-styles.js')).VexCiteStyles;
+    globalThis.VexSources = (await import('../../src/renderer/js/sources.js')).VexSources;
+    R.openBrief(brief);
+    expect(VexSources.list()).toHaveLength(0);          // opening a brief keeps nothing by itself
+    button('Save sources').click();
+    expect(VexSources.list().map(r => r.url).sort()).toEqual(brief.sources.map(x => x.url).sort());
+    button('Save sources').click();                       // pressing again does not duplicate
+    expect(VexSources.list()).toHaveLength(brief.sources.length);
+    expect(window.showToast).toHaveBeenLastCalledWith('Sources saved: 0 new, ' + brief.sources.length + ' already kept', 'success', 3500);
+    delete globalThis.VexSources; delete globalThis.VexCiteStyles;
+  });
 });
 
 describe('the ways in', () => {

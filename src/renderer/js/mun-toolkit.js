@@ -124,6 +124,17 @@ const VexMunToolkit = {
       tr: 'Komite: \nKonu: \nSponsorlar: \nİmzacılar: \n\nKomite,\n\n... hatırlayarak,\n\n... konusunda derin endişe duyarak,\n\n... takdirle karşılayarak,\n\n1. ... çağrıda bulunur;\n\n2. ... teşvik eder;\n\n3. ... talep eder;\n\n4. Konunun aktif olarak gündemde kalmasına karar verir.\n',
     },
   },
+  // The position-paper skeleton. With a dossier id, the bibliography of the sources that dossier links (Sources records,
+  // in the citation style chosen in Settings) is written under the Sources heading. Without one it is the plain template.
+  positionSkeleton(lang = 'en', dossierId = '') {
+    const base = this.TEMPLATES.position[lang === 'tr' ? 'tr' : 'en'];
+    if (!dossierId) return base;
+    if (typeof VexMunDossier === 'undefined') throw new Error('The dossier is not available');
+    const d = VexMunDossier.get(dossierId);
+    if (!d) throw new Error('That dossier is gone');
+    const b = VexMunDossier.bibliography(d);
+    return b.count ? base + '\n' + b.text + '\n' : base;
+  },
   // Preambulatory lines end in a comma, operative ones are numbered "1." and end in ";" (the
   // last in "."). Counts both and reports numbering that skips or repeats, and punctuation.
   countClauses(text) {
@@ -290,14 +301,32 @@ const VexMunToolkit = {
     const pick = K.el('select', { 'aria-label': 'Template' }, K.el('option', { value: 'position', text: 'Position paper' }), K.el('option', { value: 'resolution', text: 'Draft resolution' }));
     const ta = K.el('textarea', { rows: '14', style: 'width:100%;margin-top:8px', 'aria-label': 'Template text' });
     const count = K.el('div', { class: 'vex-platform-note' });
-    const load = () => { ta.value = this.TEMPLATES[pick.value][st.lang]; upd(); };
+    // W4: the bibliography of a dossier's linked sources (only offered when some dossier links one; the default is none).
+    const dos = K.el('select', { 'aria-label': 'Bibliography from a dossier', hidden: true }, K.el('option', { value: '', text: 'No bibliography' }));
+    const load = () => {
+      try { ta.value = pick.value === 'position' ? this.positionSkeleton(st.lang, dos.value) : this.TEMPLATES[pick.value][st.lang]; }
+      catch (err) { ta.value = this.TEMPLATES[pick.value][st.lang]; window.showToast?.(err.message, 'error'); }
+      dos.hidden = pick.value !== 'position' || dos.options.length < 2;
+      upd();
+    };
+    const fillDossiers = () => {
+      if (typeof VexMunDossier === 'undefined') return;
+      for (const d of VexMunDossier.list()) {
+        const n = VexMunDossier.sourceIds(d).length;
+        if (n) dos.appendChild(K.el('option', { value: d.id, text: d.country + (d.committee ? ' / ' + d.committee : '') + ' (' + n + ')' }));
+      }
+      load();
+    };
+    if (typeof VexMunDossier !== 'undefined') fillDossiers();
+    else if (window.VexLazy && typeof window.VexLazy.ensure === 'function') window.VexLazy.ensure('js/mun-dossier.js').then(fillDossiers).catch(err => window.VexProblems?.note('MUN toolkit', 'The dossiers could not be loaded for the bibliography', err));
+    dos.addEventListener('change', load);
     const upd = () => {
       if (pick.value !== 'resolution') { count.textContent = ''; return; }
       const r = this.countClauses(ta.value);
       count.textContent = r.preamb + ' preambulatory, ' + r.operative + ' operative clauses' + (r.numbering.length ? '. Check: ' + r.numbering.join('; ') : '. Numbering looks right.');
     };
     pick.addEventListener('change', load); ta.addEventListener('input', upd);
-    body.append(pick, ta, count, K.el('div', { style: 'display:flex;gap:8px;margin-top:8px' },
+    body.append(pick, dos, ta, count, K.el('div', { style: 'display:flex;gap:8px;margin-top:8px' },
       G.button('Save as a note', K.guard(() => { K.saveNote(pick.value === 'position' ? 'Position paper' : 'Draft resolution', ta.value); window.showToast?.('Saved as a note'); }), { primary: true }),
       G.button('Copy', K.guard(async () => { await K.copy(ta.value); window.showToast?.('Copied'); }))));
     load();
