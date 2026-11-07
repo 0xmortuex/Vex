@@ -62,3 +62,38 @@ describe('whose crash it was (scope)', () => {
     [undefined, 'vex'],
   ])('scopeOf %j -> %s', (input, want) => { expect(scopeOf(input)).toBe(want); });
 });
+
+describe('a crash repeating in a loop is one entry with a count', () => {
+  const { DEDUPE_MS } = require('../../src/main/crash-log.js');
+  it('collapses identical crashes inside the window and counts them', () => {
+    const l = log();
+    for (let i = 0; i < 23; i++) { l.add('helper process gone', 'Utility Video Capture — crashed (exit -1073741205)'); clock += 60; }
+    const all = l.all();
+    expect(all).toHaveLength(1);
+    expect(all[0].count).toBe(23);
+    expect(all[0].at).toBe(1_700_000_000_000);
+    expect(all[0].lastAt).toBe(1_700_000_000_000 + 22 * 60);
+  });
+  it('leaves a single crash in the stored shape (no count field)', () => {
+    const l = log();
+    l.add('page hung', 'x');
+    expect(l.all()[0]).toEqual({ at: 1_700_000_000_000, kind: 'page hung', detail: 'x', version: '2.32.37' });
+  });
+  it('starts a new entry after the window, and for a different detail, version or scope', () => {
+    const l = log();
+    l.add('page hung', 'x');
+    clock += DEDUPE_MS + 1;
+    l.add('page hung', 'x');
+    l.add('page hung', 'y');
+    l.add('page hung', 'y', 'site');
+    log('2.99.0').add('page hung', 'y', 'site');
+    expect(l.all()).toHaveLength(5);
+  });
+  it('collapses past an interleaved different crash, and keeps old counted entries readable', () => {
+    const l = log();
+    l.add('helper process gone', 'A'); clock += 10;
+    l.add('page hung', 'B'); clock += 10;
+    l.add('helper process gone', 'A');
+    expect(l.all().map(e => [e.detail, e.count || 1])).toEqual([['A', 2], ['B', 1]]);
+  });
+});

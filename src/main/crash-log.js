@@ -12,6 +12,10 @@ const FILE = 'crash-log.json';
 const KEEP = 100;
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 const SCOPES = ['vex', 'site', 'extension'];
+// The same crash again within this long of the previous one is the same event (a helper restarting in a loop wrote 23
+// "Video Capture crashed" lines in 1.5 s and pushed every other crash out of the newest-100 list). It becomes one entry
+// with a `count`; `at` stays the first time, `lastAt` is the latest. Old entries have neither field and mean count 1.
+const DEDUPE_MS = 10000;
 
 // Whose page was it? From what main knows about the web contents when it goes: its type ('window', 'webview',
 // 'backgroundPage', ...), whether the address is a file (a Vex page) or an extension's, and whether it is a guest page.
@@ -44,7 +48,16 @@ function createCrashLog({ dir, fs, version = '', now = () => Date.now(), log }) 
       if (!SCOPES.includes(scope)) throw new Error('A crash scope is vex, site or extension, not ' + scope);
       entry.scope = scope;
     }
-    list.push(entry);
+    const t = entry.at;
+    const same = (e) => e && e.kind === entry.kind && e.detail === entry.detail && e.version === entry.version && e.scope === entry.scope;
+    let merged = false;
+    for (let i = list.length - 1; i >= 0 && i >= list.length - 10; i--) {
+      const e = list[i];
+      const last = Number.isFinite(e && e.lastAt) ? e.lastAt : (e && e.at);
+      if (!Number.isFinite(last) || t - last > DEDUPE_MS) break;
+      if (same(e)) { e.count = (Number.isFinite(e.count) && e.count > 0 ? e.count : 1) + 1; e.lastAt = t; merged = true; break; }
+    }
+    if (!merged) list.push(entry);
     try { atomicWriteSync(file, JSON.stringify(list.slice(-KEEP)), { fsImpl: fs }); return true; }
     catch (err) { note('[CrashLog] could not record a crash: ' + err.message); return false; }
   }
@@ -140,4 +153,4 @@ function trend(entries, current) {
   return { current, versions, newKinds, rising, bursts: bursts(entries), total: versions.reduce((n, g) => n + g.total, 0) };
 }
 
-module.exports = { createCrashLog, scopeOf, SCOPES, newKinds, trend, family, bursts, compareVersions, FILE, KEEP, WEEK_MS };
+module.exports = { DEDUPE_MS, createCrashLog, scopeOf, SCOPES, newKinds, trend, family, bursts, compareVersions, FILE, KEEP, WEEK_MS };
