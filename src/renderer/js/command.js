@@ -396,6 +396,29 @@ const CommandBar = {
     { id: 'history-overlay', label: 'History (quick view)', hint: 'View browsing history in an overlay', icon: 'clipboard', action: () => CommandBar.showHistory() },
     { id: 'reset-command-order', label: 'Reset command order', hint: 'Forget which commands you use most, so Ctrl+K lists them by name again; nothing else is changed', icon: 'refresh', action: async () => { if (await window.vexConfirm({ title: 'Reset the command order?', message: 'Ctrl+K forgets how often and when you used each command. Your shortcut words and pinned commands stay.', okLabel: 'Reset' })) { CommandBar.resetUsage(); window.showToast?.('Ctrl+K lists commands by name again'); } } },
     { id: 'settings', label: 'Settings', hint: 'Open settings', icon: 'settings', action: () => SidebarManager.openPanel('settings') },
+    // Language, from Ctrl+K: only the OTHER language is offered to switch to; "Change Language" opens the control in Settings.
+    { id: 'language-turkish', label: 'Language: Switch to Turkish (Türkçe)', hint: 'Show Vex in Turkish; the same switch as Settings, General, Language', icon: 'globe', keywords: 'dil lisan turkce türkçe turkish language locale interface arayüz arayuz tr', when: () => CommandBar._lang() !== 'tr', action: () => CommandBar._switchLanguage('tr') },
+    { id: 'language-english', label: 'Language: Switch to English', hint: 'Show Vex in English; the same switch as Settings, General, Language', icon: 'globe', keywords: 'dil lisan ingilizce english language locale interface arayüz arayuz en', when: () => CommandBar._lang() !== 'en', action: () => CommandBar._switchLanguage('en') },
+    { id: 'language', label: 'Change Language', hint: 'Open the language setting', icon: 'globe', keywords: 'dil dili değiştir degistir lisan language locale türkçe turkce turkish english ingilizce arayüz arayuz', action: () => { if (window.SettingsUI?.openSection) SettingsUI.openSection('setting-language'); else SidebarManager.openPanel('settings'); } },
+    // The settings people reach for most: one step to the control itself (CommandBar._openSetting); `opens` is that control, so the Library row for the same control is not listed twice.
+    { id: 'set-search-engine', label: 'Change Search Engine', hint: 'Pick the search engine the address bar uses', icon: 'search', keywords: 'arama motoru varsayılan varsayilan google bing duckduckgo yandex default search engine', opens: 'setting-search-engine', action: () => CommandBar._openSetting('setting-search-engine') },
+    { id: 'set-download-folder', label: 'Change Download Folder', hint: 'Choose the folder where downloads are saved', icon: 'folder', keywords: 'indirme klasörü klasoru dizin nereye kaydet download folder location directory', opens: 'setting-download-folder-change', action: () => CommandBar._openSetting('setting-download-folder-change') },
+    { id: 'set-download-ask', label: 'Ask Where to Save Each Download', hint: 'Choose a place for every file, instead of saving to the download folder at once', icon: 'download', keywords: 'indirme sor nereye kaydedilsin her dosya ask where save each download prompt', opens: 'setting-download-ask', action: () => CommandBar._openSetting('setting-download-ask') },
+    { id: 'set-adblocker', label: 'Ad Blocker Settings', hint: 'Turn the ad and tracker blocker on or off', icon: 'shield', keywords: 'reklam engelleyici izleyici adblock ads trackers block popups', opens: 'setting-adblocker', action: () => CommandBar._openSetting('setting-adblocker') },
+    { id: 'set-reduce-motion', label: 'Reduce Motion', hint: 'Fewer animations and transitions in Vex', icon: 'eye', keywords: 'hareket animasyon azalt geçiş gecis motion animations reduce calm', opens: 'setting-reduce-motion', action: () => CommandBar._openSetting('setting-reduce-motion') },
+    { id: 'set-theme-auto', label: 'Automatic Dark and Light Theme', hint: 'Switch between a light and a dark theme by the time of day or with Windows', icon: 'palette', keywords: 'otomatik koyu açık acik tema gece gündüz gunduz automatic dark light theme night day schedule', opens: 'setting-theme-auto-mode', action: () => CommandBar._openSetting('setting-theme-auto-mode') },
+    { id: 'set-website-appearance', label: 'Website Appearance (Light or Dark)', hint: 'Whether websites show their light or dark design: follow Vex, follow Windows, light or dark', icon: 'palette', keywords: 'site görünümü gorunumu web siteleri koyu açık acik website appearance dark mode light prefers-color-scheme', opens: 'setting-website-appearance', action: () => CommandBar._openSetting('setting-website-appearance') },
+    { id: 'set-login-item', label: 'Start Vex When Windows Starts', hint: 'Open Vex by itself when you sign in to Windows', icon: 'monitor', keywords: 'başlangıç baslangic windows açılışta acilista otomatik başlat startup login autostart boot launch', opens: 'setting-login-item', action: () => CommandBar._openSetting('setting-login-item') },
+    { id: 'set-tray-keep', label: 'Keep Vex Running in the Tray', hint: 'Closing the window keeps Vex in the notification area, so reminders and downloads go on', icon: 'window', keywords: 'sistem tepsisi arka plan kapat tray background close keep running notification area', opens: 'setting-tray-keep', action: () => CommandBar._openSetting('setting-tray-keep') },
+    { id: 'set-memory-saver', label: 'Memory Saver Settings', hint: 'Let tabs you are not using sleep, so Vex uses less memory', icon: 'cpu', keywords: 'bellek tasarrufu ram uyku sekme memory saver sleep tabs discard performance', opens: 'setting-memory-saver', action: () => CommandBar._openSetting('setting-memory-saver') },
+    { id: 'set-tab-layout', label: 'Tab Layout', hint: 'Put the tabs at the top or on the side', icon: 'tabs', keywords: 'sekme düzeni duzeni dikey yatay üstte kenarda vertical horizontal tabs side top layout', opens: 'setting-tab-layout', action: () => CommandBar._openSetting('setting-tab-layout') },
+    { id: 'set-weather-place', label: 'Change Weather Location', hint: 'Set the place the weather on the start page is for', icon: 'globe', keywords: 'hava durumu konum şehir sehir ilçe ilce weather location city place postcode', opens: 'setting-weather-input', action: () => CommandBar._openSetting('setting-weather-input') },
+    { id: 'set-search-suggest', label: 'Turn Search Suggestions On or Off', hint: 'Suggestions while you type in the address bar', icon: 'search', keywords: 'arama önerileri oneriler otomatik tamamla search suggestions autocomplete address bar', opens: 'setting-search-suggest', action: () => CommandBar._openSetting('setting-search-suggest') },
+    { id: 'set-sidebar', label: 'Sidebar Settings', hint: 'Show or hide the sidebar', icon: 'sidebar', keywords: 'kenar çubuğu cubugu yan panel göster gizle sidebar show hide rail', opens: 'setting-sidebar', action: () => CommandBar._openSetting('setting-sidebar') },
+    { id: 'set-streamer-mode', label: 'Streamer Mode', hint: 'Hide private details while you stream or share your screen', icon: 'video', keywords: 'yayıncı yayinci modu ekran paylaş gizle streamer mode streaming obs share screen hide private', opens: 'setting-streamer-mode', action: () => CommandBar._openSetting('setting-streamer-mode') },
+    { id: 'set-default-browser', label: 'Make Vex the Default Browser', hint: 'Open the button that makes links from other apps open in Vex', icon: 'globe', keywords: 'varsayılan tarayıcı varsayilan tarayici yap default browser set links open', opens: 'btn-set-default-browser', action: () => CommandBar._openSetting('btn-set-default-browser') },
+    { id: 'set-passwords', label: 'Manage Saved Passwords', hint: 'See, search and delete the passwords Vex saved', icon: 'key', keywords: 'şifre sifre parola kayıtlı kayitli yönet yonet passwords saved manage vault logins', opens: 'passwords-panel-content', action: () => CommandBar._openSetting('passwords-panel-content') },
+    { id: 'check-for-updates', label: 'Check for Updates', hint: 'Ask now whether a newer Vex is out; the same check as Settings, About', icon: 'download', keywords: 'güncelleme guncelleme denetle yeni sürüm surum update upgrade version check latest', action: () => CommandBar._checkForUpdates() },
     { id: 'tools', label: 'Tools', hint: 'Open your tools', icon: 'wrench', action: () => CommandBar.showTools() },
     { id: 'start', label: 'Start Page', hint: 'Go to start page', icon: 'home', action: () => TabManager.createTab(START_URL, true) },
     { id: 'youtube', label: 'YouTube', hint: 'Open YouTube', icon: 'play', action: () => TabManager.createTab('https://youtube.com', true) },
@@ -1063,6 +1086,9 @@ const CommandBar = {
     let score = 0;
     if (label.startsWith(q)) score = 100;
     else if (low.twin && low.twin.startsWith(q)) score = 100;
+    // The whole phrase typed, inside the name at a word boundary ("setup wizard" in "Run Setup Wizard"): above a feature that only has the words somewhere
+    // in its keywords (a feature row scores 80) and below a name that starts with it.
+    else if (q.includes(' ') && (label.includes(' ' + q) || (low.twin && low.twin.includes(' ' + q)))) score = 92;
     else if (low.words.some(w => w.startsWith(q))) score = 85;
     else if (low.twinWords.some(w => w.startsWith(q))) score = 85;
     else if (id.startsWith(q)) score = 80;
@@ -1234,8 +1260,11 @@ const CommandBar = {
       } catch (err) { console.warn('[Command] the synonym feature search failed:', err.message); }
     }
     const have = new Set((alreadyFound || []).map(c => c.id));
+    // A command that opens one Settings control (`opens`) stands for the Library row of the same control.
+    const opened = new Set((alreadyFound || []).map(c => c.opens).filter(Boolean));
     return hits
       .filter(f => !f.cmd || !have.has(f.cmd))
+      .filter(f => !(f.setting && opened.size && (opened.has(f.setting.id) || opened.has(f.setting.section))))
       .map(f => {
         const words = _tr().fold(q).split(/\s+/).filter(Boolean);
         const keywords = _tr().fold(f.phrases || '').split(/\s+/);
@@ -1271,6 +1300,37 @@ const CommandBar = {
           },
         };
       });
+  },
+
+  // The language the window is in: 'en' or 'tr' (the same answer the Settings language list gives).
+  _lang() {
+    if (typeof VexI18nUI !== 'undefined' && typeof VexI18nUI.locale === 'function') return String(VexI18nUI.locale() || 'en').slice(0, 2);
+    let v = 'en';
+    try { v = localStorage.getItem('vex.lang') || 'en'; } catch (err) { console.warn('[Command] the language could not be read:', err.message); }
+    try { v = JSON.parse(v); } catch { /* vex-allow-empty-catch: the language is stored as plain text on some profiles */ }
+    return String(v || 'en').slice(0, 2);
+  },
+  // Open Settings at one control (the same openSection every "open in Settings" link uses); Settings itself when that is not loaded.
+  _openSetting(anchorId) {
+    try {
+      if (window.SettingsUI && window.SettingsUI.openSection) window.SettingsUI.openSection(anchorId);
+      else SidebarManager.openPanel('settings');
+    } catch (err) { _commandFailed(err); }
+  },
+  // The same check as Settings > About; it reports its own result (an update cover, or "you're running the latest version").
+  _checkForUpdates() {
+    if (typeof UpdateNotifier === 'undefined' || typeof UpdateNotifier.checkManually !== 'function') { _commandFailed(new Error('The update check is not loaded')); return; }
+    Promise.resolve(UpdateNotifier.checkManually()).catch(_commandFailed);
+  },
+  // The same call as Settings > General > Language: it saves vex.lang, tells the window and reloads the start pages.
+  _switchLanguage(lang) {
+    try {
+      if (!window.Onboarding || typeof window.Onboarding.setLanguage !== 'function') throw new Error('the language setting is not loaded');
+      window.Onboarding.setLanguage(lang);
+    } catch (err) {
+      console.error('[Command] the language could not be changed:', err);
+      window.showToast?.('The language could not be changed: ' + ((err && err.message) || err), 'error');
+    }
   },
 
   // withScores: [{ c, score }] instead of the commands alone.
@@ -1353,7 +1413,7 @@ const CommandBar = {
       if (pinned) return head + this._say('you pinned it') + (used ? '; ' + used : '');
       return head + (u ? this._say(u.n === 1 ? 'you used {1} time, last {2}' : 'you used {1} times, last {2}', u.n, when) : this._say('a suggestion Vex starts with'));
     }
-    const tiers = [[100, 'its name starts with what you typed'], [85, 'a word in its name starts with what you typed'], [80, 'its id starts with what you typed'],
+    const tiers = [[100, 'its name starts with what you typed'], [92, 'its name contains the words you typed together'], [85, 'a word in its name starts with what you typed'], [80, 'its id starts with what you typed'],
       [70, 'every word you typed is in its name or description'], [60, 'its name contains what you typed'], [45, 'its description contains what you typed'], [30, 'the letters you typed appear in its name in order']];
     const score = this._scoreCommand(q, item);
     const exact = score === 100 && this._nameExtra(q, item, score) >= 9;
