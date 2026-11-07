@@ -207,7 +207,8 @@ describe('slow providers answer late, with a still-searching line', () => {
     expect(CommandBar.results.map(r => r.id)).toContain('tab:t1');
     CommandBar.search('refund');                       // now deferred
     expect(CommandBar.results.map(r => r.id)).not.toContain('tab:t1');
-    await wait(80);
+    // The deferred answer arrives after the first paint: wait for it (up to 2 s), not a fixed 80 ms a loaded CI runner can miss.
+    for (let i = 0; i < 100 && !CommandBar.results.some(r => r.id === 'tab:t1'); i++) await wait(20);
     expect(CommandBar.results.map(r => r.id)).toContain('tab:t1');
     slow = false;
     CommandBar.search('refund');

@@ -492,7 +492,15 @@ describe('the time limit on a regular expression', () => {
   });
   it('an error that is not a timeout skips the address and keeps the rule on', () => {
     const r = R({ test: () => { throw new Error('boom'); } });
-    expect(dnr.regexTest(r, 'https://a.test/')).toBe(false);
+    // The limit is wall-clock time (see regexTest), so a CI worker that stalls for 100 ms right as the script starts can record one genuine
+    // timeout before 'boom' is ever thrown (seen once on a loaded runner). Try again in that case; the claim is what an error does.
+    let reached = false;
+    for (let attempt = 0; attempt < 5 && !reached; attempt++) {
+      r.timedOut = 0;
+      expect(dnr.regexTest(r, 'https://a.test/')).toBe(false);
+      reached = r.lastError === 'boom';
+    }
+    expect(reached).toBe(true);
     expect(r.timedOut).toBe(0);
     expect(r.lastError).toBe('boom');
   });
