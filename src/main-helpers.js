@@ -126,7 +126,8 @@ function normalizeLaunchArg(arg) {
   // A shared space (js/share-space.js): exactly vex://space?d= and link data (letters, digits, - and _), at most 16000 characters. It only
   // reaches the window as a link to REVIEW; nothing in it is opened before the person presses Add.
   if (/^vex:\/\/space\?d=[A-Za-z0-9_-]{1,16000}$/.test(arg)) return arg;
-  if (/\.html?$/i.test(arg) && /^[a-zA-Z]:[\\/]/.test(arg)) {
+  // .pdf too: Vex is listed under "Open with" for PDF files (package.json fileAssociations) and opens the file: address like a link.
+  if (/\.(?:html?|pdf)$/i.test(arg) && /^[a-zA-Z]:[\\/]/.test(arg)) {
     return pathToFileURL(arg).toString();
   }
   return null;
