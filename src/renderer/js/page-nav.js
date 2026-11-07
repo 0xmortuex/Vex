@@ -62,9 +62,9 @@ function findAdjacentPage(doc, dir, here) {
     ? ['next', 'older', 'forward', 'sonraki', 'ileri', 'daha eski', 'devam']
     : ['previous', 'prev', 'newer', 'onceki', 'geri', 'daha yeni'];
   var TAIL = ['', 'page', 'pages', 'post', 'posts', 'entry', 'entries', 'result', 'results', 'sayfa', 'yazi', 'yazilar', 'sonuc', 'sonuclar'];
-  var ARROWS = forward ? '»›>→▶▸❯→' : '«‹<←◀◂❮←';
+  var ARROWS = forward ? '\u00bb\u203a>\u2192\u2192' : '\u00ab\u2039<\u2190\u2190';
   var arrowRe = new RegExp('^[' + ARROWS.replace(/[\]\\^-]/g, '\\$&') + '\\s]+$');
-  var anyArrow = /[»›>→▶▸❯«‹<←◀◂❮]+/g;
+  var anyArrow = /[\u00bb\u203a>\u2192\u00ab\u2039<\u2190]+/g;
   function wordsMatch(raw) {
     var w = words(raw);
     if (!w) return false;
