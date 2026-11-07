@@ -163,6 +163,17 @@ const VexMinimalMode = {
     toggle.append(input, slider);
     label.append(text, toggle);
     el.appendChild(label);
+    // The other direction: choose which waiting features to turn on (js/feature-packs.js, loaded when pressed).
+    const packs = document.createElement('button');
+    packs.type = 'button';
+    packs.className = 'btn-secondary';
+    packs.id = 'setting-feature-packs';
+    packs.textContent = 'Choose feature packs';
+    packs.addEventListener('click', async () => {
+      try { if (!window.VexFeaturePacks) await VexLazy.ensure('js/feature-packs.js'); window.VexFeaturePacks.open(); }
+      catch (err) { window.showToast?.((err && err.message) || String(err), 'error'); }
+    });
+    el.appendChild(packs);
     input.addEventListener('change', async () => {
       input.disabled = true;
       const want = input.checked;

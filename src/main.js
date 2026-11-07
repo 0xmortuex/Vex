@@ -1525,9 +1525,9 @@ const _crashLog = require('./main/crash-log').createCrashLog({ dir: userDataPath
 const _CRASH_KINDS = new Set(['page crashed', 'page hung', 'helper process gone']);
 if (_boot.crashed) _crashLog.add('Vex did not finish starting', _boot.fails + ' launch' + (_boot.fails === 1 ? '' : 'es') + ' in a row');
 function _diagMark(name) { if (!(name in _diag.marks)) _diag.marks[name] = Math.round(process.uptime() * 1000); }
-function _diagEvent(kind, detail) {
+function _diagEvent(kind, detail, scope) {
   _diag.events.push({ at: Date.now(), kind, detail: String(detail || '').slice(0, 300) });
-  if (_CRASH_KINDS.has(kind)) _crashLog.add(kind, detail);
+  if (_CRASH_KINDS.has(kind)) _crashLog.add(kind, detail, scope);
   if (_diag.events.length > 100) _diag.events.splice(0, _diag.events.length - 100);
   console.error(`[Diagnostics] ${kind}: ${detail}`);
 }
@@ -1626,14 +1626,19 @@ app.on('web-contents-created', (_e, wc) => {
       return u.origin && u.origin !== 'null' ? u.origin : wc.getType();
     } catch { return wc.getType(); }
   };
+  // Whose page it was, kept beside the entry so the feature offers can tell a website's hang from a Vex crash.
+  const crashScope = () => {
+    try { return require('./main/crash-log').scopeOf({ type: wc.getType(), url: wc.getURL() }); }
+    catch (err) { console.error('[Diagnostics] could not tell whose page crashed:', err.message); return undefined; }
+  };
   wc.on('render-process-gone', (_ev, d) => {
     if (!d) return;
     const host = secureSessions.owner(wc);
     const notCrash = _exitWatch.notACrash(d, { closing: !!(host && host.allowClose) });
     if (notCrash) { if (d.reason !== 'clean-exit') console.log(`[Diagnostics] page ended, not a crash (${notCrash}): ${where()} — ${d.reason} (exit ${d.exitCode})`); return; }
-    _diagEvent('page crashed', `${where()} — ${d.reason} (exit ${d.exitCode})`);
+    _diagEvent('page crashed', `${where()} — ${d.reason} (exit ${d.exitCode})`, crashScope());
   });
-  wc.on('unresponsive', () => _diagEvent('page hung', where()));
+  wc.on('unresponsive', () => _diagEvent('page hung', where(), crashScope()));
   wc.on('responsive', () => _diagEvent('page recovered', where()));
   if (wc.getType() === 'webview') {
     wc.once('did-finish-load', () => { if (!('first-page-loaded' in _diag.marks)) _diagMark('first-page-loaded'); });
