@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The pre-Oreo launcher icon: no adaptive layers, so the plate and the mark
+     are one drawable. Same geometry, in a 48-unit box. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path android:fillColor="#14161A" android:pathData="M0,0 H48 V48 H0 Z" />
+    <path
+        android:pathData="M24,7.2 L40.8,24 L24,40.8 L7.2,24 Z"
+        android:fillColor="#D4A574"
+        android:fillAlpha="0.34"
+        android:strokeColor="#D4A574"
+        android:strokeAlpha="0.75"
+        android:strokeWidth="0.72" />
+    <path android:pathData="M24,7.2 L40.8,24 L24,24 Z" android:fillColor="#D4A574" android:fillAlpha="0.38" />
+    <path android:pathData="M24,7.2 L7.2,24 L24,24 Z" android:fillColor="#D4A574" android:fillAlpha="0.52" />
+    <path
+        android:pathData="M15.6,22.8 L24,33.6 L32.4,22.8"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.16"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

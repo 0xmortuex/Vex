@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Long-pressing Vex's icon. Chrome and Samsung Internet both put the two things
+  you most often want a browser for behind that press — a fresh tab and a private
+  one — and Vex has two more worth the place: the camera and the microphone,
+  which are each three taps away otherwise.
+
+  Each shortcut starts MainActivity with an explicit component and its own
+  action. No intent-filter is declared for these actions, because none is needed
+  when the component is named, and a filter would be an invitation.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="new-tab"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_tab"
+        android:shortcutShortLabel="@string/shortcut_new_tab_short"
+        android:shortcutLongLabel="@string/shortcut_new_tab">
+        <intent
+            android:action="com.vex.browser.action.NEW_TAB"
+            android:targetPackage="com.vex.browser"
+            android:targetClass="com.vex.browser.MainActivity" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="new-private-tab"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_private"
+        android:shortcutShortLabel="@string/shortcut_new_private_short"
+        android:shortcutLongLabel="@string/shortcut_new_private">
+        <intent
+            android:action="com.vex.browser.action.NEW_PRIVATE_TAB"
+            android:targetPackage="com.vex.browser"
+            android:targetClass="com.vex.browser.MainActivity" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="voice"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_voice"
+        android:shortcutShortLabel="@string/shortcut_voice_short"
+        android:shortcutLongLabel="@string/widget_voice">
+        <intent
+            android:action="com.vex.browser.action.VOICE"
+            android:targetPackage="com.vex.browser"
+            android:targetClass="com.vex.browser.MainActivity" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="scan"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_scan"
+        android:shortcutShortLabel="@string/shortcut_scan_short"
+        android:shortcutLongLabel="@string/widget_scan">
+        <intent
+            android:action="com.vex.browser.action.SCAN"
+            android:targetPackage="com.vex.browser"
+            android:targetClass="com.vex.browser.MainActivity" />
+    </shortcut>
+
+</shortcuts>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed icons are tinted by the launcher, so the alpha of the faceted
+     version would read as mud. This is the same mark at one weight: the
+     diamond's edge and the V. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M54,28.8 L79.2,54 L54,79.2 L28.8,54 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.6" />
+    <path
+        android:pathData="M41.4,52.2 L54,68.4 L66.6,52.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

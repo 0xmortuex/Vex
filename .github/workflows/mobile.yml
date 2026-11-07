@@ -1,0 +1,177 @@
+# Build Vex for Android, for real.
+#
+# The desktop checks run on Windows; this one exists because the Android half
+# cannot be built where it is written — Google's Maven is not always reachable,
+# and an SDK is a large thing to assume. A GitHub runner has both, so this is
+# the first place the app is actually assembled, and it leaves a debug APK you
+# can install behind every push.
+name: Verify Vex for Android
+
+on:
+  push:
+    paths:
+      - 'mobile/**'
+      - 'tests/mobile/**'
+      - 'src/renderer/css/theme-tokens.css'
+      - 'src/renderer/js/sync-crypto.js'
+      - 'src/renderer/js/sync-records.js'
+      - 'src/renderer/js/search-shortcuts.js'
+      - '.github/workflows/mobile.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'tests/mobile/**'
+      - '.github/workflows/mobile.yml'
+  workflow_dispatch:
+
+# One build per branch at a time, and a newer push cancels the one before it.
+# Without this, two pushes a minute apart built side by side and whichever
+# finished LAST uploaded the APK to the draft release — which was sometimes
+# the older commit, so the APK there was not the newest code.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  # write, because the debug APK is also attached to a draft release: the Actions
+  # artifact store is served from a host some networks refuse, and a release
+  # asset comes from GitHub's own.
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install the chrome's dependencies
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
+
+      # The checks that do not need a device: the chrome parses, every native
+      # call the bridge makes exists, the themes and the shared sync files have
+      # not drifted from the desktop's, and the Java type-checks.
+      - name: Check
+        working-directory: mobile
+        run: npm run check
+
+      # Playwright's Chromium is ~300 MB and the same for every run on a given
+      # Playwright version; downloading it each time costs more than the smoke
+      # run itself.
+      - name: Playwright's Chromium, cached
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json') }}
+
+      - name: Drive the chrome in a phone-sized Chromium
+        working-directory: mobile
+        run: |
+          npx playwright install --with-deps chromium
+          npm run smoke
+
+      # Run from mobile/ so building the Android app never waits on the
+      # desktop's Electron download.
+      - name: The chrome's unit tests
+        working-directory: mobile
+        run: npm test
+
+      # The runner image already carries an Android SDK and command-line tools;
+      # android-actions/setup-android only added the long-obsolete "tools"
+      # package to it, which the repository no longer serves — so the action
+      # failed before Gradle was ever reached. Use the SDK that is there and add
+      # only the two packages Vex builds against.
+      - name: Android platform and build tools
+        run: |
+          set -euo pipefail
+          sdkmanager=$(ls "$ANDROID_SDK_ROOT"/cmdline-tools/*/bin/sdkmanager | tail -1)
+          yes | "$sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$sdkmanager" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+
+      - name: Copy the chrome into the app
+        working-directory: mobile
+        run: npx cap sync android
+
+      # AGP, the androidx libraries and the Gradle distribution itself are the
+      # same on every run; only the sources change.
+      - name: Gradle's caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle', 'mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # The wrapper is in git, and it is the only Gradle that may build this: the
+      # runner's own is 9.8, and AGP 8.x reaches for a Gradle internal API that
+      # 9.6 removed — `gradle wrapper` alone was enough to fail, because any task
+      # configures :app first.
+      - name: Assemble the debug APK
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      # The two on-device AI libraries live on Google's Maven, which the machine
+      # this is written on cannot reach, so they are declared as latest.release
+      # until a build says what that is. This prints it, to be pinned.
+      # The versions are pinned now, so this is no longer a question — but an APK
+      # without the versions it was built against is one nobody can reason about
+      # later, so the notes keep saying.
+      - name: On-device AI versions
+        working-directory: mobile/android
+        run: |
+          # A dynamic version prints as "…:latest.release -> 0.17.0", so matching
+          # a digit straight after the coordinate found only the pinned
+          # transitive ones. Keep the whole line, arrow and all.
+          versions=$(./gradlew --no-daemon --quiet :app:dependencies --configuration debugRuntimeClasspath \
+            | grep -E "litertlm-android|genai-|com.google.mlkit:translate|com.google.mlkit:language-id" \
+            | sed -E 's/^[^a-z]*//; s/ \(\*\)$//' | sort -u | tr '\n' ';' | sed 's/;/; /g')
+          echo "$versions"
+          echo "AI_VERSIONS=$versions" >> "$GITHUB_ENV"
+
+      # No longer allowed to fail: it found a real one — a JPEG encode on the UI
+      # thread — and a check whose failures are ignored is not a check.
+      - name: Lint the Android sources
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon lintDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vex-android-debug
+          path: mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      # The same APK on a draft release, under one tag that is reused, so the
+      # download link never changes between builds. Draft means no tag is
+      # created, nothing is announced, and only people who can write to this
+      # repository can see it.
+      - name: Attach the APK to the draft release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cp "$(ls mobile/android/app/build/outputs/apk/debug/*.apk | head -1)" vex-debug.apk
+          notes="Debug build of mobile/ at ${{ github.sha }}, built by run ${{ github.run_number }}.
+          On-device AI built against: ${AI_VERSIONS:-not recorded}.
+          Debug-signed, so Android will ask you to allow installs from whichever app opens it."
+          if gh release view android-debug > /dev/null 2>&1; then
+            gh release edit android-debug --notes "$notes"
+            gh release upload android-debug vex-debug.apk --clobber
+          else
+            gh release create android-debug vex-debug.apk \
+              --draft --prerelease --title "Vex for Android (debug)" --notes "$notes"
+          fi
+          echo "vex-debug.apk ($(du -h vex-debug.apk | cut -f1)) is on the draft release"
+

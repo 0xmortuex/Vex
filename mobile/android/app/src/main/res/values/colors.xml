@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="vex_cream">#FAF6EE</color>
+    <color name="vex_navy">#1E3A5F</color>
+    <color name="vex_ink">#1F1C18</color>
+    <color name="vex_night">#14161A</color>
+
+    <!-- The home-screen widget cannot read the chrome's theme: the launcher
+         inflates it, in the launcher's configuration. So it gets its own four
+         colours, with a night variant in values-night, and follows the phone. -->
+    <color name="widget_surface">#FAF6EE</color>
+    <color name="widget_stroke">#22000000</color>
+    <color name="widget_ink">#1F1C18</color>
+    <color name="widget_accent">#1E3A5F</color>
+</resources>
