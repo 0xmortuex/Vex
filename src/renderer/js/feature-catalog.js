@@ -475,6 +475,8 @@ const VexFeatures = {
       what: 'Live CPU and memory for every process Vex is running, so you can see what is eating your machine.' },
     { id: 'backup', phrases: 'backup restore export everything move to a new pc reinstall save my setup import', cat: 'work', cmd: 'backup', name: 'Back up everything, or put it back',
       what: 'One file with your notes, sessions, keybindings, site rules, panels and the whole look \u2014 and a way to put it all back. Saved logins are never in it.' },
+    { id: 'backup-verify', phrases: 'test backup verify checksum restore drill rehearsal check backup is good damaged corrupt before reinstall dry run', cat: 'work', cmd: 'backup-test', name: 'Test a backup before you need it',
+      what: 'Every backup now carries a checksum that is checked before anything is restored, and also holds your site rules, site permissions, reminders and which extensions are switched off. \u201cTest this backup\u201d reads a backup into a throwaway folder and shows what it holds against what Vex has now, without touching your profile.' },
     { id: 'downloads', phrases: 'downloads downloaded files open when done open it when it finishes', cat: 'work', cmd: 'downloads', panel: 'downloads',
       what: 'Downloads you can pause, resume, cancel and retry, with the real byte counts \u2014 and \u201copen when done\u201d on any one of them.' },
     { id: 'sendphone', phrases: 'send to phone my phone', cat: 'work', cmd: 'sendphone',
@@ -1394,7 +1396,7 @@ const VexFeatures = {
       { name: 'Settling into work', ids: ['focus', 'focusflows', 'meeting', 'device-check', 'jobsetup'] },
       { name: 'Tools, and doing things twice', ids: ['toolbox', 'toolbox-reference', 'toolbox-full', 'toolbox-favourites', 'tool-history', 'automations', 'chains', 'do-again', 'quick-commands', 'dictate'] },
       { name: 'Mail, parcels and money', ids: ['mail', 'triage', 'parcels', 'expenses', 'price-history'] },
-      { name: 'This machine', ids: ['resmon', 'downloads', 'after-downloads', 'checksum-compare', 'backup'] },
+      { name: 'This machine', ids: ['resmon', 'downloads', 'after-downloads', 'checksum-compare', 'backup', 'backup-verify'] },
     ],
     media: [
       { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'lyrics', 'streaming-skip', 'sleep-timer', 'sound-policy', 'video-link-time', 'volume', 'site-eq', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },

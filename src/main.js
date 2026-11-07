@@ -1080,7 +1080,7 @@ const _permHygiene = require('./main/permission-hygiene').createPermissionHygien
   },
 });
 const { savedDecision } = require('./main/permissions');
-const { setUiCamera, setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id), hygiene: _permHygiene });
+const { setUiCamera, setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, mergeIncomingDecisions, storesSnapshot, replaceStores, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id), hygiene: _permHygiene });
 require('./main/permission-hygiene').registerPermissionHygiene({ ipcMain, hygiene: _permHygiene, loadDecisions: loadPermissionDecisions, saveDecisions: savePermissionDecisions, setPageDecision,
   getContents: (id) => { const c = webContents.fromId(id); return c && !c.isDestroyed() ? c : null; }, ownerOf: (c) => secureSessions.owner(c), isLocked: () => _vexLocked });
 
@@ -3872,7 +3872,8 @@ function _reportTabActivity(contents) {
   host.win.webContents.send('session-timeout:activity', { pageId: contents.id });
 }
 _refreshUaRules();
-ipcMain.handle('siterules:set', (_e, rules) => {
+// The one way the site rules change, for the Settings list and for a backup restore (main/backup-stores.js).
+function _setSiteRules(rules) {
   const before = _siteRules;
   _siteRules = SiteRules.clean(rules);
   try { fs.writeFileSync(_siteRulesFile, JSON.stringify(_siteRules)); }
@@ -3885,7 +3886,8 @@ ipcMain.handle('siterules:set', (_e, rules) => {
   _broadcastDownloadEvent('siterules:changed', _siteRules);
   _dropServiceWorkersOfScriptsOff(before, _siteRules);
   return { ok: true, rules: _siteRules };
-});
+}
+ipcMain.handle('siterules:set', (_e, rules) => _setSiteRules(rules));
 ipcMain.handle('siterules:get', () => ({ ok: true, rules: _siteRules }));
 // Forget a site when I close it (main/site-forget.js): the window says the last tab of such a site closed; Vex's quit sweeps the rest.
 const _siteForget = require('./main/site-forget').createSiteForget({
@@ -11461,6 +11463,50 @@ ipcMain.handle('updates:backup-read', (event, name) => {
   try { return { ok: true, text: _updateBackups.read(name) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+
+// === Backup coverage, and the restore rehearsal ===
+// (src/main/backup-stores.js; the window half is js/backup.js)
+// The four files only this process keeps (site rules, site permissions, reminders, switched-off extensions) travel in the
+// backup and come back through their own cleaners; "Test this backup" rehearses a restore in a temp folder.
+function _backupFromMainWindow(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can use backups');
+}
+const _backupVex = require('./renderer/js/backup.js').VexBackup;
+const _backupStores = require('./main/backup-stores').createBackupStores({
+  SiteRules: require('./main/site-rules'),
+  siteRules: {
+    get: () => _siteRules,
+    set: (rules) => { const r = _setSiteRules(rules); if (!r.ok) throw new Error(r.error || 'the site rules could not be saved'); },
+  },
+  permissions: {
+    combined: () => loadPermissionDecisions(),
+    mainAndContainers: () => storesSnapshot(),
+    merge: (clean) => mergeIncomingDecisions(clean),
+    restoreStores: (before) => replaceStores(before),
+  },
+  reminders: {
+    list: async () => { if (!reminders) throw new Error('Reminders have not started yet'); return reminders.list(); },
+    importList: async (items) => { if (!reminders) throw new Error('Reminders have not started yet'); return reminders.importList(items); },
+    delete: async (id) => reminders.delete(id),
+  },
+  extensions: {
+    readDisabled: () => extHelpers.readDisabled(extensionsDir),
+    writeDisabled: (list) => extHelpers.writeDisabled(extensionsDir, list),
+    installed: () => new Set(_extEntriesOnDisk().map(e => e.folder)),
+  },
+  log: console,
+});
+const _backupReply = async (event, work) => {
+  try { _backupFromMainWindow(event); return await work(); }
+  catch (err) { return { ok: false, error: err.message }; }
+};
+ipcMain.handle('backup:collect-main', (event) => _backupReply(event, async () => ({ ok: true, main: await _backupStores.collect() })));
+ipcMain.handle('backup:apply-main', (event, main) => _backupReply(event, async () => ({ ok: true, ...(await _backupStores.apply(main)) })));
+ipcMain.handle('backup:undo-main', (event) => _backupReply(event, async () => ({ ok: await _backupStores.undo() })));
+ipcMain.handle('backup:drill', (event, text, live) => _backupReply(event, async () => {
+  const mainLive = _backupStores.counts(await _backupStores.collect());
+  return require('./main/backup-stores').drillBackup({ text, live: { ...(live || {}), main: mainLive }, VexBackup: _backupVex, SiteRules: require('./main/site-rules') });
+}));
 
 // === Health check and self-repair (src/main/health-check.js, js/vex-health.js) ===
 // Settings › Health check. Only Vex's own main window may ask, and it names

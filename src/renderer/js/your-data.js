@@ -107,7 +107,7 @@ const VexYourData = {
       used.push(s.id);
     }
     // VexBackup.apply keeps what is there for Undo, drops secret-shaped keys, and checks each value.
-    const r = VexBackup.apply({ v: VexBackup.VERSION, at: a.at, app: a.app, includes: a.includes || [], items });
+    const r = VexBackup.apply({ v: 1, at: a.at, app: a.app, includes: a.includes || [], items });
     return { written: r.written, failed: r.failed, sections: used };
   },
 

@@ -826,6 +826,13 @@ contextBridge.exposeInMainWorld('vex', {
     onProgress: (cb) => subscribe('updates:progress', cb),
     onInstallFailed: (cb) => subscribe('updates:install-failed', cb),
   },
+  // Backup coverage, the restore rehearsal (src/main/backup-stores.js; js/backup.js).
+  backup: {
+    collectMain: () => ipcRenderer.invoke('backup:collect-main'),
+    applyMain: (main) => ipcRenderer.invoke('backup:apply-main', main),
+    undoMain: () => ipcRenderer.invoke('backup:undo-main'),
+    drill: (text, live) => ipcRenderer.invoke('backup:drill', text, live),
+  },
   // Profiles (js/profiles-ui.js, src/main/profiles.js): each one a separate Vex.
   profiles: {
     list: () => ipcRenderer.invoke('profiles:list'),

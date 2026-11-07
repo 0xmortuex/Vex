@@ -86,7 +86,9 @@ function createUpdateBackups({ fs, dir, now = () => new Date(), log = console })
     if (Buffer.byteLength(text) > MAX_BYTES) throw new Error('The backup is larger than 10 MB, which is more than Vex keeps before an update');
     let data;
     try { data = JSON.parse(text); } catch (err) { throw new Error('The backup was not readable', { cause: err }); }
-    if (!data || data.v !== 1 || !data.items || typeof data.items !== 'object') throw new Error('The backup was not in Vex\'s backup format');
+    if (!data || (data.v !== 1 && data.v !== 2) || !data.items || typeof data.items !== 'object') throw new Error('The backup was not in Vex\'s backup format');
+    // A version-2 backup carries a checksum; one that does not match is not kept as a backup.
+    try { VexBackup.verify(data); } catch (err) { throw new Error('The backup was damaged before it was saved: ' + err.message, { cause: err }); }
     const name = `before-${version}-${stamp(now())}.json`;
     if (!NAME.test(name)) throw new Error('Not a version Vex names a backup after: ' + String(version).slice(0, 40));
     const file = writeFile(name, text);
