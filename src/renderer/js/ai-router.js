@@ -165,8 +165,9 @@ const AIRouter = (() => {
       catch (err) { console.error('[AIRouter] could not read the saved AI keys:', err); if (typeof VexProblems !== 'undefined') VexProblems.note('AI', 'The saved AI keys could not be read', err); }
     }
     await refreshOllamaStatus();
-    // Have the local model ready before the first request, not during it.
-    if (!ollamaAvailable && dependsOnLocal()) ollamaUp().catch(err => console.warn('[AIRouter] could not start Ollama:', err.message));
+    _registerOllamaInboxAction();
+    // Only with "Start Ollama without asking" ticked: have it ready before the first request. Otherwise nothing starts.
+    if (!ollamaAvailable && ollamaAutoStart() && dependsOnLocal()) ollamaUp().catch(err => console.warn('[AIRouter] could not start Ollama:', err.message));
     if (checkTimer) checkTimer.stop();
     checkTimer = VexJobs.every('Local AI status', 30000, refreshOllamaStatus);
   }
@@ -225,23 +226,84 @@ const AIRouter = (() => {
     }
   }
 
-  // After a reboot Ollama is simply not running, and every local AI request
-  // failed until the user opened it by hand. When the local backend is wanted
-  // and does not answer, Vex starts it (main/ollama-launcher.js) — at most one
-  // attempt a minute, only for the default address on this machine, and not at
-  // all with Settings › AI › "Start Ollama when it is needed" off.
+  // After a reboot Ollama is simply not running, and a local AI request then
+  // fails. Vex NEVER starts Ollama on its own (owner rule, 2026-11-07): it asks.
+  //   * "Start Ollama without asking" (Settings › AI) ticked: it is started, at
+  //     most one attempt a minute, only for the default address on this machine.
+  //   * Otherwise a request the person made opens a question (Start Ollama /
+  //     Not now / Never ask again); a background request leaves a row in the
+  //     Attention Inbox with a Start Ollama button instead.
+  // One stored value: true = start without asking, 'never' = never ask again,
+  // anything else (including nothing stored) = ask. The main process refuses
+  // to start it unless the window says a person approved (main/ollama-launcher.js).
+  const OLLAMA_ASK_WINDOW_MS = 5 * 60 * 1000;
   let _ollamaStartAt = 0;
-  function ollamaAutoStart() { return _load('vex.ollamaAutoStart', true) !== false; }
+  let _ollamaAskedAt = 0;
+  let _ollamaAsking = null;
+  function ollamaAutoStart() { return _load('vex.ollamaAutoStart', false) === true; }
   function setOllamaAutoStart(on) { _save('vex.ollamaAutoStart', !!on); }
-  async function ollamaUp() {
-    if (await pingOllama()) return true;
-    if (!ollamaAutoStart() || typeof window === 'undefined' || !window.vex || typeof window.vex.ollamaEnsure !== 'function') return false;
-    if (!/^https?:\/\/(localhost|127\.0\.0\.1):11434$/.test(Ollama.getBaseUrl())) return false;
+  function ollamaNeverAsk() { return _load('vex.ollamaAutoStart', false) === 'never'; }
+  function setOllamaNeverAsk() { _save('vex.ollamaAutoStart', 'never'); }
+  function _ollamaLocalDefault() { return /^https?:\/\/(localhost|127\.0\.0\.1):11434$/.test(Ollama.getBaseUrl()); }
+
+  // The one place that asks main to start Ollama. `reason` is what main logs.
+  async function _startOllama(reason) {
+    if (typeof window === 'undefined' || !window.vex || typeof window.vex.ollamaEnsure !== 'function') return false;
     if (Date.now() - _ollamaStartAt < 60000) return false;
     _ollamaStartAt = Date.now();
-    const r = await window.vex.ollamaEnsure();
+    const r = await window.vex.ollamaEnsure({ approved: true, reason });
     if (r && r.error) { console.warn('[AIRouter] ' + r.error); if (typeof VexProblems !== 'undefined') VexProblems.note('Local AI', 'Ollama could not be started', r.error); }
     return pingOllama();
+  }
+
+  // The Attention Inbox row's Start Ollama button is a person pressing Start.
+  function _registerOllamaInboxAction() {
+    if (typeof AttentionInbox === 'undefined' || typeof AttentionInbox.handle !== 'function') return;
+    AttentionInbox.handle('local-ai', (key) => {
+      if (key !== 'start') return;
+      _ollamaStartAt = 0;
+      _startOllama('person-pressed-start').catch(err => { console.error('[AIRouter] could not start Ollama:', err); if (typeof VexProblems !== 'undefined') VexProblems.note('Local AI', 'Ollama could not be started', err); });
+    });
+  }
+
+  // Asks once per window. Resolves true only when the person chose Start Ollama
+  // and it then answers. A background request never opens a dialog.
+  async function _askToStartOllama(background) {
+    if (ollamaNeverAsk()) return false;
+    if (_ollamaAsking) return _ollamaAsking;
+    if (Date.now() - _ollamaAskedAt < OLLAMA_ASK_WINDOW_MS) return false;
+    _ollamaAskedAt = Date.now();
+    if (background) {
+      if (typeof AttentionInbox !== 'undefined' && typeof AttentionInbox.add === 'function') {
+        _registerOllamaInboxAction();
+        AttentionInbox.add({ feature: 'local-ai', id: 'ollama-start', label: 'Local AI', title: 'Local AI needs Ollama, which is not running', body: 'Start it now? Vex does not start it by itself.', action: { label: 'Start Ollama', key: 'start' } });
+      }
+      return false;
+    }
+    if (typeof window === 'undefined' || typeof window.vexConfirm !== 'function') return false;
+    _ollamaAsking = (async () => {
+      let never = false;
+      const yes = await window.vexConfirm({
+        title: 'Start Ollama?',
+        message: 'Local AI needs Ollama, which is not running. Start it now?',
+        okLabel: 'Start Ollama',
+        cancelLabel: 'Not now',
+        extra: { label: 'Never ask again', run: () => { never = true; setOllamaNeverAsk(); } },
+      });
+      if (never || !yes) return false;
+      _ollamaStartAt = 0;
+      return _startOllama('person-pressed-start');
+    })().finally(() => { _ollamaAsking = null; });
+    return _ollamaAsking;
+  }
+
+  // opts.background: the request is not something the person just did.
+  async function ollamaUp(opts) {
+    if (await pingOllama()) return true;
+    if (typeof window === 'undefined' || !window.vex || typeof window.vex.ollamaEnsure !== 'function') return false;
+    if (!_ollamaLocalDefault()) return false;
+    if (ollamaAutoStart()) return _startOllama('setting-on');
+    return _askToStartOllama(!!(opts && opts.background));
   }
 
   // Does this setup rely on the local model? (no AI Worker, "prefer local", or
@@ -290,7 +352,7 @@ const AIRouter = (() => {
       decision = 'ondevice';
     } else {
       const pref = normPin(routingPrefs[feature] || 'auto');
-      if (pref === 'cloud' && preferLocal && (isOllamaAvailable() || await ollamaUp())) {
+      if (pref === 'cloud' && preferLocal && (isOllamaAvailable() || await ollamaUp({ background: BACKGROUND_FEATURES.includes(feature) }))) {
         // "Prefer local (privacy-first)": the features routed to the cloud by
         // default (translate, history search, multi-tab, the agent) stay on
         // the local model while one is running. They used to go to the AI
@@ -303,7 +365,7 @@ const AIRouter = (() => {
         // Every other cloud-preferring feature too: multi-tab, translate and
         // history search failed on the cloud first and logged a problem before
         // falling back (found 2026-09-29).
-        decision = (!cloudConfigured(feature) && await ollamaUp()) ? 'local' : 'cloud';
+        decision = (!cloudConfigured(feature) && await ollamaUp({ background: BACKGROUND_FEATURES.includes(feature) })) ? 'local' : 'cloud';
       } else if (pref === 'local') {
         // Local-only feature (e.g. history indexing runs on-device for privacy).
         // If Ollama isn't installed/running, skip quietly instead of failing on
@@ -317,13 +379,13 @@ const AIRouter = (() => {
         if (hasCloud) {
           // Cloud is viable; only choose local if the user prefers it AND
           // Ollama is already known to be up.
-          decision = (preferLocal && (isOllamaAvailable() || await ollamaUp())) ? 'local' : 'cloud';
+          decision = (preferLocal && (isOllamaAvailable() || await ollamaUp({ background: BACKGROUND_FEATURES.includes(feature) }))) ? 'local' : 'cloud';
         } else {
           // Cloud is unconfigured (or offline). Don't trust a possibly-stale
           // availability flag — ping Ollama live. Use local if it answers; only
           // fall through to 'cloud' (which surfaces the "not configured" error)
           // when Ollama is ALSO unavailable.
-          decision = (await ollamaUp()) ? 'local' : 'cloud';
+          decision = (await ollamaUp({ background: BACKGROUND_FEATURES.includes(feature) })) ? 'local' : 'cloud';
         }
       }
     }
@@ -1037,7 +1099,7 @@ You were given an order, so carry it out. "thought" is one short sentence about 
     callAI, resolveBackend,
     getRoutingPrefs, setRoutingPrefs,
     getOllamaStatus, setPreferLocal, setForceCloud,
-    setModel, getModel, bestInstalledModel, setSmallModel, getSmallModel, routineFeatures, modelFor, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, setOllamaAutoStart,
+    setModel, getModel, bestInstalledModel, setSmallModel, getSmallModel, routineFeatures, modelFor, showThinking, setShowThinking, localVision, agentNumCtx, ollamaUp, ollamaAutoStart, ollamaNeverAsk, setOllamaNeverAsk, setOllamaAutoStart,
     // Settings › AI "Test as agent": the local agent, on a named model.
     localAgent: (request, model) => callLocalAgent(request, model),
     // One named backend, with no routing and no falling back to another —

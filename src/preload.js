@@ -175,7 +175,7 @@ contextBridge.exposeInMainWorld('vex', {
   // errors, the updater's last word, startup timings (Memory panel › Health).
   diagnostics: () => ipcRenderer.invoke('app:diagnostics'),
   // Make sure the local Ollama server is running (starts it when it is not).
-  ollamaEnsure: () => ipcRenderer.invoke('ollama:ensure'),
+  ollamaEnsure: (request) => ipcRenderer.invoke('ollama:ensure', request),
   // How full the graphics card is — null when there is no NVIDIA card.
   gpu: () => ipcRenderer.invoke('system:gpu'),
   // Dev servers listening on this machine.
