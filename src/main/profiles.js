@@ -25,6 +25,7 @@
 // (Windows opens it delete-on-close, so it disappears when that Vex exits,
 // a crash included).
 const nodePath = require('path');
+const { atomicWriteSync } = require('./file-store');
 
 const DEFAULT_ID = 'default';
 const ID_RE = /^p-[a-z0-9]{8}$/;
@@ -95,9 +96,7 @@ function createProfileStore({ fs, defaultDir, root = rootFor(defaultDir), now = 
 
   function write(data) {
     fs.mkdirSync(root, { recursive: true });
-    const tmp = registryFile + '.' + process.pid + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-    fs.renameSync(tmp, registryFile);
+    atomicWriteSync(registryFile, JSON.stringify(data, null, 2), { fsImpl: fs });
   }
 
   function dirFor(id) {
@@ -181,7 +180,7 @@ function createProfileStore({ fs, defaultDir, root = rootFor(defaultDir), now = 
     if (!wanted.length) return null;
     fs.mkdirSync(root, { recursive: true });
     const file = nodePath.join(root, REOPEN_FILE);
-    fs.writeFileSync(file, JSON.stringify({ at: now(), version: String(version || ''), profiles: wanted }));
+    atomicWriteSync(file, JSON.stringify({ at: now(), version: String(version || ''), profiles: wanted }), { fsImpl: fs });
     return file;
   }
 

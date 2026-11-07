@@ -7,6 +7,8 @@
 //
 // Pure of Electron: screens come in as work areas, files are injected.
 
+const { atomicWriteSync } = require('./file-store');
+
 const MIN_W = 800, MIN_H = 600;          // the window's own minimum (main.js)
 
 const whole = (n) => Number.isFinite(n) ? Math.round(n) : NaN;
@@ -55,7 +57,7 @@ function createPlacementStore({ fs, file }) {
     },
     save(bounds) {
       if (!valid(bounds)) throw new Error('Not a window place');
-      fs.writeFileSync(file, JSON.stringify({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }));
+      atomicWriteSync(file, JSON.stringify({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }), { fsImpl: fs });
     },
   };
 }

@@ -263,6 +263,7 @@ function createHealthCheck({ fs, userDataPath, getPersisted, now = () => new Dat
       }
     }
     if (run) {
+      // vex-allow-plain-write: a new file in a fresh undo folder, so there is no earlier copy to lose
       fs.writeFileSync(nodePath.join(undoRoot, run, 'manifest.json'), JSON.stringify({ v: 1, at: now().toISOString(), entries }, null, 2));
       out.run = run;
       pruneRuns();

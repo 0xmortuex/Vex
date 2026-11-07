@@ -10,11 +10,12 @@
 // its device and anywhere else asks once more.
 const fs = require('fs');
 const path = require('path');
+const { atomicWriteSync } = require('./file-store');
 
 const SEP = '|';   // "persist:main|https://site.example"; neither part has one
 const LEGACY_PARTITION = 'persist:main';
 
-function createHidGrants({ userDataPath, writeFile = (f, s) => fs.writeFileSync(f, s, 'utf-8') }) {
+function createHidGrants({ userDataPath, writeFile = (f, s) => atomicWriteSync(f, s) }) {
   const file = path.join(userDataPath, 'hid-grants.json');
   let cache = null;
 

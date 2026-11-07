@@ -33,6 +33,57 @@ async function atomicWrite(file, bytes, { backup = true, retryDelays = RETRY_DEL
   } finally { await fs.promises.rm(temp, { force: true }).catch(() => {}); }
 }
 
+// The same write for code that cannot await (a config saved from a synchronous handler, the boot-guard state,
+// a write at quit): temp file in the same folder, fsync, one .bak generation, rename over the original. The
+// original is only replaced by the final rename, so a throw or a kill at any earlier step leaves it as it was.
+// `fsImpl` is injectable so tests can make any step throw or write only part of the bytes.
+const SYNC_RETRY_DELAYS_MS = [20, 50, 100, 200];
+function sleepSync(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
+function withRetrySync(op, delays = SYNC_RETRY_DELAYS_MS, sleep = sleepSync) {
+  for (let attempt = 0; ; attempt++) {
+    try { return op(); }
+    catch (e) {
+      if (!TRANSIENT.has(e && e.code) || attempt >= delays.length) throw e;
+      sleep(delays[attempt]);
+    }
+  }
+}
+function atomicWriteSync(file, bytes, { backup = true, fsImpl = fs, retryDelays = SYNC_RETRY_DELAYS_MS, sleep = sleepSync } = {}) {
+  fsImpl.mkdirSync(path.dirname(file), { recursive: true });
+  const temp = file + '.' + randomUUID() + '.tmp';
+  try {
+    const fd = fsImpl.openSync(temp, 'wx', 0o600);
+    try { fsImpl.writeFileSync(fd, bytes); fsImpl.fsyncSync(fd); } finally { fsImpl.closeSync(fd); }
+    if (backup) {
+      try { withRetrySync(() => fsImpl.copyFileSync(file, file + '.bak'), retryDelays, sleep); }
+      catch (e) { if (e.code !== 'ENOENT') throw e; }
+    }
+    withRetrySync(() => fsImpl.renameSync(temp, file), retryDelays, sleep);
+  } finally { fsImpl.rmSync(temp, { force: true }); }
+}
+
+// Reads a JSON file written with atomicWrite/atomicWriteSync. { data, source }: source is 'missing' (no file, no
+// backup), 'file', or 'backup' (the file did not parse; it was kept as .corrupt-* and the .bak took its place).
+// When neither parses: { data: null, source: 'lost', error, corruptCopy } - the caller decides what to tell the
+// person; nothing is thrown away here (the broken file is kept aside first) and nothing is rewritten.
+function readJsonRecoverSync(file, { fsImpl = fs, now = Date.now() } = {}) {
+  const tryRead = (f) => {
+    let text;
+    try { text = fsImpl.readFileSync(f, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return { missing: true }; throw e; }
+    try { return { data: JSON.parse(text) }; } catch (error) { return { error }; }
+  };
+  const main = tryRead(file);
+  if (main.missing) {
+    const bak = tryRead(file + '.bak');
+    return bak.data !== undefined ? { data: bak.data, source: 'backup', corruptCopy: null } : { data: null, source: 'missing' };
+  }
+  if (main.data !== undefined) return { data: main.data, source: 'file' };
+  const corruptCopy = keepCorruptCopy(file, now);
+  const bak = tryRead(file + '.bak');
+  if (bak.data !== undefined) return { data: bak.data, source: 'backup', corruptCopy, error: main.error };
+  return { data: null, source: 'lost', error: main.error, corruptCopy };
+}
+
 // A copy of a file that failed its checks, kept beside it (`.corrupt-<stamp>`, the newest three), so
 // whatever was in it can still be looked at by hand. Returns the copy's path, or null when there was no file.
 const KEEP_CORRUPT = 3;
@@ -237,4 +288,4 @@ class SecretStore {
     return value;
   }
 }
-module.exports = { atomicWrite, JsonStore, SecretStore, keepCorruptCopy, dataSum };
+module.exports = { atomicWrite, atomicWriteSync, readJsonRecoverSync, JsonStore, SecretStore, keepCorruptCopy, dataSum };

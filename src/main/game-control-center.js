@@ -20,6 +20,7 @@
 // with no shell and no arguments, so it keeps running if Vex closes.
 const fs = require('fs');
 const path = require('path');
+const { atomicWriteSync } = require('./file-store');
 
 const EXE_NAME = 'Game Control Center.exe';
 const LNK_NAME = 'Game Control Center.lnk';
@@ -191,7 +192,7 @@ function register({ ipcMain, dialog, getWindow, userDataPath, spawn, execFile, s
     if (r.canceled || !r.filePaths[0]) return { ok: false, cancelled: true };
     try {
       const norm = checkExeExists(r.filePaths[0], exists);
-      fs.writeFileSync(file, JSON.stringify({ path: norm }));
+      atomicWriteSync(file, JSON.stringify({ path: norm }));
       saved = norm;
       return { ok: true, path: norm };
     } catch (err) { return { ok: false, error: err.message }; }

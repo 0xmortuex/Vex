@@ -37,6 +37,7 @@ function createCaptureInbox({ file, fsImpl = fs, now = Date.now, randomId = () =
   function persist() {
     const temp = file + '.tmp';
     fsImpl.mkdirSync(path.dirname(file), { recursive: true });
+    // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
     fsImpl.writeFileSync(temp, JSON.stringify(items));
     fsImpl.renameSync(temp, file);
   }

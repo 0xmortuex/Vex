@@ -44,6 +44,7 @@ function createResumeStore({ fs, file, now = () => Date.now() }) {
   }
   function save() {
     const tmp = file + '.tmp';
+    // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
     fs.writeFileSync(tmp, JSON.stringify(list));
     fs.renameSync(tmp, file);
   }

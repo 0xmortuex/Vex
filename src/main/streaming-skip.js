@@ -9,6 +9,8 @@
 // on for a while and shows "not matched yet" is probably a page Vex's table no
 // longer fits.
 
+const { atomicWriteSync } = require('./file-store');
+
 const KINDS = ['intro', 'recap', 'next', 'continue'];
 
 function createStreamingSkipStore({ fs, file, table, now = () => Date.now() } = {}) {
@@ -31,7 +33,7 @@ function createStreamingSkipStore({ fs, file, table, now = () => Date.now() } = 
   }
   const entry = (id) => (data.sites[id] || (data.sites[id] = { enabled: false, last: null }));
   function save() {
-    try { fs.writeFileSync(file, JSON.stringify(data)); }
+    try { atomicWriteSync(file, JSON.stringify(data), { fsImpl: fs }); }
     catch (err) { throw new Error('Could not save the streaming switches: ' + err.message, { cause: err }); }
   }
   function check(id) { if (!ids.includes(id)) throw new Error('Unknown streaming site: ' + String(id)); }

@@ -28,6 +28,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { atomicWriteSync } = require('./file-store');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // What decays, in the names permissions.js stores them under.
@@ -94,7 +95,7 @@ function createPermissionHygiene({ file = null, now = () => Date.now(), emit = (
   function persist() {
     if (!file) return;
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify({ config, pins }, null, 1));
+    atomicWriteSync(file, JSON.stringify({ config, pins }, null, 1), { fsImpl: fs });
   }
 
   const on = () => config.enabled === true;

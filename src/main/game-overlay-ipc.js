@@ -10,6 +10,7 @@
 // the program NAME Game mode already read. See game-overlay.js.
 
 const overlay = require('./game-overlay');
+const { atomicWriteSync } = require('./file-store');
 
 const MUSIC_ACTIONS = ['toggle', 'next', 'prev', 'status'];
 const MUSIC_WAIT_MS = 8000;
@@ -53,7 +54,7 @@ function install(deps) {
       return JSON.parse(text);
     },
     save(raw) {
-      try { fs.writeFileSync(stateFile, JSON.stringify(raw)); }
+      try { atomicWriteSync(stateFile, JSON.stringify(raw), { fsImpl: fs }); }
       catch (err) { console.error('[GameOverlay] could not save where the overlay sat:', err.message); }
     },
   };

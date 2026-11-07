@@ -215,7 +215,7 @@ describe('the scanner on synthetic pages', () => {
 });
 
 describe('the per-site switches', () => {
-  const memFs = () => { const files = new Map(); return { files, existsSync: (f) => files.has(f), readFileSync: (f) => files.get(f), writeFileSync: (f, d) => files.set(f, d) }; };
+  const memFs = () => { const files = new Map(); return { files, existsSync: (f) => files.has(f), readFileSync: (f) => files.get(f), writeFileSync: (f, d) => files.set(f, d), mkdirSync() {}, openSync: (f) => { files.set(f, ''); return f; }, fsyncSync() {}, closeSync() {}, copyFileSync: (a, b) => { if (!files.has(a)) throw Object.assign(new Error('no'), { code: 'ENOENT' }); files.set(b, files.get(a)); }, renameSync: (a, b) => { files.set(b, files.get(a)); files.delete(a); }, rmSync: (f) => { files.delete(f); } }; };
   const mk = (fsx = memFs(), now = () => 1000) => ({ fsx, store: createStreamingSkipStore({ fs: fsx, file: 'x.json', table: STREAMING_SKIP, now }) });
 
   it('every site is off until it is turned on', () => {

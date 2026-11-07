@@ -217,6 +217,7 @@ function writeOverrides(extensionsDir, data) {
   const path = require('path');
   fs.mkdirSync(extensionsDir, { recursive: true });
   const file = path.join(extensionsDir, OVERRIDES_FILE);
+  // vex-allow-plain-write: written to a temp file and renamed over the original, which is never truncated
   fs.writeFileSync(file + '.tmp', JSON.stringify(data, null, 2));
   fs.renameSync(file + '.tmp', file);
 }

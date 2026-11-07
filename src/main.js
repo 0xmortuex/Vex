@@ -595,7 +595,7 @@ function readPopoutState() {
   try { return JSON.parse(fs.readFileSync(POPOUT_STATE_FILE(), 'utf8')) || {}; } catch { return {}; }
 }
 function writePopoutState(state) {
-  try { fs.writeFileSync(POPOUT_STATE_FILE(), JSON.stringify(state || {})); } catch { /* ignore */ }
+  try { require('./main/file-store').atomicWriteSync(POPOUT_STATE_FILE(), JSON.stringify(state || {})); } catch { /* ignore */ }
 }
 function applyDoH() {
   try {
@@ -2367,7 +2367,7 @@ ipcMain.handle('clips:folder', async (_e, pick) => {
     const result = await dialog.showOpenDialog({ title: 'Where your clips are', properties: ['openDirectory'] });
     if (result.canceled || !result.filePaths[0]) return { ok: false, cancelled: true, dir: _clipsDir };
     _clipsDir = result.filePaths[0];
-    try { fs.writeFileSync(_clipsFile, JSON.stringify({ dir: _clipsDir })); } catch { /* it still works this session */ }
+    try { require('./main/file-store').atomicWriteSync(_clipsFile, JSON.stringify({ dir: _clipsDir })); } catch { /* it still works this session */ }
   }
   return { ok: true, dir: _clipsDir, guesses: clips.guesses(app.getPath('home')) };
 });
@@ -2397,7 +2397,7 @@ function _secondScreen() {
     _secondScreenLazy = require('./main/second-screen').createSecondScreen({
       BrowserWindow, screen: require('electron').screen, session,
       readState: () => { try { return JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch (err) { if (err.code === 'ENOENT') return {}; throw err; } },
-      writeState: (o) => { try { fs.writeFileSync(stateFile, JSON.stringify(o)); } catch (err) { console.error('[SecondScreen] could not remember the window:', err.message); } },
+      writeState: (o) => { try { require('./main/file-store').atomicWriteSync(stateFile, JSON.stringify(o)); } catch (err) { console.error('[SecondScreen] could not remember the window:', err.message); } },
       isGameRunning: () => !!_mergedGameState().game,
     });
   }
@@ -3221,7 +3221,7 @@ let _devOverrides = null;
 try {
   _devOverrides = require('./main/response-overrides').createOverrides({
     load: () => (fs.existsSync(DEV_OVERRIDES_FILE) ? JSON.parse(fs.readFileSync(DEV_OVERRIDES_FILE, 'utf-8')) : null),
-    save: (data) => { const tmp = DEV_OVERRIDES_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(data), 'utf-8'); fs.renameSync(tmp, DEV_OVERRIDES_FILE); },
+    save: (data) => { require('./main/file-store').atomicWriteSync(DEV_OVERRIDES_FILE, JSON.stringify(data)); },
     readFile: { stat: (p) => fs.statSync(p), read: (p) => fs.readFileSync(p) },
     pageUrlOf: (id) => _pageUrlOf(id),
   });
@@ -3791,7 +3791,7 @@ try { _downloadRules = JSON.parse(fs.readFileSync(_rulesFile, 'utf8')); } catch 
 if (!Array.isArray(_downloadRules)) _downloadRules = [];
 ipcMain.handle('downloads:set-rules', (_e, rules) => {
   _downloadRules = Array.isArray(rules) ? rules.slice(0, 50) : [];
-  try { fs.writeFileSync(_rulesFile, JSON.stringify(_downloadRules)); return { ok: true }; }
+  try { require('./main/file-store').atomicWriteSync(_rulesFile, JSON.stringify(_downloadRules)); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 // Settings > Downloads: the folder downloads go to, and "Ask where to save
@@ -3875,7 +3875,7 @@ _refreshUaRules();
 ipcMain.handle('siterules:set', (_e, rules) => {
   const before = _siteRules;
   _siteRules = SiteRules.clean(rules);
-  try { fs.writeFileSync(_siteRulesFile, JSON.stringify(_siteRules)); }
+  try { require('./main/file-store').atomicWriteSync(_siteRulesFile, JSON.stringify(_siteRules)); }
   catch (err) { return { ok: false, error: err.message }; }
   _refreshUaRules();
   // Every window hears of the change at once. A private window keeps a copy
@@ -4468,7 +4468,7 @@ function _prepareContentShim(extPath) {
   if (_contentShimText === null) _contentShimText = extHelpers.contentShimSource(fs.readFileSync(path.join(__dirname, 'preload-extension-sw.js'), 'utf-8'));
   const shimPath = path.join(extPath, extHelpers.CONTENT_SHIM_FILE);
   if (!fs.existsSync(shimPath) || fs.readFileSync(shimPath, 'utf-8') !== _contentShimText) fs.writeFileSync(shimPath, _contentShimText);
-  if (plan.manifest) fs.writeFileSync(manifestPath, JSON.stringify(plan.manifest, null, 2));
+  if (plan.manifest) require('./main/file-store').atomicWriteSync(manifestPath, JSON.stringify(plan.manifest, null, 2));
 }
 
 async function _loadExtensionEverywhere(extPath, manifest) {
@@ -5113,7 +5113,7 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
     try {
       const placed = JSON.parse(fs.readFileSync(placedManifest, 'utf-8').replace(/^\uFEFF/, ''));
       placed.key = opts.manifestKey;
-      fs.writeFileSync(placedManifest, JSON.stringify(placed, null, 2));
+      require('./main/file-store').atomicWriteSync(placedManifest, JSON.stringify(placed, null, 2));
     } catch (err) {
       fs.rmSync(destFolder, { recursive: true, force: true });
       return { ok: false, error: 'Could not write the extension\'s key into its manifest: ' + err.message };
@@ -5409,7 +5409,7 @@ ipcMain.handle('discord:install-vencord', async () => {
     try {
       const buf = fs.readFileSync(localZip);
       if (buf && buf.length >= 50000) {
-        try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: localZip })); } catch {}
+        try { require('./main/file-store').atomicWriteSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: localZip })); } catch {}
         const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
         if (r.ok) return { ...r, source: 'local:' + localZip };
       }
@@ -5473,7 +5473,7 @@ ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
     const buf = fs.readFileSync(zipPath);
     _vlog(`install-local: read ${buf ? buf.length : 0} bytes`);
     if (!buf || buf.length < 50000) return { ok: false, error: 'build zip too small / not a real build' };
-    try { fs.writeFileSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: zipPath })); } catch {}
+    try { require('./main/file-store').atomicWriteSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: zipPath })); } catch {}
     _vlog(`install-local: before=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
     const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
     _dedupeVencordFolders();
@@ -5581,7 +5581,7 @@ function _removeExtensionFolder(folderName) {
     fs.rmSync(extPath, { recursive: true, force: true });
     // Its toolbar pin goes with it.
     const pins = _readExtPins();
-    if (!_extPinsError && pins.includes(folderName)) fs.writeFileSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins.filter(f => f !== folderName), null, 1));
+    if (!_extPinsError && pins.includes(folderName)) require('./main/file-store').atomicWriteSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins.filter(f => f !== folderName), null, 1));
     // Drop any leftover state so re-installing the same extension later doesn't
     // come back disabled, or inherit the old copy's failure message.
     _extLoadErrors.delete(folderName);
@@ -6004,7 +6004,7 @@ async function _extTellInstalled(ses, ext) {
   try {
     const now = _readExtInstalls();
     now[folder] = { ...(now[folder] || {}), [partition]: version };
-    fs.writeFileSync(EXT_INSTALLS_FILE, JSON.stringify(now, null, 1));
+    require('./main/file-store').atomicWriteSync(EXT_INSTALLS_FILE, JSON.stringify(now, null, 1));
   } catch (err) { console.error(`[Extensions] ${folder}: could not record that it was told it is installed — ${err.message}`); }
 }
 
@@ -6052,7 +6052,7 @@ ipcMain.handle('extensions:set-pinned', (_event, folder, pinned) => {
   if (pinned) pins.push(folder);
   try {
     fs.mkdirSync(extensionsDir, { recursive: true });
-    fs.writeFileSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins, null, 1));
+    require('./main/file-store').atomicWriteSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins, null, 1));
   } catch (err) { return { ok: false, error: `Could not save it: ${err.message}` }; }
   _extUiChanged();
   return { ok: true, pinned: !!pinned };
@@ -11809,7 +11809,8 @@ ipcMain.handle('widevine:retry', () => {
       const ls = JSON.parse(fs.readFileSync(lsPath, 'utf8'));
       if (ls && ls.updateclientdata) {
         delete ls.updateclientdata;
-        fs.writeFileSync(lsPath, JSON.stringify(ls));
+        // Chromium's own Local State holds the os_crypt key that opens saved cookies and passwords: never truncate it first.
+        require('./main/file-store').atomicWriteSync(lsPath, JSON.stringify(ls));
       }
     } catch (e) { console.warn('[Widevine] could not reset Local State:', e && e.message); }
     console.log('[Widevine] reset component state; relaunching for clean install');
@@ -12576,6 +12577,7 @@ ipcMain.handle('fx:rates', async () => {
     const j = await res.json();
     if (j && j.rates) {
       _fxCache = { base: j.base_code || 'USD', rates: j.rates, at: Date.now() };
+      // vex-allow-plain-write: a currency-rate cache, fetched again on a miss
       try { fs.writeFileSync(file, JSON.stringify(_fxCache)); } catch {}
       return _fxCache;
     }

@@ -64,7 +64,7 @@ function fakeWin() {
 }
 function make(over = {}) {
   const files = new Map();
-  const fs = { existsSync: (f) => files.has(f), readFileSync: (f) => files.get(f), writeFileSync: (f, d) => files.set(f, d) };
+  const fs = { existsSync: (f) => files.has(f), readFileSync: (f) => files.get(f), writeFileSync: (f, d) => files.set(f, d), mkdirSync() {}, openSync: (f) => { files.set(f, ''); return f; }, fsyncSync() {}, closeSync() {}, copyFileSync: (a, b) => { if (!files.has(a)) throw Object.assign(new Error('no'), { code: 'ENOENT' }); files.set(b, files.get(a)); }, renameSync: (a, b) => { files.set(b, files.get(a)); files.delete(a); }, rmSync: (f) => { files.delete(f); } };
   const el = fakeTray();
   const win = fakeWin();
   const calls = { notice: [], priv: 0, newTab: 0, reopen: 0, quit: 0 };
