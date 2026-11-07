@@ -315,8 +315,69 @@ const VexRegistry = {
   // onOffer() (the attention inbox), otherwise one gated toast.
   pendingOffers() {
     const st = this._load();
-    return Object.keys(st.staged).filter(id => st.staged[id].off && !st.offered[id] && this._m.has(id) && this._m.get(id).maturity !== 'experimental');
+    return this.rankOffers(Object.keys(st.staged).filter(id => st.staged[id].off && !st.offered[id] && this._m.has(id) && this._m.get(id).maturity !== 'experimental'));
   },
+  // ---- which crash-log entries are Vex's own ------------------------------------------------------------------
+  // The safe window asks "has Vex been stable since this feature was staged?". A website's page hanging, or an
+  // extension's background page crashing, says nothing about that, and one such entry used to hold every offer back
+  // for good. Entries written since 2026-11 carry `scope` ('vex' | 'site' | 'extension', main/crash-log.js scopeOf).
+  // Older entries have none, so they are told apart by their kind and detail, from the table below. Only kinds listed
+  // here are decided; an entry of any other kind, or a page entry whose detail is not recognised, COUNTS: when Vex
+  // cannot tell, it keeps waiting (a wrong "counts" only delays an offer; a wrong "does not count" offers too soon).
+  CRASH_KINDS_VEX: ['Vex did not finish starting', 'Vex window stopped responding', 'Vex window recovered', 'Main process stalled', 'helper process gone'],
+  // Page entries ('page crashed' / 'page hung'): the detail is the page's origin, 'a Vex page', 'a private page' or the
+  // web contents type (main.js, where()). These details are a website's or an extension's, not Vex's.
+  CRASH_PAGE_KINDS: ['page crashed', 'page hung'],
+  CRASH_DETAIL_NOT_VEX: [/^[a-z][a-z0-9+.-]*:\/\//i, /^a private page\b/i, /^(backgroundPage|webview|browserView|offscreen|remote)\b/],
+  countsAsVexCrash(entry) {
+    if (!entry || typeof entry !== 'object') return false;
+    if (entry.scope === 'vex') return true;
+    if (entry.scope === 'site' || entry.scope === 'extension') return false;
+    const kind = String(entry.kind || '');
+    if (this.CRASH_KINDS_VEX.includes(kind)) return true;
+    if (this.CRASH_PAGE_KINDS.includes(kind)) {
+      const detail = String(entry.detail || '').trim();
+      return !this.CRASH_DETAIL_NOT_VEX.some(re => re.test(detail));
+    }
+    return true;
+  },
+
+  // ---- which waiting features to offer first -------------------------------------------------------------------
+  // The person's own use puts a feature first: the commands of the feature itself count most, then the commands of
+  // the features that share its Settings group, then those in its catalogue category. `usage` is vex.commandUsage
+  // ({ commandId: { n } }; the command bar keeps the 60 most recent, so this is a floor). Ties and the unused keep
+  // staging order, so with no usage at all the order is exactly what it was.
+  rankOffers(ids, usage = this._commandUsage()) {
+    const list = Array.from(ids);
+    const n = (cmd) => { const e = usage && usage[cmd]; return e && Number.isFinite(e.n) && e.n > 0 ? e.n : 0; };
+    const cat = typeof VexFeatures !== 'undefined' ? VexFeatures : null;
+    const entryOf = (id) => cat ? (cat.ITEMS.find(f => f.feature === id) || cat.ITEMS.find(f => f.id === id) || null) : null;
+    const own = (id) => { const m = this._m.get(id); const e = entryOf(id); const cmds = new Set(m ? m.commands : []); if (e && e.cmd) cmds.add(e.cmd); return Array.from(cmds).reduce((t, c) => t + n(c), 0); };
+    const groupUse = new Map(), catUse = new Map();
+    for (const m of this._m.values()) {
+      const u = own(m.id);
+      if (!u) continue;
+      if (m.group) groupUse.set(m.group, (groupUse.get(m.group) || 0) + u);
+      const e = entryOf(m.id);
+      if (e && e.cat) catUse.set(e.cat, (catUse.get(e.cat) || 0) + u);
+    }
+    const score = (id) => {
+      const m = this._m.get(id), e = entryOf(id), self = own(id);
+      const g = m && m.group ? (groupUse.get(m.group) || 0) - self : 0;
+      const c = e && e.cat ? (catUse.get(e.cat) || 0) - self : 0;
+      return self * 10000 + Math.min(g, 999) * 10 + Math.min(c, 9);
+    };
+    return list.map((id, i) => ({ id, i, s: score(id) })).sort((a, b) => (b.s - a.s) || (a.i - b.i)).map(x => x.id);
+  },
+  _commandUsage() {
+    let raw = null;
+    try { raw = localStorage.getItem('vex.commandUsage'); }
+    catch (err) { console.error('[Registry] the command usage could not be read, so offers keep their staging order:', err.message); return {}; }
+    if (!raw) return {};
+    try { const o = JSON.parse(raw); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }
+    catch (err) { console.error('[Registry] the command usage is not readable, so offers keep their staging order:', err.message); return {}; }
+  },
+
   // Staged-off features that have now waited out the safety window with no crash since they were staged, and
   // were not already offered this way. `crashes` is the crash log (each { at }), at least the last window long.
   // Pure: nothing is switched on, nothing is shown.
@@ -331,7 +392,7 @@ const VexRegistry = {
       const after = Number.isFinite(rec.enabledAfter) ? rec.enabledAfter : rec.at + this.SAFETY_WINDOW_MS;
       if (now < after) continue;
       if (u && u.get(id) && u.isEnabled(id)) continue;                   // the person already turned it on
-      if (crashes.some(c => c && Number.isFinite(c.at) && c.at >= rec.at)) continue;   // a crash since it was staged: keep waiting
+      if (crashes.some(c => c && Number.isFinite(c.at) && c.at >= rec.at && this.countsAsVexCrash(c))) continue;   // a Vex crash since it was staged: keep waiting
       out.push(id);
     }
     return out;
@@ -342,7 +403,7 @@ const VexRegistry = {
     const st = this._load();
     st.offerLog = st.offerLog.filter(t => now - t < 7 * 24 * 3600 * 1000);
     let n = 0;
-    for (const id of this.safeWindowOffers(crashes, now)) {
+    for (const id of this.rankOffers(this.safeWindowOffers(crashes, now))) {
       if (this.nudgeRoom(now) <= 0) break;
       const m = this._m.get(id);
       const text = m.title + ' has waited ' + Math.round(this.SAFETY_WINDOW_MS / 86400000) + ' days with no crash since Vex added it. Turn it on?';
@@ -360,6 +421,24 @@ const VexRegistry = {
     }
     this._save();
     return n;
+  },
+  // The person turned a feature on themselves (the feature-pack screen, js/feature-packs.js): it counts as offered and tried,
+  // so no "try it" nudge follows. Does not switch anything.
+  markTried(id, now = Date.now()) {
+    this._need(id);
+    this._load().offered[id] = now;
+    this._save();
+  },
+  // Staged-off features still off right now and not already offered one by one: the ones a pack screen can turn on.
+  // Ranked by the person's own use, like every offer.
+  waitingOff() {
+    const st = this._load();
+    const u = this._usage();
+    return this.rankOffers(Object.keys(st.staged).filter((id) => {
+      const rec = st.staged[id], m = this._m.get(id);
+      if (!m || !rec.off || m.maturity === 'experimental' || m.killSwitch === 'none') return false;
+      return !!(u && u.get(id)) && !u.isEnabled(id);   // only a feature that is running in this build and is off
+    }));
   },
   _offerSinks: [],
   onOffer(fn) {

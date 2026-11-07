@@ -36,3 +36,29 @@ describe('the crash log', () => {
     expect(log().all()).toHaveLength(1);
   });
 });
+
+describe('whose crash it was (scope)', () => {
+  const { scopeOf, SCOPES } = require('../../src/main/crash-log.js');
+  it('is kept on the entry when given, and left off when not (old callers are unchanged)', () => {
+    const l = log();
+    l.add('page hung', 'https://discord.com', 'site');
+    l.add('helper process gone', 'GPU — crashed (exit 1)');
+    expect(l.all()[0].scope).toBe('site');
+    expect('scope' in l.all()[1]).toBe(false);
+  });
+  it('refuses a scope it does not know instead of storing it', () => {
+    expect(() => log().add('page hung', 'x', 'nonsense')).toThrow(/vex, site or extension/);
+    expect(SCOPES).toEqual(['vex', 'site', 'extension']);
+  });
+  it.each([
+    [{ type: 'window', url: 'file:///C:/app/index.html' }, 'vex'],
+    [{ type: 'window', url: '' }, 'vex'],
+    [{ type: 'webview', url: 'https://discord.com/app' }, 'site'],
+    [{ type: 'webview', url: '' }, 'site'],
+    [{ type: 'window', url: 'https://example.com/' }, 'site'],
+    [{ type: 'backgroundPage', url: '' }, 'extension'],
+    [{ type: 'backgroundPage', url: 'chrome-extension://abc/background.html' }, 'extension'],
+    [{ type: 'window', url: 'chrome-extension://abc/popup.html' }, 'extension'],
+    [undefined, 'vex'],
+  ])('scopeOf %j -> %s', (input, want) => { expect(scopeOf(input)).toBe(want); });
+});

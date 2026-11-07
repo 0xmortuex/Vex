@@ -52,6 +52,8 @@ const VexBoot = {
     { src: 'js/integrity-notes.js', usage: [] },
     // "Check my devices": only read when its Ctrl+K command or the offer in Meeting mode is used.
     { src: 'js/device-check.js', usage: [] },
+    // Feature packs: the inbox row's button and the one-time offer; the screen itself is built when it is opened.
+    { src: 'js/feature-packs.js', usage: [] },
     // Sign-out warning for sites that log you out: does nothing unless a site has a timeout saved (site panel).
     { src: 'js/session-timeout.js', usage: [] },
     // Lite mode (slow Wi-Fi): the toolbar badge, its Settings section and the switch. The tabs' autoplay policy is read from site-rules-ui.js.

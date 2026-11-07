@@ -11,6 +11,17 @@ const { atomicWriteSync } = require('./file-store');
 const FILE = 'crash-log.json';
 const KEEP = 100;
 const WEEK_MS = 7 * 24 * 3600 * 1000;
+const SCOPES = ['vex', 'site', 'extension'];
+
+// Whose page was it? From what main knows about the web contents when it goes: its type ('window', 'webview',
+// 'backgroundPage', ...), whether the address is a file (a Vex page) or an extension's, and whether it is a guest page.
+// A guest <webview> is a website; an extension's own pages are 'extension'; Vex's window and its file: pages are Vex.
+function scopeOf({ type, url } = {}) {
+  const u = String(url || '');
+  if (type === 'backgroundPage' || /^chrome-extension:/i.test(u)) return 'extension';
+  if (type === 'webview' || /^https?:/i.test(u)) return 'site';
+  return 'vex';
+}
 
 function createCrashLog({ dir, fs, version = '', now = () => Date.now(), log }) {
   const note = typeof log === 'function' ? log : () => {};
@@ -23,9 +34,17 @@ function createCrashLog({ dir, fs, version = '', now = () => Date.now(), log }) 
     } catch { return []; }              // none yet, or unreadable: start again
   }
 
-  function add(kind, detail) {
+  // `scope` says whose code the crash was in: 'vex' (Vex's own window, helper or start-up), 'site' (a web page),
+  // 'extension' (an extension's page). Optional, so old callers and old entries are unchanged; the feature offers
+  // (renderer feature-registry.js, countsAsVexCrash) read it and fall back to the kind and detail for entries without it.
+  function add(kind, detail, scope) {
     const list = all();
-    list.push({ at: now(), kind: String(kind), detail: String(detail || '').slice(0, 300), version });
+    const entry = { at: now(), kind: String(kind), detail: String(detail || '').slice(0, 300), version };
+    if (scope != null) {
+      if (!SCOPES.includes(scope)) throw new Error('A crash scope is vex, site or extension, not ' + scope);
+      entry.scope = scope;
+    }
+    list.push(entry);
     try { atomicWriteSync(file, JSON.stringify(list.slice(-KEEP)), { fsImpl: fs }); return true; }
     catch (err) { note('[CrashLog] could not record a crash: ' + err.message); return false; }
   }
@@ -121,4 +140,4 @@ function trend(entries, current) {
   return { current, versions, newKinds, rising, bursts: bursts(entries), total: versions.reduce((n, g) => n + g.total, 0) };
 }
 
-module.exports = { createCrashLog, newKinds, trend, family, bursts, compareVersions, FILE, KEEP, WEEK_MS };
+module.exports = { createCrashLog, scopeOf, SCOPES, newKinds, trend, family, bursts, compareVersions, FILE, KEEP, WEEK_MS };

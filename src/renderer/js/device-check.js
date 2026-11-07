@@ -9,8 +9,10 @@
 // the tone only to the speaker. Every stream is stopped when the card is closed, on Escape, when the tab changes (or the window
 // is hidden), and if the card closes while a device is still opening, that stream is stopped the moment it arrives.
 //
-// The camera: Vex's own window is otherwise never given a camera. Opening this card asks main to allow it for this window until
-// the card closes (or ten minutes pass); closing gives it back (main/permissions.js, devicecheck:camera).
+// The camera: Vex's own window is otherwise never given a camera. Opening this card asks main to allow it for this window for a
+// short lease (two minutes, main/permissions.js UI_CAMERA_MS). The open card renews it every 30 s, but only while the window is
+// visible and has focus; closing gives it back at once, and so does the window staying out of focus for 30 s or the tab
+// changing or navigating. A card that crashed or was never closed therefore cannot keep the camera open past the lease.
 const VexDeviceCheck = {
   FEATURE: 'device-check',
   HEARD_RMS: 0.01,          // a microphone is "hearing you" above this level
@@ -19,6 +21,8 @@ const VexDeviceCheck = {
   TONE_GAIN: 0.12,
   TONE_MS: 1500,
   PICTURE_MS: 4000,
+  HEARTBEAT_MS: 30000,      // the card renews the camera lease this often while it is visible and the window has focus
+  BLUR_CLOSE_MS: 30000,     // the window out of focus this long closes the card (and so ends the lease)
 
   _t(text) { return (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup(text)) || text; },
 
@@ -130,6 +134,11 @@ const VexDeviceCheck = {
     window.removeEventListener('vex:tab-activated', c.onLeave);
     document.removeEventListener('visibilitychange', c.onHidden);
     window.removeEventListener('pagehide', c.onLeave);
+    document.removeEventListener('vex:tab-navigated', c.onLeave);
+    window.removeEventListener('blur', c.onBlur);
+    window.removeEventListener('focus', c.onFocus);
+    clearTimeout(c.beat);
+    clearTimeout(c.blurTimer);
     if (c.video) c.video.srcObject = null;
     const { tracks, contexts } = c.set.closeAll();
     Promise.resolve(contexts).catch((err) => console.error('[DeviceCheck] an audio context did not close:', err));
@@ -209,15 +218,34 @@ const VexDeviceCheck = {
     const net = make('connection', 'Connection');
     net.select.remove();
 
-    const c = { el, video, set: this.streamSet(), raf: 0, toneTimer: 0, sections, gen: { camera: 0, microphone: 0 }, started: 0, heard: false, micCtx: null, onKey: null, onLeave: null, onHidden: null };
+    const c = { el, video, set: this.streamSet(), raf: 0, toneTimer: 0, sections, gen: { camera: 0, microphone: 0 }, started: 0, heard: false, micCtx: null, onKey: null, onLeave: null, onHidden: null, onBlur: null, onFocus: null, beat: 0, blurTimer: 0 };
     this._open = c;
     c.onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.close(); } };
     c.onLeave = () => this.close();
     c.onHidden = () => { if (document.hidden) this.close(); };
+    c.onBlur = () => { clearTimeout(c.blurTimer); c.blurTimer = setTimeout(() => { if (this._open === c) this.close(); }, this.BLUR_CLOSE_MS); };
+    c.onFocus = () => clearTimeout(c.blurTimer);
     document.addEventListener('keydown', c.onKey, true);
     window.addEventListener('vex:tab-activated', c.onLeave);
+    document.addEventListener('vex:tab-navigated', c.onLeave);
     document.addEventListener('visibilitychange', c.onHidden);
     window.addEventListener('pagehide', c.onLeave);
+    window.addEventListener('blur', c.onBlur);
+    window.addEventListener('focus', c.onFocus);
+    if (!document.hasFocus()) c.onBlur();
+    // The heartbeat: renew the camera lease while the card is on screen and the window has focus. Nothing renews it otherwise,
+    // so main lets it lapse by itself. A failed renewal is reported, not retried in a loop: the next beat is the retry.
+    // One timeout that sets the next, not an interval: nothing is queued up behind a slow renewal.
+    const beat = () => {
+      c.beat = setTimeout(() => {
+        if (this._open !== c) return;
+        if (!document.hidden && document.hasFocus()) {
+          Promise.resolve(window.vex.deviceCheckCamera(true)).catch((err) => window.VexProblems?.note('Device check', 'Could not renew the camera permission', err));
+        }
+        beat();
+      }, this.HEARTBEAT_MS);
+    };
+    beat();
     el.querySelector('[data-close]').addEventListener('click', () => this.close());
     el.addEventListener('mousedown', (e) => { if (e.target === el) this.close(); });
     el.querySelector('[data-again]').addEventListener('click', () => { this._run(c).catch((err) => window.VexProblems?.note('Device check', 'The check could not run', err)); });

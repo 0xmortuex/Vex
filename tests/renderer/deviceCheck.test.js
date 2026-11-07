@@ -63,8 +63,9 @@ async function openCard() {
 const card = () => document.querySelector('.vex-devcheck-overlay');
 const part = (id) => card().querySelector('[data-part="' + id + '"]');
 
-beforeEach(() => { document.body.innerHTML = ''; vi.useFakeTimers(); install(); });
-afterEach(() => { VexDeviceCheck.close(); vi.useRealTimers(); });
+let focused;
+beforeEach(() => { document.body.innerHTML = ''; vi.useFakeTimers(); install(); focused = true; vi.spyOn(document, 'hasFocus').mockImplementation(() => focused); });
+afterEach(() => { VexDeviceCheck.close(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('plain explanations', () => {
   it('says what to do for each way a device fails, for the camera and the microphone', () => {
@@ -372,6 +373,79 @@ describe('the speaker test', () => {
     [...part('speaker').querySelectorAll('button')].find((b) => b.textContent === 'I heard it').click();
     expect(card().querySelector('[data-summary]').textContent).toMatch(/^All good/);
     expect(card().querySelector('[data-summary]').dataset.state).toBe('ok');
+  });
+});
+
+describe('the camera lease', () => {
+  const beats = () => window.vex.deviceCheckCamera.mock.calls.filter(([on]) => on === true).length;
+  const lastOn = () => window.vex.deviceCheckCamera.mock.calls.at(-1)[0];
+  it('renews the lease every 30 s while the card is visible and the window has focus', async () => {
+    await openCard();
+    const base = beats();
+    await vi.advanceTimersByTimeAsync(VexDeviceCheck.HEARTBEAT_MS * 4 + 100);
+    expect(beats()).toBe(base + 4);
+    expect(VexDeviceCheck.HEARTBEAT_MS).toBeLessThan(120000);          // always shorter than main's two-minute lease
+  });
+  it('does not renew while the window has no focus or is hidden', async () => {
+    await openCard();
+    const base = beats();
+    focused = false;
+    await vi.advanceTimersByTimeAsync(VexDeviceCheck.HEARTBEAT_MS * 0.9);   // a beat fires, but the card is still open (not yet 30 s unfocused)
+    focused = true;
+    await vi.advanceTimersByTimeAsync(VexDeviceCheck.HEARTBEAT_MS);
+    const afterFocus = beats();
+    expect(afterFocus).toBeGreaterThan(base);
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    try {
+      const before = beats();
+      await vi.advanceTimersByTimeAsync(VexDeviceCheck.HEARTBEAT_MS * 3);
+      expect(beats()).toBe(before);
+    } finally { delete document.hidden; }
+  });
+  it('stops renewing, and gives the camera back, when the card closes; nothing is sent afterwards', async () => {
+    await openCard();
+    VexDeviceCheck.close();
+    expect(lastOn()).toBe(false);
+    const calls = window.vex.deviceCheckCamera.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(VexDeviceCheck.HEARTBEAT_MS * 10);
+    expect(window.vex.deviceCheckCamera.mock.calls.length).toBe(calls);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('closes the card and revokes after the window has been out of focus for 30 s, and not before', async () => {
+    await openCard();
+    window.dispatchEvent(new Event('blur'));
+    await vi.advanceTimersByTimeAsync(VexDeviceCheck.BLUR_CLOSE_MS - 1000);
+    expect(card()).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(card()).toBeNull();
+    expect(lastOn()).toBe(false);
+  });
+  it('coming back into focus in time keeps the card', async () => {
+    await openCard();
+    window.dispatchEvent(new Event('blur'));
+    await vi.advanceTimersByTimeAsync(20000);
+    window.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(card()).not.toBeNull();
+  });
+  it('opening while the window has no focus starts the 30 s countdown at once', async () => {
+    focused = false;
+    await openCard();
+    await vi.advanceTimersByTimeAsync(VexDeviceCheck.BLUR_CLOSE_MS + 100);
+    expect(card()).toBeNull();
+    expect(lastOn()).toBe(false);
+  });
+  it('a tab navigating revokes at once', async () => {
+    await openCard();
+    document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: 1, url: 'https://example.com/' } }));
+    expect(card()).toBeNull();
+    expect(lastOn()).toBe(false);
+  });
+  it('the window leaving (pagehide) revokes at once', async () => {
+    await openCard();
+    window.dispatchEvent(new Event('pagehide'));
+    expect(card()).toBeNull();
+    expect(lastOn()).toBe(false);
   });
 });
 

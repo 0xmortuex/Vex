@@ -928,6 +928,10 @@
       permissions: { reads: ['the permission summary', 'your highlights and notes', 'the pages you flagged'], writes: ['your switches', 'the last service status', 'a page watch for a page you flag'], sends: ['Only when you switch on the service status card: a read-only request to the public status page of Discord, GitHub, Cloudflare and Roblox every 20 minutes, with no cookies and nothing of yours in it, never during Game mode'] } },
     { id: 'game-overlay', title: 'Game overlay (guide, Discord, notes, timer and music over your game)', group: 'Game overlay', maturity: 'new', storageKeys: ['vex.gameOverlay'], commands: ['game-overlay'],
       permissions: { reads: ["which game Game mode sees running (its program name only); the Spotify panel's song title when you press a music button"], writes: ['its settings, where the overlay sat for each game, and your notes for each game (game-overlay-state.json)'], sends: ["Only when you open the Guide, Search or Discord panel: the guide page you added, your search words to your own search engine, or Discord with the Discord panel's sign-in"] } },
+    // ---- Feature packs (js/feature-packs.js): the one-screen way to turn on what is waiting. Not staged itself (stable, no switch). ------
+    { id: 'feature-packs', title: 'Feature packs', group: 'Minimal Vex', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.featurePacks'], commands: ['feature-packs'],
+      usesKeys: ['vex.registry', 'vex.commandUsage'],
+      permissions: { reads: ['which features are switched off and waiting', 'your command counts, to put the ones you use first'], writes: ['when it was offered, and what the last Apply turned on'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');
