@@ -142,7 +142,7 @@ For rate limiting it also keeps your IP address for up to about 16 minutes. It d
 - **On-device AI (WebLLM).** Runs inside Vex on your graphics card. When you click Download, the model is fetched from huggingface.co (and a small runtime file from raw.githubusercontent.com). After that, nothing is sent.
 - **Dictation** (speech to text) runs on your PC. The first time, after asking you, Vex downloads the Whisper model from huggingface.co. Your voice is never sent.
 - **Voice control** (say a command, or dictate) runs on your PC. Only when you press Download in Settings, Vex downloads the speech engine (whisper.cpp, 9 MB) from github.com and one speech model (60 or 190 MB) from huggingface.co, and checks each against a fixed checksum before using it. The microphone is open only while you hold the key or have started listening, with a red panel on screen; the audio is kept in memory, handed to the engine on this PC and never saved or sent.
-- **Reading text from images and scanned PDFs** (OCR) runs on your PC. The first time, Vex downloads the English language data from cdn.jsdelivr.net.
+- **Reading text from images and scanned PDFs** (OCR) runs on your PC. The first time, after asking you once, Vex downloads the English and Turkish language data (about 5.1 MB) from cdn.jsdelivr.net, checked against a fixed checksum. Copy Text from Image, page and screenshot reading, and the redaction tool all use that one download, and it appears in "what left this computer" as "Text-from-image language pack". The pictures never leave your PC.
 
 ### Cloud AI (off until you set it up)
 

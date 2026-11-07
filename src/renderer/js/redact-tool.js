@@ -168,16 +168,13 @@ const VexPictureRedact = {
 
   // ---- OCR with boxes -----------------------------------------------------------------
   async ocrLines(dataUrl) {
-    const base = new URL('vendor/runtime/', window.location.href);
-    const mod = await import(new URL('tesseract.mjs', base).href);
-    const api = mod.default || mod;
-    const worker = await api.createWorker('eng', 1, { workerPath: new URL('worker.min.js', base).href, corePath: base.href, workerBlobURL: false });
-    try {
-      const { data } = await worker.recognize(dataUrl, {}, { blocks: true });
-      const lines = [];
-      for (const b of data.blocks || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) lines.push({ words: l.words || [] });
-      return lines;
-    } finally { await worker.terminate(); }
+    if (typeof VexLazy === 'undefined') throw new Error('The text reader is not available here');
+    await VexLazy.ensure('js/image-text.js');
+    // The same language pack as Copy Text from Image (asked once, downloaded through the egress ledger, read from the cache only).
+    const { data } = await VexImageText.recognizeWithPack(dataUrl, { output: { blocks: true } });
+    const lines = [];
+    for (const b of data.blocks || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) lines.push({ words: l.words || [] });
+    return lines;
   },
 
   // ---- drawing ---------------------------------------------------------------------------
