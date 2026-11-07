@@ -876,10 +876,10 @@
 
               <div class="setting-row" style="margin-top:14px">
                 <div class="setting-label">
-                  <strong>Start Ollama when it is needed</strong>
-                  <span class="setting-hint">If the local model is wanted and Ollama is not running, Vex starts it in the background — no window. It is left running, as Ollama's own app leaves it.</span>
+                  <strong>Start Ollama without asking</strong>
+                  <span class="setting-hint">Off by default. Ticked: when local AI is wanted and Ollama is not running, Vex starts it in the background, no window. Unticked: Vex asks first and never starts it by itself.</span>
                 </div>
-                <label class="toggle"><input type="checkbox" id="setting-ollama-autostart" aria-label="Start Ollama when it is needed"><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-ollama-autostart" aria-label="Start Ollama without asking"><span class="toggle-slider"></span></label>
               </div>
 
               <div class="setting-row" id="agent-numctx-row" style="margin-top:14px">

@@ -195,63 +195,120 @@ describe('AIRouter — the local agent: images, Stop, a named model', () => {
   });
 });
 
-// After a reboot Ollama is not running. With no AI Worker set, every request
-// then failed as "Cloud AI is not configured" until the user opened Ollama by
-// hand. The router now asks main to start it (src/main/ollama-launcher.js).
-describe('AIRouter — starting Ollama when the local model is wanted', () => {
-  let up;
-  function setup({ ensure, baseUrl = 'http://localhost:11434' } = {}) {
+// After a reboot Ollama is not running. Vex never starts it by itself (owner
+// rule, 2026-11-07): it asks first, unless "Start Ollama without asking" was
+// ticked. The main process refuses a start the window does not mark approved.
+describe('AIRouter — Ollama is only started with a person saying so', () => {
+  let up, store, confirms;
+  function setup({ ensure, baseUrl = 'http://localhost:11434', answer = true, neverClicked = false, stored } = {}) {
     up = false;
+    store = new Map(stored || []);
+    globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
     globalThis.Ollama = { ping: vi.fn(async () => up), getBaseUrl: () => baseUrl };
     const ollamaEnsure = vi.fn(ensure || (async () => { up = true; return { running: true, started: true }; }));
-    globalThis.window = { vex: { ollamaEnsure } };
+    confirms = vi.fn(async (o) => { if (neverClicked) o.extra.run(); return neverClicked ? false : answer; });
+    globalThis.window = { vex: { ollamaEnsure }, vexConfirm: confirms };
     return ollamaEnsure;
   }
   afterEach(() => { delete globalThis.window; delete globalThis.localStorage; });
 
-  it('Ollama down + no cloud → it is started, and the request goes local', async () => {
+  it('the default is off: nothing stored means ask', async () => {
+    const AIRouter = await loadRouter();
+    setup();
+    expect(AIRouter.ollamaAutoStart()).toBe(false);
+    expect(AIRouter.ollamaNeverAsk()).toBe(false);
+  });
+
+  it('Ollama down + setting off: the person is asked and ensure is NOT called until they say yes', async () => {
+    const AIRouter = await loadRouter();
+    let release;
+    const ensure = setup();
+    confirms.mockImplementation(() => new Promise(r => { release = r; }));
+    const pending = AIRouter.ollamaUp();
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(confirms).toHaveBeenCalledTimes(1);
+    expect(confirms.mock.calls[0][0]).toMatchObject({ message: 'Local AI needs Ollama, which is not running. Start it now?', okLabel: 'Start Ollama', cancelLabel: 'Not now' });
+    expect(confirms.mock.calls[0][0].extra.label).toBe('Never ask again');
+    expect(ensure).not.toHaveBeenCalled();
+    release(true);
+    expect(await pending).toBe(true);
+    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(ensure).toHaveBeenCalledWith({ approved: true, reason: 'person-pressed-start' });
+  });
+
+  it('Start Ollama: the request goes local, ensure was called once with approved:true', async () => {
     const AIRouter = await loadRouter();
     const ensure = setup();
     expect(await AIRouter.resolveBackend('chat')).toBe('local');
-    expect(await AIRouter.resolveBackend('agent')).toBe('local');
     expect(ensure).toHaveBeenCalledTimes(1);
-    expect(ensure).toHaveBeenCalledWith();               // no path, no arguments
+    expect(ensure).toHaveBeenCalledWith({ approved: true, reason: 'person-pressed-start' });
+  });
+
+  it('Not now: ensure is never called, the old answer stands, and it is not asked again at once', async () => {
+    const AIRouter = await loadRouter();
+    const ensure = setup({ answer: false });
+    expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
+    expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
+    expect(confirms).toHaveBeenCalledTimes(1);
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('Never ask again: stored, nothing started, and never asked again', async () => {
+    const AIRouter = await loadRouter();
+    const ensure = setup({ neverClicked: true });
+    expect(await AIRouter.ollamaUp()).toBe(false);
+    expect(store.get('vex.ollamaAutoStart')).toBe('"never"');
+    expect(AIRouter.ollamaNeverAsk()).toBe(true);
+    expect(AIRouter.ollamaAutoStart()).toBe(false);
+    expect(ensure).not.toHaveBeenCalled();
+    expect(await AIRouter.ollamaUp()).toBe(false);
+    expect(confirms).toHaveBeenCalledTimes(1);
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('an explicit stored true is honoured: started without asking, reason setting-on', async () => {
+    const AIRouter = await loadRouter();
+    const ensure = setup({ stored: [['vex.ollamaAutoStart', 'true']] });
+    expect(AIRouter.ollamaAutoStart()).toBe(true);
+    expect(await AIRouter.resolveBackend('chat')).toBe('local');
+    expect(confirms).not.toHaveBeenCalled();
+    expect(ensure).toHaveBeenCalledWith({ approved: true, reason: 'setting-on' });
   });
 
   it('when it cannot be started, the old answer stands — and it is not retried for a minute', async () => {
     const AIRouter = await loadRouter();
-    const ensure = setup({ ensure: async () => ({ running: false, started: false, error: 'Ollama is not installed' }) });
+    const ensure = setup({ stored: [['vex.ollamaAutoStart', 'true']], ensure: async () => ({ running: false, started: false, error: 'Ollama is not installed' }) });
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
     expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
     expect(ensure).toHaveBeenCalledTimes(1);
   });
 
-  it('switched off in Settings, or pointed at another machine: nothing is started', async () => {
-    const store = new Map([['vex.ollamaAutoStart', 'false']]);
-    globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
-    let AIRouter = await loadRouter();
-    let ensure = setup();
-    expect(AIRouter.ollamaAutoStart()).toBe(false);
+  it('pointed at another machine: nothing is asked or started', async () => {
+    const AIRouter = await loadRouter();
+    const ensure = setup({ baseUrl: 'http://192.168.1.20:11434', stored: [['vex.ollamaAutoStart', 'true']] });
     expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
     expect(ensure).not.toHaveBeenCalled();
-    AIRouter.setOllamaAutoStart(true);
-    expect(store.get('vex.ollamaAutoStart')).toBe('true');
-
-    AIRouter = await loadRouter();
-    ensure = setup({ baseUrl: 'http://192.168.1.20:11434' });
-    expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
-    expect(ensure).not.toHaveBeenCalled();
+    expect(confirms).not.toHaveBeenCalled();
   });
 
-  it('a background feature never starts it; a request pinned to local does', async () => {
+  it('a background feature never opens a dialog or starts it; a request pinned to local asks', async () => {
     const AIRouter = await loadRouter();
     const ensure = setup();
     AIRouter.setRoutingPrefs({ historyIndex: 'local', summarize: 'local' });
     expect(await AIRouter.resolveBackend('historyIndex')).toBe('skip');
     expect(ensure).not.toHaveBeenCalled();
+    expect(confirms).not.toHaveBeenCalled();
     expect(await AIRouter.resolveBackend('summarize')).toBe('local');
+    expect(confirms).toHaveBeenCalledTimes(1);
     expect(ensure).toHaveBeenCalledTimes(1);
+  });
+
+  it('setOllamaAutoStart(true) stores an explicit true', async () => {
+    const AIRouter = await loadRouter();
+    setup();
+    AIRouter.setOllamaAutoStart(true);
+    expect(store.get('vex.ollamaAutoStart')).toBe('true');
   });
 });
 

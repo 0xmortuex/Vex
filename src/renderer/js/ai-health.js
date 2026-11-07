@@ -124,7 +124,7 @@ const AIHealth = {
     if (/stopped|aborted|cancelled/i.test(message)) headline = 'You stopped it — that is not a failure.';
     else if (!state.online && state.worker) headline = 'You are offline, and this request needed the cloud model.';
     else if (!state.worker && !state.ollama) headline = 'There is no AI backend: no cloud AI is connected, and Ollama is not running. Settings › AI › Connect an AI takes your own key or Worker; Settings › AI Backend starts Ollama.';
-    else if (wantsLocal && !state.ollama) headline = 'Ollama is not running, so the local model could not answer. Vex can start it for you — Settings › AI › "Start Ollama when it is needed".';
+    else if (wantsLocal && !state.ollama) headline = 'Ollama is not running, so the local model could not answer. Vex can start it if you say so: press Start Ollama when it asks, or tick Settings › AI › "Start Ollama without asking".';
     else if (state.ollama && Array.isArray(state.installed) && !state.installed.length) headline = 'Ollama is running but has no models installed. Settings › AI › the model manager can pull one.';
     else if (state.ollama && Array.isArray(state.installed) && !state.installed.some(n => n === state.model || n === state.model + ':latest')) headline = `The chosen model "${state.model}" is not installed. Pick one that is, in Settings › AI.`;
     else if (/did not answer within|timeout/i.test(message)) headline = this.slowReasonFrom(state) || 'The model took longer than the two-minute limit. A smaller model, or a shorter task, will finish.';
