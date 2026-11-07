@@ -53,6 +53,18 @@ const SEARCH_SHORTCUT_NAMES = {
 
 const USER_KEYWORDS_KEY = 'vex.searchKeywords';
 
+// A keyword's address: https with %s where the words go and no spaces; http only for a page on this computer
+// (localhost, 127.0.0.1) because a keyword sends what you type, and that must not travel in the clear. Checked when it is
+// saved and again when it is used, so a value that arrived another way (a hand edit, sync) cannot send you to javascript:,
+// data: or a plain-http site.
+function _validTemplate(addr) {
+  if (typeof addr !== 'string' || !addr.includes('%s') || /\s/.test(addr)) return false;
+  let u;
+  try { u = new URL(addr.split('%s').join('x')); } catch { return false; }
+  if (u.protocol === 'https:') return true;
+  return u.protocol === 'http:' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(u.hostname);
+}
+
 // The keywords you added: { keyword: "https://site/?q=%s" }. A list that
 // cannot be read is said, not taken as "none".
 function _userKeywords() {
@@ -72,7 +84,7 @@ function searchKeyword(word) {
   const kw = at ? w.slice(1) : w;
   if (!kw) return null;
   const user = _userKeywords();
-  if (typeof user[kw] === 'string' && user[kw].includes('%s')) return { keyword: kw, url: user[kw], name: kw, user: true };
+  if (_validTemplate(user[kw])) return { keyword: kw, url: user[kw], name: kw, user: true };
   const tmpl = SEARCH_SHORTCUT_BUILTINS[kw];
   if (!tmpl || (!at && !SEARCH_SHORTCUT_BARE.has(kw))) return null;
   return { keyword: kw, url: tmpl, name: SEARCH_SHORTCUT_NAMES[kw] || kw, user: false };
@@ -121,6 +133,7 @@ function setUserKeyword(keyword, url) {
   const addr = String(url == null ? '' : url).trim();
   if (!/^https?:\/\/[^\s]+$/i.test(addr)) throw new Error('The address must start with https:// (or http://)');
   if (!addr.includes('%s')) throw new Error('Put %s in the address where the words you type go');
+  if (!_validTemplate(addr)) throw new Error('A keyword address must start with https:// (http:// only for localhost) and have no spaces');
   const all = _userKeywordsStrict();
   all[kw] = addr;
   localStorage.setItem(USER_KEYWORDS_KEY, JSON.stringify(all));

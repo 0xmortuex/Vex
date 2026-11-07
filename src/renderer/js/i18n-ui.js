@@ -1068,6 +1068,7 @@ const VexI18nUI = {
       'Mark all seen': 'Tümünü görüldü işaretle',
       'Open the board': 'Panoyu aç',
       'Open run': 'Çalıştırmayı aç',
+      'A keyword address must start with https:// (http:// only for localhost) and have no spaces': 'Anahtar sözcük adresi https:// ile başlamalı (http:// yalnızca localhost için) ve boşluk içermemelidir',
       'Turn off mic and video in one press': 'Mikrofonu ve görüntüyü tek tuşla kapat',
       'One press from Ctrl+K ends the microphone and video capture of the tab in front, or of every tab, without leaving the call page. It does what the Stop button in Site Permissions does: the page sees the devices stop and can ask again, so it is not a switch you flip back. You can also turn on a click on the icon on a tab.': 'Ctrl+K ile tek tuş, öndeki sekmenin ya da tüm sekmelerin mikrofon ve görüntü yakalamasını görüşme sayfasından ayrılmadan sonlandırır. Site İzinleri\'ndeki Durdur düğmesinin yaptığını yapar: sayfa cihazların durduğunu görür ve yeniden isteyebilir; yani geri çevirdiğiniz bir anahtar değildir. Sekmedeki simgeye tıklamayı da açabilirsiniz.',
       'Turn Off Mic and Video (This Tab)': 'Mikrofonu ve Görüntüyü Kapat (Bu Sekme)',
