@@ -11715,7 +11715,6 @@ const VexI18nUI = {
       '{1} excluded · {2} page{3} forgotten': '{1} hariç tutuldu · {2} sayfa unutuldu',
       'Pinned to "{1}"': '“{1}” içine sabitlendi',
       'Could not find the Settings section "{1}"': '“{1}” Ayarlar bölümü bulunamadı',
-      'Site rules': 'Site kuralları',
       'Disk space': 'Disk alanı',
       'Your disk is nearly full': 'Diskiniz neredeyse dolu',
       'Less than 2 GB is free on the drive Vex keeps your data on. Free some space soon, or saving can fail.': 'Vex’in verilerinizi tuttuğu sürücüde 2 GB’tan az boş alan var. Yakında biraz yer açın, yoksa kaydetme başarısız olabilir.',

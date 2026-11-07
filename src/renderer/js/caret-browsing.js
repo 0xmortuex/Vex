@@ -52,6 +52,8 @@ const VexCaretBrowsing = {
     localStorage.setItem(this.KEY, JSON.stringify({ on: !!on }));
     this._tellAll(!!on);
   },
+  // The usage switch (vex-usage-registry.js); unlike the F7 toggle it does not ask first.
+  setEnabled(on) { this.set(on); },
 
   // F7 and the command: off turns it off; on asks first, the way Chrome does.
   async toggle() {

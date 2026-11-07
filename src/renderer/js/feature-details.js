@@ -681,6 +681,7 @@ const FeatureDetails = {
 // when the code changes, change the words here. tests/renderer/
 // libraryOpenButtons.test.js fails for a manual entry that has none.
 const FeatureHow = {
+  'mass-signout': 'Nothing to open: it runs by itself. About 45 seconds after Vex starts, and then every half hour, it counts the sites you are signed in to. If that number falls by more than half from a count of at least six (a wiped cookie jar, a profile reset, a Windows reinstall), a note appears in the Attention Inbox that names your newest backup that opens and checks out. Clearing your data on purpose never triggers it. It keeps only a number and a date, and sends nothing.',
   'page-actions': 'Press Ctrl+K and run “New page action for this site” to write a boost script for the site you are on. Turn page actions on, and manage the scripts, in Settings > Page actions — boost scripts (the command “Page actions (turn on)” does the first part).',
   'weather-place': 'Open Settings > Weather location, press Change location on the New Tab page, or use the setup wizard. Choose a country, type a city, a district or a postcode, press Search, then select the place you mean from the list. Postcode results are credited to OpenStreetMap contributors.',
   'play-room': 'Press Ctrl+K, type Play room and choose an activity, or open your profile and click Play room. Calm or Full playfulness must be enabled; game and quiet modes can pause it.',

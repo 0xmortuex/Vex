@@ -3107,7 +3107,7 @@ async function _lifeboatReply(event, work) {
 }
 const _lifeboatStamp = () => new Date().toISOString().slice(0, 10);
 ipcMain.handle('lifeboat:export', (event, passphrase, includeCards) => _lifeboatReply(event, async () => {
-  const picked = await dialog.showSaveDialog(mainWindow, { title: 'Save the encrypted secrets file', defaultPath: path.join(app.getPath('documents'), `Vex secrets ${_lifeboatStamp()}.vexsecrets`), filters: [{ name: 'Vex encrypted secrets', extensions: ['vexsecrets'] }] });
+  const picked = await dialog.showSaveDialog(_askingWindow(event), { title: 'Save the encrypted secrets file', defaultPath: path.join(app.getPath('documents'), `Vex secrets ${_lifeboatStamp()}.vexsecrets`), filters: [{ name: 'Vex encrypted secrets', extensions: ['vexsecrets'] }] });
   if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
   const r = await _lifeboat.exportToFile(picked.filePath, passphrase, { includeCards: includeCards === true });
   return { ok: true, ...r, path: picked.filePath };

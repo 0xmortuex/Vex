@@ -48,7 +48,7 @@ describe('JavaScript off follows navigation', () => {
 
 describe('a change to the switches reaches every window at once', () => {
   it('main sends the new switches; the preload lets a window hear it', () => {
-    const set = between("ipcMain.handle('siterules:set'", '\n});\n');
+    const set = between('function _setSiteRules', '\n}\n');
     expect(set).toMatch(/'siterules:changed', _siteRules/);
     expect(read('src/preload.js')).toMatch(/onSiteRulesChanged: \(callback\) => subscribe\('siterules:changed', callback\)/);
   });

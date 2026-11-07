@@ -181,6 +181,7 @@ const VexUsageRegistry = {
       SafeWebExtras: () => (typeof SafeWebExtras !== 'undefined' ? SafeWebExtras : null),
       VexSnippets: () => (typeof VexSnippets !== 'undefined' ? VexSnippets : null),
       VexLyrics: () => (typeof VexLyrics !== 'undefined' ? VexLyrics : null),
+      VexCaretBrowsing: () => (typeof VexCaretBrowsing !== 'undefined' ? VexCaretBrowsing : null),
       VexSoundPolicy: () => (typeof VexSoundPolicy !== 'undefined' ? VexSoundPolicy : null),
       VexLinkBar: () => (typeof VexLinkBar !== 'undefined' ? VexLinkBar : null),
       VexLoadBar: () => (typeof VexLoadBar !== 'undefined' ? VexLoadBar : null),
@@ -474,6 +475,7 @@ const VexUsageRegistry = {
       // Wave 2 capture tools
       ['text-snippets', A.api(G.VexSnippets, 'enabled', 'setEnabled')],
       ['lyrics', A.api(G.VexLyrics, 'enabled', 'setEnabled')],
+      ['caret-browsing', A.api(G.VexCaretBrowsing, 'enabled', 'setEnabled')],
       ['sound-policy', A.api(G.VexSoundPolicy, 'enabled', 'setEnabled')],
       ['table-extract', A.api(G.TableExtract, 'enabled', 'setEnabled')],
       ['video-tools', A.api(G.VideoTools, 'enabled', 'setEnabled')],
