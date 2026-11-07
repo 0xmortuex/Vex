@@ -21,7 +21,13 @@
 //    most personal thing Vex holds and the largest; that is a decision, not a
 //    default.
 const VexBackup = {
-  VERSION: 1,
+  // 2 adds `main` (the settings files only the main process keeps: site rules,
+  // site permissions, reminders, which extensions are switched off) and
+  // `integrity` (a SHA-256 of the payload, checked before any restore). A
+  // version-1 file has neither and is still read: it is restored without the
+  // check, and says so ("not verified").
+  VERSION: 2,
+  READABLE: [1, 2],
 
   // Never leaves the machine, whatever it is called: a denylist of shapes
   // rather than of names, so a key added next year is covered before anyone
@@ -94,6 +100,91 @@ const VexBackup = {
     return out.sort();
   },
 
+
+  // ---- integrity ----------------------------------------------------------
+  // Pure-JS SHA-256 (FIPS 180-4) so the check is synchronous and works in the
+  // window and in main alike, and so apply() itself can refuse a damaged file:
+  // a restore that forgot to ask could not skip it. It detects damage and
+  // careless edits; it is not a signature (anyone can recompute it).
+  sha256Hex(text) {
+    const K = this._K || (this._K = (() => {
+      const k = []; let n = 2;
+      while (k.length < 64) {
+        let prime = true;
+        for (let d = 2; d * d <= n; d++) if (n % d === 0) { prime = false; break; }
+        if (prime) k.push(Math.floor((Math.cbrt(n) % 1) * 4294967296) >>> 0);
+        n++;
+      }
+      return k;
+    })());
+    const H = [];
+    { let n = 2; while (H.length < 8) { let prime = true; for (let d = 2; d * d <= n; d++) if (n % d === 0) { prime = false; break; } if (prime) H.push(Math.floor((Math.sqrt(n) % 1) * 4294967296) >>> 0); n++; } }
+    const bytes = new TextEncoder().encode(String(text));
+    const len = bytes.length;
+    const total = ((len + 9 + 63) >> 6) << 6;
+    const buf = new Uint8Array(total);
+    buf.set(bytes);
+    buf[len] = 0x80;
+    const view = new DataView(buf.buffer);
+    view.setUint32(total - 8, Math.floor(len / 0x20000000), false);
+    view.setUint32(total - 4, (len << 3) >>> 0, false);
+    const w = new Uint32Array(64);
+    const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+    for (let off = 0; off < total; off += 64) {
+      for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4, false);
+      for (let i = 16; i < 64; i++) {
+        const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+        const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+        w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+      }
+      let [a, b, c, d, e, f, g, h] = H;
+      for (let i = 0; i < 64; i++) {
+        const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+        const ch = (e & f) ^ (~e & g);
+        const t1 = (h + S1 + ch + K[i] + w[i]) >>> 0;
+        const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+        const maj = (a & b) ^ (a & c) ^ (b & c);
+        const t2 = (S0 + maj) >>> 0;
+        h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+      H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+    }
+    return H.map(x => x.toString(16).padStart(8, '0')).join('');
+  },
+
+  // JSON with sorted keys at every level: the same payload always hashes the
+  // same, whatever order the keys were written in or how the file was indented.
+  canonical(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return '[' + value.map(v => this.canonical(v === undefined ? null : v)).join(',') + ']';
+    return '{' + Object.keys(value).sort().filter(k => value[k] !== undefined).map(k => JSON.stringify(k) + ':' + this.canonical(value[k])).join(',') + '}';
+  },
+
+  // What the hash covers: the data, not the dates or the version label.
+  _payload(data) {
+    return { items: data.items || {}, stores: data.stores || {}, main: data.main || {} };
+  },
+  seal(data) {
+    data.integrity = { alg: 'sha256', sum: this.sha256Hex(this.canonical(this._payload(data))) };
+    return data;
+  },
+  // -> 'verified' | 'unverified' (a version-1 file has no sum). Throws when the
+  // sum is there and does not match, or names a hash this Vex does not know.
+  verify(data) {
+    if (!data || typeof data !== 'object') throw new Error('That is not a Vex backup file');
+    if (data.integrity === undefined) {
+      if (data.v >= 2) throw new Error('This backup has lost its integrity check, so Vex will not restore it');
+      return 'unverified';
+    }
+    const i = data.integrity;
+    if (!i || i.alg !== 'sha256' || typeof i.sum !== 'string') throw new Error('This backup uses an integrity check this Vex does not know');
+    if (this.sha256Hex(this.canonical(this._payload(data))) !== i.sum.toLowerCase()) {
+      throw new Error('This backup is damaged: its contents do not match its checksum, so nothing was restored');
+    }
+    return 'verified';
+  },
+
   // Settings kept by VexStorage as their own file (settings.json: the ad
   // blocker, sleeping tabs, the memory ceiling …) — not in browser storage at
   // all, so they were not in the backup either (found 2026-09-29).
@@ -112,6 +203,39 @@ const VexBackup = {
       if (value && typeof value === 'object' && !Array.isArray(value)) stores[name] = value;
     }
     return stores;
+  },
+
+  // The settings files only the main process keeps (src/main/backup-stores.js):
+  // site rules, site permissions, reminders, which extensions are switched off.
+  // Each comes back through the same cleaner its normal load uses.
+  MAIN_STORES: ['site-rules', 'permissions', 'reminders', 'extensions'],
+
+  _mainApi() { return typeof window !== 'undefined' && window.vex && window.vex.backup ? window.vex.backup : null; },
+
+  async collectMain() {
+    const api = this._mainApi();
+    // A window without the bridge (a test, a private window) has no main stores to give.
+    if (!api || typeof api.collectMain !== 'function') return {};
+    const r = await api.collectMain();
+    if (!r || !r.ok) throw new Error('Vex could not read its site rules and permissions for the backup' + (r && r.error ? ': ' + r.error : ''));
+    return r.main;
+  },
+
+  async applyMain(data) {
+    const main = data && data.main && typeof data.main === 'object' ? data.main : {};
+    if (!this.MAIN_STORES.some(n => main[n] && typeof main[n] === 'object')) return { written: 0, notes: [] };
+    const api = this._mainApi();
+    if (!api || typeof api.applyMain !== 'function') throw new Error('Vex could not restore its site rules and permissions here');
+    const r = await api.applyMain(main);
+    if (!r || !r.ok) throw new Error('Site rules and permissions were not restored' + (r && r.error ? ': ' + r.error : ''));
+    return { written: r.written, notes: r.notes || [] };
+  },
+
+  async undoMain() {
+    const api = this._mainApi();
+    if (!api || typeof api.undoMain !== 'function') return;
+    const r = await api.undoMain();
+    if (r && r.ok === false) throw new Error(r.error || 'Site rules and permissions could not be put back');
   },
 
   // Put the settings files back. What was there is kept first, for undo.
@@ -151,7 +275,8 @@ const VexBackup = {
 
   // Everything worth carrying, as a plain object. `include` names the
   // optional groups the user ticked.
-  collect(include = []) {
+  collect(include = []) { return this.seal(this._collectRaw(include)); },
+  _collectRaw(include = []) {
     const items = {};
     let skipped = 0;
     for (const key of this._keys()) {
@@ -174,16 +299,22 @@ const VexBackup = {
 
   // What a file says it holds, before anything is changed by it.
   describe(data) {
-    if (!data || typeof data !== 'object' || data.v !== this.VERSION || !data.items || typeof data.items !== 'object') return null;
+    if (!data || typeof data !== 'object' || !this.READABLE.includes(data.v) || !data.items || typeof data.items !== 'object') return null;
     const keys = Object.keys(data.items).filter(k => k.startsWith('vex.') && !this._blocked(k));
     const known = this.STORES.concat(...Object.values(this.OPTIONAL_STORES));
     const stores = data.stores && typeof data.stores === 'object' ? known.filter(n => data.stores[n] && typeof data.stores[n] === 'object') : [];
+    const main = data.main && typeof data.main === 'object' ? this.MAIN_STORES.filter(n => data.main[n] && typeof data.main[n] === 'object') : [];
+    let integrity;
+    try { integrity = this.verify(data); } catch { integrity = 'damaged'; }
     return {
-      count: keys.length + stores.length,
+      count: keys.length + stores.length + main.length,
       when: data.at ? new Date(data.at) : null,
       app: data.app || '',
       chats: keys.some(k => this._isOptional(k, 'chats')),
       userscripts: stores.includes('userscripts'),
+      main,
+      // 'verified' (the sum matched), 'unverified' (an older file, no sum) or 'damaged'.
+      integrity,
       // An older file may still carry them: they are named, and not restored.
       pageActions: Object.prototype.hasOwnProperty.call(data.items, 'vex.pageActions'),
       bytes: keys.reduce((n, k) => n + String(data.items[k] || '').length, 0),
@@ -198,6 +329,8 @@ const VexBackup = {
   apply(data) {
     const seen = this.describe(data);
     if (!seen) throw new Error('That is not a Vex backup file');
+    // A damaged file is refused here, whoever asked: no caller can skip the check.
+    this.verify(data);
     this._undo = {};
     for (const key of this._keys()) this._undo[key] = localStorage.getItem(key);
     let written = 0, failed = 0;
@@ -242,9 +375,10 @@ const VexBackup = {
   // The whole backup: what collect() reads plus the settings files. Also what
   // the update cover keeps before an update installs (js/update-notifier.js).
   async snapshot(include = []) {
-    const data = this.collect(include);
+    const data = this._collectRaw(include);
     data.stores = await this.collectStores(include);
-    return data;
+    data.main = await this.collectMain();
+    return this.seal(data);
   },
 
   // Written through the browser's own download, so it lands in Downloads with
@@ -303,7 +437,7 @@ const VexBackup = {
     const m = document.createElement('div');
     m.id = 'vex-backup';
     m.className = 'vexsr-ov';
-    const now = this.collect([]);
+    const now = this._collectRaw([]);
     m.innerHTML = '<div class="vexsr-card" role="dialog" aria-modal="true" aria-labelledby="bk-title"><div class="vexsr-head">'
       + '<span class="vexsr-title" id="bk-title">Back up everything, or put it back</span>'
       + '<button class="vexsr-x" id="bk-close" aria-label="Close" title="Close">' + VexIcons.svg('x', { size: 13 }) + '</button></div>'
@@ -319,10 +453,18 @@ const VexBackup = {
       + '<div class="vexsr-row" style="margin-top:8px">'
       + '<input type="file" id="bk-file" accept="application/json,.json" class="vexsr-input" aria-label="Backup file to restore">'
       + '<button id="bk-restore" class="vexsr-x">Restore</button>'
+      + '<button id="bk-test" class="vexsr-x">Test this backup</button>'
+      + '<button id="bk-secrets" class="vexsr-x">Encrypted secrets file…</button>'
       + '</div>'
+      + '<div id="bk-report" class="vexsr-list" hidden></div>'
       // Made by Vex itself around each update (src/main/update-backups.js).
       + '<div id="bk-updates" hidden><div class="vexsr-sub" style="margin-top:12px">Saved before updates — Vex backs up by itself before it installs one (or when a new version first starts, if it was installed another way), and keeps the last five.</div>'
       + '<div id="bk-update-list" class="vexsr-list"></div></div>'
+      // The rolling automatic backup (js/auto-backup.js, src/main/auto-backups.js): off until the person turns it on.
+      + '<div id="bk-auto"><label class="vexsr-check"><input type="checkbox" id="bk-auto-on"> Back up automatically, once a day</label>'
+      + '<div class="vexsr-sub">Keeps the last 7 daily and 4 weekly copies in Vex\'s backups folder. It waits while a game is running, on battery power and during your quiet hours, and it never holds saved logins. A second copy can go to a folder you choose, such as OneDrive: that copy holds your notes and settings as plain text, so choose a place only you can read.</div>'
+      + '<div class="vexsr-row"><button id="bk-auto-folder" class="vexsr-x">Also copy to a folder…</button><button id="bk-auto-clear" class="vexsr-x" hidden>Stop copying there</button><span id="bk-auto-where" class="vexsr-mode"></span></div>'
+      + '<div id="bk-auto-status" class="vexsr-sub"></div><div id="bk-auto-list" class="vexsr-list"></div></div>'
       + '<div id="bk-msg" class="vexsr-msg"></div>'
       + '<div class="vexsr-note">Saved logins and authenticator codes are never in the file. They are kept encrypted by Vex itself and cannot be read from here — a backup that contained them would be a password file sitting in your Downloads folder. '
       + 'Restoring writes everything in the file over what Vex has now; what the file does not have is left as it is. It can be undone until you close Vex, and Vex has to be restarted for all of it to take.</div>'
@@ -365,8 +507,32 @@ const VexBackup = {
       catch (err) { msg(err.message, true); return; }
       await this._restore(data, m, msg);
     });
+    m.querySelector('#bk-secrets').addEventListener('click', () => {
+      const go = () => window.VexSecretsLifeboat.open();
+      if (window.VexSecretsLifeboat) { go(); return; }
+      if (window.VexLazy && typeof window.VexLazy.ensure === 'function') window.VexLazy.ensure('js/secrets-lifeboat.js').then(go).catch(err => msg('The secrets file feature could not be loaded: ' + err.message, true));
+      else msg('The secrets file feature is not available here', true);
+    });
+    m.querySelector('#bk-test').addEventListener('click', async () => {
+      const file = m.querySelector('#bk-file').files[0];
+      if (!file) { msg('Choose a backup file first', true); return; }
+      let data;
+      try { data = await this.read(file); }
+      catch (err) { msg(err.message, true); return; }
+      await this._test(data, m, msg);
+    });
     this._listUpdateBackups(m, msg);
+    this._mountAuto(m, msg);
     return m;
+  },
+
+  // The automatic-backup section (js/auto-backup.js is a late module; asked for if it is not there yet).
+  _mountAuto(m, msg) {
+    const go = () => window.VexAutoBackup.mount(m, msg).catch(err => msg('The automatic backup settings could not be shown: ' + err.message, true));
+    if (window.VexAutoBackup) { go(); return; }
+    if (window.VexLazy && typeof window.VexLazy.ensure === 'function') {
+      window.VexLazy.ensure('js/auto-backup.js').then(go).catch(err => msg('The automatic backup settings could not be loaded: ' + err.message, true));
+    } else m.querySelector('#bk-auto').hidden = true;
   },
 
   // The backups Vex made before its updates (src/main/update-backups.js), each
@@ -417,7 +583,21 @@ const VexBackup = {
         catch { msg('That backup is not readable as a Vex backup', true); return; }
         await this._restore(data, m, msg);
       });
-      row.append(label, when, btn);
+      const test = document.createElement('button');
+      test.className = 'vexsr-x';
+      test.textContent = 'Test this backup';
+      test.setAttribute('aria-label', 'Test this backup');
+      test.addEventListener('click', async () => {
+        let got;
+        try { got = await api.readBackup(item.name); }
+        catch (err) { got = { ok: false, error: err.message }; }
+        if (!got || !got.ok) { msg('That backup could not be read: ' + ((got && got.error) || 'unknown error'), true); return; }
+        let data;
+        try { data = JSON.parse(got.text); }
+        catch { msg('That backup is not readable as a Vex backup', true); return; }
+        await this._test(data, m, msg);
+      });
+      row.append(label, when, btn, test);
       list.appendChild(row);
     }
   },
@@ -431,11 +611,83 @@ const VexBackup = {
     return 'Settings as they were in ' + item.version;
   },
 
+  _offerUndo(m, msg) {
+    m.querySelector('#bk-undo')?.remove();
+    const undo = document.createElement('button');
+    undo.id = 'bk-undo';
+    undo.className = 'vexsr-x';
+    undo.style.marginTop = '8px';
+    undo.textContent = 'Undo the restore';
+    undo.addEventListener('click', async () => {
+      try { this.undo(); await this.undoStores(); await this.undoMain(); this._reloadLive(); msg('Put back the way it was. Restart Vex.'); undo.remove(); }
+      catch (err) { msg(err.message, true); }
+    });
+    m.querySelector('#bk-msg').after(undo);
+  },
+
+  // "Test this backup": the backup is parsed into a throwaway profile folder
+  // and compared, store by store, with what Vex holds now. The live profile is
+  // only read for its counts; nothing is written to it.
+  async _liveCounts() {
+    const live = { items: Object.keys(this._collectRaw([]).items).length, stores: {} };
+    if (typeof VexStorage !== 'undefined') {
+      for (const name of this.STORES) {
+        const v = await VexStorage.load(name);
+        if (v && typeof v === 'object' && !Array.isArray(v)) live.stores[name] = Object.keys(v).length;
+      }
+    }
+    return live;
+  },
+  async _test(data, m, msg) {
+    const box = m.querySelector('#bk-report');
+    box.textContent = '';
+    box.hidden = true;
+    const api = this._mainApi();
+    if (!api || typeof api.drill !== 'function') { msg('The backup test is not available in this window', true); return; }
+    let r;
+    try { r = await api.drill(JSON.stringify(data), await this._liveCounts()); }
+    catch (err) { r = { ok: false, error: err.message }; }
+    if (!r || !r.ok) { msg((r && r.error) || 'The backup could not be tested', true); return; }
+    msg(r.integrity === 'verified'
+      ? 'The checksum matches. Nothing in your profile was changed by this test.'
+      : 'This backup has no checksum (it was made by an older Vex), so its contents could not be checked. Nothing in your profile was changed by this test.');
+    box.hidden = false;
+    const head = document.createElement('div');
+    head.className = 'vexsr-rule';
+    for (const t of ['What', 'In the backup', 'In Vex now', 'Difference']) {
+      const c = document.createElement('span'); c.className = 'vexsr-mode'; c.textContent = window.vexTr(t); head.appendChild(c);
+    }
+    box.appendChild(head);
+    for (const row of r.rows) {
+      const el = document.createElement('div');
+      el.className = 'vexsr-rule';
+      el.dataset.store = row.name;
+      const cells = [row.label, String(row.backup), row.live === null ? '-' : String(row.live), row.diff === null ? '-' : (row.diff > 0 ? '+' : '') + row.diff];
+      cells.forEach((t, i) => { const c = document.createElement('span'); c.className = i ? 'vexsr-mode' : 'vexsr-host'; c.textContent = i ? t : window.vexTr(t); el.appendChild(c); });
+      box.appendChild(el);
+    }
+    for (const n of r.notes || []) {
+      const el = document.createElement('div'); el.className = 'vexsr-empty'; el.textContent = n; box.appendChild(el);
+    }
+    if (r.version < 2) {
+      const el = document.createElement('div'); el.className = 'vexsr-empty';
+      el.textContent = window.vexTr('This backup is from an older Vex: it holds no site rules, site permissions, reminders or switched-off extensions.');
+      box.appendChild(el);
+    }
+  },
+
   // Restore a backup's contents after asking, with Undo — from a chosen file
   // or from one of the backups made around an update.
   async _restore(data, m, msg) {
     const seen = this.describe(data);
     if (!seen) { msg('That is not a Vex backup file', true); return; }
+    // Nothing is written from a file whose checksum does not match.
+    if (seen.integrity === 'damaged') {
+      let why = 'This backup is damaged: its contents do not match its checksum, so nothing was restored';
+      try { this.verify(data); } catch (err) { why = err.message; }
+      msg(why, true);
+      return;
+    }
     const when = seen.when ? seen.when.toLocaleString() : 'an unknown date';
     const ok = (typeof vexConfirm === 'function') ? await vexConfirm({
       title: 'Restore this backup?',
@@ -444,6 +696,8 @@ const VexBackup = {
         + (seen.chats ? '\n\n' + window.vexTr('It includes AI conversations.') : '')
         + (seen.userscripts ? '\n\n' + window.vexTr('It includes userscripts. They come back switched off; turn each one on in Settings.') : '')
         + (seen.pageActions ? '\n\n' + window.vexTr('It includes page actions. They are not restored: turn them on again in Settings and read the warning again.') : '')
+        + (seen.integrity === 'unverified' ? '\n\n' + window.vexTr('It was made by an older Vex and has no checksum, so its contents could not be checked.') : '')
+        + (seen.main.length ? '\n\n' + window.vexTr('It includes site rules, site permissions, reminders or switched-off extensions; they are checked the way Vex checks them at every start.') : '')
         + '\n\n' + window.vexTr('Everything in it is written over what Vex has now; what it does not have is left as it is. You can undo it until you close Vex.'),
       okLabel: 'Restore', cancelLabel: 'Cancel', danger: true,
     }) : true;
@@ -452,19 +706,21 @@ const VexBackup = {
       const r = this.apply(data);
       this._undoStores = null;
       r.written += await this.applyStores(data);
+      let mainNotes = [];
+      try {
+        const m2 = await this.applyMain(data);
+        r.written += m2.written;
+        mainNotes = m2.notes;
+      } catch (err) {
+        // The rest is restored and can be undone; what failed is named, not hidden.
+        this._reloadLive();
+        msg(err.message, true);
+        this._offerUndo(m, msg);
+        return;
+      }
       this._reloadLive();
-      msg('Restored ' + r.written + ' things' + (r.failed ? ' — ' + r.failed + ' were skipped' : '') + '. Restart Vex for all of it to take.');
-      m.querySelector('#bk-undo')?.remove();
-      const undo = document.createElement('button');
-      undo.id = 'bk-undo';
-      undo.className = 'vexsr-x';
-      undo.style.marginTop = '8px';
-      undo.textContent = 'Undo the restore';
-      undo.addEventListener('click', async () => {
-        try { this.undo(); await this.undoStores(); this._reloadLive(); msg('Put back the way it was. Restart Vex.'); undo.remove(); }
-        catch (err) { msg(err.message, true); }
-      });
-      m.querySelector('#bk-msg').after(undo);
+      msg('Restored ' + r.written + ' things' + (r.failed ? ' — ' + r.failed + ' were skipped' : '') + '. Restart Vex for all of it to take.' + (mainNotes.length ? ' ' + mainNotes.join('. ') + '.' : ''));
+      this._offerUndo(m, msg);
     } catch (err) { msg(err.message, true); }
   },
 };

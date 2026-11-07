@@ -646,7 +646,44 @@ async function restorePageDecisions(snapshot) {
   await saveDecisionsIn(asContents, partitionOf, d);
 }
 
+// A backup restore (main/backup-stores.js): decisions written the way the Settings list shows them (a container's or a
+// route's key carries its name) are put into the store they belong to, over what is there; what the backup does not hold is
+// left. A key naming a store this Vex cannot place is counted and left out, not guessed at. -> the number left out.
+function partitionOfLabel(label) {
+  let m;
+  if ((m = /^in the (.+) container$/.exec(label))) return 'persist:container-' + m[1];
+  if (label === 'through Tor') return 'persist:route-tor';
+  if ((m = /^through proxy (.+)$/.exec(label))) return 'persist:route-proxy-' + m[1];
+  return null;
+}
+async function mergeIncomingDecisions(combined) {
+  const main = { ...loadMainDecisions() };
+  const containers = JSON.parse(JSON.stringify(loadContainerDecisions()));
+  let skipped = 0;
+  const place = (key, value, field) => {
+    const m = /^(.*?) \(([^()]+)\)(::.*)$/.exec(key);
+    let target = main, own = key;
+    if (m) {
+      const partition = partitionOfLabel(m[2]);
+      if (!partition) { skipped++; return; }
+      target = containers[partition] = containers[partition] || {};
+      own = m[1] + m[3];
+    }
+    if (field) (target.__until__ = target.__until__ || {})[own] = value; else target[own] = value;
+  };
+  for (const [key, value] of Object.entries(combined || {})) if (key !== '__until__') place(key, value, false);
+  for (const [key, end] of Object.entries((combined && combined.__until__) || {})) place(key, end, true);
+  await Promise.all([saveContainerDecisions(containers), saveMainDecisions(main)]);
+  return skipped;
+}
+// The two stores exactly as they are (for a restore's undo) and put back exactly (the reverse).
+function storesSnapshot() { return JSON.parse(JSON.stringify({ main: loadMainDecisions(), containers: loadContainerDecisions() })); }
+async function replaceStores(before) {
+  if (!before || typeof before !== 'object') throw new Error('Nothing to put back');
+  await Promise.all([saveContainerDecisions(before.containers || {}), saveMainDecisions(before.main || {})]);
+}
+
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { setUiCamera, setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, askAutomaticDownloads, askRiskyDownload, flushPermissions: () => writes };
+return { setUiCamera, setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, mergeIncomingDecisions, storesSnapshot, replaceStores, permissionsReady, askExternalApp, askAutomaticDownloads, askRiskyDownload, flushPermissions: () => writes };
 }
 module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi, isDiscordOrigin };

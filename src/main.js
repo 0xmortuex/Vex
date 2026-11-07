@@ -1145,7 +1145,7 @@ const _permHygiene = require('./main/permission-hygiene').createPermissionHygien
   },
 });
 const { savedDecision } = require('./main/permissions');
-const { setUiCamera, setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id), hygiene: _permHygiene });
+const { setUiCamera, setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, mergeIncomingDecisions, storesSnapshot, replaceStores, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id), hygiene: _permHygiene });
 require('./main/permission-hygiene').registerPermissionHygiene({ ipcMain, hygiene: _permHygiene, loadDecisions: loadPermissionDecisions, saveDecisions: savePermissionDecisions, setPageDecision,
   getContents: (id) => { const c = webContents.fromId(id); return c && !c.isDestroyed() ? c : null; }, ownerOf: (c) => secureSessions.owner(c), isLocked: () => _vexLocked });
 
@@ -2718,7 +2718,7 @@ ipcMain.handle('vex-lock:verify', async (e, pin) => {
 const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing, load: _vaultLoad, save: _vaultSave } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked,
   dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), breachCheckOn: () => _readPersistString('vex.breachCheck', false) === true, onChange: () => _syncSecretsChanged() });
 // Saved payment cards (main/cards.js): encrypted like the vault, this device only, no CVV kept.
-const { flushCards } = require('./main/cards').createCardService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
+const { flushCards, load: _cardsLoad, save: _cardsSave } = require('./main/cards').createCardService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
 // A copied password or one-time code, cleared after 30 s by the main process
 // even when Vex no longer has the focus (main/secret-clipboard.js).
 require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard, app });
@@ -3077,6 +3077,70 @@ ipcMain.handle('totp:delete', async (_e, id) => {
 // "Transfer accounts" QR (main/totp-transfer.js).
 const _totpTransfer = require('./main/totp-transfer').registerTotpTransfer({ ipcMain, dialog, app, windowFor: (e) => BrowserWindow.fromWebContents(e.sender),
   load: totpLoad, save: totpSave, validate: (entry) => _totpCode(entry.secret, entry), isLocked: () => _vexLocked });
+
+// === The encrypted secrets lifeboat (src/main/secrets-lifeboat.js; the window half is js/secrets-lifeboat.js) ===
+// Saved logins, authenticator seeds and (if ticked) cards, plus the LIST of passkeys, sealed with a passphrase the person
+// types and never stored, so a Windows reinstall or a lost DPAPI key does not destroy them. The file is written and read
+// here; the window only ever sees counts. The passphrase is an argument of one call: it is not kept, written or logged.
+const _lifeboat = require('./main/secrets-lifeboat').createLifeboat({
+  vault: { load: () => _vaultLoad(), save: (list) => _vaultSave(list) },
+  totp: { load: totpLoad, save: totpSave, validate: (entry) => _totpCode(entry.secret, entry) },
+  cards: { load: _cardsLoad, save: _cardsSave },
+  passkeys: { list: () => _passkeys.list() },
+  cleanCard: require('./main/cards').cleanCard,
+  files: { vault: path.join(userDataPath, 'vault.dat'), totp: path.join(userDataPath, 'totp.dat'), cards: path.join(userDataPath, 'cards.dat') },
+  backupsDir: path.join(userDataPath, 'backups'),
+  isLocked: () => _vexLocked,
+  log: (m) => console.log(m),
+});
+// The file the person picked for a restore, by a one-time token (so the window never names a path).
+const _lifeboatPicked = new Map();
+async function _lifeboatReply(event, work) {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can use the secrets lifeboat');
+    _refuseWhileLocked();
+    return await work();
+  } catch (err) {
+    // The message is words about the failure; it never carries a secret (secrets-lifeboat.js).
+    return { ok: false, error: err.message };
+  }
+}
+const _lifeboatStamp = () => new Date().toISOString().slice(0, 10);
+ipcMain.handle('lifeboat:export', (event, passphrase, includeCards) => _lifeboatReply(event, async () => {
+  const picked = await dialog.showSaveDialog(mainWindow, { title: 'Save the encrypted secrets file', defaultPath: path.join(app.getPath('documents'), `Vex secrets ${_lifeboatStamp()}.vexsecrets`), filters: [{ name: 'Vex encrypted secrets', extensions: ['vexsecrets'] }] });
+  if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
+  const r = await _lifeboat.exportToFile(picked.filePath, passphrase, { includeCards: includeCards === true });
+  return { ok: true, ...r, path: picked.filePath };
+}));
+ipcMain.handle('lifeboat:pick', (event) => _lifeboatReply(event, async () => {
+  const picked = await dialog.showOpenDialog(mainWindow, { title: 'Choose an encrypted secrets file', filters: [{ name: 'Vex encrypted secrets', extensions: ['vexsecrets'] }], properties: ['openFile'] });
+  if (picked.canceled || !picked.filePaths || !picked.filePaths[0]) return { ok: false, canceled: true };
+  const token = require('crypto').randomBytes(16).toString('hex');
+  _lifeboatPicked.set(token, picked.filePaths[0]);
+  setTimeout(() => _lifeboatPicked.delete(token), 10 * 60 * 1000).unref?.();
+  return { ok: true, token, name: path.basename(picked.filePaths[0]) };
+}));
+const _lifeboatFile = (token) => { const f = _lifeboatPicked.get(token); if (!f) throw new Error('Choose the file again'); return f; };
+ipcMain.handle('lifeboat:verify', (event, token, passphrase) => _lifeboatReply(event, async () => ({ ok: true, ...(await _lifeboat.verifyFile(_lifeboatFile(token), passphrase)) })));
+ipcMain.handle('lifeboat:plan', (event, token, passphrase) => _lifeboatReply(event, async () => ({ ok: true, ...(await _lifeboat.plan(_lifeboatFile(token), passphrase)) })));
+ipcMain.handle('lifeboat:restore', (event, token, passphrase, confirmed, replace) => _lifeboatReply(event, async () => {
+  const r = await _lifeboat.restoreFromFile(_lifeboatFile(token), passphrase, { confirmed: confirmed === true, replace: replace === true });
+  _lifeboatPicked.delete(token);
+  return { ok: true, ...r };
+}));
+// The newest automatic safety copy a restore made, by token (no dialog): "go back to before the restore".
+ipcMain.handle('lifeboat:pick-last', (event) => _lifeboatReply(event, async () => {
+  const dir = path.join(userDataPath, 'backups');
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch (err) { if (err.code !== 'ENOENT') throw err; }
+  const last = names.filter(n => /^secrets-before-restore-\d{14}\.vexsecrets$/.test(n)).sort().pop();
+  if (!last) return { ok: false, error: 'There is no safety copy from an earlier restore' };
+  const token = require('crypto').randomBytes(16).toString('hex');
+  _lifeboatPicked.set(token, path.join(dir, last));
+  setTimeout(() => _lifeboatPicked.delete(token), 10 * 60 * 1000).unref?.();
+  return { ok: true, token, name: last };
+}));
+ipcMain.handle('lifeboat:live', (event) => _lifeboatReply(event, async () => ({ ok: true, counts: _lifeboat.liveCounts() })));
 
 // Only decisions still in force: an "Allow for a day" that has run out is as
 // if never made (savedDecision), so it is not listed as allowed either.
@@ -3991,7 +4055,8 @@ function _reportTabActivity(contents) {
   host.win.webContents.send('session-timeout:activity', { pageId: contents.id });
 }
 _refreshUaRules();
-ipcMain.handle('siterules:set', (_e, rules) => {
+// The one way the site rules change, for the Settings list and for a backup restore (main/backup-stores.js).
+function _setSiteRules(rules) {
   const before = _siteRules;
   _siteRules = SiteRules.clean(rules);
   try { require('./main/file-store').atomicWriteSync(_siteRulesFile, JSON.stringify(_siteRules)); }
@@ -4004,7 +4069,8 @@ ipcMain.handle('siterules:set', (_e, rules) => {
   _broadcastDownloadEvent('siterules:changed', _siteRules);
   _dropServiceWorkersOfScriptsOff(before, _siteRules);
   return { ok: true, rules: _siteRules };
-});
+}
+ipcMain.handle('siterules:set', (_e, rules) => _setSiteRules(rules));
 ipcMain.handle('siterules:get', () => ({ ok: true, rules: _siteRules }));
 // Forget a site when I close it (main/site-forget.js): the window says the last tab of such a site closed; Vex's quit sweeps the rest.
 const _siteForget = require('./main/site-forget').createSiteForget({
@@ -4020,7 +4086,9 @@ ipcMain.handle('siteforget:run', async (_e, opts) => {
     const { url, partition, exceptPageId } = opts || {};
     if (typeof url !== 'string' || url.length > 4096) throw new Error('That is not a web address');
     if (typeof partition !== 'string') throw new Error('The session of the tab is missing');
-    return await _siteForget.afterTabClosed({ url, partition, exceptPageId: Number.isInteger(exceptPageId) ? exceptPageId : null });
+    const forgot = await _siteForget.afterTabClosed({ url, partition, exceptPageId: Number.isInteger(exceptPageId) ? exceptPageId : null });
+    if (forgot && forgot.cleared) _massSignoutDeliberate('forget-site');   // the person's own rule removed a sign-in
+    return forgot;
   } catch (err) { return { ok: false, error: err.message }; }
 });
 let _forgetQuitDone = false;
@@ -4028,6 +4096,7 @@ app.on('will-quit', (event) => {
   if (_forgetQuitDone) return;
   _forgetQuitDone = true;
   event.preventDefault();
+  if (Object.values(_siteRules).some(r => r && r.forget === true)) _massSignoutDeliberate('forget-site-quit');
   _siteForget.onQuit()
     .catch(err => console.error('[SiteForget] could not forget the sites on quit:', err && err.message))
     .finally(() => app.quit());
@@ -8733,6 +8802,7 @@ require('./main/secure-stores').registerAppLock({
   // Same approach as browsing:clear-data (cookies, localStorage, IndexedDB, cache of
   // every session: tabs, containers, panels), but a failure is collected, not thrown midway.
   clearSessions: async () => {
+    _massSignoutDeliberate('app-lock-reset');
     const failures = [];
     for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) {
       try { await ses.clearStorageData(); await ses.clearCache(); }
@@ -11625,6 +11695,79 @@ ipcMain.handle('updates:backup-read', (event, name) => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 
+// === Backup coverage, the restore rehearsal and the rolling automatic backup ===
+// (src/main/backup-stores.js, src/main/auto-backups.js; the window half is js/backup.js and js/auto-backup.js)
+// The four files only this process keeps (site rules, site permissions, reminders, switched-off extensions) travel in the
+// backup and come back through their own cleaners; "Test this backup" rehearses a restore in a temp folder; the rolling
+// backup is opt-in and gated here (game, battery, quiet hours, one a day).
+function _backupFromMainWindow(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can use backups');
+}
+const _backupVex = require('./renderer/js/backup.js').VexBackup;
+const _backupStores = require('./main/backup-stores').createBackupStores({
+  SiteRules: require('./main/site-rules'),
+  siteRules: {
+    get: () => _siteRules,
+    set: (rules) => { const r = _setSiteRules(rules); if (!r.ok) throw new Error(r.error || 'the site rules could not be saved'); },
+  },
+  permissions: {
+    combined: () => loadPermissionDecisions(),
+    mainAndContainers: () => storesSnapshot(),
+    merge: (clean) => mergeIncomingDecisions(clean),
+    restoreStores: (before) => replaceStores(before),
+  },
+  reminders: {
+    list: async () => { if (!reminders) throw new Error('Reminders have not started yet'); return reminders.list(); },
+    importList: async (items) => { if (!reminders) throw new Error('Reminders have not started yet'); return reminders.importList(items); },
+    delete: async (id) => reminders.delete(id),
+  },
+  extensions: {
+    readDisabled: () => extHelpers.readDisabled(extensionsDir),
+    writeDisabled: (list) => extHelpers.writeDisabled(extensionsDir, list),
+    installed: () => new Set(_extEntriesOnDisk().map(e => e.folder)),
+  },
+  log: console,
+});
+const _autoBackups = require('./main/auto-backups').createAutoBackups({
+  fs, dir: path.join(userDataPath, 'backups'), configFile: path.join(userDataPath, 'auto-backup.json'), VexBackup: _backupVex,
+  gates: {
+    game: () => !!(_mergedGameState().game || _gameModeSession.active()),
+    // Windows' Battery Saver is not readable from Electron (main/power-watch.js); "on battery power" is the stricter stand-in.
+    battery: () => require('electron').powerMonitor.isOnBatteryPower() || !!(_powerWatchLazy && _powerWatchLazy.lean()),
+    quiet: () => !!(_protect && _protect.quiet && _protect.quiet.isQuietNow()),
+    // An encrypted profile must not get a plaintext copy of itself (as saveAtFirstStart).
+    encrypted: () => !!_profileCrypt.status().enabled,
+  },
+  log: console,
+});
+const _backupReply = async (event, work) => {
+  try { _backupFromMainWindow(event); return await work(); }
+  catch (err) { return { ok: false, error: err.message }; }
+};
+ipcMain.handle('backup:collect-main', (event) => _backupReply(event, async () => ({ ok: true, main: await _backupStores.collect() })));
+ipcMain.handle('backup:apply-main', (event, main) => _backupReply(event, async () => ({ ok: true, ...(await _backupStores.apply(main)) })));
+ipcMain.handle('backup:undo-main', (event) => _backupReply(event, async () => ({ ok: await _backupStores.undo() })));
+ipcMain.handle('backup:drill', (event, text, live) => _backupReply(event, async () => {
+  const mainLive = _backupStores.counts(await _backupStores.collect());
+  return require('./main/backup-stores').drillBackup({ text, live: { ...(live || {}), main: mainLive }, VexBackup: _backupVex, SiteRules: require('./main/site-rules') });
+}));
+ipcMain.handle('backup:auto-state', (event) => _backupReply(event, async () => ({ ok: true, state: _autoBackups.state() })));
+ipcMain.handle('backup:auto-set', (event, on) => _backupReply(event, async () => ({ ok: true, state: _autoBackups.setConfig({ on }) })));
+ipcMain.handle('backup:auto-clear-folder', (event) => _backupReply(event, async () => ({ ok: true, state: _autoBackups.setConfig({ folder2: null }) })));
+ipcMain.handle('backup:auto-choose-folder', (event) => _backupReply(event, async () => {
+  const picked = await dialog.showOpenDialog(mainWindow, { title: 'Choose a folder for the second copy of the automatic backup', properties: ['openDirectory', 'createDirectory'], defaultPath: app.getPath('documents') });
+  if (picked.canceled || !picked.filePaths || !picked.filePaths[0]) return { ok: true, canceled: true, state: _autoBackups.state() };
+  return { ok: true, state: _autoBackups.setConfig({ folder2: picked.filePaths[0] }) };
+}));
+ipcMain.handle('backup:auto-due', (event) => _backupReply(event, async () => ({ ok: true, ..._autoBackups.due() })));
+ipcMain.handle('backup:auto-save', (event, text) => _backupReply(event, async () => {
+  const r = _autoBackups.save(text);
+  if (r.ok) console.log('[AutoBackup] saved', r.name, r.bytes, 'bytes', r.weekly ? '(and the weekly one)' : '', r.second && !r.second.ok ? '- the second copy failed' : '');
+  return r;
+}));
+ipcMain.handle('backup:auto-list', (event) => _backupReply(event, async () => ({ ok: true, items: _autoBackups.list() })));
+ipcMain.handle('backup:auto-read', (event, name) => _backupReply(event, async () => ({ ok: true, text: _autoBackups.read(name) })));
+
 // === Health check and self-repair (src/main/health-check.js, js/vex-health.js) ===
 // Settings › Health check. Only Vex's own main window may ask, and it names
 // repairs by the ids a scan gave it, never by path. Preference keys are removed
@@ -12336,6 +12479,64 @@ require('./main/signed-in').registerSignedIn({
   vaultHosts: () => _vaultLoad().map(e => e.host),
   noteAction: (action, domains) => _protect.signout.noteAction(action, domains),
   isLocked: () => _vexLocked,
+});
+
+// "Many of your logins look gone" (src/main/mass-signout.js): at start, the number of sites with a lasting sign-in is compared
+// with the last run's; a fall of more than half (from at least 6) puts one item in the Attention Inbox. Stores one number
+// and one time (signin-baseline.json), never a list of sites. Every deliberate clearing path calls deliberate() below, so
+// clearing data on purpose can never raise it.
+let _massSignoutPending = null;
+const _massSignout = require('./main/mass-signout').createMassSignout({
+  file: path.join(userDataPath, 'signin-baseline.json'),
+  countSignIns: async () => {
+    const by = {};
+    for (const p of BROWSING_SESSIONS) by[p] = await secureSessions.fromPartition(p).cookies.get({});
+    return require('./main/signed-in').countPersistent(by);
+  },
+  newestBackup: () => {
+    const { newestValid } = require('./main/auto-backups');
+    const readFrom = (dir, name) => () => fs.readFileSync(path.join(dir, name), 'utf8');
+    const dir = path.join(userDataPath, 'backups');
+    const all = [
+      ..._updateBackups.list().map(b => ({ name: b.name, at: b.at, read: readFrom(dir, b.name) })),
+      ..._autoBackups.list().map(b => ({ name: b.name, at: b.at, read: readFrom(dir, b.name) })),
+    ];
+    return newestValid(all, _backupVex);
+  },
+  onDrop: (info) => {
+    _massSignoutPending = { before: info.before, now: info.now, backup: info.backup };
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('signins:mass-drop', _massSignoutPending); }
+    catch (err) { console.error('[SignIns] could not tell the window:', err.message); }
+  },
+  log: (m) => console.log(m),
+});
+const _massSignoutDeliberate = (why) => {
+  try { _massSignout.deliberate(why); }
+  catch (err) { console.error('[SignIns] could not forget the baseline after', why + ':', err.message); }
+};
+// Clear browsing data and the privacy clean-up remove sign-ins on purpose: both go through noteAction (main/signout-why.js).
+{
+  const _note = _protect.signout.noteAction.bind(_protect.signout);
+  _protect.signout.noteAction = (action, domains) => {
+    if (action === 'clear-all' || action === 'privacy-cleanup') _massSignoutDeliberate(action);
+    return _note(action, domains);
+  };
+}
+app.whenReady().then(() => {
+  const look = (first) => (first ? _massSignout.check() : _massSignout.refresh())
+    .catch(err => console.error('[SignIns] the sign-in count could not be compared:', err.message));
+  // After the cookie jars have had time to load (the same wait as the sign-out record), then every half hour.
+  setTimeout(() => look(true), 45000).unref?.();
+  setInterval(() => look(false), 30 * 60 * 1000).unref?.();
+});
+ipcMain.handle('signins:pending', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can ask');
+  return _massSignoutPending;
+});
+ipcMain.handle('signins:dismiss', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can ask');
+  _massSignoutPending = null;
+  return true;
 });
 
 // The password-field interlock (src/main/credential-guard.js) and the "I clicked something"

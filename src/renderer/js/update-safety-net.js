@@ -66,6 +66,7 @@ const VexUpdateSafetyNet = {
     const r = VexBackup.apply(data);
     VexBackup._undoStores = null;
     r.written += await VexBackup.applyStores(data);
+    r.written += (await VexBackup.applyMain(data)).written;
     VexBackup._reloadLive();
     this._undo = true;
     return r;
@@ -75,6 +76,7 @@ const VexUpdateSafetyNet = {
     if (!this._undo) throw new Error('Nothing has been restored to undo');
     VexBackup.undo();
     await VexBackup.undoStores();
+    await VexBackup.undoMain();
     VexBackup._reloadLive();
     this._undo = false;
   },

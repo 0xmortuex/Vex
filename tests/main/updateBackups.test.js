@@ -54,12 +54,23 @@ describe('before an update', () => {
     const b = make();
     expect(() => b.save('2.35.1', '')).toThrow(/empty/);
     expect(() => b.save('2.35.1', '{not json')).toThrow(/not readable/);
-    expect(() => b.save('2.35.1', JSON.stringify({ v: 2, items: {} }))).toThrow(/backup format/);
+    expect(() => b.save('2.35.1', JSON.stringify({ v: 3, items: {} }))).toThrow(/backup format/);
     expect(() => b.save('../../evil', backup())).toThrow(/Not a version/);
     expect(() => b.save('2.35.1', JSON.stringify({ v: 1, items: { big: 'x'.repeat(11 * 1024 * 1024) } }))).toThrow(/larger than 10 MB/);
     expect(() => b.read('../settings.json')).toThrow(/not a backup Vex made/);
     expect(() => b.read('before-2.35.1-2026-10-01-140509.json\\..\\x')).toThrow(/not a backup Vex made/);
     expect(b.list()).toEqual([]);
+  });
+
+  it('keeps a sealed version-2 backup, and refuses one whose checksum does not match', () => {
+    const { VexBackup } = require('../../src/renderer/js/backup.js');
+    const b = make();
+    const good = VexBackup.seal({ v: 2, at: '2026-10-01T10:00:00.000Z', app: '2.60.0', items: { 'vex.theme': 'x' }, stores: {}, main: {} });
+    expect(b.save('2.60.0', JSON.stringify(good)).name).toMatch(/^before-2\.60\.0-/);
+    const bad = JSON.parse(JSON.stringify(good));
+    bad.items['vex.theme'] = 'changed';
+    expect(() => b.save('2.60.1', JSON.stringify(bad))).toThrow(/damaged before it was saved/);
+    expect(b.list().length).toBe(1);
   });
 
   it('a backup that cannot be written is an error, and leaves nothing half-written', () => {
