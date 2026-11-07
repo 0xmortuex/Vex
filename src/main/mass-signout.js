@@ -50,6 +50,7 @@ function createMassSignout({ file, fs = nodeFs, now = () => Date.now(), countSig
     const tmp = file + '.' + process.pid + '.tmp';
     try {
       fs.mkdirSync(nodePath.dirname(file), { recursive: true });
+      // vex-allow-plain-write: written to a temp name and renamed into place on the next line, so the real file is whole or untouched
       fs.writeFileSync(tmp, JSON.stringify({ count, at: now() }), 'utf8');
       fs.renameSync(tmp, file);
     } catch (err) {

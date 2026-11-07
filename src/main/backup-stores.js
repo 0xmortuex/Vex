@@ -227,6 +227,7 @@ function drillBackup({ text, live = {}, VexBackup, SiteRules, fs = nodeFs, os = 
     const put = (rel, value) => {
       const file = path.join(tmp, rel);
       fs.mkdirSync(path.dirname(file), { recursive: true });
+      // vex-allow-plain-write: a throwaway copy in a fresh temp folder for the restore rehearsal, removed afterwards
       fs.writeFileSync(file, JSON.stringify(value), 'utf8');
       return file;
     };
