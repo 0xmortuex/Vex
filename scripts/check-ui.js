@@ -13,6 +13,7 @@
 //   node scripts/check-ui.js --theme=midnight  limit to one colour theme
 //   node scripts/check-ui.js --json        machine-readable findings
 //   node scripts/check-ui.js --keep-open   leave the app running to poke at
+//   node scripts/check-ui.js --contrast    only the forced-colors (Windows contrast themes) and prefers-contrast: more passes
 //
 // Exit codes (the two failure kinds are deliberately distinguishable):
 //   0  clean
@@ -1061,7 +1062,154 @@ window.__vexCheckUi = (function () {
     return { roots: roots.length, judged: judged, rings: ringsJudged, findings: findings };
   }
 
-  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout, settingsGrow: settingsGrow, settingsChips: settingsChips, a11yScan: a11yScan };
+  // --- Windows contrast themes (forced-colors) and prefers-contrast: more ---------
+  // mode 'forced': the page runs with forced-colors: active (Emulation.setEmulatedMedia), where Chromium replaces text, border and
+  // background colours with the system palette and drops box-shadow, so what is left is judged. mode 'more': prefers-contrast: more.
+  // In both the text must read (forced: AA; more: AAA, 7:1), every control must still show its edge or its icon, and the focus
+  // ring must be an outline or border that stands out from what is behind it (a box-shadow ring does not survive forced colours).
+  var BOUNDARY_MIN = 3.0;
+  var CONTROLS = 'button, [role=button], [role=tab], [role=menuitem], input:not([type=hidden]), select, textarea, .sidebar-icon, .tool-icon, .top-tab, .gsc';
+  var FIELDS = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea';
+  function colorContrast(a, b) { return a && b ? contrast(a, b) : 0; }
+  function imageBehind(el) {
+    var node = el;
+    while (node && node.nodeType === 1) {
+      var cs = getComputedStyle(node);
+      var bc = toRgb(cs.backgroundColor);
+      if (cs.backgroundImage && cs.backgroundImage !== 'none' && cs.backgroundImage.indexOf('url(') === -1) return describe(node) + ' (forced-color-adjust: ' + cs.forcedColorAdjust + ') ' + cs.backgroundImage.slice(0, 40);
+      if (bc && bc.a >= 0.999) return null;
+      node = node.parentElement;
+    }
+    return null;
+  }
+  // A field drawn inside a box that has the edge (the address bar's pill, the palette's input row): the box is its edge.
+  function wrapperEdge(field) {
+    var fr = field.getBoundingClientRect();
+    var best = 0, node = field.parentElement;
+    for (var up = 0; up < 3 && node && node.nodeType === 1; up++, node = node.parentElement) {
+      var r = node.getBoundingClientRect();
+      if (r.width > fr.width + 260 || r.height > fr.height + 40) break;
+      var wcs = getComputedStyle(node);
+      var back = bgBehind(node.parentElement || node).color;
+      var sides = ['Top', 'Right', 'Bottom', 'Left'];
+      for (var k = 0; k < 4; k++) {
+        if (wcs['border' + sides[k] + 'Style'] !== 'none' && parseFloat(wcs['border' + sides[k] + 'Width']) >= 1) {
+          best = Math.max(best, colorContrast(toRgb(wcs['border' + sides[k] + 'Color']), back));
+        }
+      }
+    }
+    return best;
+  }
+  // What a selected control looks like, as one string, to compare with an unselected neighbour.
+  function lookOf(el) {
+    var c = getComputedStyle(el);
+    return [c.color, c.backgroundColor, c.borderTopColor, c.borderTopWidth, c.borderTopStyle, c.borderBottomColor, c.borderBottomWidth,
+      c.outlineStyle, c.outlineWidth, c.outlineColor, c.textDecorationLine, c.fontWeight, c.fontStyle].join('|');
+  }
+  var SELECTED = '[aria-selected="true"], [aria-pressed="true"], [aria-current="page"], .top-tab.active, .sidebar-icon.active';
+  function contrastScan(mode, sel, surface) {
+    freeze();
+    var forced = mode === 'forced';
+    var query = forced ? '(forced-colors: active)' : '(prefers-contrast: more)';
+    if (!matchMedia(query).matches) throw new Error('the ' + query + ' emulation did not reach the page');
+    var findings = [], seen = {}, judged = 0, controls = 0, rings = 0;
+    function add(check, el, message, numbers) {
+      var key = check + '|' + describe(el) + '|' + message;
+      if (seen[key]) return;
+      seen[key] = 1;
+      findings.push({ check: check, element: describe(el), message: message, numbers: numbers || {} });
+    }
+    var roots = document.querySelectorAll(sel);
+    for (var r = 0; r < roots.length; r++) {
+      var all = [roots[r]].concat(Array.prototype.slice.call(roots[r].querySelectorAll('*')));
+      for (var j = 0; j < all.length; j++) {
+        var el = all[j];
+        if (/^(SCRIPT|STYLE|OPTION|NOSCRIPT|TEMPLATE)$/.test(el.tagName) || !isVisible(el)) continue;
+        if (el.closest('[disabled], [aria-disabled="true"]')) continue;
+        // 1. text
+        if (hasOwnText(el)) {
+          var res = contrastOf(el, false);
+          if (!res.skipped && !res.unreadable) {
+            judged++;
+            var cs0 = getComputedStyle(el);
+            var px = parseFloat(cs0.fontSize);
+            var large = px >= 24 || (px >= 18.66 && parseInt(cs0.fontWeight, 10) >= 700);
+            var min = forced ? (large ? 3 : 4.5) : (large ? 4.5 : 7);
+            if (res.ratio + 0.05 < min) add(forced ? 'forced-colors-text' : 'contrast-more-text', el, 'in ' + surface + ': text ' + res.fg + ' on ' + res.bg + ' is ' + n(res.ratio) + ':1, under ' + min + ':1', { ratio: n(res.ratio), required: min });
+            if (forced) {
+              var img = imageBehind(el);
+              if (img) add('forced-colors-image-behind-text', el, 'in ' + surface + ': text sits on the picture of ' + img + ', which forced colours keep, so the system text colour may not read on it', {});
+            }
+          }
+        }
+        // 2. a selected tab / pressed button must still differ from its neighbours without relying on colour alone
+        if (el.matches(SELECTED) && isHittable(el) && el.parentElement) {
+          var sibs = Array.prototype.slice.call(el.parentElement.children).filter(function (x) { return x !== el && x.tagName === el.tagName && !x.matches(SELECTED) && isVisible(x); });
+          if (sibs.length && lookOf(el) === lookOf(sibs[0])) {
+            add('selected-looks-unselected', el, 'in ' + surface + ': selected, but looks exactly like its neighbour ' + describe(sibs[0]) + ' (same colours, border, outline and weight), so the selection cannot be seen', {});
+          }
+        }
+        // 3. controls: an edge or an icon must be left, and the focus ring must be an outline
+        if (el.matches(CONTROLS) && isHittable(el)) {
+          controls++;
+          var cs = getComputedStyle(el);
+          var parentBack = bgBehind(el.parentElement || el);
+          var edge = 0;
+          var sides = ['Top', 'Right', 'Bottom', 'Left'];
+          for (var k = 0; k < 4; k++) {
+            if (cs['border' + sides[k] + 'Style'] !== 'none' && parseFloat(cs['border' + sides[k] + 'Width']) >= 1) {
+              edge = Math.max(edge, colorContrast(toRgb(cs['border' + sides[k] + 'Color']), parentBack.color));
+            }
+          }
+          var own = toRgb(cs.backgroundColor);
+          if (own && own.a > 0.5) edge = Math.max(edge, colorContrast(own, parentBack.color));
+          if (el.matches(FIELDS) && edge < BOUNDARY_MIN) edge = Math.max(edge, wrapperEdge(el));
+          if (el.matches(FIELDS) && edge < BOUNDARY_MIN) {
+            add('no-visible-boundary', el, 'in ' + surface + ': a field with no edge a person can see (' + n(edge) + ':1 against what is behind it, needs ' + BOUNDARY_MIN + ':1)', { edge: n(edge) });
+          } else if (edge < BOUNDARY_MIN) {
+            // No edge is fine for a control whose text or icon is still drawn; it vanishes when nothing is left to see.
+            var hasText = (el.textContent || '').trim().length > 0 || el.matches('input[type=button], input[type=submit]');
+            var hasPicture = false;
+            var pics = el.querySelectorAll('svg, img, canvas');
+            for (var q = 0; q < pics.length; q++) {
+              var pr = pics[q].getBoundingClientRect();
+              if (pr.width < 2 || pr.height < 2) continue;
+              if (pics[q].tagName === 'IMG' || pics[q].tagName === 'CANVAS') { hasPicture = true; break; }
+              var ic = contrastOf(pics[q], true);
+              if (ic.skipped || (!ic.unreadable && ic.ratio + 0.05 >= ICON_MIN)) { hasPicture = true; break; }
+            }
+            var bi = cs.backgroundImage && cs.backgroundImage !== 'none';
+            var masked = (cs.webkitMaskImage && cs.webkitMaskImage !== 'none') || (cs.maskImage && cs.maskImage !== 'none');
+            if (!hasText && !hasPicture && !bi && !masked && !el.matches('input[type=checkbox], input[type=radio], input[type=range], .toggle-slider')) {
+              add('control-vanishes', el, 'in ' + surface + ': nothing of this control is left to see (no edge, no text, no icon with ' + ICON_MIN + ':1)', { edge: n(edge) });
+            } else if (masked && forced) {
+              add('forced-colors-mask-icon', el, 'in ' + surface + ': its icon is a mask filled with a background colour, which forced colours replace, so it can turn into a solid block or nothing', {});
+            }
+          }
+          // The focus ring, for the first controls on the surface.
+          if (rings < 40 && el.tabIndex >= 0 && typeof el.focus === 'function' && !el.disabled) {
+            var before = getComputedStyle(el);
+            var edgeBefore = before.borderTopColor + before.borderTopWidth;
+            try { el.focus({ focusVisible: true }); } catch (e) { el.focus(); }
+            if (document.activeElement === el && el.matches(':focus-visible')) {
+              rings++;
+              var f = getComputedStyle(el);
+              var back = bgBehind(el.parentElement || el).color;
+              var ringOk = f.outlineStyle !== 'none' && parseFloat(f.outlineWidth) >= 1 && colorContrast(toRgb(f.outlineColor), back) >= BOUNDARY_MIN;
+              var edgeChanged = (f.borderTopColor + f.borderTopWidth) !== edgeBefore && parseFloat(f.borderTopWidth) >= 1 && f.borderTopStyle !== 'none';
+              if (!ringOk && !edgeChanged) {
+                add('focus-ring-vanishes', el, 'in ' + surface + ': focus draws outline ' + f.outlineStyle + ' ' + f.outlineWidth + ' ' + f.outlineColor + ' (' + n(colorContrast(toRgb(f.outlineColor), back)) + ':1 against what is behind it) and no border change, so keyboard focus cannot be seen', {});
+              }
+            }
+            el.blur();
+          }
+        }
+      }
+    }
+    return { roots: roots.length, judged: judged, controls: controls, rings: rings, findings: findings };
+  }
+
+  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout, settingsGrow: settingsGrow, settingsChips: settingsChips, a11yScan: a11yScan, contrastScan: contrastScan };
 })();
 'installed';
 `;
@@ -1086,9 +1234,12 @@ const KEEP_OPEN = flags.has('--keep-open');
 // covering the window or a point of the window that no longer reaches the page (T2-014). Off by default
 // until it has run clean once on the owner's machine; --full turns it on.
 const SWEEP = flags.has('--sweep') || FULL;
+// --contrast: only the Windows contrast-theme pass (forced-colors: active) and the prefers-contrast: more pass, on the window,
+// Settings, the command palette and the site panel (scanContrast below). --full adds the pass to the whole run.
+const CONTRAST = flags.has('--contrast');
 
 for (const a of args) {
-  if (!/^--(full|json|keep-open|style=.+|theme=.+)$/.test(a)) fail('unknown argument: ' + a);
+  if (!/^--(full|json|keep-open|contrast|sweep|style=.+|theme=.+)$/.test(a)) fail('unknown argument: ' + a);
 }
 
 // A handful of representative themes: the default, a near-black, a saturated
@@ -1554,6 +1705,57 @@ async function settleShortcutChips(cdp) {
   if (left) throw new Error(left + ' shortcut favicon(s) loaded despite the block — the letter-chip contrast would depend on the network');
 }
 
+// ---------------------------------------------------------------------------
+// CONTRAST — the same chrome under forced-colors: active (what a Windows contrast theme does to it) and prefers-contrast: more,
+// emulated through CDP (Emulation.setEmulatedMedia). The window, Settings, the command palette and the site panel are opened
+// in each look and judged by contrastScan(): text that no longer reads, a field or control with no edge or icon left, and a
+// focus ring that is not an outline. Nothing is screenshotted (trap 2): all of it is computed style.
+// ---------------------------------------------------------------------------
+const CONTRAST_MODES = [
+  { mode: 'forced', colors: 'forced-colors', features: [{ name: 'forced-colors', value: 'active' }] },
+  { mode: 'more', colors: 'prefers-contrast', features: [{ name: 'prefers-contrast', value: 'more' }] },
+];
+const CONTRAST_SURFACES = [
+  { name: 'the window', sel: 'body', open: 'SidebarManager.hideActivePanel()', close: 'true' },
+  { name: 'Settings', sel: '#panel-settings', open: "SidebarManager.openPanel('settings')", close: 'SidebarManager.hideActivePanel()' },
+  { name: 'the command bar', sel: '#command-bar', open: "CommandBar.open(); const i = document.querySelector('#command-input'); if (i) { i.value = 'set'; i.dispatchEvent(new Event('input', { bubbles: true })); }", close: 'CommandBar.close()' },
+  { name: 'the site panel', sel: '#vex-site-panel', open: 'SitePanel.open()', close: 'SitePanel.close()' },
+];
+
+async function scanContrast(cdp, styles, themes, findings, summaries) {
+  try {
+    for (const m of CONTRAST_MODES) {
+      await cdp.send('Emulation.setEmulatedMedia', { features: m.features });
+      await sleep(250);
+      for (const style of styles) {
+        await evaluate(cdp, 'window.VexGuiStyle.set(' + JSON.stringify(style) + ')');
+        if (await evaluate(cdp, 'window.VexGuiStyle.isBrowserLook()')) await evaluate(cdp, "window.VexGuiStyle.setColors('theme')");
+        await sleep(250);
+        for (const theme of themes) {
+          await evaluate(cdp, 'window.ThemeManager.applyTheme(' + JSON.stringify(theme) + ', { persist: false })');
+          // A colour transition started by the theme or the emulation is still running at 150 ms: a text colour read in the
+          // middle of it is neither the old nor the new one (it made a settings hint look 3.5:1 once). Let them finish.
+          await sleep(600);
+          let count = 0, controls = 0, colours = 0;
+          for (const s of CONTRAST_SURFACES) {
+            await evaluate(cdp, '(() => { ' + s.open + '; return true; })()');
+            await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
+            await sleep(150);
+            const res = await evaluate(cdp, 'window.__vexCheckUi.contrastScan(' + JSON.stringify(m.mode) + ', ' + JSON.stringify(s.sel) + ', ' + JSON.stringify(s.name) + ')');
+            await evaluate(cdp, '(() => { ' + s.close + '; return true; })()');
+            if (!res.roots || !res.judged || !res.controls) throw new Error(s.name + ' did not open under ' + m.colors + ' (' + style + '/' + theme + ') — judged ' + res.judged + ' text(s) and ' + res.controls + ' control(s), so the check would be reporting on nothing');
+            for (const f of res.findings) findings.push({ ...f, style, colors: m.colors, theme });
+            count += res.findings.length; controls += res.controls; colours += res.judged;
+          }
+          summaries.push({ style, colors: m.colors, themes: 1, controls, colours, findings: count });
+        }
+      }
+    }
+  } finally {
+    await cdp.send('Emulation.setEmulatedMedia', { features: [] });
+  }
+}
+
 async function main() {
   const started = Date.now();
   const port = await freePort();
@@ -1683,7 +1885,7 @@ async function main() {
     const findings = [];
     const summaries = [];
 
-    for (const style of runStyles) {
+    for (const style of (CONTRAST ? [] : runStyles)) {
       await evaluate(cdp, 'window.VexGuiStyle.set(' + JSON.stringify(style) + ')');
       await sleep(250);
       await settleShortcutChips(cdp);
@@ -1727,12 +1929,17 @@ async function main() {
 
     // Panels, menus, dialogs, pickers and the New Tab page, in the Firefox
     // look and Glass (or the one style asked for, if it is either).
-    const surfaceStyles = SURFACE_STYLES.filter(s => runStyles.includes(s));
+    const surfaceStyles = CONTRAST ? [] : SURFACE_STYLES.filter(s => runStyles.includes(s));
     if (surfaceStyles.length) await scanSurfaces(cdp, port, EXCEPTIONS, surfaceStyles, themes, findings, summaries);
     // Settings in columns and in each Settings layout, in the Firefox look
     // (the owner's), Glass and Classic.
-    const layoutStyles = ['firefox', 'glass', 'classic'].filter(s => runStyles.includes(s));
+    const layoutStyles = CONTRAST ? [] : ['firefox', 'glass', 'classic'].filter(s => runStyles.includes(s));
     if (layoutStyles.length) await scanSettingsLayout(cdp, EXCEPTIONS, layoutStyles, findings, summaries);
+    // Windows contrast themes and prefers-contrast: more (--contrast; --full adds it).
+    if (CONTRAST || FULL) {
+      const contrastStyles = ['firefox', 'glass', 'classic'].filter(x => runStyles.includes(x));
+      await scanContrast(cdp, contrastStyles, themes.slice(0, 1), findings, summaries);
+    }
 
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
 
