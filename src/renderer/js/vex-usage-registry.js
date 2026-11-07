@@ -391,6 +391,7 @@ const VexUsageRegistry = {
       ExamCalendar: () => (typeof ExamCalendar !== 'undefined' ? ExamCalendar : null),
       ReceiptLocker: () => (typeof ReceiptLocker !== 'undefined' ? ReceiptLocker : null),
       VexKeptDatasets: () => (typeof VexKeptDatasets !== 'undefined' ? VexKeptDatasets : null),
+      VexPageVersions: () => (typeof VexPageVersions !== 'undefined' ? VexPageVersions : null),
       VexCarry: () => (typeof VexCarry !== 'undefined' ? VexCarry : null),
       VexWhen: () => (typeof VexWhen !== 'undefined' ? VexWhen : null),
       VexCloseDay: () => (typeof VexCloseDay !== 'undefined' ? VexCloseDay : null),
@@ -720,6 +721,7 @@ const VexUsageRegistry = {
       ['receipt-locker', A.api(G.ReceiptLocker, 'enabled', 'setEnabled')],
       // Wave 5, pages as data the person keeps (off until switched on; off keeps what was kept, a button deletes it).
       ['kept-datasets', A.api(G.VexKeptDatasets, 'enabled', 'setEnabled')],
+      ['page-versions', A.api(G.VexPageVersions, 'enabled', 'setEnabled')],
       // Page automations (main/automations.js): the switch is mirrored in vex.automations.enabled; main holds the truth.
       ['page-automations', A.api(G.VexAutomations, 'enabled', 'setEnabled')],
       // Wave 2, daily planning: new features, staged off on a profile that already existed.

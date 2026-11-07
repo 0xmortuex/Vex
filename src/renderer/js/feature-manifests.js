@@ -935,6 +935,9 @@
     // ---- Wave 5: pages as data the person keeps (js/kept-datasets.js) ----
     { id: 'kept-datasets', title: 'Datasets from pages', maturity: 'new', storageKeys: ['vex.keptDatasets.enabled'], commands: ['dataset-keep', 'datasets-open'],
       permissions: { reads: ['the table you point at on a page, never from a private, Tor or routed tab and never from a bank, payment, sign-in, mail or health page'], writes: ['your datasets, as their own files in the profile folder (at most 50 datasets, 5,000 rows and 5 MB each), and a CSV or JSON file where you choose to save one'], sends: [] } },
+    // ---- Wave 5: text versions of a page (js/page-versions.js) ----
+    { id: 'page-versions', title: 'Page text versions', maturity: 'new', storageKeys: ['vex.pageVersions.enabled'], commands: ['page-versions-keep', 'page-versions-save', 'page-versions-open'],
+      permissions: { reads: ['the readable text of a page you marked, only when you save a version or a page watch on it sees a change; never from a private, Tor or routed tab and never from a bank, payment, sign-in, mail or health page'], writes: ['the text versions, as their own files in the profile folder (at most 100 pages, 20 versions each, 200 KB of text per version)'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

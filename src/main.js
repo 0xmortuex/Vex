@@ -2336,6 +2336,8 @@ require('./main/evodata-ipc').registerDatasets({
   ipcMain, dialog, windowOf: (e) => _askingWindow(e), baseDir: () => app.getPath('userData'),
   downloadsDir: () => _chosenDownloadFolder() || app.getPath('downloads'),
 });
+// Text versions of kept pages (main/evodata-versions-ipc.js): <userData>/kept-pages/versions.
+require('./main/evodata-versions-ipc').registerVersions({ ipcMain, baseDir: () => app.getPath('userData') });
 // Recall by meaning. These never throw to the panel: a sentence comes back.
 function meaningFail(err) { return { ok: false, state: 'error', message: err && err.message ? err.message : String(err) }; }
 ipcMain.handle('recall:meaning-status', async (_e, args) => {

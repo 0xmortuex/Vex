@@ -633,6 +633,14 @@ define('recall:dataset-append', [keptId, keptRows, optional(string(200))]);
 define('recall:dataset-append-watch', [string(80), keptRow]);
 define('recall:dataset-set-watch', [keptId, optional(string(80))]);
 define('recall:dataset-export', [keptId, oneOf(['csv', 'csv-semicolon', 'json'])]);
+// Text versions of kept pages (src/main/evodata-versions-ipc.js).
+define('recall:versions-list recall:versions-clear', []);
+define('recall:versions-of recall:versions-forget', [keptId]);
+define('recall:versions-keep', [web, optional(string(300))]);
+define('recall:versions-kept', [web]);
+define('recall:versions-save recall:versions-save-kept', [web, optional(string(300)), string(300000)]);
+define('recall:versions-text', [keptId, finiteNumber]);
+define('recall:versions-diff', [keptId, finiteNumber, finiteNumber]);
 // Recall by meaning (src/main/recall-vectors.js): the embedding model and the
 // local Ollama address, the hosts Recall is told to stay out of, and how many
 // pages one step may read.

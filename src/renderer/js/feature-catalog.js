@@ -1362,6 +1362,8 @@ const VexFeatures = {
       what: 'A small Vex window you open with a hotkey while a game runs: a guide page, Discord, notes, a timer, music buttons and a quick search, without alt-tabbing. It is an ordinary window and never touches the game, so it is safe with anti-cheat. On an existing profile it starts off; turn it on in Settings > Game overlay.' },
     { id: 'kept-datasets', feature: 'kept-datasets', newer: true, cat: 'data', name: 'Datasets from pages', phrases: 'dataset datasets table rows columns csv json excel spreadsheet append veri kumesi tablo', cmd: 'datasets-open',
       what: 'Keep a table from a page as a dataset on this computer: add more rows later without repeats, filter and sort it, and export it as CSV for Excel or as JSON. It starts off; switch it on from Ctrl+K: Datasets from Pages. Nothing leaves this computer.' },
+    { id: 'page-versions', feature: 'page-versions', newer: true, cat: 'reading', name: 'Page text versions', phrases: 'page versions text diff compare changed snapshot kept word by word since last time', cmd: 'page-versions-open',
+      what: 'Mark a page and Vex keeps its readable text each time you save a version or a page watch sees it change: up to 20 versions per page, compared word by word, with one line on what changed since last time. It starts off; no pictures, and nothing leaves this computer.' },
   ],
 
   // Everything in one category.

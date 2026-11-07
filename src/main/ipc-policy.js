@@ -152,6 +152,9 @@ const UI_ONLY_CHANNELS = new Set([
   // Datasets kept from page tables (main/evodata-ipc.js): Vex's own window only; the recall: prefix also closes them in a private window.
   'recall:dataset-list', 'recall:dataset-get', 'recall:dataset-create', 'recall:dataset-append', 'recall:dataset-append-watch', 'recall:dataset-set-watch', 'recall:dataset-delete',
   'recall:dataset-clear', 'recall:dataset-export',
+  // Text versions of kept pages (main/evodata-versions-ipc.js): the same.
+  'recall:versions-list', 'recall:versions-keep', 'recall:versions-kept', 'recall:versions-save', 'recall:versions-save-kept', 'recall:versions-of', 'recall:versions-text',
+  'recall:versions-diff', 'recall:versions-forget', 'recall:versions-clear',
   // "Site down, or my bypass?" (main/bypass-probe.js): requests an address from this computer.
   'bypass:probe',
   // The Unblock centre (main/unblock-main.js): requests a site from this computer, may start the ByeDPI helper, keeps its list.

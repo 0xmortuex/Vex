@@ -140,6 +140,8 @@ const VexBoot = {
     { src: 'js/kept-common.js', usage: [] },
     { src: 'js/evodata-core.js', usage: [] },
     { src: 'js/kept-datasets.js', usage: ['kept-datasets'] },
+    { src: 'js/evodata-versions-core.js', usage: [] },
+    { src: 'js/page-versions.js', usage: ['page-versions'] },
     // The Wallpaper Store: pictures drawn by code (data, generators), the painter shared with the New Tab, the logic and API (window.VexWallpapers) and its screen.
     { src: 'js/wallpaper-generators.js', usage: [] },
     { src: 'js/wallpaper-data.js', usage: [] },

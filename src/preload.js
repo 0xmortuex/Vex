@@ -409,6 +409,17 @@ contextBridge.exposeInMainWorld('vex', {
   datasetDelete: (id) => ipcRenderer.invoke('recall:dataset-delete', id),
   datasetClear: () => ipcRenderer.invoke('recall:dataset-clear'),
   datasetExport: (id, format) => ipcRenderer.invoke('recall:dataset-export', id, format),
+  // Text versions of kept pages (src/main/evodata-versions-ipc.js).
+  versionsList: () => ipcRenderer.invoke('recall:versions-list'),
+  versionsKeep: (url, title) => ipcRenderer.invoke('recall:versions-keep', url, title),
+  versionsKept: (url) => ipcRenderer.invoke('recall:versions-kept', url),
+  versionsSave: (url, title, text) => ipcRenderer.invoke('recall:versions-save', url, title, text),
+  versionsSaveKept: (url, title, text) => ipcRenderer.invoke('recall:versions-save-kept', url, title, text),
+  versionsOf: (id) => ipcRenderer.invoke('recall:versions-of', id),
+  versionsText: (id, at) => ipcRenderer.invoke('recall:versions-text', id, at),
+  versionsDiff: (id, a, b) => ipcRenderer.invoke('recall:versions-diff', id, a, b),
+  versionsForget: (id) => ipcRenderer.invoke('recall:versions-forget', id),
+  versionsClear: () => ipcRenderer.invoke('recall:versions-clear'),
   // Knowledge base: what you keep, searchable on this PC (src/main/knowledge-ipc.js).
   kbPlan: (entries, covers) => ipcRenderer.invoke('kb:plan', entries, covers),
   kbPut: (items, args) => ipcRenderer.invoke('kb:put', items, args),
