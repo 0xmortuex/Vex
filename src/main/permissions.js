@@ -648,7 +648,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 // or a private window's in-memory one (never to disk), which is exactly where
 // Settings › Site permissions lists it. A "just this visit" answer for the same
 // permission is dropped too, or it would go on overruling the choice.
-const PAGE_PERMISSIONS = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'midi', 'midiSysex', 'popups', AUTO_DOWNLOADS, 'keyboardLock', 'window-management']);
+const PAGE_PERMISSIONS = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'midi', 'midiSysex', 'popups', AUTO_DOWNLOADS, 'keyboardLock', 'window-management', 'idle-detection']);
 function setPageDecision(contents, origin, permission, decision) {
   origin = originKey(origin);
   if (!/^https?:\/\//.test(origin)) throw new Error('Only a website has permissions');

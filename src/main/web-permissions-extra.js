@@ -22,7 +22,7 @@
 // them, so no per-site rule can be written that is safe. It stays refused. 'openExternal' stays refused.
 'use strict';
 
-const EXTRA_PERMISSIONS = new Set(['keyboardLock', 'window-management']);
+const EXTRA_PERMISSIONS = new Set(['keyboardLock', 'window-management', 'idle-detection']);
 function webUrl(url) {
   try {
     const u = new URL(String(url || ''));

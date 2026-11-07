@@ -21,6 +21,7 @@ const PermissionPrompts = (() => {
     shield:  _svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
     external: _svg('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>'),
     keyboard: _svg('<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'),
+    clock:   _svg('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'),
     download: _svg('<path d="M12 4v11"/><polyline points="7 10 12 15 17 10"/><line x1="5" y1="20" x2="19" y2="20"/>')
   };
   // `ask` finishes the sentence "<site> wants to …"; `label` names the thing
@@ -44,6 +45,7 @@ const PermissionPrompts = (() => {
     // sentence after the site's name, translated as one piece (the verb ends a Turkish sentence).
     'keyboardLock':   { icon: ICONS.keyboard, full: 'wants to take over some keyboard keys (like Esc) while this page is full screen', label: 'keyboard keys in full screen', note: 'Without this, Esc leaves full screen at once.' },
     'window-management': { icon: ICONS.screen, full: 'wants to see all your screens and place windows on them', label: 'all your screens' },
+    'idle-detection': { icon: ICONS.clock, full: 'wants to know when you are away from the computer', label: 'knowing when you are away' },
     // A program or script from a site with no standing (src/main/web-safety.js).
     'risky-download': { icon: ICONS.shield, ask: 'send you a file that can run code', label: 'a risky download', note: 'The file waits unopened until you decide.' }
   };

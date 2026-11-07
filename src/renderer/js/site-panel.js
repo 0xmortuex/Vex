@@ -54,6 +54,7 @@ const SitePanel = {
     // Asked since src/main/web-permissions-extra.js; a private window asks every time and keeps nothing.
     { id: 'keyboardLock', name: 'Keep keys like Esc in full screen', icon: 'keyboard' },
     { id: 'window-management', name: 'See all your screens', icon: 'monitor' },
+    { id: 'idle-detection', name: 'Know when you are away', icon: 'clock' },
   ],
   CONTAINERS: ['work', 'personal', 'shopping'],
 

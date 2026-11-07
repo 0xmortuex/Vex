@@ -10,7 +10,7 @@ const { makeWorld, flush, cleanup } = require('./webPermissionsWorld.js');
 afterEach(cleanup);
 const world = makeWorld(vi);
 
-const PAGE_OWN = ['keyboardLock', 'window-management'];
+const PAGE_OWN = ['keyboardLock', 'window-management', 'idle-detection'];
 
 describe.each(PAGE_OWN)('%s through the request handler', (permission) => {
   it('asks the person instead of refusing unasked', async () => {
@@ -102,8 +102,8 @@ describe('keyboardLock only while the page is in full screen', () => {
   });
 });
 
-describe('window-management is not in the way of full screen', () => {
-  it.each(['window-management'])('%s asks without full screen', async (permission) => {
+describe('window-management and idle-detection are not in the way of full screen', () => {
+  it.each(['window-management', 'idle-detection'])('%s asks without full screen', async (permission) => {
     const w = world();
     expect((await w.ask(permission, { fullscreen: false })).prompt).toBeDefined();
   });
@@ -113,6 +113,7 @@ describe('permission hygiene expiry applies to the four', () => {
   it.each([
     ['keyboardLock', 'https://app.example.com/', {}],
     ['window-management', 'https://app.example.com/', {}],
+    ['idle-detection', 'https://app.example.com/', {}],
   ])('%s kept "always" ends after the configured days', async (permission, url, extraOpts) => {
     const NOW = 1_000_000_000;
     const hygiene = createPermissionHygiene({ now: () => NOW });
@@ -128,7 +129,7 @@ describe('permission hygiene expiry applies to the four', () => {
   it('with hygiene off nothing expires, as for every other permission', async () => {
     const hygiene = createPermissionHygiene({ now: () => 5 });
     const w = world({ hygiene });
-    await w.answerPrompt((await w.ask('keyboardLock')).prompt, 'allow', true);
+    await w.answerPrompt((await w.ask('idle-detection')).prompt, 'allow', true);
     expect(w.svc.loadPermissionDecisions().__until__).toBeUndefined();
   });
 });
@@ -137,7 +138,7 @@ describe('the site panel and Settings can list, set and revoke them', () => {
   it('setPageDecision accepts the page-own ones, and nothing near them', async () => {
     const w = world();
     const page = { getURL: () => 'https://app.example.com/', session: {} };
-    for (const p of ['keyboardLock', 'window-management']) {
+    for (const p of ['keyboardLock', 'window-management', 'idle-detection']) {
       await w.svc.setPageDecision(page, 'https://app.example.com/', p, 'allow');
       expect(w.svc.loadPermissionDecisions()['https://app.example.com::' + p], p).toBe('allow');
       await w.svc.setPageDecision(page, 'https://app.example.com/', p, 'ask');
@@ -150,7 +151,7 @@ describe('the site panel and Settings can list, set and revoke them', () => {
 
   it('the IPC schema takes the same names', () => {
     const { validate } = require('../../src/main/ipc-schemas.js');
-    for (const p of ['keyboardLock', 'window-management']) {
+    for (const p of ['keyboardLock', 'window-management', 'idle-detection']) {
       expect(() => validate('permissions:set-for-page', [1, p, 'allow']), p).not.toThrow();
     }
     for (const bad of ['top-level-storage-access', 'openExternal', 'fileSystem']) {
