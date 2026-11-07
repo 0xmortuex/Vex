@@ -1442,6 +1442,16 @@ if (_boot.safeMode) console.log('[SafeMode] ON');
 // ready, after three graphics-process crashes in an earlier session, in safe mode, or when Settings says so.
 const _gpuLadder = require('./main/gpu-ladder').createGpuLadder({ dir: userDataPath, fs, version: app.getVersion(), log: (m) => console.log(m) });
 const _gpuBoot = _gpuLadder.applyAtBoot({ app, safeMode: _boot.safeMode, argv: process.argv });
+// Crash dumps stay on this computer (src/main/crash-dumps.js): the reporter has no address to send to, the
+// folder is <profile>/crashes, and dumps older than 14 days are deleted a little after start.
+const _crashDumps = require('./main/crash-dumps');
+let _crashDumpDir = path.join(userDataPath, _crashDumps.FOLDER);
+try { _crashDumpDir = _crashDumps.startLocalDumps({ app, crashReporter: require('electron').crashReporter, userData: userDataPath }).dir; }
+catch (err) { console.error('[CrashDumps] the crash reporter did not start; no dumps will be kept:', err.message); }
+app.whenReady().then(() => setTimeout(() => {
+  try { const r = _crashDumps.sweep({ dir: _crashDumpDir, fs, log: (m) => console.error(m) }); if (r.deleted) console.log('[CrashDumps] deleted ' + r.deleted + ' dump(s) older than ' + _crashDumps.KEEP_DAYS + ' days'); }
+  catch (err) { console.error('[CrashDumps] could not sweep old dumps:', err.message); }
+}, 30000));
 
 const _diag = { startedAt: Date.now(), marks: {}, events: [], extensionTimes: [] };
 // Crashes and hangs also go to a file, so Health can show last week's, not
@@ -1958,6 +1968,8 @@ ipcMain.handle('app:diagnostics', async () => {
     gpu: await _gpuProbe.read(),
     gpuFeatures: app.getGPUFeatureStatus(),
     gpuLadder: { ..._gpuLadder.status(), off: _gpuBoot.disabled, reason: _gpuBoot.reason },
+    // The crash dumps kept on this computer (names, sizes, times; never the files): Health and the problem report.
+    crashDumps: _crashDumps.list({ dir: _crashDumpDir, fs }),
     // The last messages the IPC policy refused: channel and reason, never the payload.
     ipcRefusals: require('./main/ipc-policy').recentRefusals(),
   };
