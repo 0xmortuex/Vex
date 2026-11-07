@@ -56,10 +56,24 @@ describe('SelectionAIBar.suggest', () => {
   });
 
   it('only reads the start of a very long selection, so it stays fast', () => {
+    // Relative, not absolute: a shared CI runner is several times slower than a PC (133 ms where a PC needs well under 50), so the
+    // fixed limit failed there. The claim is that the cost does not grow with the length: a selection ten times longer must cost
+    // about the same. Reading all of it would make the huge one take ten times as long. The best of several runs on each side
+    // is compared, so one slow moment on a busy machine does not decide it.
+    const big = 'word '.repeat(200_000);
     const huge = 'word '.repeat(2_000_000);
-    const t0 = performance.now();
-    SelectionAIBar.suggest(huge, { editable: true, lang: 'en' });
-    expect(performance.now() - t0).toBeLessThan(50);
+    const best = (text) => {
+      let min = Infinity;
+      for (let run = 0; run < 7; run++) {
+        const t0 = performance.now();
+        SelectionAIBar.suggest(text, { editable: true, lang: 'en' });
+        min = Math.min(min, performance.now() - t0);
+      }
+      return min;
+    };
+    const bigMs = best(big);
+    const hugeMs = best(huge);
+    expect(hugeMs, `big ${bigMs.toFixed(1)} ms, huge ${hugeMs.toFixed(1)} ms`).toBeLessThan(bigMs * 3 + 10);
   });
 });
 
