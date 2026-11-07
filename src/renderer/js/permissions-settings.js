@@ -131,7 +131,7 @@ const PermissionsSettings = (() => {
                   <div class="perm-row-origin">${_esc(origin)}</div>
                   <div class="perm-row-detail">
                     <span class="perm-badge ${_esc(decision)}">${badge}</span>
-                    ${_esc(NAMES[permission] ? (/^(?:keyboardLock|window-management|idle-detection)$/.test(permission) ? tr(NAMES[permission]) : NAMES[permission]) : (/^external:/.test(permission) ? 'opening ' + permission.slice(9) + ': links in another program' : permission))}
+                    ${_esc(NAMES[permission] ? (/^(?:keyboardLock|window-management|idle-detection)$/.test(permission) ? tr(NAMES[permission]) : NAMES[permission]) : /^storage-access:/.test(permission) ? tr('saved data of {1} shown inside this site', permission.slice(15)) : (/^external:/.test(permission) ? 'opening ' + permission.slice(9) + ': links in another program' : permission))}
                   </div>
                 </div>
                 <button class="btn-secondary-sm" data-perm-key="${_esc(key)}">Revoke</button>

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 //
-// The question for the requests Vex used to refuse without asking (keyboardLock, window-management, idle-detection): English and Turkish copy, the buttons, and that a private window offers
+// The question for the four requests Vex used to refuse without asking (keyboardLock, window-management,
+// idle-detection, storage-access): English and Turkish copy, the buttons, and that a private window offers
 // only "this time". Pure DOM, no Electron.
 import { describe, it, expect, beforeEach } from 'vitest';
 require('../../src/renderer/js/vex-utils.js');
@@ -25,6 +26,7 @@ const REQUESTS = [
   { permission: 'keyboardLock', origin: 'https://game.example', en: 'wants to take over some keyboard keys (like Esc) while this page is full screen', trWord: 'klavye tuşlarını' },
   { permission: 'window-management', origin: 'https://slides.example', en: 'wants to see all your screens and place windows on them', trWord: 'ekranlarınızı' },
   { permission: 'idle-detection', origin: 'https://chat.example', en: 'wants to know when you are away from the computer', trWord: 'başında' },
+  { permission: 'storage-access:widgets.example', origin: 'https://pay.widgets.example', embeddedIn: 'https://shop.example.com', crossSite: true, en: 'wants to use its own saved data and sign-in while shown inside shop.example.com', trWord: 'shop.example.com içinde' },
 ];
 
 describe.each(REQUESTS)('the question for $permission', (req) => {
@@ -70,6 +72,22 @@ describe.each(REQUESTS)('the question for $permission', (req) => {
   it('is never worded as "use: <internal name>"', () => {
     show();
     expect(message()).not.toMatch(/use: /);
+  });
+});
+
+describe('two pages asking the same third party are two questions', () => {
+  it('the same frame inside two different pages is not joined into one answer', () => {
+    const q = window.PermissionPrompts._queue;
+    window.PermissionPrompts.showPrompt({ id: 'a', origin: 'https://pay.widgets.example', permission: 'storage-access:widgets.example', embeddedIn: 'https://shop.example.com' });
+    window.PermissionPrompts.showPrompt({ id: 'b', origin: 'https://pay.widgets.example', permission: 'storage-access:widgets.example', embeddedIn: 'https://bank.example' });
+    expect(q.length).toBe(2);
+  });
+  it('the same frame in the same page joins the question already open', () => {
+    const q = window.PermissionPrompts._queue;
+    window.PermissionPrompts.showPrompt({ id: 'a', origin: 'https://pay.widgets.example', permission: 'storage-access:widgets.example', embeddedIn: 'https://shop.example.com' });
+    window.PermissionPrompts.showPrompt({ id: 'b', origin: 'https://pay.widgets.example', permission: 'storage-access:widgets.example', embeddedIn: 'https://shop.example.com' });
+    expect(q.length).toBe(1);
+    expect(q[0].ids).toEqual(['a', 'b']);
   });
 });
 

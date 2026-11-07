@@ -75,7 +75,9 @@ function isVexUi(contents) {
 // origins and the risk summary shown on a prompt. lastGestureAt(contents): when
 // the page last had a click or key press (main.js, _watchGestures). Without
 // them every prompt is exactly as it was.
-function createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked, webSafety = null, lastGestureAt = () => undefined, hygiene = null }) {
+// isTrackerUrl(frameUrl, topUrl): whether a frame's address is on an ad or tracker list (main.js passes the
+// blocker's); storage-access is never given to one. Without it nothing is known to be safe, so none is given.
+function createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked, webSafety = null, lastGestureAt = () => undefined, hygiene = null, isTrackerUrl = null }) {
 // Answers that last until Vex closes. Never written to disk: "just this visit"
 // that survived a restart would be a lie. Kept per partition: one map for
 // every window let "Allow this visit" in a private window allow the same site
@@ -293,13 +295,19 @@ function setUiCamera(contents, on) {
   return !!on;
 }
 
-// === keyboardLock, window-management and idle-detection (rules: web-permissions-extra.js) ===
+// === keyboardLock, window-management, idle-detection, storage-access (rules: web-permissions-extra.js) ===
 // A private window, a Tor tab or a burner tab remembers nothing, so it asks every time: its in-memory
-// store is never consulted for these, and an answer is never written to it.
+// store is never consulted for these four, and an answer is never written to it.
 function isEphemeralContents(ses, contents) {
   if (ses && (ses.__vexTor || ses.__vexEphemeral)) return true;
   const partition = contents ? secureSessions.partitionOf(contents) : 'persist:main';
   return !!partition && !partition.startsWith('persist:');
+}
+// true when the frame is on an ad or tracker list OR nothing can say it is not (no checker given): storage
+// access is then refused. false only when the checker answered "not a tracker".
+function trackerOrUnknown(frameUrl, topUrl) {
+  if (typeof isTrackerUrl !== 'function') return true;
+  return isTrackerUrl(frameUrl, topUrl) !== false;
 }
 // Whether the page is in HTML full screen RIGHT NOW. Read from the page itself: a page that lies here only
 // earns itself a question, never an answer, because keyboardLock is always asked. A failure is refused.
@@ -310,12 +318,17 @@ function askExtraPermission(ses, webContents, permission, callback, details) {
   let topUrl = '';
   try { topUrl = webContents.getURL(); } catch (err) { console.error('[Permissions] could not read the page address:', err.message); return callback(false); }
   const run = async () => {
+    let tracker = false;
+    if (permission === 'storage-access') {
+      try { tracker = trackerOrUnknown(details && details.requestingUrl, topUrl); }
+      catch (err) { console.error('[Permissions] tracker check failed, storage-access refused:', err.message); tracker = true; }
+    }
     let fullscreen = false;
     if (permission === 'keyboardLock') {
       try { fullscreen = await pageIsFullscreen(webContents); }
       catch (err) { console.error('[Permissions] could not tell whether the page is in full screen, keyboardLock refused:', err.message); }
     }
-    const plan = extra.planExtra({ permission, details, topUrl, fullscreen });
+    const plan = extra.planExtra({ permission, details, topUrl, tracker, fullscreen });
     if (plan.deny) { console.log(`[Permissions] DENIED (${permission}): ${plan.deny}`); return callback(false); }
     const priv = isEphemeralContents(ses, webContents);
     const saved = priv ? null : savedDecision(decisionsFor(webContents), plan.origin, [plan.part], sessionDecisionsFor(webContents));
@@ -326,7 +339,10 @@ function askExtraPermission(ses, webContents, permission, callback, details) {
     const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     Object.assign(callback, { _host: secureSessions.owner(webContents), _contents: webContents, _origin: plan.origin, _permission: plan.part, _parts: [plan.part], _noRemember: priv });
     pendingPermissions.set(id, callback);
-    sendPermissionRequest({ id, permission: plan.part, origin: plan.origin, ...(priv ? { choice: 'this-time', remember: false } : {}) });
+    const asking = plan.frame
+      ? { origin: plan.frame.origin, embeddedIn: plan.frame.top, crossSite: plan.frame.cross }
+      : { origin: plan.origin };
+    sendPermissionRequest({ id, permission: plan.part, ...asking, ...(priv ? { choice: 'this-time', remember: false } : {}) });
     setTimeout(() => {
       if (!pendingPermissions.has(id)) return;
       pendingPermissions.delete(id);
@@ -393,7 +409,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
     if (opts.autoAllowMedia && MEDIA_PERMS.has(permission) && isDiscordOrigin(origin)) return callback(true);
 
     const NEEDS_PROMPT = new Set(['geolocation', 'media', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture', 'clipboard-read']);
-    // These were refused here unasked (measured,
+    // keyboardLock, window-management, idle-detection and storage-access were refused here unasked (measured,
     // Electron 42). They are asked now, by their own rules (src/main/web-permissions-extra.js). Everything
     // else unlisted is still refused.
     const isExtra = extra.EXTRA_PERMISSIONS.has(permission);
@@ -486,8 +502,20 @@ function wirePermissionsOnSession(ses, tag, opts) {
     const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
     // A site in paranoid mode is granted nothing, whatever it was allowed before.
     if (webSafety && webSafety.isParanoid(requestingOrigin)) return false;
-    // A private, Tor or burner window remembers none of these, so it never reports one as granted.
+    // A private, Tor or burner window remembers none of these four, so it never reports one as granted.
     if (extra.EXTRA_PERMISSIONS.has(permission) && isEphemeralContents(ses, _wc)) return false;
+    // storage-access is kept per pair (the page, and the frame's site): the check is for that pair, and never
+    // for an ad or tracker host. The frame's full address is in details.requestingUrl.
+    if (permission === 'storage-access') {
+      const frameUrl = (details && details.requestingUrl) || requestingOrigin;
+      let tracker;
+      try { tracker = trackerOrUnknown(frameUrl, (details && details.embeddingOrigin) || ''); }
+      catch (err) { console.error('[Permissions] tracker check failed, storage-access refused:', err.message); return false; }
+      if (tracker !== false) return false;
+      const key = extra.storageKeyFor(details && details.embeddingOrigin, frameUrl);
+      if (!key) return false;
+      return savedDecision(decisionsFor(_wc), key.origin, [key.part], sessionDecisionsFor(_wc)) === 'allow';
+    }
     return savedDecision(decisionsFor(_wc), requestingOrigin, parts, sessionDecisionsFor(_wc)) === 'allow';
   });
 }
@@ -649,10 +677,12 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 // Settings › Site permissions lists it. A "just this visit" answer for the same
 // permission is dropped too, or it would go on overruling the choice.
 const PAGE_PERMISSIONS = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'midi', 'midiSysex', 'popups', AUTO_DOWNLOADS, 'keyboardLock', 'window-management', 'idle-detection']);
+// storage-access is kept per third-party site: "storage-access:<site>" under the page's origin.
+const STORAGE_ACCESS_KEY = /^storage-access:[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/;
 function setPageDecision(contents, origin, permission, decision) {
   origin = originKey(origin);
   if (!/^https?:\/\//.test(origin)) throw new Error('Only a website has permissions');
-  if (!PAGE_PERMISSIONS.has(permission) && !/^external:[a-z][a-z0-9+.-]{0,40}$/.test(permission)) throw new Error('Unknown permission: ' + permission);
+  if (!PAGE_PERMISSIONS.has(permission) && !STORAGE_ACCESS_KEY.test(permission) && !/^external:[a-z][a-z0-9+.-]{0,40}$/.test(permission)) throw new Error('Unknown permission: ' + permission);
   if (!['allow', 'deny', 'ask'].includes(decision)) throw new Error('A permission is allowed, blocked or asked');
   const d = decisionsFor(contents);
   const until = { ...(d.__until__ || {}) };

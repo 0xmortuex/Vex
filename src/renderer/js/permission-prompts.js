@@ -41,21 +41,25 @@ const PermissionPrompts = (() => {
     'clipboard-read': { icon: ICONS.clipboard, ask: 'read what you last copied', label: 'clipboard' },
     // A page's second download with no click (src/main/downloads.js).
     'automatic-downloads': { icon: ICONS.download, ask: 'download several files', label: 'automatic downloads', note: 'It started another download by itself. A file you click always downloads.' },
-    // Requests Vex used to refuse without asking (src/main/web-permissions-extra.js). `full` is the whole
-    // sentence after the site's name, translated as one piece (the verb ends a Turkish sentence).
+    // Four requests Vex used to refuse without asking (src/main/web-permissions-extra.js). `full` is the whole
+    // sentence after the site's name, translated as one piece (the verb ends a Turkish sentence); {1} is a site.
     'keyboardLock':   { icon: ICONS.keyboard, full: 'wants to take over some keyboard keys (like Esc) while this page is full screen', label: 'keyboard keys in full screen', note: 'Without this, Esc leaves full screen at once.' },
     'window-management': { icon: ICONS.screen, full: 'wants to see all your screens and place windows on them', label: 'all your screens' },
     'idle-detection': { icon: ICONS.clock, full: 'wants to know when you are away from the computer', label: 'knowing when you are away' },
+    // A page from another site, shown inside this one, asking for its own cookies and data back (the tracker hosts never get here).
+    'storage-access': { icon: ICONS.shield, full: 'wants to use its own saved data and sign-in while shown inside {1}', label: 'its saved data inside another site', note: 'Sign-in and payment boxes need this. You can take it back in Settings.' },
     // A program or script from a site with no standing (src/main/web-safety.js).
     'risky-download': { icon: ICONS.shield, ask: 'send you a file that can run code', label: 'a risky download', note: 'The file waits unopened until you decide.' }
   };
 
   function _esc(s) { return window.escapeHtml(s); }
-  // The person's language for the texts added with the requests above; everything older here is as it was.
+  // The person's language for the texts added with the four requests above; everything older here is as it was.
   const _t = (text, ...args) => {
     const hit = typeof window.vexTr === 'function' ? window.vexTr(text) : text;
     return String(hit).replace(/\{(\d)\}/g, (_m, i) => (args[Number(i) - 1] == null ? '' : String(args[Number(i) - 1])));
   };
+  // "storage-access:<site>" (kept per third-party site) is one permission, 'storage-access', for its words.
+  const _kind = (permission) => (/^storage-access:/.test(permission || '') ? 'storage-access' : permission);
 
   // One prompt on screen at a time; the rest wait their turn. A second request
   // used to remove the first without answering it, and main then denied that
@@ -63,7 +67,7 @@ const PermissionPrompts = (() => {
   // asked (found 2026-09-29). A request for the same site and permission as
   // one already open or waiting joins it, and one answer settles both.
   const _queue = [];   // [{ data, ids: [id, ...] }]; _queue[0] is the one on screen
-  const _key = (d) => (d.origin || '') + '::' + (d.permission || '');
+  const _key = (d) => (d.origin || '') + '::' + (d.permission || '') + (d.embeddedIn ? '::' + d.embeddedIn : '');
 
   function showPrompt(data) {
     const d = data || {};
@@ -87,7 +91,7 @@ const PermissionPrompts = (() => {
 
   function _show(entry) {
     const { origin, permission } = entry.data;
-    const info = LABELS[permission]
+    const info = LABELS[_kind(permission)]
       || (/^external:/.test(permission || '') ? _external(entry.data) : null)
       || { icon: ICONS.shield, ask: 'use: ' + (permission || 'unknown'), label: permission || 'unknown' };
     // once: main keeps no "allow" for this one (an Office link that fetches a
@@ -135,11 +139,13 @@ const PermissionPrompts = (() => {
       const reason = !riskyFile && risk.reason ? `<div class="perm-risk-reason">${_esc(risk.reason)}</div>` : '';
       return `<div class="perm-risk perm-risk-${_esc(level)}">${head}${line ? `<div class="perm-risk-line">${_esc(line)}</div>` : ''}${reason}${reasons}${quiet}</div>`;
     })();
-    // The newer requests carry their whole sentence (`full`) and are translated; the older ones are as they were.
+    // The four newer requests carry their whole sentence (`full`) and are translated; the older ones are as they were.
     const fresh = !!info.full;
     const noteText = fresh && info.note ? _t(info.note) : info.note;
+    let embeddedHost = '';
+    try { embeddedHost = entry.data.embeddedIn ? new URL(entry.data.embeddedIn).host : ''; } catch { embeddedHost = String(entry.data.embeddedIn || ''); }
     const messageHtml = fresh
-      ? `<strong>${_esc(_t(info.full))}</strong>${noteText ? ` <span class="perm-note">${_esc(noteText)}</span>` : ''}`
+      ? `<strong>${_esc(_t(info.full, embeddedHost))}</strong>${noteText ? ` <span class="perm-note">${_esc(noteText)}</span>` : ''}`
       : riskyFile
       ? `is sending <strong>${_esc(entry.data.fileName || 'a file')}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}`
       : `wants to <strong>${_esc(info.ask)}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}`;
