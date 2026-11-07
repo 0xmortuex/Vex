@@ -102,9 +102,24 @@ const AgentTools = {
   },
 
   // -------------------------------------------------------------- reading --
-  htmlToText(html) {
+  // dropHidden: only the agent's own reads (readUrl) leave out and report hidden text; page watches and digests keep the text as it was.
+  htmlToText(html, { dropHidden = false } = {}) {
     const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
     const title = (doc.querySelector('title')?.textContent || '').trim();
+    // Text a page hides from the person with an inline style (display:none, zero size, pushed off the screen) is not part of what
+    // the person sees, so it is left out. A page that hides ORDERS for the AI there is a prompt-injection trick: if the hidden text
+    // reads like orders (AgentShield) the count comes back as hiddenText and the shield reports it; ordinary hidden menus are
+    // simply dropped and say nothing.
+    const hiddenParts = [];
+    if (dropHidden) doc.querySelectorAll('[hidden], [style]').forEach((n) => {
+      if (!n.isConnected || !(n.hasAttribute('hidden') || this.HIDDEN_STYLE.test(n.getAttribute('style') || ''))) return;
+      const said = (n.textContent || '').trim();
+      if (said) hiddenParts.push(said);
+      n.remove();
+    });
+    let hiddenText = 0;
+    const Shield = typeof AgentShield !== 'undefined' ? AgentShield : (typeof window !== 'undefined' ? window.AgentShield : null);
+    if (hiddenParts.length && Shield) hiddenText = Shield.sanitize(hiddenParts.join('\n').slice(0, 20000), { skip: Shield.PAGE_SKIP }).total;
     doc.querySelectorAll('script, style, noscript, svg, iframe, template, nav, header, footer, aside, form, [role="navigation"], [role="banner"], [role="contentinfo"], [aria-hidden="true"]').forEach(n => n.remove());
     // A parsed document has no layout, so textContent runs every block
     // together; a line break after each block keeps paragraphs apart.
@@ -113,8 +128,11 @@ const AgentTools = {
     const best = candidates.sort((a, b) => b.textContent.length - a.textContent.length)[0];
     const root = (best && best.textContent.trim().length > 400) ? best : (doc.body || doc.documentElement);
     const text = (root ? root.textContent : '').replace(/[ \t ]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-    return { title, text };
+    return hiddenText ? { title, text, hiddenText } : { title, text };
   },
+
+  // An inline style that hides an element from sight.
+  HIDDEN_STYLE: /display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0(?![.\d])|font-size\s*:\s*0(?![.\d]*[1-9])|(?:left|top|text-indent)\s*:\s*-\d{3,}/i,
 
   // The video id, for any of the shapes YouTube uses.
   youtubeId(url) {
@@ -180,9 +198,10 @@ const AgentTools = {
     if (/octet-stream|image\/|video\/|audio\/|zip/.test(type)) throw new Error('That address is a ' + (type.split(';')[0] || 'file') + ', not a page — open it in a tab instead');
     const body = String(r.body || '');
     if (/html|xml/.test(type) || /^\s*</.test(body)) {
-      const { title, text } = this.htmlToText(body);
-      if (text.length < 200) return { url: u.href, title, text, ...validators, note: 'Very little readable text — the page probably builds itself with JavaScript. Open it with new_tab and use extract_text.' };
-      return { url: u.href, title, text: text.slice(0, maxText), truncated: text.length > maxText, ...validators };
+      const { title, text, hiddenText } = this.htmlToText(body, { dropHidden: true });
+      const hid = hiddenText ? { hiddenText } : {};
+      if (text.length < 200) return { url: u.href, title, text, ...hid, ...validators, note: 'Very little readable text — the page probably builds itself with JavaScript. Open it with new_tab and use extract_text.' };
+      return { url: u.href, title, text: text.slice(0, maxText), truncated: text.length > maxText, ...hid, ...validators };
     }
     return { url: u.href, title: '', text: body.slice(0, maxText), truncated: body.length > maxText, ...validators };
   },
@@ -270,7 +289,7 @@ const AgentTools = {
     return Promise.all(list.map(async (url) => {
       try {
         const page = await this.readUrl(url);
-        return { url, ok: true, title: page.title || '', text: page.text || '', truncated: !!page.truncated };
+        return { url, ok: true, title: page.title || '', text: page.text || '', truncated: !!page.truncated, ...(page.hiddenText ? { hiddenText: page.hiddenText } : {}) };
       } catch (err) {
         return { url, ok: false, error: err.message };
       }

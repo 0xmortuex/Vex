@@ -231,7 +231,7 @@ const AgentRunCard = (() => {
             if (last) last.detail.cost = text.replace(/^↳\s*/, '');
             break;
           }
-          case 'loop-prevent': case 'stall': case 'repair': case 'slow':
+          case 'loop-prevent': case 'stall': case 'repair': case 'slow': case 'shield':
             addRow('problem', short(text, 90), '', { result: text });
             if (type === 'stall') live('Stopping and writing what it found', true);
             break;

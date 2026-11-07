@@ -820,6 +820,17 @@ contextBridge.exposeInMainWorld('vex', {
   integrity: {
     report: () => ipcRenderer.invoke('integrity:report'),
   },
+  // A real Discord theme's file pinned by its hash (src/main/content-pin.js): check on apply, accept the new version on the owner's click.
+  themePin: {
+    check: (id, url) => ipcRenderer.invoke('themepin:check', id, url),
+    accept: (id, url) => ipcRenderer.invoke('themepin:accept', id, url),
+  },
+  // Did a proxy or a new root certificate appear since the last time (src/main/network-drift.js): off until switched on in Settings.
+  netDrift: {
+    get: () => ipcRenderer.invoke('netdrift:get'),
+    set: (on) => ipcRenderer.invoke('netdrift:set', on === true),
+    check: () => ipcRenderer.invoke('netdrift:check'),
+  },
   // Settings › Health check (src/main/health-check.js)
   health: {
     scan: () => ipcRenderer.invoke('health:scan'),

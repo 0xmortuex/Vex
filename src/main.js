@@ -4512,6 +4512,50 @@ const EXT_PARTITIONS = [
 const extHelpers = require('./main/extensions');
 const { placePopup, popupArea } = require('./main/popup-placement');
 
+// "Did an extension's files change without Vex installing or updating it?" (main/extension-fingerprint.js). Vex records a fingerprint
+// when it finishes an install or an update, and a while after start-up looks again; a difference is one Attention Inbox row with
+// "Turn it off" (the existing extensions:set-enabled path). Nothing is switched off, repaired or deleted by itself.
+const _extFp = require('./main/extension-fingerprint').createExtensionFingerprints({
+  fs, extensionsDir, file: path.join(userDataPath, 'extension-fingerprints.json'), appVersion: app.getVersion(),
+  ignore: [extHelpers.CONTENT_SHIM_FILE], log: console,
+});
+// Called with what an install or an update returned. Loaded and switched on: its files are the approved ones now. Placed but not
+// loaded yet (switched off, or after a restart): Vex may still rewrite its manifest when it loads, so the next look records it.
+function _extFingerprintAfter(result) {
+  if (!result || !result.ok || !result.folder) return result;
+  if (result.id && !result.afterRestart && !result.disabled) _extFp.record(result.folder).catch(err => console.error('[ExtFingerprint] could not record ' + result.folder + ':', err.message));
+  else {
+    try { _extFp.forget(result.folder); }
+    catch (err) { console.error('[ExtFingerprint] could not reset ' + result.folder + ':', err.message); }
+  }
+  return result;
+}
+async function _extFingerprintLook() {
+  const folders = _extensionFolderNames();
+  const r = await _extFp.check(folders);
+  const nameOf = (folder) => {
+    const e = _extEntriesOnDisk().find(x => x.folder === folder);
+    return (e && e.manifest && extHelpers.localize(e.manifest.name, e.messages)) || folder;
+  };
+  for (const c of r.changed) {
+    _attentionNotes.post({
+      feature: 'extension-changed', id: c.folder, label: 'Extension changes',
+      title: 'Files of “{1}” changed outside Vex'.replace('{1}', nameOf(c.folder)),
+      body: 'Vex did not install or update this extension, yet its files are not the ones it recorded. It could be a sync tool or a hand edit, or something you did not expect. Nothing was switched off. This check cannot catch a careful program running as you.',
+      action: { label: 'Turn it off', key: 'off' },
+    });
+  }
+  for (const s of r.skipped.filter(x => x.fresh)) {
+    _attentionNotes.post({
+      feature: 'extension-changed', id: 'big:' + s.folder, label: 'Extension changes',
+      title: 'The extension “{1}” is too big to check for changes'.replace('{1}', nameOf(s.folder)),
+      body: 'Vex only checks extensions with up to 4000 files and 80 MB, so this one is left out. Its files are not watched for changes.',
+    });
+  }
+  for (const u of r.unreadable) console.error('[ExtFingerprint] ' + u.folder + ' could not be checked: ' + u.error);
+  return r;
+}
+
 // folder -> why its last load attempt failed, surfaced by extensions:list so a
 // broken extension explains itself in the manager instead of looking installed.
 const _extLoadErrors = new Map();
@@ -5311,7 +5355,7 @@ ipcMain.handle('extensions:install-picked', async (_e, token) => {
         fs.rmSync(destFolder, { recursive: true, force: true });
         return { ok: false, error: 'The folder\'s manifest.json changed while it was being copied. Pick the folder again.' };
       }
-      return await _activateInstalledFolder(destFolder);
+      return _extFingerprintAfter(await _activateInstalledFolder(destFolder));
     }
     return { ok: false, error: 'Unknown install kind: ' + item.kind };
   } catch (err) {
@@ -5409,7 +5453,7 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
       return { ok: false, error: 'Could not write the extension\'s key into its manifest: ' + err.message };
     }
   }
-  return await _activateInstalledFolder(destFolder, copyToUpdate, opts.match);
+  return _extFingerprintAfter(await _activateInstalledFolder(destFolder, copyToUpdate, opts.match));
 }
 
 // One-click install for the catalogue (main/extension-sources.js): the latest
@@ -7470,7 +7514,9 @@ app.whenReady().then(() => _profileReady).then(() => {
   loadAllExtensionsOnStartup().catch(err => console.error('[Extensions] startup load failed:', err.message))
     // Then the update checks (main/extension-updates.js): not in safe mode,
     // which exists to start without extensions doing anything.
-    .then(() => { if (!_boot.safeMode) _extUpdater().start(); });
+    .then(() => { if (!_boot.safeMode) _extUpdater().start(); })
+    // A minute after the extensions are up: look at their files once (hashing pauses between files; a normal launch reads nothing).
+    .then(() => { setTimeout(() => { _extFingerprintLook().catch(err => console.error('[ExtFingerprint] the look failed:', err.message)); }, 60000).unref(); });
 });
 
 // === External protocol forwarding ===
@@ -11870,6 +11916,64 @@ ipcMain.handle('integrity:report', async (event) => {
   _healthFromMainWindow(event);
   try { return await _integrity.run(); }
   catch (err) { console.error('[Integrity] report failed:', err); return { ok: false, error: err.message, notes: [] }; }
+});
+// A real Discord theme's file pinned by its hash (src/main/content-pin.js, js/discord-theme.js). The fetch goes through the egress ledger
+// as "Discord theme check" and only to the hosts the theme list uses (content-pin.js refuses any other).
+const _themePin = require('./main/content-pin').createContentPin({
+  dir: path.join(userDataPath, 'theme-pins'), fs,
+  fetchText: async (url) => {
+    const res = await boundedNetFetch(url, { redirect: 'error', maxBytes: 1024 * 1024 + 1, timeoutMs: 20000, egress: { feature: 'Discord theme check', kind: 'fetch' } });
+    if (!res.ok) throw new Error('The theme site answered ' + res.status);
+    return res.text();
+  },
+  log: console,
+});
+ipcMain.handle('themepin:check', async (event, id, url) => {
+  _healthFromMainWindow(event);
+  try { return await _themePin.check(id, url); }
+  catch (err) { console.error('[ThemePin] check failed:', err); return { ok: false, error: err.message }; }
+});
+ipcMain.handle('themepin:accept', async (event, id, url) => {
+  _healthFromMainWindow(event);
+  try { return await _themePin.accept(id, url); }
+  catch (err) { console.error('[ThemePin] accept failed:', err); return { ok: false, error: err.message }; }
+});
+// Did a proxy or a new root certificate appear since the last time (src/main/network-drift.js, js/network-drift.js)? Off until the owner
+// switches it on. Two read-only Windows commands, by absolute path and an argument list (no shell); only a fingerprint is kept.
+const _netDrift = require('./main/network-drift').createNetworkDrift({
+  file: path.join(userDataPath, 'network-drift.json'), fs,
+  run: (name, args, { timeoutMs }) => {
+    const system32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
+    const exe = { reg: path.join(system32, 'reg.exe'), 'powershell.exe': path.join(system32, 'WindowsPowerShell', 'v1.0', 'powershell.exe') }[name];
+    if (!exe) return Promise.reject(new Error('Not a command this check may run: ' + name));
+    return new Promise((resolve, reject) => {
+      require('child_process').execFile(exe, args, { timeout: timeoutMs, windowsHide: true, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (err, stdout) => (err ? reject(err) : resolve({ stdout })));
+    });
+  },
+  log: console,
+});
+async function _netDriftLook() {
+  const r = await _netDrift.check();
+  for (const note of _netDrift.notesFor(r)) _attentionNotes.post(note);
+  return r;
+}
+app.whenReady().then(() => { setTimeout(() => { if (_netDrift.get().enabled) _netDriftLook().catch(err => console.error('[NetworkDrift] the look failed:', err.message)); }, 90000).unref(); });
+ipcMain.handle('netdrift:get', (event) => {
+  _healthFromMainWindow(event);
+  try { return { ok: true, ..._netDrift.get() }; }
+  catch (err) { console.error('[NetworkDrift] could not read the setting:', err); return { ok: false, error: err.message }; }
+});
+ipcMain.handle('netdrift:set', (event, on) => {
+  _healthFromMainWindow(event);
+  try { return { ok: true, ..._netDrift.setEnabled(on) }; }
+  catch (err) { console.error('[NetworkDrift] could not change the setting:', err); return { ok: false, error: err.message }; }
+});
+ipcMain.handle('netdrift:check', async (event) => {
+  _healthFromMainWindow(event);
+  try {
+    const r = await _netDriftLook();
+    return { ok: true, baseline: r.baseline, proxy: r.proxy.status, added: r.certs.added.length, count: r.certs.count };
+  } catch (err) { console.error('[NetworkDrift] the look failed:', err); return { ok: false, error: err.message }; }
 });
 ipcMain.handle('health:scan', (event) => {
   _healthFromMainWindow(event);
