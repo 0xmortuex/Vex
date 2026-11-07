@@ -152,6 +152,8 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Generic main → renderer toast (e.g. Discord pop-out pin feedback).
   onToast: (cb) => subscribe('vex:toast', cb),
+  // Things the main process has to tell the owner, as Attention Inbox rows (main/attention-notes.js).
+  onAttentionRows: (cb) => subscribe('vex:attention-rows', cb),
   // Fires once when a Discord stream pop-out window opens (discoverability hint).
   onDiscordPopoutOpen: (cb) => subscribe('vex:discord-popout-open', cb),
   // The pop-out's "Back to Discord" button was pressed: show Discord.

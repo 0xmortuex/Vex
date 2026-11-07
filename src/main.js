@@ -1887,6 +1887,7 @@ ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok
 
 ipcMain.on('app:started', () => {
   _bootGuard.started();
+  _attentionNotes.markReady(true);
   // The interface is up: a version that just replaced another has passed its trial.
   try {
     const ready = _updateRollback.markReady();
@@ -3849,8 +3850,28 @@ ipcMain.handle('downloads:reset-prefs', () => {
 // page that loads before the window is ready is already covered.
 const SiteRules = require('./main/site-rules');
 const _siteRulesFile = path.join(userDataPath, 'site-rules.json');
-let _siteRules = {};
-try { _siteRules = SiteRules.clean(JSON.parse(fs.readFileSync(_siteRulesFile, 'utf8'))); } catch { _siteRules = {}; }
+// Things the main process has to tell the owner (main/attention-notes.js): kept until the window is up, then sent as
+// Attention Inbox rows (js/attention-inbox.js, vex:attention-rows).
+const _attentionNotes = require('./main/attention-notes').createAttentionNotes({
+  file: path.join(userDataPath, 'pending-notes.json'),
+  send: (rows) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    mainWindow.webContents.send('vex:attention-rows', rows);
+    return true;
+  },
+  log: console,
+});
+// A damaged site-rules.json is kept aside, the backup is put back if it is good, and the owner is told either way
+// (main/site-rules-store.js): the rules are never dropped silently.
+const _siteRulesLoad = require('./main/site-rules-store').loadSiteRules({ file: _siteRulesFile, clean: SiteRules.clean });
+let _siteRules = _siteRulesLoad.rules;
+{
+  const note = require('./main/site-rules-store').siteRulesNote(_siteRulesLoad.outcome);
+  if (note) {
+    console.error('[SiteRules] site-rules.json could not be read (' + (_siteRulesLoad.error && _siteRulesLoad.error.message) + '): ' + _siteRulesLoad.outcome + '; the damaged file was kept as ' + _siteRulesLoad.corruptCopy);
+    _attentionNotes.post(note);
+  }
+}
 // Whether any site has its own User-Agent: the request path asks the page of
 // every request only when one does.
 let _hasUaRules = false;
@@ -8804,6 +8825,7 @@ function createWindow() {
     log: (m) => console.error(m),
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  mainWindow.webContents.on('did-start-loading', () => _attentionNotes.markReady(false));
 
   // Show + focus the window once the first frame is ready. A transparent,
   // frameless window shown before paint can render blank (you see through it).
