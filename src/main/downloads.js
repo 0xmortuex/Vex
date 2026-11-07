@@ -12,7 +12,7 @@ const path = require('path');
 // standing waits in the holding folder for a confirm; without them none is.
 // releases: the record of GitHub release assets that were downloaded (download-desk.js
 // createReleaseDesk), so the window can offer the hash and a VirusTotal link for one.
-function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null, releases = null, inspectFile = null, assessFile = null, onLifecycle = null }) {
+function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null, releases = null, inspectFile = null, assessFile = null, onLifecycle = null, onFinished = null }) {
 const { hasRecentGesture } = require('../main-helpers');
 const _broadcastDownloadEvent = broadcast;
 // Live DownloadItems, keyed by the id the renderer knows them by, so the panel
@@ -444,6 +444,11 @@ function wireDownloadsOnSession(ses, tag) {
         const known = _explain.get(info.id);
         if (known) Object.assign(known, { fileName: info.fileName, path: savePath, state, receivedBytes: safeCall(item, 'getReceivedBytes', 0), totalBytes: safeCall(item, 'getTotalBytes', 0) });
         if (state === 'completed') _noteFile(savePath, ephemeral);
+        // The opt-in program hook (main/os-hook.js): told which kind of session it came from, so a private or Tor download never starts it.
+        if (state === 'completed' && onFinished) {
+          try { onFinished({ fileName: info.fileName, partition, ephemeral }); }
+          catch (err) { console.error('[Downloads] the finished-download hook failed:', err.message); }
+        }
         // What the file really is, from its first bytes and (a zip) its file list (file-content-check.js, T3-010). The answer rides
         // on the event as text; a file that could not be read is said not to be checked, never clean.
         let fileCheck = null;

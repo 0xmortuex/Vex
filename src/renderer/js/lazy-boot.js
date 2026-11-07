@@ -219,6 +219,12 @@ const VexBoot = {
     { src: 'js/download-resume-offer.js', usage: [] },
     // Keep Vex’s cache under a size (opt-in, off by default): the Settings section and its Ctrl+K command. The work is in main (src/main/cache-budget.js).
     { src: 'js/cache-budget-ui.js', usage: [] },
+    // AI agent activity: the Settings section (policy and activity log) and its Ctrl+K command. Main does the work; nothing is read until the section is opened.
+    { src: 'js/agent-activity-ui.js', usage: [] },
+    // Vex as an MCP server: the Settings section, the access token and the window-side bridge main asks for tabs and history. OFF until switched on; main does the work.
+    { src: 'js/mcp-server-ui.js', usage: [] },
+    // Program hook (opt-in): the Settings section and the two events that start in this window; main starts nothing unless it was switched on there.
+    { src: 'js/os-hook-ui.js', usage: [] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

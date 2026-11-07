@@ -973,6 +973,23 @@ define('folderview:rename', [shape({ name: leafName, to: leafName })]);
 define('folderview:trash', [shape({ names: leafNames(2000), confirmed: boolean })]);
 define('folderview:copy', [shape({ names: optional(leafNames(5000)), as: oneOf(['path', 'url', 'name']) })]);
 define('folderview:drag', [shape({ names: leafNames(50) })]);
+// Agent policy and the audit log (main/agent-policy-ipc.js): Vex's own window only. Every value is cleaned again in main; the audit
+// channels take fixed code words, never free text.
+define('agentpolicy:get agentaudit:clear agentaudit:export', []);
+define('agentpolicy:set', [shape({ tools: object, denyHosts: value => Array.isArray(value) && value.length <= 200 && value.every(h => typeof h === 'string' && h.length <= 300), budget: object })]);
+define('agentpolicy:check', [shape({ tool: string(40), url: optional(string(2048)) })]);
+define('agentaudit:record', [shape({ tool: string(40), url: optional(string(2048)), decision: oneOf(['allow', 'ask-allowed', 'ask-blocked', 'deny']), result: oneOf(['ok', 'error', 'denied-policy', 'denied-host', 'denied-budget', 'denied-private', 'denied-sensitive', 'denied-user', 'busy', 'too-large', 'unavailable', 'invalid']) })]);
+define('agentaudit:list', [optional(value => Number.isSafeInteger(value) && value > 0 && value <= 1000)]);
+// Vex as an MCP server (main/mcp-server-ipc.js): Vex's own window only.
+define('evomcp:status evomcp:rotate-token', []);
+define('evomcp:set-enabled', [boolean]);
+// The program hook (main/os-hook.js): Vex's own window only. The window can name an event and a one-use token for a program main
+// opened a dialog for; it never names a program, a path or a command.
+define('oshook:status oshook:pick-program', []);
+define('oshook:set-enabled', [boolean]);
+define('oshook:add', [shape({ event: oneOf(['download-finished', 'reminder-fired', 'exam-armed', 'ci-red']), token: string(64), args: optional(value => Array.isArray(value) && value.length <= 8 && value.every(a => typeof a === 'string' && a.length <= 200)) })]);
+define('oshook:remove', [oneOf(['download-finished', 'reminder-fired', 'exam-armed', 'ci-red'])]);
+define('oshook:event', [shape({ event: oneOf(['exam-armed', 'ci-red']) })]);
 function validate(channel, args) {
   if (channel.startsWith('@ghostery/')) return; // Vendor-owned API; the outer policy still bounds JSON and verifies its sender.
   const checks = schemas.get(channel);

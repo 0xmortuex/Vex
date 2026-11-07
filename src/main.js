@@ -4447,6 +4447,8 @@ const _safeDownload = require('./main/safe-download').createSafeDownload({
 // "When all downloads finish: sleep / shut down" (src/main/after-downloads.js): armed on purpose, never saved. Made just below.
 let _afterDl = null;
 const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
+  // The opt-in program hook (main/os-hook.js): never for a private, Tor or routed download.
+  onFinished: (e) => { _osHook.fire('download-finished', e).catch(err => console.error('[OsHook] a download hook failed:', err && err.message)); },
   onLifecycle: (e) => {
     if (!_afterDl) return;
     try { if (e.type === 'start') _afterDl.noteStart(e.id); else _afterDl.noteEnd(e.id, e.state, !!e.byPerson); }
@@ -8719,6 +8721,84 @@ ipcMain.handle('webhook:list', (_e, since) => _localSvcReply(async () => ({ requ
 ipcMain.handle('webhook:get', (_e, id) => _localSvcReply(async () => ({ request: _webhookInspector.get(id) })));
 ipcMain.handle('webhook:clear', () => _localSvcReply(async () => _webhookInspector.clear()));
 app.on('will-quit', () => { _webhookInspector.stop().catch(err => console.error('[Webhook] could not stop on quit:', err && err.message)); });
+// Agent policy and audit trail (main/agent-policy.js, agent-audit.js, agent-policy-ipc.js): ONE rulebook that the in-app agent
+// asks (agentpolicy:check) and that an outside MCP client is held to, and an append-only log of who asked for what (host and
+// result code only, never page text). Vex's own window only; nothing here reaches the network.
+const _agentControl = require('./main/agent-policy-ipc').createAgentControl({ fs, dir: userDataPath, atomicWriteSync: require('./main/file-store').atomicWriteSync });
+require('./main/agent-policy-ipc').registerAgentControlIpc({
+  ipcMain, control: _agentControl,
+  isPrivate: (event) => !!(secureSessions.owner(event.sender) || {}).privatePartition,
+  chooseExportFile: async () => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { title: 'Export the agent activity log', defaultPath: 'vex-agent-activity.txt', filters: [{ name: 'Text', extensions: ['txt'] }] };
+    const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
+    return r.canceled ? null : r.filePath;
+  },
+  writeFile: (file, text) => fs.promises.writeFile(file, text, 'utf8'),
+});
+// Vex as an MCP server (main/mcp-server.js, main/mcp-server-ipc.js): OFF until the person switches it on in Settings, then a
+// loopback-only (127.0.0.1) server for an outside AI tool with four tools (list_tabs, read_page_text, open_url, search_history),
+// a sealed access token shown once, every call checked against the agent policy and written to the audit log. Opening a page
+// is approved by the person, every time, in a box main shows. Stopped when switched off and when Vex quits.
+let _mcpPromptOpen = false;
+const _evoMcp = require('./main/mcp-server-ipc').createEvoMcp({
+  fs, dir: userDataPath, secretStore, atomicWriteSync: require('./main/file-store').atomicWriteSync, http: require('http'),
+  control: _agentControl, version: app.getVersion(),
+  confirm: async ({ title, message, okLabel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'warning', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
+  approve: async ({ client, tool, host, detail }) => {
+    if (_mcpPromptOpen) return 'busy';
+    _mcpPromptOpen = true;
+    try {
+      const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+      if (win) win.show();
+      const opts = { type: 'warning', title: 'Vex', message: tool === 'open_url' ? client + ' wants to open ' + host : client + ' wants to use ' + tool + (host ? ' on ' + host : ''),
+        detail: tool === 'open_url' ? detail + '\n\nVex opens it in a new background tab only if you choose Allow once.' : detail, buttons: ['Allow once', 'Block'], defaultId: 1, cancelId: 1, noLink: true };
+      const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+      return r.response === 0 ? 'allow' : 'block';
+    } finally { _mcpPromptOpen = false; }
+  },
+  callBridge: async (method, arg) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, code: 'unavailable' };
+    return mainWindow.webContents.executeJavaScript(`typeof VexMcpBridge === 'undefined' ? { ok: false, code: 'unavailable' } : VexMcpBridge[${JSON.stringify(method)}](${JSON.stringify(arg === undefined ? null : arg)})`);
+  },
+  openTab: (url) => {
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('There is no Vex window to open it in');
+    mainWindow.webContents.send('tab:create-from-external', { url, background: true });
+  },
+});
+require('./main/mcp-server-ipc').registerEvoMcpIpc({ ipcMain, evo: _evoMcp });
+app.on('will-quit', () => { _evoMcp.shutdown().catch(err => console.error('[McpServer] could not stop on quit:', err && err.message)); });
+app.whenReady().then(() => _evoMcp.autostart()).catch(err => console.error('[McpServer] could not start at launch:', err && err.message));
+// "When X happens, run this program" (main/os-hook.js): OFF until switched on in a box main shows; one program per event
+// (download finished, reminder fired, exam mode armed, CI red) that the person picked in a file dialog, started with a fixed
+// argument list and no shell, checked against its SHA-256 before every run, never for private or Tor windows.
+const _osHookMod = require('./main/os-hook');
+const _osHook = _osHookMod.createOsHook({
+  fs, spawn: require('child_process').spawn, hashFile: _osHookMod.createFileHasher({ fs }),
+  confirm: async ({ title, message, okLabel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'warning', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
+  pickProgramDialog: async () => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { title: 'Program to run', buttonLabel: 'Use this program', properties: ['openFile'], filters: [{ name: 'Programs', extensions: ['exe'] }] };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    return { canceled: r.canceled, path: r.filePaths && r.filePaths[0] };
+  },
+  load: async () => {
+    try { return JSON.parse(await fs.promises.readFile(path.join(userDataPath, 'os-hook.json'), 'utf8')); }
+    catch (err) { if (err && err.code === 'ENOENT') return null; throw new Error('The program hook list could not be read: ' + err.message, { cause: err }); }
+  },
+  save: (cfg) => require('./main/file-store').atomicWrite(path.join(userDataPath, 'os-hook.json'), JSON.stringify(cfg)),
+});
+_osHookMod.registerOsHookIpc({ ipcMain, hook: _osHook });
 const _feedbackRelay = require('./main/feedback-relay').createFeedbackRelay({ fetch: boundedNetFetch });
 ipcMain.handle('feedback:send', (_event, url, payload) => _feedbackRelay.send(url, payload));
 ipcMain.handle('cloud:request', async (_event, body) => {
@@ -12579,6 +12659,7 @@ function startReminders() {
     // failure is stated rather than lost.
     onFired: (payload) => {
       try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('reminders:fired', payload); } catch {}
+      _osHook.fire('reminder-fired', {}).catch(err => console.error('[OsHook] a reminder hook failed:', err && err.message));
       if (payload.delivered === 'failed') focusMainWindow();
     },
   });
