@@ -74,9 +74,9 @@ const ShortcutEditor = (() => {
   function _drawAdder(container, spare, query) {
     const host = container.querySelector('#shortcut-add-list');
     if (!host) return;
-    const q = String(query || '').trim().toLowerCase();
+    const q = VexTr.fold(String(query || '').trim());
     const hits = q
-      ? spare.filter(c => (c.label + ' ' + c.hint + ' ' + c.id).toLowerCase().includes(q))
+      ? spare.filter(c => VexTr.fold(c.label + ' ' + c.hint + ' ' + c.id).includes(q))
       : spare;
     if (!hits.length) {
       host.innerHTML = `<div class="shortcut-add-empty">${q ? 'Nothing matches “' + _esc(query) + '”, or it already has a key.' : 'Everything already has a key.'}</div>`;

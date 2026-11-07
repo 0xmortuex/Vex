@@ -87,9 +87,8 @@ const VexFun = {
   },
   may(name) { return this.why(name) === ''; },
 
-  reducedMotion() {
-    try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch { return false; }
-  },
+  // Windows' Animation effects, Vex's Reduce motion and Game mode's stillness: VexMotion (js/vex-plural.js) has the one answer.
+  reducedMotion() { return VexMotion.reduced(); },
 
   medal(id) {
     if (typeof id !== 'string' || !id) throw new Error('A medal signal needs an id');

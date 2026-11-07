@@ -27,9 +27,9 @@ const AgentCommand = {
   },
 
   _matchTabs(kw) {
-    kw = (kw || '').toLowerCase().trim();
+    kw = VexTr.fold((kw || '').trim());
     if (!kw) return [];
-    return TabManager.tabs.filter(t => ((t.title || '') + ' ' + (t.url || '')).toLowerCase().includes(kw));
+    return TabManager.tabs.filter(t => VexTr.fold((t.title || '') + ' ' + (t.url || '')).includes(kw));
   },
 
   // Parse a local intent → { verb, desc, run } or null if unknown.

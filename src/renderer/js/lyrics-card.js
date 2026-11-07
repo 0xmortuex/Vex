@@ -258,7 +258,7 @@ const VexLyrics = {
     row.style.color = 'var(--accent, var(--text))';
     row.setAttribute('aria-current', 'true');
     // The person scrolling by hand keeps the place they scrolled to for a few seconds.
-    if (Date.now() - card.scrolledAt > 4000) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (Date.now() - card.scrolledAt > 4000) row.scrollIntoView({ block: 'center', behavior: VexMotion.scroll() });
   },
 
   _start(card) {

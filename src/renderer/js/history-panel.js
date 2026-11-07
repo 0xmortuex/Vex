@@ -503,15 +503,15 @@ const HistoryPanel = {
   },
 
   getKeywordFiltered() {
-    const search = (document.getElementById('history-search-input')?.value || '').toLowerCase();
+    const search = VexTr.fold(document.getElementById('history-search-input')?.value || '');
     const timed = this.getTimeFiltered();
     if (!search) return timed;
     const near = this._keywordCandidates(search);
     return (near ? timed.filter(e => near.has(e)) : timed).filter(e => {
-      return (e.title || '').toLowerCase().includes(search)
-        || (e.url || '').toLowerCase().includes(search)
-        || (e.summary || '').toLowerCase().includes(search)
-        || (Array.isArray(e.tags) && e.tags.some(t => String(t).toLowerCase().includes(search)));
+      return VexTr.fold(e.title || '').includes(search)
+        || VexTr.fold(e.url || '').includes(search)
+        || VexTr.fold(e.summary || '').includes(search)
+        || (Array.isArray(e.tags) && e.tags.some(t => VexTr.fold(t).includes(search)));
     });
   },
 

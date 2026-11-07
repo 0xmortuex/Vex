@@ -127,7 +127,7 @@ function vexTtsPage(lib, mode) {
 
   W.__vexTTS = {
     segs,
-    mark(i) {
+    mark(i, behavior) {
       const s = segs[i];
       if (!s) return false;
       const u = units[s.u];
@@ -140,8 +140,8 @@ function vexTtsPage(lib, mode) {
         const vh = W.innerHeight || 0;
         if ((rect.width || rect.height) && (rect.top < 70 || rect.bottom > vh - 50)) {
           const se = document.scrollingElement;
-          if (se && se.scrollHeight > vh + 4) W.scrollBy({ top: rect.top - vh * 0.33, behavior: 'smooth' });
-          else u.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          if (se && se.scrollHeight > vh + 4) W.scrollBy({ top: rect.top - vh * 0.33, behavior: behavior === 'auto' ? 'auto' : 'smooth' });
+          else u.el.scrollIntoView({ block: 'center', behavior: behavior === 'auto' ? 'auto' : 'smooth' });
         }
         return true;
       } catch { return false; }       // the page rebuilt that part of itself
@@ -446,7 +446,7 @@ const ReadAloud = {
   },
 
   _mark(s, i) {
-    try { Promise.resolve(s.wv.executeJavaScript('window.__vexTTS&&window.__vexTTS.mark(' + Number(i) + ')')).catch(() => {}); }
+    try { Promise.resolve(s.wv.executeJavaScript('window.__vexTTS&&window.__vexTTS.mark(' + Number(i) + ',' + JSON.stringify(VexMotion.scroll()) + ')')).catch(() => {}); }
     catch { /* the tab is gone; _watch stops the reading */ }
   },
   _clearMark(s) {

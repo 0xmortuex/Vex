@@ -69,14 +69,14 @@ const ShortcutsGuide = {
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelector('#sg-close').addEventListener('click', close);
     const filter = m.querySelector('#sg-filter');
-    filter.addEventListener('input', () => this._render(m, filter.value.trim().toLowerCase()));
+    filter.addEventListener('input', () => this._render(m, VexTr.fold(filter.value.trim())));
     filter.focus();
     this._render(m, '');
   },
 
   _section(title, rows, q, keycol) {
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s)) : String(s);
-    const hits = rows.filter(([a, b]) => !q || (a + ' ' + b).toLowerCase().includes(q));
+    const hits = rows.filter(([a, b]) => !q || VexTr.fold(a + ' ' + b).includes(q));
     if (!hits.length) return '';
     return `<div style="font-weight:700;margin:14px 0 6px">${title}</div>` + hits.map(([a, b]) =>
       `<div style="display:flex;align-items:center;gap:10px;padding:5px 2px;border-bottom:1px solid var(--border)">

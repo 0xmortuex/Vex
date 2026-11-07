@@ -267,7 +267,7 @@ define('vex-lock:unlock', [string(128)]);   // a PIN is 4-12 digits, a passphras
 define('vex-lock:verify', [string(128)]);
 define('tor:cancel', []);
 define('tor:status tor:stop', []);
-define('guest:page-shortcut', [shape({ key: string(1), shift: boolean })]);
+define('guest:page-shortcut', [shape({ key: string(1), shift: boolean, alt: optional(boolean) })]);
 define('rss:fetch open-external', [web]);
 // Open an address in another browser (main/open-in-browser.js): the address and the browser's id; both are checked again in main.
 define('browsers:list', []);

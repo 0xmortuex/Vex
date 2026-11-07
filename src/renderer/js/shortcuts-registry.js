@@ -109,11 +109,13 @@ const ShortcutsRegistry = (() => {
     // Wave 3 tab comforts (Essential tabs, Find text in all tabs) have no default key: Ctrl+Alt+E and Ctrl+Alt+F
     // are Everything and Focus mode, and every other Ctrl+Alt letter is taken (H is the boss key). Both are Ctrl+K
     // commands, and "give something else a key" in Settings > Shortcuts can bind them.
-    // Wave 3: split view panes, and keyboard hints for links and tabs (Ctrl+Alt letters with no Turkish AltGr character).
+    // Wave 3: split view panes, and keyboard hints for links and tabs. Ctrl+Alt+Q is AltGr+Q ('@') on a Turkish keyboard, so a Ctrl+Alt
+    // letter is read from the physical key when AltGr turned it into another character (altGrLetter below); inside a text field that
+    // character is typed instead.
     'split-focus':    { default: 'Ctrl+Alt+O',   label: 'Split view: next pane',      category: 'Tabs',       cmd: 'split-focus-next' },
     'split-swap':     { default: 'Ctrl+Alt+Y',   label: 'Split view: swap panes',     category: 'Tabs',       cmd: 'split-swap-panes' },
     // Next / previous page of results, a thread, a chapter, a gallery (js/page-nav.js). Alt+Left/Right is Back/Forward, so these take
-    // Alt+PageDown / Alt+PageUp: no Ctrl+Alt letter (those are AltGr characters on a Turkish keyboard) and nothing else uses them.
+    // Alt+PageDown / Alt+PageUp: no Ctrl+Alt letter (a few of those are AltGr characters on a Turkish keyboard) and nothing else uses them.
     'page-next':      { default: 'Alt+PageDown', label: 'Go to the next page (results, thread, chapter)', category: 'Navigation', cmd: 'page-next' },
     'page-prev':      { default: 'Alt+PageUp',   label: 'Go to the previous page',    category: 'Navigation', cmd: 'page-prev' },
     // Search only the site in front (js/site-search.js). Every Ctrl+Alt letter is taken, so it takes three modifiers.
@@ -126,6 +128,8 @@ const ShortcutsRegistry = (() => {
     // hence the third modifier. js/game-overlay.js hands the current key to main after every change.
     // Every Ctrl+Alt letter is taken, so copying a video link at its current time takes three modifiers (js/video-link.js).
     'copy-video-time': { default: 'Ctrl+Alt+Shift+C', label: 'Copy video link at this time', category: 'Tools', cmd: 'copy-video-time' },
+    // Chrome's key for caret browsing (js/caret-browsing.js asks first, as Chrome does).
+    'caret-browsing': { default: 'F7', label: 'Caret browsing: move through text with the arrow keys', category: 'Navigation', cmd: 'caret-browsing' },
     'game-overlay': { default: 'Ctrl+Alt+Shift+O', label: 'Show or hide the game overlay', category: 'Tools', cmd: 'game-overlay' }
   };
 
@@ -375,6 +379,20 @@ const ShortcutsRegistry = (() => {
     };
   }
 
+  // On a keyboard with an AltGr key, Windows reports AltGr as Ctrl+Alt, and AltGr+Q types '@' (Turkish, German), AltGr+E types the
+  // euro sign, AltGr+T the lira sign. The event's key is then that character, not the letter on the key cap, so Ctrl+Alt+Q never
+  // matched. This is the letter of the physical key (event.code) when Ctrl and Alt are both down and the key is some other single
+  // character (or a dead key); null when the key already is an ASCII letter (US, and every Ctrl+Alt letter that types nothing).
+  // The same rule is in main/guest-shortcuts.js (altGrLetter); tests/renderer/altGrLetter.test.js keeps the two equal.
+  function altGrLetter(e) {
+    if (!e || !e.ctrlKey || !e.altKey || e.metaKey) return null;
+    const key = typeof e.key === 'string' ? e.key : '';
+    if (!key || /^[A-Za-z]$/.test(key)) return null;
+    if (key !== 'Dead' && Array.from(key).length !== 1) return null;
+    const m = /^Key([A-Z])$/.exec(typeof e.code === 'string' ? e.code : '');
+    return m ? m[1] : null;
+  }
+
   function eventToShortcut(e) {
     if (!e || !e.key) return null;
     const mods = [];
@@ -384,6 +402,8 @@ const ShortcutsRegistry = (() => {
 
     let key = e.key;
     if (['Control', 'Alt', 'Shift', 'Meta'].includes(key)) return null;
+    const physical = altGrLetter(e);
+    if (physical) key = physical;
 
     if (key === ' ') key = 'Space';
     else if (key === 'ArrowLeft') key = 'Left';
@@ -409,6 +429,10 @@ const ShortcutsRegistry = (() => {
     const inInput = target && (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable);
     // If typing in an input and no modifier + not a function/F-key, do nothing
     if (inInput && !e.ctrlKey && !e.altKey && !e.metaKey && !/^F\d+$/.test(e.key) && e.key !== 'Escape') return;
+
+    // AltGr+Q types '@' in a form on a Turkish or German keyboard: a Ctrl+Alt shortcut must not take a character from a text field.
+    // (Outside a field the same key press is the shortcut, read from the physical key: altGrLetter.)
+    if (inInput && altGrLetter(e)) return;
 
     const combo = eventToShortcut(e);
     if (!combo) return;
@@ -437,7 +461,7 @@ const ShortcutsRegistry = (() => {
     setShortcut, resetShortcut, removeShortcut, resetAll, customBindings, restoreBindings,
     // The keys Vex answers outside the list above, combo -> what it does (the shortcut sheet, the guide and the docs read it).
     fixedKeys: () => ({ ...FIXED_KEYS }),
-    register, eventToShortcut, _tellMain, onChange
+    register, eventToShortcut, altGrLetter, _tellMain, onChange
   };
 })();
 

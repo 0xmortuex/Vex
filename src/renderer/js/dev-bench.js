@@ -127,7 +127,7 @@ const VexBench = {
         if (act.href && /^https?:\/\//i.test(act.href)) { el = document.createElement('a'); el.href = act.href; el.target = '_blank'; el.rel = 'noopener noreferrer'; }
         else { el = document.createElement('button'); el.type = 'button'; }
         el.textContent = act.label;
-        if (act.scrollTo) el.addEventListener('click', () => { const t = document.getElementById(act.scrollTo); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+        if (act.scrollTo) el.addEventListener('click', () => { const t = document.getElementById(act.scrollTo); if (t) t.scrollIntoView({ behavior: VexMotion.scroll(), block: 'start' }); });
         if (typeof act.copy === 'string') {
           el.addEventListener('click', () => {
             navigator.clipboard.writeText(act.copy).then(() => { el.textContent = 'Copied'; }, () => { el.textContent = 'Copy failed'; });

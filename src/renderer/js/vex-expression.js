@@ -31,10 +31,7 @@ const VexExpression = {
     return typeof VexPlayfulness !== 'undefined' && VexPlayfulness.isOff();
   },
 
-  reducedMotion() {
-    try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
-    catch { return false; }
-  },
+  reducedMotion() { return VexMotion.reduced(); },
 
   // Medal ids that are not defined are ignored by VexMedals, so a signal is
   // always safe to send.

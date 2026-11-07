@@ -6698,6 +6698,16 @@ const VexI18nUI = {
       'Skip Intro and Next Episode on Streaming Sites': 'Yayın Sitelerinde Girişi ve Sonraki Bölümü Atla',
       'Netflix, Prime Video and Disney+: presses Skip Intro, Skip Recap, Next Episode and Continue Watching for you, per site, off until you turn it on': 'Netflix, Prime Video ve Disney+: Girişi Atla, Özeti Atla, Sonraki Bölüm ve İzlemeye Devam Et düğmelerine sizin yerinize basar; site başına, siz açana kadar kapalı',
       'On Netflix, Prime Video and Disney+, presses the Skip Intro, Skip Recap, Next Episode and Continue Watching buttons for you. Off for every site until you turn that site on.': 'Netflix, Prime Video ve Disney+ üzerinde Girişi Atla, Özeti Atla, Sonraki Bölüm ve İzlemeye Devam Et düğmelerine sizin yerinize basar. Siz o siteyi açana kadar her site için kapalıdır.',
+      // Caret browsing (F7, js/caret-browsing.js)
+      'Caret Browsing': 'İmleçle Gezinme',
+      'Move through a page’s text with the arrow keys and select with Shift; F7 turns it on and off, off until you turn it on': 'Sayfanın metninde ok tuşlarıyla gezinin, Shift ile seçin; F7 açar ve kapatır, siz açana kadar kapalıdır',
+      'Caret browsing': 'İmleçle gezinme',
+      'F7 (or Ctrl+K, "Caret Browsing") puts a text cursor in the page: the arrow keys move it through the text, Shift selects, Ctrl moves by word, and Enter follows a link. It asks before it turns on, and it starts off.': 'F7 (veya Ctrl+K, “İmleçle Gezinme”) sayfaya bir metin imleci koyar: ok tuşları onu metinde gezdirir, Shift seçer, Ctrl sözcük sözcük ilerler, Enter bir bağlantıyı açar. Açılmadan önce sorar ve kapalı başlar.',
+      'Caret browsing: move through text with the arrow keys': 'İmleçle gezinme: ok tuşlarıyla metinde dolaşın',
+      'Turn on caret browsing?': 'İmleçle gezinme açılsın mı?',
+      'Caret browsing lets you move around a page with the arrow keys and select text with Shift. The arrow keys will no longer scroll pages while it is on. Press F7 to turn it off again.': 'İmleçle gezinme, bir sayfada ok tuşlarıyla dolaşmanızı ve Shift ile metin seçmenizi sağlar. Açıkken ok tuşları sayfaları kaydırmaz. Yeniden kapatmak için F7’ye basın.',
+      'Caret browsing is off': 'İmleçle gezinme kapalı',
+      'Caret browsing is on. Click in the text or press an arrow key; F7 turns it off': 'İmleçle gezinme açık. Metne tıklayın veya bir ok tuşuna basın; F7 kapatır',
       // Per-site autoplay (Site settings, "What this site is allowed")
       'Autoplay': 'Otomatik oynatma',
       'Off means sound and video start only when you click. The tab reopens with it off.': 'Kapalıysa ses ve video yalnızca tıkladığınızda başlar. Sekme bu ayarla yeniden açılır.',

@@ -99,8 +99,8 @@ const VexPackContent = {
     return out;
   },
   filter(list, q) {
-    const s = String(q || '').trim().toLowerCase();
-    return s ? list.filter(p => (p.label + ' ' + p.text + ' ' + p.group).toLowerCase().includes(s)) : list;
+    const s = VexTr.fold(String(q || '').trim());
+    return s ? list.filter(p => VexTr.fold(p.label + ' ' + p.text + ' ' + p.group).includes(s)) : list;
   },
   async copy(text) {
     if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') throw new Error('Copying is not available in this window');

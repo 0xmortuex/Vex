@@ -1906,7 +1906,7 @@ function vexOwnTextFocused(doc) {
     document.getElementById('sync-indicator')?.addEventListener('click', () => {
       if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('settings');
       setTimeout(() => {
-        document.getElementById('sync-panel-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('sync-panel-content')?.scrollIntoView({ behavior: VexMotion.scroll(), block: 'start' });
       }, 100);
     });
   }

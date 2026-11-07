@@ -352,5 +352,6 @@
     "src/site-tweaks.js": 3,
     "src/tor-launcher.js": 9
   },
-  "no-plain-config-write": {}
+  "no-plain-config-write": {},
+  "no-raw-lowercase-search": {}
 }

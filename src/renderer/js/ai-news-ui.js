@@ -215,14 +215,14 @@ const AINewsUI = {
   },
 
   filterItems(items, f, now = Date.now()) {
-    const q = String(f.q || '').trim().toLowerCase();
+    const q = VexTr.fold(String(f.q || '').trim());
     const since = this.dateCutoff(f.date, now);
     return items.filter(it => {
       if (since && this._ts(it) < since) return false;
       if (f.unreadOnly && it.read) return false;
       if (f.topic && !AINews.topicsOf(it).includes(f.topic)) return false;
       if (f.source && it.source !== f.source) return false;
-      if (q && !(it.title + ' ' + it.summary + ' ' + it.source).toLowerCase().includes(q)) return false;
+      if (q && !VexTr.fold(it.title + ' ' + it.summary + ' ' + it.source).includes(q)) return false;
       return true;
     });
   },

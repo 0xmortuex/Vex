@@ -111,6 +111,7 @@ const VencordBridge = {
       authors: Array.from(authors, ([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n).slice(0, 8),
       questions: pick(this.QUESTION), decisions: pick(this.DECISION),
       links: CommsStore.links(msgs.map(m => m.text).join('\n'), 10),
+      // vex-allow-lowercase: Discord user names and @mentions are matched as typed
       mentionedYou: me ? msgs.filter(m => m.text.toLowerCase().includes('@' + me) || m.text.toLowerCase().includes(me)).slice(-5).map(m => ({ author: m.author, text: m.text.slice(0, 200), ts: m.ts })) : [],
     };
   },

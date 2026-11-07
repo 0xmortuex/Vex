@@ -7,6 +7,7 @@ Every key Vex answers, read from the code that answers it.
 - **Where handled**: the registry (`src/renderer/js/shortcuts-registry.js`, handlers in `app.js`) fires a key while Vex’s own interface has the focus. A fixed key is also taken by `src/main.js` (`before-input-event`) first.
 - **In a web page**: how the key reaches Vex while a page has the focus (`src/main/guest-shortcuts.js`, `src/preload-webview.js`). *Taken before the page*: the page never hears it. *Passed up before the page*: sent to the registry as the key, so a rebinding holds. *The page has it first*: the page’s own handler runs first and Vex acts only when the page left the key alone (Ctrl+B is bold in an editor, Ctrl+Shift+M mutes you in Discord).
 - **Text fields**: every registry key needs Ctrl or Alt or is a function key, so none of them types a letter away. Editing keys (Ctrl+C/V/X/A/Z/Y, Ctrl+Backspace, Ctrl+Left/Right, ...) cannot be bound.
+- **AltGr keyboards (Turkish Q, German, French, Polish...)**: Windows reports AltGr as Ctrl+Alt, so AltGr+Q types `@` and AltGr+E `€`. A Ctrl+Alt letter is read from the physical key (`event.code`) when AltGr changed the key (`altGrLetter` in `shortcuts-registry.js` and `guest-shortcuts.js`, and the page preload for pages), so Ctrl+Alt+Q still means the key cap Q. Inside a text field that character is typed instead and the shortcut stays quiet; elsewhere it fires. On Turkish Q AltGr types a character on A, E, Q, S, T (and I); German: E, M, Q; French AZERTY: E.
 - **Rebind**: Settings > Keyboard Shortcuts. *fixed* keys are answered by the main process and keep their key.
 
 | Key | Action | Id | Where handled | In a web page | Rebind | Documented in |
@@ -85,6 +86,7 @@ Every key Vex answers, read from the code that answers it.
 | `Ctrl+Alt+Q` | Hints: go to a tab | tab-hints | registry runs Ctrl+K command `tab-hints` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+Shift+S` | Search the web for the selection | search-selection | registry runs Ctrl+K command `search-selection` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+Shift+C` | Copy video link at this time | copy-video-time | registry runs Ctrl+K command `copy-video-time` | passed up before the page | yes | Settings list only |
+| `F7` | Caret browsing: move through text with the arrow keys | caret-browsing | registry runs Ctrl+K command `caret-browsing` | passed up before the page | yes | Settings list only |
 | `Ctrl+Alt+Shift+O` | Show or hide the game overlay | game-overlay | registry runs Ctrl+K command `game-overlay` | passed up before the page | yes | Settings list only |
 | `Ctrl+Shift+N` | Notes | - | main.js / app.js, outside the registry | the page has it first | fixed | README, Ctrl+K hint |
 | `Ctrl+=` | Zoom in | - | main.js / app.js, outside the registry | taken before the page | fixed | Settings list only |

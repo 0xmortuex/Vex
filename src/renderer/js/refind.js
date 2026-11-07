@@ -102,11 +102,11 @@ const VexRefind = {
     };
   },
 
-  _hit(hay, terms) { const h = String(hay || '').toLowerCase(); return terms.length === 0 || terms.every(t => h.includes(t)); },
+  _hit(hay, terms) { const h = VexTr.fold(hay || ''); return terms.length === 0 || terms.every(t => h.includes(VexTr.fold(t))); },
   _inWindow(at, p) { return !(p.since && at && at < p.since) && !(p.until && at && at > p.until); },
   _snippet(text, terms) {
     const t = String(text || '').replace(/\s+/g, ' ');
-    const i = terms.length ? t.toLowerCase().indexOf(terms[0]) : 0;
+    const i = terms.length ? VexTr.fold(t).indexOf(VexTr.fold(terms[0])) : 0;
     const from = Math.max(0, i - 40);
     return (from ? '…' : '') + t.slice(from, from + 120) + (t.length > from + 120 ? '…' : '');
   },

@@ -130,3 +130,35 @@ html[data-reduce-motion] .ai-msg.streaming .ai-msg-content::after {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
+
+/* Windows contrast themes (forced-colors: active) and prefers-contrast: more.
+ * scripts/check-ui.js --contrast renders the window, Settings, the command bar and the site panel under both and measures what is
+ * left: text contrast, an edge or an icon on every control, the focus ring, a selected item that still differs from its neighbour.
+ * (css/accessibility-ui.css already gives every button and field a ButtonText border and a Highlight focus ring in forced colours.) */
+@media (forced-colors: active) {
+  /* Forced colours replace background COLOURS but keep a background-image: the page's aurora gradient and a toast's sheen would sit
+   * under the system text colour (the Glass look paints it with an !important rule of its own, hence the longer selector). Canvas only. */
+  html body,
+  html body[data-gui-style],
+  .toast-item { background-image: none !important; }
+  /* A blur behind a panel is drawn from backgrounds that no longer exist; the panel is plain Canvas. */
+  *, *::before, *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+}
+
+@media (prefers-contrast: more) {
+  /* The dimmed text colours become the text colour (every muted label, hint and caption reads at the full ratio of the theme). */
+  *, *::before, *::after {
+    --text-muted: var(--text) !important;
+    --vex-text-muted: var(--text) !important;
+    --b-text-dim: var(--b-text, var(--text)) !important;
+  }
+  /* A field has an edge. The address bar and the command bar's input sit in a box: the box gets the edge. */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=color]):not([type=file]):not(#url-input):not(#command-input),
+  select,
+  textarea { border: 1px solid var(--text) !important; }
+  #url-bar,
+  #command-input-wrapper { border: 1px solid var(--text) !important; }
+  /* The coloured letter chips on the shortcuts bar are black with white letters. */
+  body[data-gui-family="browser"] .new-tab-btn { color: var(--b-text, var(--text)) !important; }
+  #gui-shortcuts-bar .gsc .ic:not(.has-img) { background: #000 !important; color: #fff !important; box-shadow: inset 0 0 0 1px #fff; }
+}

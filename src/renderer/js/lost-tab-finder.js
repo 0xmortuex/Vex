@@ -71,9 +71,10 @@ const LostTabFinder = {
       const at = this._when(e);
       if (parsed.since && at && at < parsed.since) continue;
       if (parsed.until && at && at > parsed.until) continue;
-      const hay = ((e.title || '') + ' ' + e.url).toLowerCase();
-      if (parsed.terms.length && !parsed.terms.every(t => hay.includes(t))) continue;
-      const inTitle = e.title && parsed.terms.every(t => String(e.title).toLowerCase().includes(t));
+      const hay = VexTr.fold((e.title || '') + ' ' + e.url);
+      const terms = parsed.terms.map(t => VexTr.fold(t));
+      if (terms.length && !terms.every(t => hay.includes(t))) continue;
+      const inTitle = e.title && terms.every(t => VexTr.fold(e.title).includes(t));
       out.push({ url: e.url, title: e.title || e.url, at, from: 'history', score: 1 + (inTitle ? 1 : 0) });
     }
     return out.sort((a, b) => b.score - a.score || b.at - a.at);

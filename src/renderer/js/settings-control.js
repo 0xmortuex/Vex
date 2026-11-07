@@ -105,6 +105,7 @@ const VexSettingsControl = {
     const opts = [...select.options];
     const exact = opts.find(o => o.value.toLowerCase() === String(words).toLowerCase().trim() || this._words(o.textContent).join(' ') === want);
     if (exact) return exact;
+    // vex-allow-lowercase: a select's value attribute is an id (ASCII)
     const partial = opts.filter(o => this._words(o.textContent).join(' ').includes(want) || o.value.toLowerCase().includes(want.replace(/ /g, '')));
     if (partial.length === 1) return partial[0];
     throw new Error(`"${words}" is not one of: ${opts.map(o => o.textContent.trim()).join(', ')}`);

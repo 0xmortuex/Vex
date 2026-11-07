@@ -1239,6 +1239,7 @@
           return [['Code', String(hit[0])], ['Name', hit[1]], ['Class', cls(hit[0])], ['Meaning', hit[2]]];
         }
         const m = q.match(/^([1-5])xx$/i);
+        // vex-allow-lowercase: the HTTP status table is English technical text
         const hits = m ? HTTP_STATUS.filter(s => String(s[0])[0] === m[1]) : HTTP_STATUS.filter(s => (s[1] + ' ' + s[2]).toLowerCase().includes(q.toLowerCase()));
         if (!hits.length) fail(`No status code matches "${q}"`);
         return hits.map(s => [String(s[0]), s[1]]);

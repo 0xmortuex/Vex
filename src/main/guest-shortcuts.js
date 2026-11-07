@@ -74,6 +74,12 @@ const PAGE_FIRST = {
 function pageShortcut(report, { wanted = null } = {}) {
   if (!report || typeof report.key !== 'string' || report.key.length !== 1) return null;
   const shift = report.shift === true;
+  // AltGr+letter in a page with no text field focused (Ctrl+Alt+Q on a Turkish keyboard): only a Ctrl+Alt letter the registry asked for.
+  if (report.alt === true) {
+    const letter = report.key.toLowerCase();
+    if (!/^[a-z]$/.test(letter) || !wanted || !wanted.has('Ctrl+Alt+' + (shift ? 'Shift+' : '') + letter.toUpperCase())) return null;
+    return { channel: 'guest-shortcut', args: [{ key: letter, ctrl: true, shift, alt: true }] };
+  }
   const table = shift ? PAGE_FIRST.shifted : PAGE_FIRST.plain;
   const lk = report.key.toLowerCase();
   if (Object.prototype.hasOwnProperty.call(table, lk)) return { channel: table[lk] };
@@ -114,8 +120,23 @@ function comboOf(input) {
   return mods.join('+');
 }
 
+// AltGr is Ctrl+Alt on Windows. On a Turkish or German keyboard AltGr+Q types '@', AltGr+E the euro sign, AltGr+T the lira sign: the key
+// is that character, not the letter on the key cap. → the letter of the physical key (input.code) when Ctrl and Alt are both down and
+// the key is some other single character (or a dead key); null otherwise. Same rule as the renderer's ShortcutsRegistry.altGrLetter.
+function altGrLetter(input) {
+  if (!input || !input.control || !input.alt || input.meta) return null;
+  const key = typeof input.key === 'string' ? input.key : '';
+  if (!key || /^[A-Za-z]$/.test(key)) return null;
+  if (key !== 'Dead' && Array.from(key).length !== 1) return null;
+  const m = /^Key([A-Z])$/.exec(typeof input.code === 'string' ? input.code : '');
+  return m ? m[1] : null;
+}
+
 function shortcutFor(input, { ownsFind = false, ownsZoom = false, wanted = null } = {}) {
   if (!input || input.type !== 'keyDown') return null;
+  // AltGr typing a character ('@' on AltGr+Q) is the page's: main cannot see whether a text field has the focus, and typing an @
+  // into a form must never turn into a shortcut. The page preload reports the key (guest:page-shortcut, alt) when no field has it.
+  if (altGrLetter(input)) return null;
   const ctrl = input.control || input.meta;
   // Vex's own viewers (PDF, picture, office) zoom their document themselves: the zoom keys are theirs while they have the focus.
   if (ownsZoom && ctrl && !input.alt && ['=', '+', '-', '_', '0'].includes(String(input.key || ''))) return null;
@@ -200,4 +221,4 @@ function withSource(hit, pageId) {
   return hit;
 }
 
-module.exports = { shortcutFor, comboOf, pageShortcut, withSource, PLAIN, SHIFTED, PAGE_FIRST, PASS_UP, BROWSER_KEYS };
+module.exports = { shortcutFor, altGrLetter, comboOf, pageShortcut, withSource, PLAIN, SHIFTED, PAGE_FIRST, PASS_UP, BROWSER_KEYS };

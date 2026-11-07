@@ -52,6 +52,7 @@ function createGpuLadder({ dir, fs, version = '', now = () => Date.now(), thresh
     }
   }
   function writeFlag(flag) {
+    // vex-allow-plain-write: a one-line flag whose loss only means one more crash before the fallback; a half-written file is read as 'no flag' (invalid JSON is ignored above)
     try { fs.writeFileSync(flagFile, JSON.stringify(flag)); return true; }
     catch (err) { note('[GPU] could not write the fallback flag: ' + err.message); return false; }
   }

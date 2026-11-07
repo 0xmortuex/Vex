@@ -97,7 +97,7 @@ const WhatsNew = {
         if (!first) first = b.el;
         n++;
       }
-      if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if (first) first.scrollIntoView({ block: 'center', behavior: VexMotion.scroll() });
       return n;
     })()`;
   },

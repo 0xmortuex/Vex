@@ -947,6 +947,8 @@ const WebviewManager = {
     // Alt+click on a link opens it in the other pane (js/split-keys.js), and link hints (js/link-hints.js)
     if (typeof VexSplitKeys !== 'undefined') VexSplitKeys.attach(webview);
     if (typeof VexLinkHints !== 'undefined') VexLinkHints.attach(webview);
+    // Caret browsing (F7, js/caret-browsing.js, a late module): a page learns on dom-ready whether it is on
+    if (typeof VexCaretBrowsing !== 'undefined') VexCaretBrowsing.attach(webview);
     // Connect ahead to a link the pointer rests on (js/preconnect.js)
     if (typeof VexPreconnect !== 'undefined') VexPreconnect.attach(webview);
     // Floating Explain/Summarize/Translate bar on text selection

@@ -22,9 +22,9 @@ const VexChainSteps = {
   KINDS: ['open', 'session', 'focus', 'timer', 'mute', 'unmute', 'wait'],
 
   _tabsMatching(text) {
-    const q = String(text || '').trim().toLowerCase();
+    const q = VexTr.fold(String(text || '').trim());
     if (!q || typeof TabManager === 'undefined') return [];
-    return TabManager.tabs.filter(t => String(t.url || '').toLowerCase().includes(q) || String(t.title || '').toLowerCase().includes(q));
+    return TabManager.tabs.filter(t => VexTr.fold(t.url || '').includes(q) || VexTr.fold(t.title || '').includes(q));
   },
 
   _setMuted(text, muted) {

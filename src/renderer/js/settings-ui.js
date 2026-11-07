@@ -497,7 +497,7 @@ const SettingsUI = {
     const out = new Map();
     const S = typeof VexSmartSearch !== 'undefined' ? VexSmartSearch : null;
     const parsed = S ? S.parse(query) : null;
-    const q = String(query || '').trim().toLowerCase();
+    const q = VexTr.fold(String(query || '').trim());
     let hits = [];
     if (parsed) {
       try {
@@ -512,7 +512,7 @@ const SettingsUI = {
     for (const g of groups) out.set(g, 0);
     for (const h of hits) out.set(h.g, Math.max(out.get(h.g) || 0, h.rank));
     for (const g of groups) {
-      if (!out.get(g) && ((g.textContent || '') + ' ' + (g.dataset.keywords || '')).toLowerCase().includes(q)) out.set(g, 5);
+      if (!out.get(g) && VexTr.fold((g.textContent || '') + ' ' + (g.dataset.keywords || '')).includes(q)) out.set(g, 5);
     }
     // A section inside a section is shown with it.
     for (const g of groups) {
@@ -604,7 +604,7 @@ const SettingsUI = {
       target = el.closest('.setting-toggle-row, .setting-row') || el;
       for (let d = el.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
     }
-    target.scrollIntoView({ behavior: 'smooth', block: el ? 'center' : 'start' });
+    target.scrollIntoView({ behavior: VexMotion.scroll(), block: el ? 'center' : 'start' });
     // The highlight is only seen: the keyboard goes to the setting that was found, so a screen reader reads it.
     const CONTROL = 'input:not([type="hidden"]), select, textarea, button:not(.set-info-btn):not(.set-more-btn)';
     const go = el && el.isConnected && el.matches && el.matches(CONTROL) ? el : target.querySelector(CONTROL);
@@ -830,7 +830,7 @@ const SettingsUI = {
           sub.style.setProperty('--chip-color', cat.color);
           sub.innerHTML = this._svg(cat.icon, 12) + '<span>' + (cat.short || cat.name) + '</span>';
           sub.dataset.tier = tier;
-          sub.addEventListener('click', () => { SettingsUI._wanted = { key: g.dataset.navKey, until: Date.now() + 3000 }; g.scrollIntoView({ behavior: 'smooth', block: 'start' }); SettingsUI._countChip(g.dataset.navKey, cat.short || cat.name); });
+          sub.addEventListener('click', () => { SettingsUI._wanted = { key: g.dataset.navKey, until: Date.now() + 3000 }; g.scrollIntoView({ behavior: VexMotion.scroll(), block: 'start' }); SettingsUI._countChip(g.dataset.navKey, cat.short || cat.name); });
           grp.row.appendChild(sub);
         }
       }
@@ -855,7 +855,7 @@ const SettingsUI = {
           if (panel.dataset.pane) { SettingsUI._pickCategory(root, key); SettingsUI._countChip(key, look.name); return; }
           SettingsUI._wanted = { key, until: Date.now() + 3000 };
           const shown = target.getClientRects().length ? target : Array.from(root.children).find(el => el.dataset && el.dataset.navKey === key && !el.classList.contains('set-nav-chip') && el.getClientRects().length);
-          (shown || target).scrollIntoView({ behavior: 'smooth', block: 'start' });
+          (shown || target).scrollIntoView({ behavior: VexMotion.scroll(), block: 'start' });
           SettingsUI._countChip(key, look.name);
         });
         nav.appendChild(navChip);

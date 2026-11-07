@@ -140,7 +140,7 @@ const LinkChecker = {
     const code = `(() => {
       const a = document.querySelector('[data-vex-link="${i}"]');
       if (!a) return false;
-      a.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      a.scrollIntoView({ block: 'center', behavior: VexMotion.scroll() });
       const before = a.style.outline, offset = a.style.outlineOffset;
       a.style.outline = '3px solid #e5534b'; a.style.outlineOffset = '2px';
       setTimeout(() => { a.style.outline = before; a.style.outlineOffset = offset; }, 2600);

@@ -259,7 +259,7 @@ const A11yCheck = {
     return window.vexGuestEval(wv, `(() => {
       const el = document.querySelector('[data-vex-a11y="${i}"]');
       if (!el) return false;
-      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.scrollIntoView({ block: 'center', behavior: VexMotion.scroll() });
       const before = el.style.outline, offset = el.style.outlineOffset;
       el.style.outline = '3px solid #e5534b'; el.style.outlineOffset = '2px';
       setTimeout(() => { el.style.outline = before; el.style.outlineOffset = offset; }, 2600);

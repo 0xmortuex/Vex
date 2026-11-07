@@ -986,6 +986,7 @@ const WatchJudgement = {
       const why = String(a.why || '').replace(/\s+/g, ' ').trim().slice(0, 160);
       // A quote the model made up is dropped: evidence must be in the changed lines.
       const quote = String(a.evidence || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+      // vex-allow-lowercase: checks a model's quote really occurs in the evidence; this must stay an exact (not folded) match
       const real = quote && evidence.replace(/\s+/g, ' ').toLowerCase().includes(quote.toLowerCase()) ? quote : '';
       return { notify: a.matters, why, evidence: real, by: 'local model' };
     } catch (err) {

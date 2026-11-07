@@ -181,8 +181,8 @@ const VideoTools = {
     return (probe.cues || []).map(c => ({ s: c.s >= 0 ? c.s : (this.parseStamp(c.ts) == null ? 0 : this.parseStamp(c.ts)), t: c.t })).filter(c => c.t);
   },
   filter(lines, q) {
-    const needle = String(q || '').trim().toLowerCase();
-    return needle ? lines.filter(l => l.t.toLowerCase().includes(needle)) : lines;
+    const needle = VexTr.fold(String(q || '').trim());
+    return needle ? lines.filter(l => VexTr.fold(l.t).includes(needle)) : lines;
   },
   // Index of the chapter holding time `t`.
   chapterAt(chapters, t) {

@@ -460,10 +460,10 @@ const AIPanel = {
     const list = document.getElementById('persona-list');
     if (!list) return;
     this._mountPersonaSearch();
-    const q = String(this._personaFilter || '').trim().toLowerCase();
+    const q = VexTr.fold(String(this._personaFilter || '').trim());
     const all = PersonasManager.getAll().filter(p => !q
-      || String(p.name || '').toLowerCase().includes(q)
-      || String(p.description || '').toLowerCase().includes(q));
+      || VexTr.fold(p.name || '').includes(q)
+      || VexTr.fold(p.description || '').includes(q));
     const active = this.getActivePersona();
     list.innerHTML = all.map(p => `
       <div class="persona-item ${p.id === active?.id ? 'active' : ''}" data-persona-id="${this._esc(p.id)}">
@@ -830,13 +830,13 @@ const AIPanel = {
   // What is typed in the box above the list: chats whose words match, with
   // the line that matched (searching every chat was otherwise impossible —
   // they are one per tab and a closed tab's chat is unreachable by browsing).
-  _historyQuery() { return (document.getElementById('ai-history-search')?.value || '').trim().toLowerCase(); },
+  _historyQuery() { return VexTr.fold((document.getElementById('ai-history-search')?.value || '').trim()); },
 
   // → the first message that matches, or null. Exported shape for the tests.
   matchInChat(msgs, query) {
     if (!query) return null;
     for (const m of msgs) {
-      const i = String(m.content || '').toLowerCase().indexOf(query);
+      const i = VexTr.fold(m.content || '').indexOf(query);
       if (i >= 0) return { role: m.role, text: String(m.content).slice(Math.max(0, i - 30), i + 90).trim() };
     }
     return null;

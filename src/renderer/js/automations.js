@@ -44,6 +44,7 @@ const Automations = {
     this._load().forEach((r) => {
       if (!r.enabled || !r.trigger || r.trigger.type !== 'url') return;
       const pat = (r.trigger.value || '').toLowerCase();
+      // vex-allow-lowercase: matches a URL pattern against a URL (ASCII), not text a person reads
       if (pat && url.toLowerCase().includes(pat) && this._firedUrl[r.id] !== url) {
         this._firedUrl[r.id] = url;  // in-memory (avoid re-firing on the same page)
         this._runAction(r);
@@ -157,8 +158,8 @@ const Automations = {
       const rule = { trigger: { type: trig.value, value: val }, action: { type: act.value, value: av } };
       const steps = [{ label: this._describe(rule), detail: 'the rule' }];
       if (trig.value === 'url' && typeof TabManager !== 'undefined') {
-        const q = val.toLowerCase();
-        for (const t of TabManager.tabs.filter(x => String(x.url || '').toLowerCase().includes(q)).slice(0, 20)) steps.push({ label: t.title || t.url, detail: 'open now, would match' });
+        const q = VexTr.fold(val);
+        for (const t of TabManager.tabs.filter(x => VexTr.fold(x.url || '').includes(q)).slice(0, 20)) steps.push({ label: t.title || t.url, detail: 'open now, would match' });
       }
       let go;
       try { go = await VexPlan.confirmSteps({ title: 'Add this automation?', intro: 'It runs by itself each time it applies. You can switch it off or delete it in this window.', steps, okLabel: 'Add automation', noun: 'item' }); }

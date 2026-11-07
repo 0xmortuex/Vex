@@ -1023,10 +1023,12 @@ function applyView() {
   if (q || colFilters.length) {
     const out = [];
     for (let r = 0; r < total; r++) {
+      // vex-allow-lowercase: a Worker has no VexTr (it is a window script); the CSV filter still lowercases, so a Turkish dotted/dotless I does not fold there yet
       if (q && str(csv.starts[first + r], csv.ends[first + r]).toLowerCase().indexOf(q) === -1) continue;
       if (colFilters.length) {
         const cells = parseRow(first + r);
         let ok = true;
+        // vex-allow-lowercase: a Worker has no VexTr (it is a window script); the CSV filter still lowercases, so a Turkish dotted/dotless I does not fold there yet
         for (const [c, v] of colFilters) if ((cells[c] || '').toLowerCase().indexOf(v) === -1) { ok = false; break; }
         if (!ok) continue;
       }
