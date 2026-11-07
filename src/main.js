@@ -175,7 +175,33 @@ ipcMain.on('storage:flush-failed', event => {
   clearTimeout(host.flushTimer);
   host.flushing = false;
   host.win.webContents.send('vex:toast', 'Changes could not be saved. Retry closing after the storage error is resolved.');
+  _offerFlushRescue(host);
 });
+// Saving failed while closing (a full or failing disk): the owner gets a way out that does not depend on the page
+// (src/main/flush-rescue.js): an emergency copy in Documents and quit, quit without saving, or try again.
+function _offerFlushRescue(host) {
+  if (host.rescuing || !host.win || host.win.isDestroyed()) return;
+  host.rescuing = true;
+  _diskGuard.warnIfLow().catch(err => console.error('[DiskGuard] could not look at the free space:', err.message));
+  require('./main/flush-rescue').offerFlushRescue({
+    dialog, win: host.win, reason: 'storage:flush-failed',
+    snapshot: () => Promise.race([
+      host.win.webContents.executeJavaScript('VexBackup.snapshot().then(d => JSON.stringify(d, null, 2))'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('the window did not answer in time')), 15000)),
+    ]),
+    documentsDir: () => app.getPath('documents'),
+    // A new file (flag wx never overwrites one); any failure, a full disk included, is raised to the dialog.
+    writeNewFile: (file, text) => fs.writeFileSync(file, text, { flag: 'wx' }),
+    closeNow: () => {
+      host.allowClose = true;
+      if (host.win === mainWindow) _exitWatch.mark(_pendingInstall ? 'installing an update' : 'closing');
+      host.win.close();
+    },
+    retryClose: () => { if (!host.win.isDestroyed()) host.win.close(); },
+    log: console,
+  }).catch(err => console.error('[FlushRescue] the save-failed dialog failed:', err.message))
+    .finally(() => { host.rescuing = false; });
+}
 // A tab's back list, kept with the tab so its page can be built again with
 // it after sleep, a reopen or a restart (session-security.js, carryHistory).
 // The page is one of the asking window's own (ipc-policy.js, TARGET_CHANNELS).
@@ -1888,6 +1914,7 @@ ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok
 ipcMain.on('app:started', () => {
   _bootGuard.started();
   _attentionNotes.markReady(true);
+  _diskGuard.warnIfLow().catch(err => console.error('[DiskGuard] could not look at the free space:', err.message));
   // The interface is up: a version that just replaced another has passed its trial.
   try {
     const ready = _updateRollback.markReady();
@@ -3727,7 +3754,7 @@ ipcMain.handle('crawl:fetch', async (_e, url, accept) => {
 // Screen recordings, appended to a temporary file chunk by chunk so a long
 // recording never sits in memory (src/main/recordings.js).
 const _recordings = require('./main/recordings').createRecordings({
-  fs, path, dialog, app, downloadFolder: _chosenDownloadFolder,
+  fs, path, dialog, app, downloadFolder: _chosenDownloadFolder, guard: { require: (o) => _diskGuard.require(o) },
   dir: path.join(app.getPath('userData'), 'recordings-in-progress'),
   randomId: () => require('crypto').randomBytes(8).toString('hex'),
 });
@@ -3739,7 +3766,7 @@ ipcMain.handle('rec:own-window', (e) => {
   if (!win) throw new Error('No window to record');
   return win.getMediaSourceId();
 });
-ipcMain.handle('rec:start', (_e, ext) => { try { return { ok: true, ..._recordings.start(ext) }; } catch (err) { return { ok: false, error: err.message }; } });
+ipcMain.handle('rec:start', async (_e, ext) => { try { return { ok: true, ...(await _recordings.startChecked(ext)) }; } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:chunk', async (_e, id, bytes) => { try { return { ok: true, ...(await _recordings.chunk(id, bytes)) }; } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:finish', async (_e, id, name) => { try { return await _recordings.finish(id, name, _askingWindow(_e)); } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:cancel', async (_e, id) => { try { return await _recordings.cancel(id); } catch (err) { return { ok: false, error: err.message }; } });
@@ -3861,6 +3888,9 @@ const _attentionNotes = require('./main/attention-notes').createAttentionNotes({
   },
   log: console,
 });
+// Free space on the drive the profile lives on (main/disk-guard.js): a warning below 2 GB, and a refusal before a large write
+// (the update download, the pre-update backup, voice models, recordings) that would leave under 512 MB.
+const _diskGuard = require('./main/disk-guard').createDiskGuard({ dir: userDataPath, notes: _attentionNotes, log: console });
 // A damaged site-rules.json is kept aside, the backup is put back if it is good, and the owner is told either way
 // (main/site-rules-store.js): the rules are never dropped silently.
 const _siteRulesLoad = require('./main/site-rules-store').loadSiteRules({ file: _siteRulesFile, clean: SiteRules.clean });
@@ -8669,7 +8699,7 @@ require('./main/profile-lock-ipc').registerProfileLock({
   const { createVoiceStore } = require('./main/voice-model');
   const { createVoiceEngine } = require('./main/voice-engine');
   const { registerVoice } = require('./main/voice-ipc');
-  const voiceStore = createVoiceStore({ dir: path.join(userDataPath, 'voice'), fetchImpl: _egressFetch(net.fetch.bind(net), { feature: 'Voice control model', kind: 'fetch' }) });
+  const voiceStore = createVoiceStore({ dir: path.join(userDataPath, 'voice'), fetchImpl: _egressFetch(net.fetch.bind(net), { feature: 'Voice control model', kind: 'fetch' }), guard: { require: (o) => _diskGuard.require(o) } });
   const voiceEngine = createVoiceEngine({ store: voiceStore });
   registerVoice({ ipcMain, store: voiceStore, engine: voiceEngine, mainWindowOf: () => mainWindow, isPackaged: app.isPackaged, testDir: process.env.VEX_VOICE_TEST_DIR || '' });
   app.on('will-quit', () => voiceEngine.dispose());
@@ -11340,6 +11370,7 @@ const _updater = require('./main/updates').createUpdater({
   fs, dir: _updatesDir, currentVersion: app.getVersion(),
   spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList, addTurkishNotes: _mainHelpers.addTurkishNotes,
   journal: _updateLog, staged: _updState.createStagedStore({ fs, dir: _updatesDir }), copy: _updateCopy, keepFiles: () => _updateRollback.keepFiles(),
+  guard: { require: (o) => _diskGuard.require(o) },
 });
 _updateLog.add(`Vex ${app.getVersion()} started (${_updateCopy ? _updateCopy.kind : 'unknown copy'}${_updateCopy ? ', ' + _updateCopy.folder : ''})`);
 // A downloaded update from an earlier run is still there to install.
@@ -11484,9 +11515,10 @@ ipcMain.handle('updates:install', async (event, version) => {
 // _updateBackups, made next to the boot guard): the same file Settings › Backup
 // saves, kept in userData/backups (newest 5), and listed there with a Restore
 // button (js/backup.js).
-ipcMain.handle('updates:backup-save', (event, version, text) => {
+ipcMain.handle('updates:backup-save', async (event, version, text) => {
   _updatesFromMainWindow(event);
   try {
+    await _diskGuard.require({ need: Buffer.byteLength(String(text || '')) * 3, what: 'the backup before the update' });
     const saved = _updateBackups.save(version, text);
     console.log('[Updates] backup before the update saved:', saved.file, saved.bytes, 'bytes', saved.removed.length ? '(removed ' + saved.removed.join(', ') + ')' : '');
     return { ok: true, name: saved.name, bytes: saved.bytes };
