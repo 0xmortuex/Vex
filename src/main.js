@@ -1438,6 +1438,10 @@ const _bootGuard = require('./main/safe-mode').createBootGuard({
 });
 const _boot = _bootGuard.begin();
 if (_boot.safeMode) console.log('[SafeMode] ON');
+// Graphics ladder (src/main/gpu-ladder.js): hardware acceleration is switched off HERE, before the app is
+// ready, after three graphics-process crashes in an earlier session, in safe mode, or when Settings says so.
+const _gpuLadder = require('./main/gpu-ladder').createGpuLadder({ dir: userDataPath, fs, version: app.getVersion(), log: (m) => console.log(m) });
+const _gpuBoot = _gpuLadder.applyAtBoot({ app, safeMode: _boot.safeMode, argv: process.argv });
 
 const _diag = { startedAt: Date.now(), marks: {}, events: [], extensionTimes: [] };
 // Crashes and hangs also go to a file, so Health can show last week's, not
@@ -1523,6 +1527,7 @@ app.on('child-process-gone', (_e, d) => {
   const notCrash = _exitWatch.notACrash(d);
   if (notCrash) { if (d.reason !== 'clean-exit') console.log(`[Diagnostics] helper process ended, not a crash (${notCrash}): ${what}`); return; }
   _diagEvent('helper process gone', what);
+  if (d.type === 'GPU') _gpuLadder.noteGpuGone();
 });
 // A guest page's executeJavaScript calls made while it loads share one
 // did-stop-loading wait (src/main/load-wait.js): the New Tab page's dom-ready
@@ -1922,10 +1927,14 @@ ipcMain.handle('egress:list', (_e, filter) => _egress.list({
 ipcMain.handle('egress:clear', () => ({ ok: _egress.clear() }));
 // A failed backup at this first start is told once, to the first window that asks.
 let _bootBackupToTell = _boot.updateBackup && !_boot.updateBackup.ok ? _boot.updateBackup : null;
+// Acceleration switched off by the ladder is told once, to the first window that asks.
+let _gpuNoticeToTell = _gpuBoot.disabled && _gpuBoot.reason !== 'safe mode' ? _gpuLadder.takeNotice() : null;
 ipcMain.handle('app:safe-mode', () => {
   const updateBackupFailed = _bootBackupToTell;
   _bootBackupToTell = null;
-  return { ..._boot, updateBackup: undefined, updateBackupFailed };
+  const gpuNotice = _gpuNoticeToTell;
+  _gpuNoticeToTell = null;
+  return { ..._boot, updateBackup: undefined, updateBackupFailed, gpuNotice, gpu: { off: _gpuBoot.disabled, reason: _gpuBoot.reason, error: _gpuBoot.error || null } };
 });
 
 ipcMain.handle('app:diagnostics', async () => {
@@ -1948,6 +1957,7 @@ ipcMain.handle('app:diagnostics', async () => {
     // The graphics card (nvidia-smi when there is one; null otherwise) and what Chromium decided to accelerate.
     gpu: await _gpuProbe.read(),
     gpuFeatures: app.getGPUFeatureStatus(),
+    gpuLadder: { ..._gpuLadder.status(), off: _gpuBoot.disabled, reason: _gpuBoot.reason },
     // The last messages the IPC policy refused: channel and reason, never the payload.
     ipcRefusals: require('./main/ipc-policy').recentRefusals(),
   };

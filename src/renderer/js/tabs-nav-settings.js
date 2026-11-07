@@ -38,6 +38,7 @@ const TabsNavSettings = {
       lab.append(input, el('span', 'toggle-slider'));
       row.append(el('span', 'setting-label-text', label), lab);
       body.appendChild(row);
+      return input;
     };
 
     body.appendChild(el('p', 'setting-info', 'Small helpers for the address bar, the find bar, the tab strip and the window. Nothing here sends anything anywhere.'));
@@ -83,6 +84,26 @@ const TabsNavSettings = {
       localStorage.setItem('vex.smoothScroll', v ? 'on' : 'off');
       if (typeof window.vexRestartNeeded === 'function') window.vexRestartNeeded();
     }, !N.enabled());
+
+    // Hardware acceleration is a launch setting as well (src/main/gpu-ladder.js). Vex switches it off by itself after
+    // repeated graphics crashes and in safe mode; turning it on here is the way back. Takes a restart.
+    const gpuChoice = localStorage.getItem('vex.gpuAccel');
+    const gpuInput = toggle('Hardware acceleration (restart Vex to apply)', gpuChoice !== 'off', (v) => {
+      localStorage.setItem('vex.gpuAccel', v ? 'on' : 'off');
+      if (typeof window.vexRestartNeeded === 'function') window.vexRestartNeeded();
+    });
+    const gpuNote = el('p', 'setting-info', 'Smoother glass effects and less processor use for video. Turn it off if the picture flickers or the graphics driver keeps crashing.');
+    body.appendChild(gpuNote);
+    if (!gpuChoice && window.vex && typeof window.vex.safeMode === 'function') {
+      window.vex.safeMode().then((info) => {
+        const g = info && info.gpu;
+        if (!g || !g.off) return;
+        gpuInput.checked = false;
+        gpuNote.textContent = g.reason === 'safe mode'
+          ? 'Hardware acceleration is off because Vex started in safe mode. A normal start turns it on again.'
+          : 'Hardware acceleration is off because the graphics process crashed repeatedly. Turn this on and restart Vex to try it again.';
+      }).catch(fail);
+    }
 
     const priv = typeof VexTabPolicy !== 'undefined' && VexTabPolicy.isPrivateWindow;
     toggle('Keep Vex on top of other windows', N.prefs().keepOnTop, (v) => N.setKeepOnTop(v), !N.enabled() || priv);
