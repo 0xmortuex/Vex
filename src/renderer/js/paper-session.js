@@ -149,7 +149,14 @@ const VexPaperSession = {
     d.sessions.push(r);
     d.running = null;
     this._write(d);
+    this._toLedger(r);
     return r;
+  },
+  // The finished paper counts as study time under its course (idempotent in the ledger).
+  _toLedger(r) {
+    if (typeof VexStudyLedger === 'undefined' || typeof VexStudyLedger.paperSession !== 'function') return;
+    try { VexStudyLedger.paperSession(r); }
+    catch (err) { window.VexProblems?.note('paper-session', 'The paper could not be added to the study time', err); }
   },
   discard() { const d = this._read(); d.running = null; this._write(d); },
   remove(id) { const d = this._read(); d.sessions = d.sessions.filter(s => s.id !== id); this._write(d); },
