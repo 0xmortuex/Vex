@@ -940,6 +940,8 @@
       permissions: { reads: ['which tabs and panels are using the microphone or camera'], writes: ['ends their microphone and camera capture when you press it; its own switch'], sends: [] } },
     { id: 'link-follow', title: 'Where does this link go?', killSwitch: 'none', group: 'Privacy', maturity: 'new', storageKeys: [], commands: ['link-follow'],
       permissions: { reads: ['the link you ask about'], writes: ['nothing'], sends: ['A HEAD request, with no cookies, to the link’s site and to each site it redirects to (up to 8), listed as Short link preview in the egress ledger; never the page itself'] } },
+    { id: 'bookmark-dupes', title: 'Find duplicate bookmarks', killSwitch: 'none', group: 'Tab comforts', maturity: 'new', storageKeys: [], commands: ['bookmark-dupes'],
+      permissions: { reads: ['your saved bookmarks'], writes: ['removes the duplicate bookmarks you pick or merge, with Undo'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

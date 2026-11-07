@@ -1368,6 +1368,8 @@ const VexFeatures = {
       what: 'One press from Ctrl+K ends the microphone and video capture of the tab in front, or of every tab, without leaving the call page. It does what the Stop button in Site Permissions does: the page sees the devices stop and can ask again, so it is not a switch you flip back. You can also turn on a click on the icon on a tab.' },
     { id: 'link-follow', feature: 'link-follow', newer: true, cat: 'privacy', name: 'Where does this link go?', phrases: 'short link bit.ly t.co tinyurl where does this go redirect expand shortened link unshorten check a link before clicking preview destination', cmd: 'link-follow',
       what: 'For a short link, right-click it or use Ctrl+K and Vex follows the redirects for you, without cookies and without reading any page, then shows the site it really leads to and a warning for a lookalike, with Open or Copy. It only happens when you ask, and each step appears in the list of what left this computer.' },
+    { id: 'bookmark-dupes', feature: 'bookmark-dupes', newer: true, cat: 'work', name: 'Find duplicate bookmarks', phrases: 'duplicate bookmarks same page saved twice clean up bookmarks merge repeated favourites remove copies', cmd: 'bookmark-dupes',
+      what: 'Lists the bookmarks that point at the same page, ignoring a #fragment, a trailing slash and utm_ tracking tags, so you can merge them (keep one of each) or remove the ones you tick. Nothing changes until you press a button, and Undo brings every removed bookmark back.' },
   ],
 
   // Everything in one category.
@@ -1412,7 +1414,7 @@ const VexFeatures = {
       { name: 'Notes', ids: ['notes', 'stickynote', 'clip', 'quick-capture', 'clipboard-history', 'snippets'] },
       { name: 'What you have to do', ids: ['todo', 'todo-board', 'projects', 'habits', 'calendar', 'today', 'today-work', 'weekly-review'] },
       { name: 'Reminders and alarms', ids: ['remind', 'remind-repeat', 'remind-page', 'remind-zone', 'remind-calendar', 'focus-reminders', 'toast-snooze', 'clock', 'alarm-sound'] },
-      { name: 'Keeping and finding pages', ids: ['library', 'bookmarks', 'history', 'feeds', 'watch', 'ai-news', 'wayback', 'queue', 'sendphone', 'autorefresh', 'pasteandgo'] },
+      { name: 'Keeping and finding pages', ids: ['library', 'bookmarks', 'bookmark-dupes', 'history', 'feeds', 'watch', 'ai-news', 'wayback', 'queue', 'sendphone', 'autorefresh', 'pasteandgo'] },
       { name: 'Settling into work', ids: ['focus', 'focusflows', 'meeting', 'device-check', 'feature-packs', 'jobsetup'] },
       { name: 'Tools, and doing things twice', ids: ['toolbox', 'toolbox-reference', 'toolbox-full', 'toolbox-favourites', 'tool-history', 'automations', 'chains', 'do-again', 'quick-commands', 'dictate'] },
       { name: 'Mail, parcels and money', ids: ['mail', 'triage', 'parcels', 'expenses', 'price-history'] },

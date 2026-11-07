@@ -132,6 +132,7 @@ const VexBoot = {
     { src: 'js/mun-dossier.js', usage: ['mun-dossier'] },
     { src: 'js/clear-recent.js', usage: ['clear-recent'] },
     { src: 'js/capture-mute.js', usage: [] },
+    { src: 'js/bookmark-dupes.js', usage: [] },
     { src: 'js/game-scenes.js', usage: ['game-scenes'] },
     { src: 'js/second-screen.js', usage: ['second-screen'] },
     { src: 'js/receipt-locker.js', usage: ['receipt-locker'] },
