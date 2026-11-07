@@ -12,6 +12,18 @@ const { gatherFacts, zipDirectory, sourceFacts } = require('../../src/main/downl
 const { judge } = require('../../src/main/download-verdict');
 const { createFileCheck } = require('../../src/main/file-check');
 
+// Windows PowerShell can miss the check's own 15 s on a shared CI runner that runs four test files at once (a cold start; seen once: the check
+// came back 'unknown', which is the honest answer when it does not reply). The three tests below that use the real reader ask again, up to
+// three times in all, so what they assert is what an ANSWERED check says.
+const realExecFile = (file, args, opts, cb) => {
+  let tries = 0;
+  const run = () => require('child_process').execFile(file, args, opts, (err, stdout, stderr) => {
+    if (err && ++tries < 3) return run();
+    return cb(err, stdout, stderr);
+  });
+  return run();
+};
+
 let dir;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-safedl-')); });
 afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
@@ -270,7 +282,7 @@ describe('the Windows signature, read without a shell', () => {
   it.skipIf(!win)('an unsigned program with hostile characters in its name is read for real and reported NotSigned, and nothing runs', async () => {
     const marker = path.join(dir, 'ran.txt');
     const names = ['semi;colon.exe', 'back`tick.exe', 'dollar$(New-Item ran.txt).exe', "quote'name.exe", 'amp&amp.exe', 'ünï çödé 文件.exe', 'spaces  and  more.exe', 'brace{x}.exe', 'percent%PATH%.exe', 'hash#1.exe'];
-    const fc = createFileCheck({ fs, crypto, execFile: require('child_process').execFile, platform: 'win32' });
+    const fc = createFileCheck({ fs, crypto, execFile: realExecFile, platform: 'win32' });
     for (const n of names) {
       const p = write(n, tinyPe());
       const sig = await fc.signature(p);
@@ -278,9 +290,9 @@ describe('the Windows signature, read without a shell', () => {
     }
     expect(fs.existsSync(marker)).toBe(false);
     expect(fs.existsSync(path.join(process.cwd(), 'ran.txt'))).toBe(false);
-  }, 60000);
+  }, 240000);
   it.skipIf(!win)('end to end: an unsigned program is amber, with the real signature reader', async () => {
-    const fc = createFileCheck({ fs, crypto, execFile: require('child_process').execFile, platform: 'win32' });
+    const fc = createFileCheck({ fs, crypto, execFile: realExecFile, platform: 'win32' });
     const file = write('setup.exe', tinyPe());
     const facts = await gatherFacts({ fs, file, name: 'setup.exe', signatureOf: (f) => fc.signature(f) });
     expect(facts.signature.status).toBe('NotSigned');
@@ -291,7 +303,7 @@ describe('the Windows signature, read without a shell', () => {
   it.skipIf(!win)('a small Windows binary that Microsoft signed is Valid (read only)', async () => {
     const target = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe');
     expect(fs.existsSync(target)).toBe(true);
-    const fc = createFileCheck({ fs, crypto, execFile: require('child_process').execFile, platform: 'win32' });
+    const fc = createFileCheck({ fs, crypto, execFile: realExecFile, platform: 'win32' });
     const sig = await fc.signature(target);
     expect(sig.status).toBe('Valid');
     expect(sig.signer).toMatch(/Microsoft/i);
