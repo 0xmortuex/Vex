@@ -652,8 +652,53 @@ const MemoryPanel = {
       });
       host.appendChild(clear);
     }
+    const dumps = this._crashDumpBlock(d);
+    if (dumps) host.appendChild(dumps);
     this._lastHealth = lines.concat(olderText.length ? [`${olderN} from an older version:`, ...olderText.map(l => '  ' + l)] : []).join('\n');
     return d;
+  },
+
+  // The crash dump files kept on this computer (src/main/crash-dumps.js). Listed, explained honestly, and
+  // offered for the next problem report as names and sizes only. -> an element, or null when there are none.
+  _crashDumpBlock(d) {
+    const c = d && d.crashDumps;
+    if (!c || !Array.isArray(c.files) || !c.files.length) return null;
+    const fold = document.createElement('details');
+    fold.className = 'memory-health-older memory-crash-dumps';
+    fold.id = 'memory-crash-dumps';
+    const head = document.createElement('summary');
+    head.textContent = 'Crash dump files on this computer';
+    const count = document.createElement('span');
+    count.textContent = ' (' + c.files.length + ')';
+    head.appendChild(count);
+    fold.appendChild(head);
+    const note = document.createElement('div');
+    note.className = 'memory-health-line sub';
+    note.textContent = 'These files stay on this computer: Vex never uploads them and never attaches them to anything. A dump is a snapshot of the memory of a crashed process, so it can contain text from pages you had open, including things you typed. Vex deletes them after 14 days.';
+    fold.appendChild(note);
+    const where = document.createElement('div');
+    where.className = 'memory-health-line sub';
+    where.textContent = c.dir;
+    fold.appendChild(where);
+    for (const f of c.files.slice(0, 10)) {
+      const row = document.createElement('div');
+      row.className = 'memory-health-line sub';
+      row.textContent = `${f.name} — ${Math.max(1, Math.round(f.bytes / 1024))} KB — ${new Date(f.at).toLocaleString()}`;
+      fold.appendChild(row);
+    }
+    const label = document.createElement('label');
+    label.className = 'memory-health-line sub';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.id = 'memory-crash-dumps-include';
+    box.setAttribute('aria-label', 'Include their names and sizes in the next problem report (the files themselves are not attached)');
+    box.checked = false;                                   // never on by itself; clears after one report
+    box.addEventListener('change', () => { if (typeof VexReport !== 'undefined') VexReport.setIncludeDumps(box.checked); });
+    const labelText = document.createElement('span');
+    labelText.textContent = 'Include their names and sizes in the next problem report (the files themselves are not attached)';
+    label.append(box, labelText);
+    fold.appendChild(label);
+    return fold;
   },
 
   // ---- Trend since launch ------------------------------------------------------

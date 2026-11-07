@@ -264,6 +264,8 @@ function noteRefusal(channel, err) {
 }
 function recentRefusals() { return _refusals.slice().reverse(); }
 
+// The last channel handled, for the stall watch (stall-watch.js): a name, never a payload.
+const { noteIpc } = require('./stall-watch');
 function installIpcPolicy(ipcMain, security) {
   const handle = ipcMain.handle.bind(ipcMain), on = ipcMain.on.bind(ipcMain);
   function authorize(channel, event, args) {
@@ -312,6 +314,7 @@ function installIpcPolicy(ipcMain, security) {
     if (adBlockerNotHere(channel, event)) return channel.endsWith('/is-mutation-observer-enabled') ? false : undefined;
     let host;
     try { host = authorize(channel, event, args); } catch (err) { noteRefusal(channel, err); throw err; }
+    noteIpc(channel);
     if (host?.privatePartition) {
       if (channel === 'storage-load') return host.data[args[0]] ?? null;
       if (channel === 'storage-save') { host.data[args[0]] = structuredClone(args[1]); return true; }
@@ -335,6 +338,7 @@ function installIpcPolicy(ipcMain, security) {
   ipcMain.on = (channel, callback) => on(channel, (event, ...args) => {
     try {
       const host = authorize(channel, event, args);
+      noteIpc(channel);
       if (host?.privatePartition && PRIVATE_DISABLED.test(channel)) return;
       callback(event, ...args);
     }

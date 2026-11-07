@@ -1438,6 +1438,20 @@ const _bootGuard = require('./main/safe-mode').createBootGuard({
 });
 const _boot = _bootGuard.begin();
 if (_boot.safeMode) console.log('[SafeMode] ON');
+// Graphics ladder (src/main/gpu-ladder.js): hardware acceleration is switched off HERE, before the app is
+// ready, after three graphics-process crashes in an earlier session, in safe mode, or when Settings says so.
+const _gpuLadder = require('./main/gpu-ladder').createGpuLadder({ dir: userDataPath, fs, version: app.getVersion(), log: (m) => console.log(m) });
+const _gpuBoot = _gpuLadder.applyAtBoot({ app, safeMode: _boot.safeMode, argv: process.argv });
+// Crash dumps stay on this computer (src/main/crash-dumps.js): the reporter has no address to send to, the
+// folder is <profile>/crashes, and dumps older than 14 days are deleted a little after start.
+const _crashDumps = require('./main/crash-dumps');
+let _crashDumpDir = path.join(userDataPath, _crashDumps.FOLDER);
+try { _crashDumpDir = _crashDumps.startLocalDumps({ app, crashReporter: require('electron').crashReporter, userData: userDataPath }).dir; }
+catch (err) { console.error('[CrashDumps] the crash reporter did not start; no dumps will be kept:', err.message); }
+app.whenReady().then(() => setTimeout(() => {
+  try { const r = _crashDumps.sweep({ dir: _crashDumpDir, fs, log: (m) => console.error(m) }); if (r.deleted) console.log('[CrashDumps] deleted ' + r.deleted + ' dump(s) older than ' + _crashDumps.KEEP_DAYS + ' days'); }
+  catch (err) { console.error('[CrashDumps] could not sweep old dumps:', err.message); }
+}, 30000));
 
 const _diag = { startedAt: Date.now(), marks: {}, events: [], extensionTimes: [] };
 // Crashes and hangs also go to a file, so Health can show last week's, not
@@ -1453,6 +1467,13 @@ function _diagEvent(kind, detail) {
   console.error(`[Diagnostics] ${kind}: ${detail}`);
 }
 _diagMark('main-loaded');
+// The main process blocked for over two seconds is written in the crash log with the last IPC channel
+// (src/main/stall-watch.js). Cheap while idle; rate-limited.
+const _stallWatch = require('./main/stall-watch').createStallWatch({ perf: require('perf_hooks'), crashLog: _crashLog, log: (m) => console.error(m) });
+app.whenReady().then(() => {
+  _stallWatch.start();
+  require('electron').powerMonitor.on('resume', () => _stallWatch.markResumed());
+});
 app.whenReady().then(() => {
   _diagMark('app-ready');
   // Right-click Vex on the taskbar › "Start in safe mode": the way in when an
@@ -1516,6 +1537,7 @@ app.on('child-process-gone', (_e, d) => {
   const notCrash = _exitWatch.notACrash(d);
   if (notCrash) { if (d.reason !== 'clean-exit') console.log(`[Diagnostics] helper process ended, not a crash (${notCrash}): ${what}`); return; }
   _diagEvent('helper process gone', what);
+  if (d.type === 'GPU') _gpuLadder.noteGpuGone();
 });
 // A guest page's executeJavaScript calls made while it loads share one
 // did-stop-loading wait (src/main/load-wait.js): the New Tab page's dom-ready
@@ -1915,10 +1937,14 @@ ipcMain.handle('egress:list', (_e, filter) => _egress.list({
 ipcMain.handle('egress:clear', () => ({ ok: _egress.clear() }));
 // A failed backup at this first start is told once, to the first window that asks.
 let _bootBackupToTell = _boot.updateBackup && !_boot.updateBackup.ok ? _boot.updateBackup : null;
+// Acceleration switched off by the ladder is told once, to the first window that asks.
+let _gpuNoticeToTell = _gpuBoot.disabled && _gpuBoot.reason !== 'safe mode' ? _gpuLadder.takeNotice() : null;
 ipcMain.handle('app:safe-mode', () => {
   const updateBackupFailed = _bootBackupToTell;
   _bootBackupToTell = null;
-  return { ..._boot, updateBackup: undefined, updateBackupFailed };
+  const gpuNotice = _gpuNoticeToTell;
+  _gpuNoticeToTell = null;
+  return { ..._boot, updateBackup: undefined, updateBackupFailed, gpuNotice, gpu: { off: _gpuBoot.disabled, reason: _gpuBoot.reason, error: _gpuBoot.error || null } };
 });
 
 ipcMain.handle('app:diagnostics', async () => {
@@ -1941,6 +1967,9 @@ ipcMain.handle('app:diagnostics', async () => {
     // The graphics card (nvidia-smi when there is one; null otherwise) and what Chromium decided to accelerate.
     gpu: await _gpuProbe.read(),
     gpuFeatures: app.getGPUFeatureStatus(),
+    gpuLadder: { ..._gpuLadder.status(), off: _gpuBoot.disabled, reason: _gpuBoot.reason },
+    // The crash dumps kept on this computer (names, sizes, times; never the files): Health and the problem report.
+    crashDumps: _crashDumps.list({ dir: _crashDumpDir, fs }),
     // The last messages the IPC policy refused: channel and reason, never the payload.
     ipcRefusals: require('./main/ipc-policy').recentRefusals(),
   };
@@ -8754,6 +8783,8 @@ const _windowSet = require('./main/window-set').createWindowSet({
 });
 app.on('before-quit', () => _windowSet.beginQuit());
 let _appWindowsRestored = false;
+// Crashes of the main window's renderer, kept across windows made again (the crash-loop guard).
+const _renderRecoveryHistory = [];
 
 function createWindow() {
   // The window set (Settings > Links and windows) decides when it is on; when it is off the
@@ -8796,8 +8827,24 @@ function createWindow() {
   }
   // Stopped answering: written in the crash log with what was open, and a
   // Reload window offered instead of a dead window (src/main/window-hang.js).
+  // The renderer process of the window itself dying (src/main/render-recovery.js):
+  // reload once, then ask instead of looping. Made before the hang guard so a
+  // reload the hang guard asks for is not counted.
+  const _thisWin = mainWindow;
+  const _recovery = require('./main/render-recovery').createRenderRecovery({
+    win: _thisWin, history: _renderRecoveryHistory, exitWatch: _exitWatch, dialog, crashLog: _crashLog,
+    closing: () => { const host = secureSessions.owner(_thisWin.webContents); return !!(host && host.allowClose); },
+    recreate: (dead) => {
+      if (mainWindow !== dead) return;
+      createWindow();
+      _wireMainWindowKeys?.();
+      if (!dead.isDestroyed()) dead.destroy();
+    },
+    restartSafe: () => { app.relaunch({ args: [..._restartArgs().filter(a => a !== '--safe-mode'), '--safe-mode'] }); app.exit(0); },
+    log: (m) => console.error(m),
+  });
   require('./main/window-hang').createWindowHangGuard({
-    win: mainWindow, dialog, crashLog: _crashLog,
+    win: mainWindow, dialog, crashLog: _crashLog, beforeForcedCrash: () => _recovery.expectCrash(),
     openPages: () => webContents.getAllWebContents()
       .filter(wc => !wc.isDestroyed() && wc.getType() === 'webview')
       .map(wc => { const u = wc.getURL(); return /^file:/i.test(u) ? 'a Vex page' : u.replace(/[?#].*$/, '').slice(0, 60); }),
@@ -9442,7 +9489,8 @@ function createWindow() {
 
   // Signal renderer to save session before quit
   mainWindow.on('closed', () => {
-    mainWindow = null;
+    // A window made again after a crash is already the main one.
+    if (mainWindow === _thisWin) mainWindow = null;
     // Never leave the PiP window behind: it is frameless and always-on-top,
     // there would be no Vex UI left to close it from, and it would hold the
     // app open past window-all-closed.

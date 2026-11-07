@@ -18,6 +18,7 @@ const SafeModeBanner = {
     try { info = await window.vex.safeMode(); }
     catch (err) { VexProblems?.note('Safe mode', 'Could not read the startup state', err); return false; }
     if (info && info.updateBackupFailed) this.tellBackupFailed(info.updateBackupFailed);
+    if (info && info.gpuNotice) this.tellGpuOff();
     if (!info || !info.safeMode) return false;
     this.show(info);
     return true;
@@ -101,6 +102,18 @@ Updates are paused for a day, so ${version} does not offer this update straight 
     const text = 'Vex could not back up your settings when ' + (failed.version || 'this version') + ' first started: ' + String(failed.error || 'unknown error').replace(/\.$/, '') + '. Settings › Back up or restore… can save one now.';
     if (typeof VexProblems !== 'undefined') VexProblems.note('Backup', text);
     window.showToast?.(text, 'error', 12000);
+  },
+
+  // Hardware acceleration was switched off at this start because the graphics process kept crashing
+  // (src/main/gpu-ladder.js). Said once, quietly, in the Attention Inbox.
+  tellGpuOff() {
+    try {
+      VexAttention.suggest({
+        feature: 'graphics', id: 'gpu-off', label: 'Graphics',
+        title: 'Hardware acceleration is off because graphics kept crashing',
+        body: 'Glass effects may be less smooth and video may use more processor. Settings › Tabs and navigation › Hardware acceleration turns it back on.',
+      });
+    } catch (err) { VexProblems?.note('Graphics', 'Could not tell that hardware acceleration is off', err); }
   },
 
   _esc(s) { return window.escapeHtml ? window.escapeHtml(String(s)) : String(s); },

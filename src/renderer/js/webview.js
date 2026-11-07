@@ -292,6 +292,35 @@ const WebviewManager = {
 
   // Where a tab is really sent when it is asked to load `url`: a file: address (or view-source:) one of Vex's own viewers shows goes to that
   // viewer's page, anything else is returned as it came. Every load site calls this; a new viewer adds one mapper to the list.
+  // What to say when a tab's page process is gone, from the reason Electron gives (render-process-gone's
+  // `reason`: 'oom', 'launch-failed', 'killed', 'crashed', 'abnormal-exit' ...). Honest about what is known:
+  // 'killed' means something ended the process from outside (Windows low on memory, a sleep/resume).
+  // -> { text, again, sleepOffer, safeModeHint }  (again: said when it keeps happening)
+  crashAdvice(reason) {
+    if (reason === 'oom') return { text: 'This page ran out of memory — Vex is reloading it.', again: 'This page keeps running out of memory. Reload it manually, or put other tabs to sleep first.', sleepOffer: true };
+    if (reason === 'launch-failed') return { text: 'This page could not start. Vex is trying again; if it keeps failing, start Vex in safe mode from its taskbar icon.', again: 'This page cannot start. Restart Vex in safe mode (right-click its taskbar icon) if other pages fail too.', safeModeHint: true };
+    if (reason === 'killed') return { text: 'Something ended this page, often Windows running short of memory — Vex is reloading it.', again: 'This tab keeps crashing. Reload it manually to retry.' };
+    if (reason === 'crashed') return { text: 'This page crashed — Vex is reloading it.', again: 'This tab keeps crashing. Reload it manually to retry.' };
+    return { text: 'This tab stopped working — Vex is reloading it', again: 'This tab keeps crashing. Reload it manually to retry.' };
+  },
+
+  // The first crash of a tab: the sentence, and for an out-of-memory page an offer to sleep the heaviest other tabs
+  // (TabManager.heaviestSleepable; sleeping is the person's press, so it needs no consent question).
+  _tellCrash(tab, advice) {
+    const toast = window.showToast;
+    if (typeof toast !== 'function') return;
+    if (!advice.sleepOffer || typeof TabManager === 'undefined' || typeof TabManager.heaviestSleepable !== 'function') { toast(advice.text, 'warn'); return; }
+    TabManager.heaviestSleepable(3, tab.id).then((heavy) => {
+      if (!heavy.length) { toast(advice.text, 'warn'); return; }
+      toast(advice.text, 'warn', 12000, { action: { label: 'Sleep the heaviest other tabs', run: () => {
+        Promise.all(heavy.map(h => TabManager.sleepTab(h.tab.id))).catch(err => window.VexProblems?.note('Tabs', 'Could not sleep the heaviest tabs after a page ran out of memory', err));
+      } } });
+    }).catch((err) => {
+      window.VexProblems?.note('Tabs', 'Could not look for heavy tabs after a page ran out of memory', err);
+      toast(advice.text, 'warn');
+    });
+  },
+
   viewerAddress(url) {
     const s = String(url || '');
     for (const map of [this.pdfAddress, this.docAddress, this.imageViewerAddress, this.mediaAddress, this.officeAddress]) {
@@ -1055,14 +1084,15 @@ const WebviewManager = {
     // leaving it blank. Self-heal: reload the tab's real URL so the page comes
     // back on its own — no manual refresh needed. tab.url is preserved above;
     // hibernated tabs also stash the URL in dataset.hibernatedUrl.
-    onWebview('render-process-gone', () => {
+    onWebview('render-process-gone', (e) => {
       try {
         cancelRecovery?.();
         if (Date.now() - lastCrash > 120000) crashCount = 0;
         lastCrash = Date.now();
-        if (++crashCount > 4) { window.showToast?.('This tab keeps crashing. Reload it manually to retry.'); return; }
-        // The first crash was put right without a word (found 2026-09-29).
-        if (crashCount === 1) window.showToast?.('This tab stopped working — Vex is reloading it', 'warn');
+        const advice = this.crashAdvice(e && e.reason);
+        if (++crashCount > 4) { window.showToast?.(advice.again); return; }
+        // The first crash was put right without a word (found 2026-09-29); now it says why, as far as Electron knows.
+        if (crashCount === 1) this._tellCrash(tab, advice);
         const t = TabManager.tabs.find(t => t.id === tab.id);
         const real = webview.dataset.hibernatedUrl || (t && t.url);
         // Where the person was on the page that was killed: the last sample of

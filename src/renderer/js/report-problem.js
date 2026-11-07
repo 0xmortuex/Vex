@@ -164,6 +164,19 @@ const VexReport = (() => {
     return { title: m[1].trim() || fallback, body: text.slice(m[0].length).replace(/^\r?\n/, '') };
   }
 
+  // Crash dump files (src/main/crash-dumps.js) are listed in a report only when the person ticked the box in
+  // Health, for the next report only. Names, sizes and times: the files hold memory and are never attached.
+  let includeDumps = false;
+  function setIncludeDumps(on) { includeDumps = !!on; }
+  function dumpLines(d) {
+    const c = d && d.crashDumps;
+    if (!includeDumps || !c || !Array.isArray(c.files) || !c.files.length) return [];
+    const when = (at) => { try { return new Date(at).toISOString().replace('T', ' ').slice(0, 16); } catch { return '?'; } };
+    const out = c.files.slice(0, 5).map(f => ({ at: Date.now(), text: `crash dump kept on this computer, not attached: ${f.name}, ${Math.max(1, Math.round(f.bytes / 1024))} KB, ${when(f.at)}` }));
+    out.push({ at: Date.now(), text: `(the dump files are in ${c.dir}; they contain memory, so look before you share one)` });
+    return out;
+  }
+
   async function gather() {
     let d = {};
     if (typeof window !== 'undefined' && window.vex && typeof window.vex.diagnostics === 'function') {
@@ -178,7 +191,7 @@ const VexReport = (() => {
       theme: (typeof ThemeManager !== 'undefined' && ThemeManager.currentTheme) || '',
       tripped: typeof VexBreaker !== 'undefined' ? VexBreaker.status().filter(t => t.state === 'open').map(t => t.id) : [],
     };
-    return { info, lines: logLines(d, problems) };
+    return { info, lines: logLines(d, problems).concat(dumpLines(d).map(x => x.text)) };
   }
 
   let busy = false;
@@ -229,7 +242,7 @@ const VexReport = (() => {
         }
         return true;
       }
-    } finally { busy = false; }
+    } finally { busy = false; includeDumps = false; }
   }
 
   function init() {
@@ -239,7 +252,7 @@ const VexReport = (() => {
     btn.addEventListener('click', () => { open().catch(err => window.showToast?.((err && err.message) || String(err), 'error', 6000)); });
   }
 
-  return { open, init, scrub, build, compose, logLines, issueUrl, fitText, splitTitle, MAX_URL, LOG_LINES, NEW_ISSUE };
+  return { open, init, scrub, build, compose, logLines, setIncludeDumps, dumpLines, issueUrl, fitText, splitTitle, MAX_URL, LOG_LINES, NEW_ISSUE };
 })();
 
 if (typeof window !== 'undefined') {
