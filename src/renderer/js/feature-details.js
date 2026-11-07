@@ -138,6 +138,7 @@ const FeatureDetails = {
   'translate-side': 'Leaves the original in place and puts the translation under each paragraph, so you can check it as you read. The usual whole-page translate replaces the text instead.',
   dictionary: 'Double-click a word and its meaning appears beside it. Off until you turn it on, because double-click means something else on plenty of sites.',
   'reading-mode': 'Strips the page to the article: no sidebars, no popups, no newsletter box. It also makes Read aloud and Speed read behave, since both work from the same cleaned text.',
+  'reader-time-left': 'It reads the number of words of the article and how far the reader page is scrolled, only inside the reader view and only when you switched it on. It keeps two things in this window: whether it is on, and a reading speed if you typed one (80 to 600 words a minute; otherwise 200, or 180 in Turkish). It sends nothing anywhere. The line is worked out on the reader page itself and updates as you scroll.',
   readaloud: 'Reads the page out loud so you can listen while doing something else. It reads the cleaned article when reading mode can find one, which avoids hearing the navigation menu.',
   bionic: 'Bolds the first part of every word, which many people find pulls the eye along faster. Worth ten seconds of trying before deciding.',
   speedread: 'Flashes one word at a time at a speed you set, so your eyes never move. Good for a long article you want the shape of, poor for anything you need to weigh.',

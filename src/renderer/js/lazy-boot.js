@@ -58,6 +58,8 @@ const VexBoot = {
     { src: 'js/speed-test.js', usage: [] },
     // Find with a regular expression: the Ctrl+K command registers itself; the bar and the worker exist only after it is used.
     { src: 'js/regex-find.js', usage: [] },
+    // Reader view time left (opt-in): reading-mode.js asks with typeof when it builds the page; the Ctrl+K commands register here.
+    { src: 'js/reader-time.js', usage: [] },
     // Feature packs: the inbox row's button and the one-time offer; the screen itself is built when it is opened.
     { src: 'js/feature-packs.js', usage: [] },
     // Sign-out warning for sites that log you out: does nothing unless a site has a timeout saved (site panel).

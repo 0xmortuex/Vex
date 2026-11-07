@@ -936,6 +936,8 @@
       permissions: { reads: ['nothing from your pages or files'], writes: [], sends: ['One plain 10 MB download request to speed.cloudflare.com (no cookies, nothing about you), only when you press the command; listed in what left this computer as Speed test'] } },
     { id: 'regex-find', title: 'Find with regular expression', group: 'Find with regular expression', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['regex-find'],
       permissions: { reads: ['the visible text of the page in front, only when you press Find'], writes: [], sends: [] } },
+    { id: 'reader-time-left', title: 'Reader time left', group: 'Reader time left', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.reader.timeLeft'], commands: ['reader-time-left', 'reader-reading-speed'],
+      permissions: { reads: ['the word count of the article and how far the reader page is scrolled'], writes: ['whether it is on and the reading speed you typed'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

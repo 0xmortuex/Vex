@@ -307,6 +307,8 @@ const VexFeatures = {
     // --- Reading ----------------------------------------------------------
     { id: 'reading-mode', phrases: 'reader clean page declutter article', cat: 'reading', cmd: 'read',
       what: 'Strips the page down to the article — no sidebars, no popups, no newsletter box.' },
+    { id: 'reader-time-left', feature: 'reader-time-left', newer: true, phrases: 'reader view time left minutes remaining reading speed words per minute scroll progress article estimate', cat: 'reading', cmd: 'reader-time-left', name: 'Reader time left',
+      what: 'In reader view, show "about N min left" in a corner, worked out from how far you have scrolled and your reading speed (200 words a minute, 180 in Turkish). Use Ctrl+K: Reader: Show Time Left. It starts off.' },
     { id: 'readaloud', phrases: 'read aloud speak text to speech listen', cat: 'reading', cmd: 'readaloud',
       what: 'Reads the page out loud, so you can listen while doing something else.' },
     { id: 'bionic', cat: 'reading', cmd: 'bionic',
@@ -1399,7 +1401,7 @@ const VexFeatures = {
       { name: 'Your passwords', ids: ['pwhealth', 'secrets-lifeboat', 'mass-signout'] },
     ],
     reading: [
-      { name: 'Getting to the words', ids: ['reading-mode', 'readfree', 'copyunlock', 'doctext', 'find-in-page', 'regex-find', 'page-nav', 'site-search', 'image-text'] },
+      { name: 'Getting to the words', ids: ['reading-mode', 'reader-time-left', 'readfree', 'copyunlock', 'doctext', 'find-in-page', 'regex-find', 'page-nav', 'site-search', 'image-text'] },
       { name: 'Getting through them', ids: ['readaloud', 'speedread', 'bionic', 'accessibility', 'caret-browsing', 'zoom', 'dictionary'] },
       { name: 'In another language', ids: ['translate', 'translate-side'] },
       { name: 'Keeping what you read', ids: ['save-pdf', 'save-page', 'archive-page', 'archive-library', 'annotations', 'cards', 'cite', 'pagediff'] },

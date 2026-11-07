@@ -703,7 +703,7 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
       + `<title>${this._esc(title)}</title><style>${this._css(colors || this._vexColors())}${rich ? rich.css : ''}</style></head><body>`
       + bar
       + `<main id="vr-main" tabindex="-1"><article><h1>${this._esc(title)}</h1><p class="vr-meta">${meta.join(' &middot; ')}</p>${article && article.summarySlot ? this._summarySlot() : ''}${body}</article></main>`
-      + `<script>${this._script(p)}</script>${rich ? `<script>${rich.script}</script>` : ''}</body></html>`;
+      + `<script>${this._script(p)}</script>${rich ? `<script>${rich.script}</script>` : ''}${typeof VexReaderTime !== 'undefined' ? VexReaderTime.pageScript(words) : ''}</body></html>`;
   },
 
   // The page a Vex reader page was made from, read from the address of the
