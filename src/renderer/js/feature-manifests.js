@@ -938,6 +938,8 @@
       permissions: { reads: ['which tabs failed because there was no internet'], writes: ['only its two switches'], sends: ['Nothing of its own: a reload asks the page that failed, as pressing Reload would'] } },
     { id: 'capture-mute', title: 'Turn off mic and video in one press', killSwitch: 'none', group: 'Privacy', maturity: 'new', storageKeys: ['vex.captureMute.badge'], commands: ['capture-stop-tab', 'capture-stop-all'],
       permissions: { reads: ['which tabs and panels are using the microphone or camera'], writes: ['ends their microphone and camera capture when you press it; its own switch'], sends: [] } },
+    { id: 'link-follow', title: 'Where does this link go?', killSwitch: 'none', group: 'Privacy', maturity: 'new', storageKeys: [], commands: ['link-follow'],
+      permissions: { reads: ['the link you ask about'], writes: ['nothing'], sends: ['A HEAD request, with no cookies, to the link’s site and to each site it redirects to (up to 8), listed as Short link preview in the egress ledger; never the page itself'] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

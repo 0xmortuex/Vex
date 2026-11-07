@@ -99,22 +99,22 @@ describe('the warning bar', () => {
 
 describe('where a link really goes', () => {
   it('follows a shortener to its end, strips the tracking, and flags a lookalike', async () => {
-    window.vex = { checkLinks: vi.fn(async () => ({ ok: true, results: [{ url: 'https://bit.ly/x', status: 200, verdict: 'ok', finalUrl: 'https://paypa1.com/login?utm_source=mail', redirected: true }] })) };
+    window.vex = { followLink: vi.fn(async () => ({ ok: true, result: { url: 'https://bit.ly/x', status: 200, verdict: 'ok', finalUrl: 'https://paypa1.com/login?utm_source=mail', redirected: true } })) };
     const r = await LinkSafety.follow('https://bit.ly/x');
-    expect(window.vex.checkLinks).toHaveBeenCalledWith(['https://bit.ly/x']);
+    expect(window.vex.followLink).toHaveBeenCalledWith('https://bit.ly/x');
     expect(r.moved).toBe(true);
     expect(r.final.clean).toBe('https://paypa1.com/login');
     expect(r.final.lookalike.looksLike).toBe('paypal.com');
   });
 
   it('a link that goes where it says is said to', async () => {
-    window.vex = { checkLinks: async () => ({ ok: true, results: [{ url: 'https://example.com/', status: 200, verdict: 'ok', finalUrl: 'https://example.com/' }] }) };
+    window.vex = { followLink: async () => ({ ok: true, result: { url: 'https://example.com/', status: 200, verdict: 'ok', finalUrl: 'https://example.com/' } }) };
     expect((await LinkSafety.follow('https://example.com/')).moved).toBe(false);
   });
 
   it('only web links, and a failed check is said', async () => {
     await expect(LinkSafety.follow('mailto:a@b.c')).rejects.toThrow(/Only web links/);
-    window.vex = { checkLinks: async () => ({ ok: false, error: 'offline' }) };
+    window.vex = { followLink: async () => ({ ok: false, error: 'offline' }) };
     await expect(LinkSafety.follow('https://example.com/')).rejects.toThrow(/offline/);
   });
 });

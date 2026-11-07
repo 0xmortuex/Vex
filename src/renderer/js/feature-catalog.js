@@ -1366,6 +1366,8 @@ const VexFeatures = {
       what: 'When your connection comes back, Vex offers to reload the pages that failed only because you were offline, once for each failure. It can also reload them by itself in the background if you turn that on; it is off until you do. A missing site or a certificate problem is never retried this way.' },
     { id: 'capture-mute', feature: 'capture-mute', newer: true, cat: 'privacy', name: 'Turn off mic and video in one press', phrases: 'mute microphone webcam stop capture end call recording turn off mic turn off video panic stop sharing sound input without leaving the page', cmd: 'capture-stop-tab',
       what: 'One press from Ctrl+K ends the microphone and video capture of the tab in front, or of every tab, without leaving the call page. It does what the Stop button in Site Permissions does: the page sees the devices stop and can ask again, so it is not a switch you flip back. You can also turn on a click on the icon on a tab.' },
+    { id: 'link-follow', feature: 'link-follow', newer: true, cat: 'privacy', name: 'Where does this link go?', phrases: 'short link bit.ly t.co tinyurl where does this go redirect expand shortened link unshorten check a link before clicking preview destination', cmd: 'link-follow',
+      what: 'For a short link, right-click it or use Ctrl+K and Vex follows the redirects for you, without cookies and without reading any page, then shows the site it really leads to and a warning for a lookalike, with Open or Copy. It only happens when you ask, and each step appears in the list of what left this computer.' },
   ],
 
   // Everything in one category.
@@ -1396,7 +1398,7 @@ const VexFeatures = {
     privacy: [
       { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint', 'gpc', 'referrer-trim', 'link-unwrap'] },
       { name: 'The connection itself', ids: ['doh', 'https-only', 'captive-portal', 'tor', 'routing', 'routing-all', 'site-routes', 'dpi'] },
-      { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window', 'clear-recent', 'capture-mute'] },
+      { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window', 'clear-recent', 'capture-mute', 'link-follow'] },
           { name: 'One site at a time', ids: ['permissions', 'serial-usb', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'lite-mode', 'session-timeout', 'forget-site', 'sitebroken', 'siteidentity', 'open-in-browser'] },
       { name: 'Your passwords', ids: ['pwhealth', 'secrets-lifeboat', 'mass-signout'] },
     ],
