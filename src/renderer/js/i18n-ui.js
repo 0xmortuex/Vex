@@ -12041,7 +12041,6 @@ const VexI18nUI = {
       'The theme "{1}" changed upstream': '“{1}” teması kaynağında değişti',
       'The theme’s file on its maker’s site is no longer the one Vex saved, so Vex keeps using its saved copy. Dismiss keeps it; “Use the new version” switches to the new file. Vex cannot judge whether the change is safe, so look at the theme’s GitHub page if you did not expect it.': 'Temanın yapımcı sitesindeki dosyası artık Vex’in kaydettiği dosya değil; bu yüzden Vex kayıtlı kopyayı kullanmayı sürdürüyor. Kapat derseniz kopya kalır; “Yeni sürümü kullan” yeni dosyaya geçer. Vex değişikliğin güvenli olup olmadığını yargılayamaz; beklemiyorsanız temanın GitHub sayfasına bakın.',
       'Use the new version': 'Yeni sürümü kullan',
-      'Extension changes': 'Eklenti değişiklikleri',
       'Network changes': 'Ağ değişiklikleri',
       'Windows now uses the proxy “{1}”': 'Windows artık “{1}” vekil sunucusunu kullanıyor',
       'The Windows proxy changed to “{1}”': 'Windows vekil sunucusu “{1}” olarak değişti',
