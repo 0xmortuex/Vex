@@ -4156,6 +4156,24 @@ if (typeof module !== 'undefined' && module.exports) {
     if (shift) return (rich || field) && k === 'z';       // redo
     return rich && (k === 'b' || k === 'u');              // bold, underline
   }
+  // AltGr+letter on a keyboard where AltGr types a symbol (Turkish, German: AltGr+Q is '@', AltGr+E the euro sign, AltGr+T the lira
+  // sign). Windows reports AltGr as Ctrl+Alt, main cannot tell whether a text field has the focus (and typing '@' into a form must never
+  // become a shortcut), so main leaves these keys to the page (main/guest-shortcuts.js altGrLetter) and this reports the physical key
+  // only when the focus is NOT in something editable and the page left the key alone. Ctrl+Alt+Q (tab hints) works again on such a keyboard.
+  window.addEventListener('keydown', function (e) {
+    if (!e.isTrusted || !e.ctrlKey || !e.altKey || e.metaKey || e.repeat) return;
+    var key = String(e.key || '');
+    if (!key || /^[A-Za-z]$/.test(key)) return;
+    if (key !== 'Dead' && Array.from(key).length !== 1) return;
+    var m = /^Key([A-Z])$/.exec(String(e.code || ''));
+    if (!m) return;
+    var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    var el = path[0] || e.target;
+    if (el && el.nodeType === 1 && (el.isContentEditable || document.designMode === 'on' || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+    setTimeout(function () {
+      if (!e.defaultPrevented) ipc.send('guest:page-shortcut', { key: m[1].toLowerCase(), shift: !!e.shiftKey, alt: true });
+    }, 0);
+  }, false);
   window.addEventListener('keydown', function (e) {
     // A key the page made up with dispatchEvent is not the user pressing it:
     // a page could close tabs and open panels that way, even from a
