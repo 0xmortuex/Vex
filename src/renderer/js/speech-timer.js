@@ -106,6 +106,7 @@ const VexSpeechTimer = {
     const start = K.el('button', { type: 'button', class: 'btn-primary', 'data-start': true, text: 'Start', style: 'flex:1', onclick: K.guard(() => this._toggle()) });
     const reset = K.el('button', { type: 'button', class: 'btn-secondary', text: 'Reset', onclick: K.guard(() => this._reset()) });
     const next = K.el('button', { type: 'button', class: 'btn-secondary', text: 'Next speaker', onclick: K.guard(() => this._nextSpeaker()) });
+    const save = K.el('button', { type: 'button', class: 'btn-secondary', 'data-attach': true, hidden: true, text: 'Save the time on the speech', style: 'width:100%;margin-top:6px', onclick: K.guard(() => this._saveAttached()) });
     const list = K.el('div', { 'data-list': true, style: 'max-height:150px;overflow:auto;margin-top:6px;font-size:12px' });
     const name = K.el('input', { type: 'text', placeholder: 'Add a speaker', 'aria-label': 'Speaker name', style: 'flex:1;min-width:0' });
     const add = () => { this.addSpeaker(name.value, ''); name.value = ''; this._drawList(); };
@@ -114,7 +115,7 @@ const VexSpeechTimer = {
     const head = K.el('div', { 'data-drag': true, style: 'display:flex;justify-content:space-between;align-items:center;cursor:move;font-size:12px;opacity:.85' }, K.el('span', { text: 'Speech timer' }), close);
     const hud = K.el('div', { id: 'vex-speech-hud', role: 'region', 'aria-label': 'Speech timer',
       style: 'position:fixed;z-index:9000;width:230px;padding:8px 10px;border-radius:10px;background:var(--bg-secondary,#1b1d26);color:var(--text-primary,#f3f4f8);border:1px solid var(--border,rgba(255,255,255,.15));box-shadow:0 8px 28px rgba(0,0,0,.35)' },
-      head, clock, who, presets, K.el('div', { style: 'display:flex;gap:4px;margin-top:6px' }, start, reset, next), list, K.el('div', { style: 'display:flex;gap:4px;margin-top:6px' }, name, K.el('button', { type: 'button', class: 'btn-secondary', text: 'Add', onclick: K.guard(add) })), live);
+      head, clock, who, presets, K.el('div', { style: 'display:flex;gap:4px;margin-top:6px' }, start, reset, next), save, list, K.el('div', { style: 'display:flex;gap:4px;margin-top:6px' }, name, K.el('button', { type: 'button', class: 'btn-secondary', text: 'Add', onclick: K.guard(add) })), live);
     const pos = d.pos && Number.isFinite(d.pos.x) && Number.isFinite(d.pos.y) ? d.pos : { x: window.innerWidth - 260, y: window.innerHeight - 340 };
     hud.style.left = Math.max(0, Math.min(pos.x, window.innerWidth - 120)) + 'px';
     hud.style.top = Math.max(0, Math.min(pos.y, window.innerHeight - 80)) + 'px';
@@ -124,6 +125,29 @@ const VexSpeechTimer = {
     this._hud = hud;
     this._draw();
     this._drawList();
+  },
+
+  // Opens the timer for one thing, such as a speech in a Model UN dossier: the clock is set to its length
+  // for this run only (the saved preset is not touched), and a finished run can be handed back to
+  // info.save(secondsUsed). info = { seconds, label, save(seconds) }.
+  openFor(info) {
+    const sec = Math.round(Number(info && info.seconds));
+    if (!Number.isFinite(sec) || sec < 5 || sec > 3600) throw new Error('A speaking time is 5 to 3600 seconds');
+    if (typeof info.save !== 'function') throw new Error('The timer needs a way to save the time');
+    this.open();
+    clearTimeout(this._run.timer);
+    this._run.current = null;
+    this._run.state = { total: sec * 1000, left: sec * 1000, startedAt: 0 };
+    this._run.attach = { label: String(info.label || '').slice(0, 80), save: info.save };
+    this._draw();
+  },
+  _saveAttached() {
+    const r = this._run;
+    if (!r || !r.attach) throw new Error('This run is not for a saved speech');
+    const used = Math.round((r.state.total - this.remaining(r.state)) / 1000);
+    if (used < 1) throw new Error('Run the clock first');
+    r.attach.save(used);
+    window.showToast?.('Time saved on the speech: ' + this.fmt(used));
   },
 
   _drag(handle, hud) {
@@ -151,7 +175,9 @@ const VexSpeechTimer = {
     const over = r.state.startedAt === 0 && r.state.left === 0;
     clock.style.color = over ? '#ef4444' : (left <= 10000 && r.state.startedAt ? '#eab308' : '');
     this._hud.querySelector('[data-start]').textContent = r.state.startedAt ? 'Pause' : (over ? 'Again' : 'Start');
-    this._hud.querySelector('[data-who]').textContent = r.current ? 'Speaking: ' + r.current.name : '';
+    this._hud.querySelector('[data-who]').textContent = r.current ? 'Speaking: ' + r.current.name : (r.attach ? r.attach.label : '');
+    const att = this._hud.querySelector('[data-attach]');
+    if (att) att.hidden = !(r.attach && r.state.total - left >= 1000 && !r.state.startedAt);
     for (const b of this._hud.querySelectorAll('[data-preset]')) b.setAttribute('aria-pressed', String(Number(b.dataset.preset) * 1000 === r.state.total));
   },
   _loop() {

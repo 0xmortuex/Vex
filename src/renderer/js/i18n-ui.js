@@ -10575,6 +10575,8 @@ const VexI18nUI = {
       'MUN toolkit': 'MUN araç seti',
       'Motion wording': 'Önerge ifadeleri',
       'Speech timer': 'Konuşma zamanlayıcısı',
+      'Open speech timer': 'Konuşma zamanlayıcısını aç',
+      'Save the time on the speech': 'Süreyi konuşmaya kaydet',
       'Turkish helpers': 'Türkçe yardımcıları',
       'Add to glossary...': 'Terimler sözlüğüne ekle...',
       'Put Turkish letters back...': 'Türkçe harfleri geri koy...',
