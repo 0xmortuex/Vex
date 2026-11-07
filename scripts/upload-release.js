@@ -24,9 +24,19 @@ const tag = 'v' + pkg.version;
 // latest.yml LAST: it is what an installed Vex reads to decide there is an
 // update, so it must never appear before the files it points at.
 const ASSETS = ['Vex-Setup.exe', 'Vex-Setup.exe.blockmap', 'latest.yml'];
+// The signature of latest.yml (scripts/sign-update-feed.js), when there is one,
+// goes up BEFORE latest.yml for the same reason latest.yml goes last: an
+// installed copy that sees the new latest.yml must find its signature.
+const SIG = 'latest.yml.sig';
+function assetsFor(distDir) {
+  const list = [...ASSETS];
+  if (fs.existsSync(path.join(distDir, SIG))) list.splice(list.indexOf('latest.yml'), 0, SIG);
+  return list;
+}
 
 function main() {
-  const files = ASSETS.map(name => {
+  const assets = assetsFor(dist);
+  const files = assets.map(name => {
     const p = path.join(dist, name);
     if (!fs.existsSync(p)) throw new Error(name + ' is not in dist/ — run the build first');
     return p;
@@ -35,11 +45,11 @@ function main() {
     console.log('upload-release: ' + tag + ' ← ' + path.basename(file));
     execFileSync('gh', ['release', 'upload', tag, file, '--clobber'], { cwd: root, stdio: 'inherit' });
   }
-  console.log('upload-release: ' + tag + ' uploaded (' + ASSETS.join(', ') + ')');
+  console.log('upload-release: ' + tag + ' uploaded (' + assets.join(', ') + ')');
 }
 
 if (require.main === module) {
   try { main(); } catch (err) { console.error('upload-release: ' + ((err && err.message) || err)); process.exit(1); }
 }
 
-module.exports = { ASSETS };
+module.exports = { ASSETS, SIG, assetsFor };

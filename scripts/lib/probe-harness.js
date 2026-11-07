@@ -106,6 +106,8 @@ function launch(opts = {}) {
     userDataDir = assertTempProfile(opts.userDataDir || fs.mkdtempSync(path.join(os.tmpdir(), 'vex-probe-')));
     args.push('--user-data-dir=' + userDataDir);
   }
+  // A packaged Vex accepts a debugging port only on a profile carrying this marker (src/main/debug-guard.js).
+  const probeProfile = require('./probe-profile').prepare(userDataDir);
   const port = Number(opts.port) || 0;
   if (port && !args.some(a => /^--remote-debugging-port=/.test(a))) args.push('--remote-debugging-port=' + port);
   const child = spawn(exe, args, {
@@ -114,7 +116,7 @@ function launch(opts = {}) {
     stdio: opts.stdio || ['ignore', 'pipe', 'pipe'],
     detached: !!opts.detached,
     // Forced last: no caller can switch the Windows scheduled tasks back on.
-    env: { ...process.env, ...(opts.env || {}), VEX_NO_OS_SCHEDULE: '1' },
+    env: { ...process.env, ...(opts.env || {}), ...probeProfile.env, VEX_NO_OS_SCHEDULE: '1' },
   });
   if (!child.pid) throw new Error('probe-harness: could not start ' + exe);
   const handle = { child, pid: child.pid, exe, userDataDir, port: port || null };

@@ -51,7 +51,7 @@ const step = (name, ok, detail) => { steps.push({ name, ok, detail }); console.l
 let child;
 (async () => {
   child = spawn(exe, [...launchArgs, `--user-data-dir=${udd}`, `--remote-debugging-port=${CDP}`],
-    { cwd: root, env: { ...process.env, VEX_SKIP_VMP_VERIFY: '1' }, stdio: 'ignore' });
+    { cwd: root, env: { ...process.env, ...require('./lib/probe-profile').prepare(udd).env, VEX_SKIP_VMP_VERIFY: '1' }, stdio: 'ignore' });
   let t = null;
   for (let i = 0; i < 60 && !t; i++) { await sleep(1000); try { t = (await get(`http://127.0.0.1:${CDP}/json/list`)).find(x => /renderer\/index\.html/.test((x.url || '').split('?')[0])); } catch {} }
   step(exeArg ? 'Vex boots from ' + exeArg : 'Vex boots from source', !!t);

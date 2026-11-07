@@ -17,12 +17,12 @@ const root = path.join(__dirname, '..');
 const REQUIRED = ['latest.yml', 'Vex-Setup.exe', 'Vex-Setup.exe.blockmap'];
 
 // What is wrong with a release as `gh release view --json` reports it.
-function problems(release, tag) {
+function problems(release, tag, { requireSig = false } = {}) {
   const out = [];
   if (!release || release.tagName !== tag) return ['the release for ' + tag + ' was not found'];
   if (release.isDraft) out.push('it is still a draft');
   const assets = Array.isArray(release.assets) ? release.assets : [];
-  for (const name of REQUIRED) {
+  for (const name of requireSig ? [...REQUIRED, 'latest.yml.sig'] : REQUIRED) {
     const a = assets.find(x => x.name === name);
     if (!a) out.push(name + ' is missing');
     else if (!(a.size > 0)) out.push(name + ' is empty');
@@ -41,7 +41,9 @@ function main() {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const tag = 'v' + pkg.version;
   const release = JSON.parse(execFileSync('gh', ['release', 'view', tag, '--json', 'tagName,isDraft,assets'], { cwd: root, encoding: 'utf8' }));
-  const wrong = problems(release, tag);
+  // When the app embeds an update public key, a release without latest.yml.sig is refused by every installed copy.
+  const requireSig = require('../src/main/update-signature').keysFrom(require('../src/main/update-pubkeys.json')).length > 0;
+  const wrong = problems(release, tag, { requireSig });
   if (wrong.length) throw new Error(tag + ' is NOT a complete release: ' + wrong.join('; ') + '. Installed copies will not update to it. The website was left alone.');
   console.log('post-publish: ' + tag + ' is complete (' + REQUIRED.join(', ') + ')');
 

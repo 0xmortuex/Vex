@@ -127,6 +127,42 @@ node scripts/verify-signing.js --dir dist-signtest
 ```
 Windows does not trust a self-signed certificate, so the status reads `UnknownError`. `VEX_SIGN_ALLOW_UNTRUSTED=1` accepts that for a test, and `--release` refuses it. Delete the scratch folder and the `.pfx` afterwards.
 
+## Sign the update feed (optional, owner-only, recommended)
+
+Today the updater checks the installer's SHA-512 against `latest.yml`, and both come from the same GitHub release. Whoever controls that release (a stolen account or token) can publish a matching pair and installed copies will run it. The independent defence is an Ed25519 signature made with a key that never touches GitHub.
+
+**Nothing changes until you embed a key.** The app ships with an empty key list (`src/main/update-pubkeys.json`): updates are not signature-checked, exactly as before, and `npm run publish` prints a loud "THE UPDATE FEED IS NOT SIGNED" warning but still works.
+
+1. **Make the key** (once), into a folder OUTSIDE the repo, ideally offline storage:
+   ```
+   node scripts/gen-update-key.js D:ex-keys
+   ```
+   It prints the public key and refuses a folder inside the repo or one that already holds a key. Keep `vex-update-private.pem` offline and backed up; never commit or upload it. If it is lost, no update can be signed any more.
+2. **Embed the public key**: put it in `src/main/update-pubkeys.json` as `{ "keys": ["<44 characters>"] }` and ship that as a normal (still unsigned) release. Copies that run this build verify every later update.
+3. **Sign each release afterwards**: set `$env:VEX_UPDATE_SIGN_KEY = "D:ex-keysex-update-private.pem"` before `npm run publish`. The new step `scripts/sign-update-feed.js` (after the build checks, before the release is created) writes `distlatest.yml.sig`; `upload-release.js` uploads it before `latest.yml`; `post-publish.js` requires it.
+   Once a key is embedded, `sign-update-feed.js` **fails the release** if no private key is given or if it does not match an embedded key: an unsigned release would be refused by every installed copy.
+4. **Rotation**: list the new public key next to the old one (up to 4), ship, sign with the new key, and drop the old key in a later release.
+5. **Do not skip step 2 and sign first**: signing without an embedded key is harmless but protects nobody.
+
+What it does and does not do: the app refuses a feed whose signature does not verify, whose `latest.yml.sig` is missing, or that names an older version than the running one. It does not stop an attacker who can also replace the app itself. A signature cannot say "this is the NEWEST release", so an attacker who replays an old, validly signed feed can only keep people on a version they could already have (never move them backwards, the updater ignores it). Unverified until the first real signed release: see the owner checklist in the Wave 2 report (sign a release, run it against a test copy via `VEX_UPDATE_FEED`).
+
+## Electron fuses and app.asar integrity
+
+Vex installs per user, in a folder that any program running as you can write to. `package.json` `build.electronFuses` therefore switches off `runAsNode` (Vex.exe can no longer be run as a Node interpreter with `ELECTRON_RUN_AS_NODE=1`), the `NODE_OPTIONS` variable and the `--inspect` flags, and switches on `enableEmbeddedAsarIntegrityValidation` plus `onlyLoadAppFromAsar` (Vex.exe refuses an `app.asar` that differs from the one it was built with, and ignores an unpacked `resourcesapp` folder). Cookie encryption is left as it was.
+
+electron-builder flips the fuses right before it signs, so the order with Widevine is unchanged: fuses, then Authenticode (if configured), then `afterSign` (castLabs VMP). Nothing flips or edits `Vex.exe` after `vmp-sign.js`.
+
+`scripts/verify-fuses.js` (run by `verify-packaged-boot.js`, so by `npm run publish`) reads the fuses and the integrity record back from the built exe and fails the publish if any differs from `package.json`, or if the record does not match `resourcesapp.asar`. By hand: `node scripts/verify-fuses.js distwin-unpacked`. An unfused (older) build fails this check, which is correct.
+
+Things to check after the first `npm run pack` with this change (not done by an agent; it needs the real build and castLabs signing): (1) the `verify-fuses` line passes, (2) `node scripts/verify-drm.js --boot` still passes (DRM works, the app starts), (3) the packaged Vex starts normally from `distwin-unpacked` and from an installed copy, (4) an update installed over the old version still starts. If the app refuses to start after the fuse change, `enableEmbeddedAsarIntegrityValidation` is the one to turn off first.
+
+## Supply-chain checks
+
+- **CI actions are pinned** to the full commit of a release tag (`actions/checkout@<sha> # v4.4.0`), so a moved tag cannot change what runs. To update one: `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (dereference an annotated tag), confirm the commit exists, change the SHA and the comment together. `tests/main/supplyChain.test.js` fails on an unpinned `uses:`.
+- **Vendored third-party files** (`src/renderer/vendor`, including the runtimes `npm run build:vendor` copies out of node_modules) are hash-listed in `scripts/vendor-manifest.json`. `verify-packaged-boot.js` (so `npm run publish`) checks the built `app.asar` against it and stops the publish on any changed, missing or extra file. After a deliberate dependency bump: `npm run build:vendor`, `node scripts/vendor-manifest.js --write`, read the diff, commit it. Text files are hashed with LF line endings, so a CRLF checkout does not matter.
+- **SBOM**: `node scripts/gen-sbom.js --out sbom.cdx.json` writes a CycloneDX 1.5 file from `package-lock.json` (no network, deterministic). Attaching it to a release is an owner decision; nothing uploads it.
+- **`npm ci --ignore-scripts` is NOT enabled in CI (owner decision).** It would stop install scripts of compromised packages, but it was not proven here: the lockfile has install scripts in electron-winstaller, onnxruntime-node, protobufjs, tesseract.js (and fsevents, macOS only), electron itself is a git dependency whose binary download may rely on a script, and `npm ci` could not be run against a scratch copy from the build sandbox. To decide: in a scratch clone, run `npm ci --ignore-scripts`, then `npm test`, `npm run smoke` and `npm run pack`; if all pass, add the flag to `verify.yml`.
+
 ## Installing from a release
 
 Download `Vex-Setup.exe` from GitHub Releases (always the latest: `https://github.com/0xmortuex/Vex/releases/latest/download/Vex-Setup.exe`) and run it. Vex updates itself from then on.

@@ -808,6 +808,10 @@ contextBridge.exposeInMainWorld('vex', {
   widevineStatus: () => ipcRenderer.invoke('widevine:status'),
   widevineRetry: () => ipcRenderer.invoke('widevine:retry'),
   // The update cover (js/update-notifier.js, src/main/updates.js).
+  // What changed since the last launch (src/main/integrity-report.js): the Attention Inbox rows (js/integrity-notes.js)
+  integrity: {
+    report: () => ipcRenderer.invoke('integrity:report'),
+  },
   // Settings › Health check (src/main/health-check.js)
   health: {
     scan: () => ipcRenderer.invoke('health:scan'),

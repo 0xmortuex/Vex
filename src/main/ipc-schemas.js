@@ -82,6 +82,7 @@ define('updates:backup-read', [string(120)]);
 // names finding ids from that scan (never paths) and whether the person
 // agreed to the ones that need a yes; an undo names the run it returned.
 define('health:scan', []);
+define('integrity:report', []);
 define('health:fix', [value => Array.isArray(value) && value.length > 0 && value.length <= 200 && value.every(string(300)), optional(boolean)]);
 define('health:undo', [value => typeof value === 'string' && /^\d{8}-\d{6}(?:-\d{1,3})?$/.test(value)]);
 define('file:inspect', [string(4096), optional(string(4096))]);
