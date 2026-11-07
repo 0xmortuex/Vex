@@ -9409,6 +9409,8 @@ function createWindow() {
         + "shExpMatch(h,'discord.com')||shExpMatch(h,'*.discord.com')||"
         + "shExpMatch(h,'discordapp.com')||shExpMatch(h,'*.discordapp.com')||"
         + "shExpMatch(h,'discord.gg')||shExpMatch(h,'*.discord.gg')||"
+        // The attachment upload host (a Google storage bucket whose NAME contains "discord"): a name-based filter stalls it when direct.
+        + "shExpMatch(h,'discord-attachments-uploads-*.storage.googleapis.com')||"
         + "shExpMatch(h,'*.discordapp.net'))return 'SOCKS5 127.0.0.1:" + port + "';return 'DIRECT';}";
       cfg = { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
     }

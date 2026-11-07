@@ -335,6 +335,25 @@ describe('the PAC script', () => {
   it('keeps the Discord rules when the bypass has a port', () => {
     expect(U.buildPac(1234, [])).toContain("return 'SOCKS5 127.0.0.1:1234';");
   });
+  // PAC's shExpMatch(host, shell pattern): '*' is any run of characters, '?' one; nothing else is special.
+  const shExpMatch = (h, p) => new RegExp('^' + p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$').test(h);
+  const findIn = (pac) => new Function('dnsDomainIs', 'shExpMatch', pac + '; return FindProxyForURL;')((h, d) => h.endsWith(d), shExpMatch);
+  it('sends the Discord attachment upload host through the bypass too (its name has "discord" in it, so it stalled direct in a normal tab)', () => {
+    const find = findIn(U.buildPac(1234, []));
+    const upload = 'discord-attachments-uploads-prd.storage.googleapis.com';
+    expect(find('https://' + upload + '/attachments/1/2/pic.png', upload)).toBe('SOCKS5 127.0.0.1:1234');
+    // the old rules still hold
+    expect(find('https://cdn.discordapp.com/x', 'cdn.discordapp.com')).toBe('SOCKS5 127.0.0.1:1234');
+    expect(find('https://media.discordapp.net/x', 'media.discordapp.net')).toBe('SOCKS5 127.0.0.1:1234');
+    // other Google storage buckets, and look-alike hosts, stay direct
+    expect(find('https://some-bucket.storage.googleapis.com/x', 'some-bucket.storage.googleapis.com')).toBe('DIRECT');
+    expect(find('https://storage.googleapis.com/x', 'storage.googleapis.com')).toBe('DIRECT');
+    expect(find('https://discord-attachments-uploads-prd.storage.googleapis.com.evil.test/x', 'discord-attachments-uploads-prd.storage.googleapis.com.evil.test')).toBe('DIRECT');
+  });
+  it('the same host is in the PAC of the normal browsing sessions in main.js (two copies of the rule must agree)', () => {
+    const main = require('fs').readFileSync(require('path').join(__dirname, '../../src/main.js'), 'utf8');
+    expect(main).toContain("shExpMatch(h,'discord-attachments-uploads-*.storage.googleapis.com')");
+  });
   it('sends a site and its subdomains through their route, and falls back to direct if the helper is gone', () => {
     const pac = U.buildPac(0, [{ host: 'example.com', route: { kind: 'http', port: 4321 } }, { host: 'blocked.org', route: { kind: 'socks5', port: 99 } }]);
     expect(pac).toContain("h==='example.com'||dnsDomainIs(h,'.example.com'))return 'PROXY 127.0.0.1:4321; DIRECT';");
