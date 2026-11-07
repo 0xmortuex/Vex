@@ -200,9 +200,53 @@ const VexLoadFailure = {
     return true;
   },
 
+  // ---- back online ---------------------------------------------------------------------------
+  // The machine came back online (the window's 'online' event). Only a tab whose load failed because there was no internet
+  // (-106 ERR_INTERNET_DISCONNECTED; not a DNS, certificate or server error) is offered a reload, once per failure. The offer is
+  // on; reloading by itself is off until the person turns it on. A private or Tor tab is left alone.
+  OFFLINE_CODE: -106,
+  OFFER_KEY: 'vex.offlineRetry.offer',   // 'off' turns the offer away
+  AUTO_KEY: 'vex.offlineRetry.auto',     // 'on' reloads by itself
+  offerOn() { return localStorage.getItem(this.OFFER_KEY) !== 'off'; },
+  setOffer(on) { localStorage.setItem(this.OFFER_KEY, on ? 'on' : 'off'); },
+  autoOn() { return localStorage.getItem(this.AUTO_KEY) === 'on'; },
+  setAuto(on) { localStorage.setItem(this.AUTO_KEY, on ? 'on' : 'off'); },
+
+  // The tabs to reload: failed offline, not yet handled, allowed to be kept.
+  offlineFailures(tabs) {
+    const policy = typeof window !== 'undefined' ? window.VexTabPolicy : null;
+    return (Array.isArray(tabs) ? tabs : []).filter(t => t && t._failedPage && t._failedPage.code === this.OFFLINE_CODE && !t._failedPage.offlineHandled
+      && /^https?:\/\//i.test(String(t._failedPage.url || '')) && (!policy || policy.canPersist(t)));
+  },
+  // Reloads one failed tab where it is, without switching to it.
+  reloadFailed(tab) {
+    const failed = tab._failedPage;
+    const wv = WebviewManager.webviews.get(tab.id);
+    if (!failed || !wv || typeof wv.loadURL !== 'function') throw new Error('That tab cannot be reloaded');
+    this.clear(tab.id);
+    wv.loadURL(failed.url);
+  },
+  // -> how many tabs it dealt with (offered or reloaded)
+  backOnline() {
+    if (!this.enabled() || typeof TabManager === 'undefined') return 0;
+    const auto = this.autoOn();
+    if (!auto && !this.offerOn()) return 0;
+    const list = this.offlineFailures(TabManager.tabs);
+    if (!list.length) return 0;
+    for (const t of list) t._failedPage.offlineHandled = true;          // once per failure, whatever happens next
+    const reloadAll = () => { for (const t of list) { try { this.reloadFailed(t); } catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Failed page', 'Could not reload a page that failed offline', err); } } };
+    if (auto) { reloadAll(); return list.length; }
+    const text = this._t('You are back online. Reload the pages that did not load?');
+    const extra = { action: { label: this._t('Reload'), run: reloadAll } };
+    if (typeof VexAttention !== 'undefined') VexAttention.toast({ feature: 'offline-retry', urgency: 'useful', id: 'back-online', title: text }, text, 'info', 12000, extra);
+    else window.showToast?.(text, 'info', 12000, extra);
+    return list.length;
+  },
+
   init() {
     if (this._inited) return false;
     this._inited = true;
+    window.addEventListener('online', () => { try { this.backOnline(); } catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Failed page', 'Back-online check failed', err); else console.error('[LoadFailure] back-online check failed:', err); } });
     window.addEventListener('vex:tab-activated', () => this.render());
     document.addEventListener('vex:tab-closed', (e) => { this.clear(e.detail && e.detail.tabId); setTimeout(() => this.render(), 0); });
     return true;

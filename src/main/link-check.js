@@ -33,7 +33,9 @@ function classify(status, error) {
   return 'broken';
 }
 
-function createLinkCheck({ fetchIn, timeoutMs = TIMEOUT_MS, concurrency = CONCURRENCY }) {
+// guard(href): optional, async; throws to refuse an address before it is asked (the preview of one link uses it to stay off the
+// local network). A refusal is reported like any other failure, as that link's error.
+function createLinkCheck({ fetchIn, guard = null, timeoutMs = TIMEOUT_MS, concurrency = CONCURRENCY }) {
   async function one(url) {
     // Redirects are followed HERE, hop by hop, not by fetch: Electron's
     // session fetch followed them but reported the original address as the
@@ -44,6 +46,7 @@ function createLinkCheck({ fetchIn, timeoutMs = TIMEOUT_MS, concurrency = CONCUR
       try {
         let at = url;
         for (let hop = 0; hop <= MAX_HOPS; hop++) {
+          if (guard) await guard(at);
           const r = await fetchIn(at, { method, redirect: 'manual', signal: ctl.signal, headers: { Accept: 'text/html,*/*;q=0.8' } });
           // A GET was only to learn the status: never read a whole page.
           if (method === 'GET') { try { r.body && r.body.cancel && await r.body.cancel(); } catch { /* already done */ } }
@@ -123,4 +126,24 @@ function netRequestFetch(net, getSession) {
   });
 }
 
-module.exports = { createLinkCheck, classify, netRequestFetch, MAX_LINKS };
+// The guard for following ONE link on request: only the public internet. The host name is checked, then (for a name) the
+// addresses it resolves to, before every hop, so a short link cannot point the request at the router or this machine.
+// deps: resolveHost(host) -> { endpoints: [{ address }] } (net.resolveHost), and the helpers of private-address.js.
+function createPublicGuard({ resolveHost, isPrivateHost, isPrivateIp, isIpLiteral }) {
+  if (typeof resolveHost !== 'function') throw new Error('createPublicGuard needs resolveHost');
+  return async (href) => {
+    let u;
+    try { u = new URL(href); } catch { throw new Error('Not a valid address'); }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('Only web addresses are followed');
+    const host = u.hostname.replace(/^\[|\]$/g, '');
+    const refused = 'Addresses on this machine or the local network are not followed';
+    if (isPrivateHost(host)) throw new Error(refused);
+    if (isIpLiteral(host)) return;
+    const resolved = await resolveHost(host);
+    const addresses = ((resolved && resolved.endpoints) || []).map(e => e && e.address).filter(Boolean);
+    if (!addresses.length) throw new Error('Could not find the address of ' + host);
+    if (addresses.some(isPrivateIp)) throw new Error(refused);
+  };
+}
+
+module.exports = { createLinkCheck, createPublicGuard, classify, netRequestFetch, MAX_LINKS };

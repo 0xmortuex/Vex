@@ -127,9 +127,11 @@ const LinkSafety = {
   async follow(url) {
     const first = this.describe(url);
     if (!/^https?:\/\//i.test(first.real)) throw new Error('Only web links can be followed');
-    const r = await window.vex.checkLinks([first.real]);
+    // One link, asked for by the person: main follows it from an empty session (no cookies), HEAD first, never reads the
+    // page, keeps off the local network and lists each hop in the egress ledger as "Short link preview".
+    const r = await window.vex.followLink(first.real);
     if (!r || !r.ok) throw new Error((r && r.error) || 'Could not follow the link');
-    const x = r.results[0];
+    const x = r.result;
     const final = this.describe(x.finalUrl || first.real);
     return { first, final, status: x.status, verdict: x.verdict, error: x.error || null, moved: final.clean !== first.clean };
   },

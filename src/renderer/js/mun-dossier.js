@@ -111,6 +111,12 @@ const VexMunDossier = {
     const r = VexSources.allText(style, ids.filter(id => have.has(id)));
     return { text: r.text, count: r.count, missing: ids.filter(id => !have.has(id)).length };
   },
+  // How long a speech item should take, in seconds: an estimate at about 130 words a minute, kept
+  // between the speech timer's 5 s and 3600 s limits. A speech that was timed keeps its own runs (below).
+  speechSeconds(it) {
+    const words = String((it && it.text) || '').split(/\s+/).filter(Boolean).length;
+    return Math.min(3600, Math.max(5, Math.round(words / 130 * 60)));
+  },
   completeness(d) {
     return this.SECTIONS.map(([k, label]) => ({ key: k, label, count: (d.sections[k] || []).length }));
   },
@@ -149,6 +155,30 @@ const VexMunDossier = {
     if (!d) throw new Error('That dossier is gone');
     d.sections[key] = (d.sections[key] || []).filter(i => i.id !== itemId);
     this._write(list);
+  },
+  // A timed run of a speech item: only how long it took and when. Added to item.runs (the newest 10);
+  // an item without runs reads as before. `at` defaults to now.
+  saveRun(id, itemId, { seconds, at }) {
+    const sec = Math.round(Number(seconds));
+    if (!Number.isFinite(sec) || sec < 1 || sec > 3600) throw new Error('A timed speech is 1 to 3600 seconds');
+    const when = at == null ? Date.now() : Number(at);
+    if (!Number.isFinite(when) || when <= 0) throw new Error('The time of the run is not a date');
+    const list = this._read();
+    const d = list.find(x => x.id === id);
+    if (!d) throw new Error('That dossier is gone');
+    const it = (d.sections.speeches || []).find(i => i.id === itemId);
+    if (!it) throw new Error('That speech is gone');
+    it.runs = (Array.isArray(it.runs) ? it.runs : []).concat([{ seconds: sec, at: when }]).slice(-10);
+    this._write(list);
+    return it.runs[it.runs.length - 1];
+  },
+  // "Open speech timer" on a speech item: the clock is set to its length; a finished run can be saved on it.
+  openTimer(id, itemId) {
+    if (typeof VexSpeechTimer === 'undefined') throw new Error('The speech timer is not available');
+    const d = this.get(id);
+    const it = d && (d.sections.speeches || []).find(i => i.id === itemId);
+    if (!it) throw new Error('That speech is gone');
+    VexSpeechTimer.openFor({ seconds: this.speechSeconds(it), label: d.country + ': ' + it.text.slice(0, 40), save: (seconds) => { this.saveRun(id, itemId, { seconds }); this._redraw && this._redraw(); } });
   },
   // Quotes pulled onto the research board, each with the page it came from.
   importBoard(id, key) {
@@ -237,7 +267,10 @@ const VexMunDossier = {
           const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;margin:4px 0';
           const t = document.createElement('div'); t.style.flex = '1';
           t.textContent = it.text + '  [' + (it.source.title || it.source.url) + ']';
-          row.append(t, G.button('Remove', () => { try { this.removeItem(d.id, k, it.id); draw(); } catch (e) { fail(e); } }, { danger: true }));
+          if (k === 'speeches' && Array.isArray(it.runs) && it.runs.length) { const last = it.runs[it.runs.length - 1]; t.textContent += '  (timed ' + Math.floor(last.seconds / 60) + ':' + String(last.seconds % 60).padStart(2, '0') + ', ' + new Date(last.at).toLocaleDateString() + ')'; }
+          row.appendChild(t);
+          if (k === 'speeches') row.appendChild(G.button('Open speech timer', () => { try { this._redraw = draw; this.openTimer(d.id, it.id); } catch (e) { fail(e); } }));
+          row.append(G.button('Remove', () => { try { this.removeItem(d.id, k, it.id); draw(); } catch (e) { fail(e); } }, { danger: true }));
           box.appendChild(row);
         }
         const bar = document.createElement('div'); bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:6px';

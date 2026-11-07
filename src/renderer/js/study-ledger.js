@@ -141,6 +141,23 @@ const VexStudyLedger = {
     return add.length;
   },
 
+  // A finished past-paper session (js/paper-session.js) becomes one ledger session under its
+  // course, once: the id is derived from the paper session id, so finishing or reopening the
+  // same session again never counts it twice. Does nothing while the ledger is switched off.
+  paperSession(ps) {
+    if (!this.enabled() || !ps || typeof ps.id !== 'string' || !Number.isFinite(ps.durationMs)) return null;
+    const minutes = Math.round(ps.durationMs / 60000);
+    if (minutes < 1) return null;
+    const d = this._read();
+    const id = 'p' + ps.id;
+    if (d.sessions.some(s => s.id === id)) return null;
+    const subject = this._subject(String(ps.course || '').trim() || String(ps.paper || '').trim() || 'Past paper');
+    const s = { id, subject, start: ps.startedAt, minutes: Math.min(minutes, 12 * 60), source: 'paper' };
+    d.sessions.push(s);
+    this._write(d);
+    return s;
+  },
+
   // ---- reading --------------------------------------------------------------------------
   summary(now = Date.now(), data) {
     const d = data || this._read();

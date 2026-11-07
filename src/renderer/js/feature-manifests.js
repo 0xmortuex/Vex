@@ -389,7 +389,7 @@
     { id: 'dev-ports-pair', title: 'Dev ports', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.devPorts', 'vex.devPorts.enabled'],
       jobs: ['Dev ports'], budget: { jobMsPerMin: 60, fetchesPerHour: 0 },
       permissions: { reads: ['whether the localhost ports you paired answer (a local connect only)'], writes: ['your pairs; reloads a tab when its port comes back'], sends: [] } },
-    { id: 'actions-board', title: 'Actions board', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.actionsBoard', 'vex.actionsBoard.enabled'],
+    { id: 'actions-board', title: 'Actions board', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.actionsBoard', 'vex.actionsBoard.enabled', 'vex.actionsBoard.osNotify'],
       jobs: ['Actions board'], commands: ['actionsboard:open'], budget: { fetchesPerHour: 40 },
       permissions: { reads: ['the newest GitHub Actions run of each listed repository'], writes: ['the board and which failures you saw'], sends: ['Read requests to api.github.com through the GitHub vault'] } },
     { id: 'lyrics', title: 'Lyrics', group: 'Games and media', maturity: 'new', storageKeys: ['vex.lyrics.prefs'],
@@ -945,6 +945,16 @@
       permissions: { reads: ['the addresses you saved; the empty fields of the form in front, only when you press Fill'], writes: ['the encrypted address file on this computer; the form fields, only after you confirm what goes into which site'], sends: [] } },
     { id: 'downloads-pause-all', title: 'Pause or resume all downloads', group: 'Pause or resume all downloads', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['downloads-pause-all', 'downloads-resume-all'],
       permissions: { reads: ['which downloads are running or paused, only when you run a command'], writes: ['pauses or resumes the running downloads; never cancels or deletes one'], sends: [] } },
+    { id: 'clear-recent', title: 'Clear recent browsing data', group: 'Privacy', maturity: 'new', storageKeys: ['vex.autoClear'], commands: ['clear-recent'],
+      permissions: { reads: ['your list of visits, the closed tabs and the sites you keep signed in'], writes: ['removes the visits and closed tabs of the range you pick; when you switch it on, clears cookies, site data, cache and visits at a normal quit'], sends: [] } },
+    { id: 'offline-retry', title: 'Reload pages when I am back online', killSwitch: 'none', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.offlineRetry.offer', 'vex.offlineRetry.auto'],
+      permissions: { reads: ['which tabs failed because there was no internet'], writes: ['only its two switches'], sends: ['Nothing of its own: a reload asks the page that failed, as pressing Reload would'] } },
+    { id: 'capture-mute', title: 'Turn off mic and video in one press', killSwitch: 'none', group: 'Privacy', maturity: 'new', storageKeys: ['vex.captureMute.badge'], commands: ['capture-stop-tab', 'capture-stop-all'],
+      permissions: { reads: ['which tabs and panels are using the microphone or camera'], writes: ['ends their microphone and camera capture when you press it; its own switch'], sends: [] } },
+    { id: 'link-follow', title: 'Where does this link go?', killSwitch: 'none', group: 'Privacy', maturity: 'new', storageKeys: [], commands: ['link-follow'],
+      permissions: { reads: ['the link you ask about'], writes: ['nothing'], sends: ['A HEAD request, with no cookies, to the link’s site and to each site it redirects to (up to 8), listed as Short link preview in the egress ledger; never the page itself'] } },
+    { id: 'bookmark-dupes', title: 'Find duplicate bookmarks', killSwitch: 'none', group: 'Tab comforts', maturity: 'new', storageKeys: [], commands: ['bookmark-dupes'],
+      permissions: { reads: ['your saved bookmarks'], writes: ['removes the duplicate bookmarks you pick or merge, with Undo'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

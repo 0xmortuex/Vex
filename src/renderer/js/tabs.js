@@ -1166,6 +1166,10 @@ const TabManager = {
     el.addEventListener('click', (e) => {
       if (e.target.closest('.tab-close')) {
         this.requestClose(tab.id);
+      } else if (e.target.closest('.tab-capture') && localStorage.getItem('vex.captureMute.badge') === 'on') {
+        // Opt-in (Settings > Tab comforts): the microphone or camera icon turns both off for this tab (js/capture-mute.js).
+        Promise.resolve(window.VexCaptureMute || VexLazy.ensure('js/capture-mute.js')).then(() => window.VexCaptureMute.stopTab(tab.id))
+          .catch(err => window.showToast?.(err.message, 'error'));
       } else if (e.target.closest('.tab-audio')) {
         // Plain click mutes; with Shift, choose which speakers it plays
         // through — Windows gives a whole program one device, so without this

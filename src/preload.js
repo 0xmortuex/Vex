@@ -308,6 +308,8 @@ contextBridge.exposeInMainWorld('vex', {
   evalAllFrames: (wcId, code, userGesture) => ipcRenderer.invoke('page:eval-all-frames', wcId, code, !!userGesture),
   // Which of these links answer, from an empty session (no cookies sent).
   checkLinks: (urls) => ipcRenderer.invoke('links:check', urls),
+  // One link the person asked about, followed from an empty session without reading the page (main/link-check.js).
+  followLink: (url) => ipcRenderer.invoke('links:follow-one', url),
   // A watched page read as a hidden tab would show it (main/page-render.js).
   pageWatchRender: (opts) => ipcRenderer.invoke('pagewatch:render', opts),
   crawlFetch: (url, accept) => ipcRenderer.invoke('crawl:fetch', url, accept),

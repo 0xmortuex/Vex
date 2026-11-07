@@ -457,6 +457,7 @@ define('updates:notes', [optional(string(40))]);
 define('discord:lite', [boolean]);
 define('crawl:fetch', [string(4096), optional(value => value === 'text/html' || value === 'text/plain')]);
 define('links:check', [value => Array.isArray(value) && value.length <= 2000 && value.every(string(4096))]);
+define('links:follow-one', [string(4096)]);
 // A freshly attached <webview> reports its id as -1; the handler then finds
 // the page by URL (and checks ownership itself), so any integer is allowed.
 define('devtools:open-for-webcontents', [value => Number.isInteger(value), optional(web)]);

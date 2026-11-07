@@ -417,6 +417,21 @@ const HistoryPanel = {
     }
   },
 
+  // Every visit made at or after `sinceMs` (the "last 15 minutes / hour / day" clear, js/clear-recent.js). A page that is
+  // still listed on an earlier day stays in Recall, as with deleteDay. -> how many visits were removed; throws when
+  // Recall could not be told (the list is already cleared by then).
+  async deleteSince(sinceMs) {
+    if (!Number.isFinite(sinceMs)) throw new Error('The start of the range is not a time');
+    this._hydrate();
+    const removed = this.entries.filter(e => this._when(e).getTime() >= sinceMs);
+    if (!removed.length) return 0;
+    this.entries = this.entries.filter(e => this._when(e).getTime() < sinceMs);
+    this.save();
+    this.renderList();
+    await this._forgetVisits(removed);
+    return removed.length;
+  },
+
   _rowMenu(event, url) {
     let host = '';
     try { host = new URL(url).hostname; } catch { return; }

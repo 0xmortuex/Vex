@@ -3886,11 +3886,24 @@ ipcMain.handle('pagearchive:remove', (_e, id) => _archiveReply(async () => { awa
 // must not learn who is asking.
 const _linkCheckMod = require('./main/link-check');
 const _linkCheck = _linkCheckMod.createLinkCheck({
-  fetchIn: _linkCheckMod.netRequestFetch(net, () => secureSessions.fromPartition('vex-linkcheck')),
+  fetchIn: _egressFetch(_linkCheckMod.netRequestFetch(net, () => secureSessions.fromPartition('vex-linkcheck')), { feature: 'Link checker', kind: 'fetch' }),
 });
 ipcMain.handle('links:check', async (_e, urls) => {
   try { return { ok: true, ...(await _linkCheck.check(urls)) }; }
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not check the links' }; }
+});
+// "Where does this link go?" on ONE link the person asked about (right-click a link, or Ctrl+K): the same empty session
+// (no cookies), HEAD first, redirects followed by hand up to 8 hops with the page body never read, every hop in the egress
+// ledger as "Short link preview", and every hop kept off this machine and the local network (a link cannot aim it at the router).
+const _linkFollow = _linkCheckMod.createLinkCheck({
+  fetchIn: _egressFetch(_linkCheckMod.netRequestFetch(net, () => secureSessions.fromPartition('vex-linkcheck')), { feature: 'Short link preview', kind: 'fetch' }),
+  guard: _linkCheckMod.createPublicGuard({ resolveHost: (h) => net.resolveHost(h), ...require('./renderer/js/private-address') }),
+});
+ipcMain.handle('links:follow-one', async (_e, url) => {
+  try {
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url) || url.length > 4096) throw new Error('Only a web link can be followed');
+    return { ok: true, result: await _linkFollow.one(url) };
+  } catch (err) { return { ok: false, error: (err && err.message) || 'Could not follow the link' }; }
 });
 
 // A read-only inbox over IMAP (src/main/mail.js). Accounts — addresses and
@@ -4133,6 +4146,34 @@ ipcMain.handle('siteforget:run', async (_e, opts) => {
     return forgot;
   } catch (err) { return { ok: false, error: err.message }; }
 });
+// Clear history, cookies and cache when Vex closes (opt-in, main/quit-clear.js). It runs inside the same quit wait as the sweep
+// above: onQuit is wrapped, so the pinned will-quit handler below is unchanged. Only a deliberate exit (exit-kinds ending()).
+const _quitClear = require('./main/quit-clear').createQuitClear({
+  getConfig: () => _readPersistString('vex.autoClear', null),
+  partitions: () => BROWSING_SESSIONS,
+  sessionFor: (partition) => secureSessions.fromPartition(partition),
+  ending: () => _exitWatch.ending(),
+  noteDeliberate: () => _massSignoutDeliberate('auto-clear-quit'),
+  // The main-side steps of browsing:clear-data that concern history, plus the time other devices should clear their older visits.
+  clearHistory: async () => {
+    await dataStore.flush(); await preferences.flush();
+    await dataStore.remove('history');
+    recallStore().clear();
+    await recallFlush(true);
+    await preferences.clearKeys(['vex.history', 'vex.recentlyClosed']);
+    preferences.set('vex.historyClearedAt', new Date().toISOString());
+    await preferences.flush();
+  },
+  log: console,
+});
+{
+  const _siteForgetQuit = _siteForget.onQuit.bind(_siteForget);
+  _siteForget.onQuit = async () => {
+    try { await _quitClear.run(); }
+    catch (err) { console.error('[AutoClear] could not clear on quit:', err && err.message); }
+    return _siteForgetQuit();
+  };
+}
 let _forgetQuitDone = false;
 app.on('will-quit', (event) => {
   if (_forgetQuitDone) return;
