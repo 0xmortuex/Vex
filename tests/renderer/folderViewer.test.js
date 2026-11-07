@@ -6,6 +6,7 @@
 // Vex (the scripts are described in the report); jsdom cannot resolve var() or real computed styles.
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -231,12 +232,13 @@ describe('the order of a folder', () => {
   it('orders 100,000 entries quickly enough to type in the filter', async () => {
     const names = Array.from({ length: 100000 }, (_, i) => 'f' + String((i * 7919) % 100000).padStart(6, '0') + '.txt');
     const { st, data } = await folder(names);
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: the 6 s ceiling scales with it
     const t0 = performance.now();
     st.buildView(data, { filter: '', hidden: true, sort: 'name', dir: 1 }, (kd) => kd.label);
     const ms = performance.now() - t0;
     expect(data.view.length).toBe(100000);
     expect(data.entries[data.view[0]].n).toBe('f000000.txt');
-    expect(ms).toBeLessThan(6000);
+    expect(ms).toBeLessThan(ceiling(6000, before));
   });
 });
 

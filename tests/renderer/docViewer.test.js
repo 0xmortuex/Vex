@@ -4,6 +4,7 @@
 // renderer (and that it cannot be made to run anything), the worker that holds big documents, the Turkish for every sentence.
 
 import { describe, it, expect } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 
 const fs = require('fs');
 const path = require('path');
@@ -326,14 +327,15 @@ describe('the worker holds the document and answers small questions', () => {
     for (let i = 0; i < 40000; i++) parts.push((i ? ',' : '') + `{"id":${i},"name":"item ${i}","tags":["a","b"],"n":{"x":${i % 7},"y":null}}`);
     parts.push(']');
     w.open(parts.join(''));
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: both ceilings scale with it
     let t = Date.now();
     const r = w.call('openJson');
     expect(r).toMatchObject({ ok: true, nodes: 40000 * 9 + 1 });
-    expect(Date.now() - t).toBeLessThan(8000);
+    expect(Date.now() - t).toBeLessThan(ceiling(8000, before));
     t = Date.now();
     const hit = w.call('treeFind', { q: '"item 39999"' });
     expect(hit.nodes.length).toBe(1);
-    expect(Date.now() - t).toBeLessThan(1000);
+    expect(Date.now() - t).toBeLessThan(ceiling(1000, before));
     expect(w.call('treeReveal', { node: hit.nodes[0] }).row).toBeGreaterThan(0);
   }, 60000);
 });
