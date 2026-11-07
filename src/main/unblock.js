@@ -66,9 +66,6 @@ function buildPac(discordPort, routes) {
     clauses.push("if(shExpMatch(h,'discord.com')||shExpMatch(h,'*.discord.com')||"
       + "shExpMatch(h,'discordapp.com')||shExpMatch(h,'*.discordapp.com')||"
       + "shExpMatch(h,'discord.gg')||shExpMatch(h,'*.discord.gg')||"
-      // Where a Discord attachment is uploaded: a Google storage host, but its name contains "discord", which is what a name-based filter
-      // (the ISP's) matches on; direct, the upload stalled for ever in a normal tab (the panel sends everything through the bypass).
-      + "shExpMatch(h,'discord-attachments-uploads-*.storage.googleapis.com')||"
       + "shExpMatch(h,'*.discordapp.net'))return 'SOCKS5 127.0.0.1:" + discordPort + "';");
   }
   for (const r of routes) {
