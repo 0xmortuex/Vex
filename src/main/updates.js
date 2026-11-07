@@ -25,6 +25,11 @@
 // that ignores Range, a mismatch) it is logged and the whole installer is
 // downloaded instead, once.
 //
+// Signed feed (src/main/update-signature.js): latest.yml.sig is an Ed25519
+// signature of latest.yml made OFFLINE by the owner. While update-pubkeys.json
+// lists no key the updater behaves exactly as it always did; once a key is
+// embedded, an update whose feed does not verify is refused (fail closed).
+//
 // TEST-ONLY: VEX_UPDATE_FEED=http://127.0.0.1:<port>/ replaces the GitHub
 // release with a local folder (latest.yml, the installer, CHANGELOG.md). It is
 // honoured only when set, and only for a loopback http address. Under it the
@@ -34,6 +39,7 @@ const crypto = require('crypto');
 const nodePath = require('path');
 const { parseBlockMap, planDownload } = require('./differential');
 const { notInstalledMessage, installerArgs, checkWritable, STATE_FILES } = require('./update-state');
+const updateSignature = require('./update-signature');
 
 const REPO = 'https://github.com/0xmortuex/Vex';
 // electron-builder's NSIS installer (app-builder-lib/templates/nsis):
@@ -51,7 +57,8 @@ const STALL_MS = 60 * 1000;
 const PROGRESS_EVERY_MS = 150;
 
 // The updater's last word, for the Memory panel's Health section.
-const state = { lastCheckAt: null, result: null, version: null, error: null };
+// signature: 'off' (no key embedded, feed not verified), 'verified', 'failed', or null before a check.
+const state = { lastCheckAt: null, result: null, version: null, error: null, signature: null };
 
 function cmpVersion(a, b) {
   const pa = String(a).split(/[.\-+]/).map(n => parseInt(n, 10) || 0);
@@ -109,6 +116,7 @@ function resolveFeed(env = process.env) {
     return {
       test: false,
       latestYml: REPO + '/releases/latest/download/latest.yml',
+      latestYmlSig: REPO + '/releases/latest/download/latest.yml.sig',
       installer: (version, name) => `${REPO}/releases/download/v${version}/${encodeURIComponent(name)}`,
       blockmap: (version, name) => `${REPO}/releases/download/v${version}/${encodeURIComponent(name)}.blockmap`,
       changelog: version => `https://raw.githubusercontent.com/0xmortuex/Vex/v${version}/CHANGELOG.md`,
@@ -122,6 +130,7 @@ function resolveFeed(env = process.env) {
   return {
     test: true,
     latestYml: raw + 'latest.yml',
+    latestYmlSig: raw + 'latest.yml.sig',
     installer: (_version, name) => raw + encodeURIComponent(name),
     // Blockmaps of two versions sit side by side: v<version>/<name>.blockmap.
     blockmap: (version, name) => raw + 'v' + encodeURIComponent(version) + '/' + encodeURIComponent(name) + '.blockmap',
@@ -167,7 +176,10 @@ function pickInstaller(yml, { allowScript = false } = {}) {
 // `journal` ({ add(line) }), `staged` (createStagedStore), `copy` (installKind's
 // answer) and `keepFiles` (installers a rollback still needs) are optional: the
 // updater works without them, but then nothing is remembered between runs.
-function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spawn, log = console, now = () => Date.now(), parseChangelogList, addTurkishNotes = (list) => list, platform = process.platform, journal = null, staged = null, copy = null, keepFiles = () => [] }) {
+// `pubKeys`: the update public keys (base64, see update-signature.js); omitted,
+// they are read from update-pubkeys.json. An unreadable key file makes every
+// check fail (it must never silently mean "no keys").
+function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spawn, log = console, now = () => Date.now(), parseChangelogList, addTurkishNotes = (list) => list, platform = process.platform, journal = null, staged = null, copy = null, keepFiles = () => [], pubKeys }) {
   if (typeof fetch !== 'function') throw new Error('createUpdater needs fetch');
   let release = null;       // { version, releasedAt, file, notes } from the last good check
   let active = null;        // { version, controller } while downloading
@@ -186,6 +198,31 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
   };
 
   const feed = () => resolveFeed(env);
+
+  // The embedded keys; an error here is kept and raised by check(), not at start-up.
+  let keyList = null, keyError = null;
+  try { keyList = pubKeys !== undefined ? updateSignature.keysFrom({ keys: pubKeys }) : updateSignature.keysFrom(require('./update-pubkeys.json')); }
+  catch (err) { keyError = err; }
+  // The feed must verify before anything in it is believed.
+  async function verifyFeedBytes(f, feedBytes) {
+    if (keyError) throw new UpdateError('signature', 'Vex could not read its update keys, so it will not trust an update: ' + keyError.message);
+    if (!keyList.length) { state.signature = 'off'; return 'off'; }
+    const sigRes = await readBytes(f.latestYmlSig, { maxBytes: 4 * 1024, timeoutMs: 20000 });
+    if (!sigRes.buf) {
+      state.signature = 'failed';
+      throw new UpdateError('signature', sigRes.status === 404
+        ? 'This release is not signed (no latest.yml.sig), so Vex will not install it.'
+        : `The update signature could not be fetched (HTTP ${sigRes.status}), so Vex will not install the update.`);
+    }
+    try { updateSignature.verifyFeed(feedBytes, sigRes.buf, keyList); }
+    catch (err) {
+      state.signature = 'failed';
+      if (err instanceof updateSignature.SignatureError) throw new UpdateError('signature', 'The update feed failed its signature check (' + err.code + '), so Vex will not install it. ' + err.message);
+      throw err;
+    }
+    state.signature = 'verified';
+    return 'verified';
+  }
 
   async function readBytes(url, { maxBytes, timeoutMs, signal }) {
     if (signal && signal.aborted) throw signal.reason;
@@ -224,23 +261,29 @@ function createUpdater({ fetch, fs, dir, currentVersion, env = process.env, spaw
       otherInstall: copy && copy.kind === 'folder' && copy.other ? copy.other : null };
     state.lastCheckAt = now();
     try {
-      const { status, text } = await readText(f.latestYml, { maxBytes: 256 * 1024, timeoutMs: 20000 });
+      const { status, buf: feedBuf } = await readBytes(f.latestYml, { maxBytes: 256 * 1024, timeoutMs: 20000 });
+      const text = feedBuf ? feedBuf.toString('utf8') : null;
       if (text == null) throw new UpdateError('http', status === 404 ? 'The update server has no release information yet (404).' : `The update server answered with an error (HTTP ${status}).`);
+      const signature = await verifyFeedBytes(f, feedBuf);
       const yml = parseLatestYml(text);
       const latest = /^\d+\.\d+\.\d+[0-9A-Za-z.\-+]*$/.test(String(yml.version || '')) ? yml.version : null;
       if (!latest) throw new UpdateError('feed', 'The update server did not say which version is the newest.');
       const releasedAt = Date.parse(String(yml.releaseDate || '')) || null;
       const hasUpdate = cmpVersion(latest, current) > 0;
+      // A feed older than the running Vex (a replayed old release) is never an update, signed or not.
+      const downgrade = cmpVersion(latest, current) < 0;
+      if (downgrade) problem(`the update feed offers ${latest}, which is older than the running ${current}: ignored`);
       let file = null, fileError = null;
       try { file = pickInstaller(yml, { allowScript: f.test }); } catch (err) { fileError = err.message; }
       release = { version: latest, releasedAt, file, fileError, notes: typeof yml.releaseNotes === 'string' ? yml.releaseNotes : '' };
       state.result = hasUpdate ? 'update-available' : 'up-to-date'; state.version = latest; state.error = null;
       step(`checked: running ${current}, newest ${latest}` + (hasUpdate ? ' (an update is available)' : ' (up to date)') + (hasUpdate && cannot ? ' - this copy cannot install it: ' + copy.kind : ''));
-      return { ...base, ok: true, latest, releasedAt, hasUpdate, size: file ? file.size : null, releaseUrl: f.page(latest),
+      return { ...base, ok: true, latest, releasedAt, hasUpdate, signature, ...(downgrade ? { downgrade: true } : {}), size: file ? file.size : null, releaseUrl: f.page(latest),
         downloadUrl: file && !f.test ? f.installer(latest, file.url) : base.downloadUrl };
     } catch (err) {
       const e = err instanceof UpdateError ? err : plainNetworkError(err);
       state.result = 'error'; state.error = e.message;
+      if (e.code === 'signature') state.signature = 'failed';
       problem('the update check failed: ' + e.message);
       return { ...base, ok: false, error: e.message };
     }

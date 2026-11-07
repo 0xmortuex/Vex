@@ -127,6 +127,25 @@ node scripts/verify-signing.js --dir dist-signtest
 ```
 Windows does not trust a self-signed certificate, so the status reads `UnknownError`. `VEX_SIGN_ALLOW_UNTRUSTED=1` accepts that for a test, and `--release` refuses it. Delete the scratch folder and the `.pfx` afterwards.
 
+## Sign the update feed (optional, owner-only, recommended)
+
+Today the updater checks the installer's SHA-512 against `latest.yml`, and both come from the same GitHub release. Whoever controls that release (a stolen account or token) can publish a matching pair and installed copies will run it. The independent defence is an Ed25519 signature made with a key that never touches GitHub.
+
+**Nothing changes until you embed a key.** The app ships with an empty key list (`src/main/update-pubkeys.json`): updates are not signature-checked, exactly as before, and `npm run publish` prints a loud "THE UPDATE FEED IS NOT SIGNED" warning but still works.
+
+1. **Make the key** (once), into a folder OUTSIDE the repo, ideally offline storage:
+   ```
+   node scripts/gen-update-key.js D:ex-keys
+   ```
+   It prints the public key and refuses a folder inside the repo or one that already holds a key. Keep `vex-update-private.pem` offline and backed up; never commit or upload it. If it is lost, no update can be signed any more.
+2. **Embed the public key**: put it in `src/main/update-pubkeys.json` as `{ "keys": ["<44 characters>"] }` and ship that as a normal (still unsigned) release. Copies that run this build verify every later update.
+3. **Sign each release afterwards**: set `$env:VEX_UPDATE_SIGN_KEY = "D:ex-keysex-update-private.pem"` before `npm run publish`. The new step `scripts/sign-update-feed.js` (after the build checks, before the release is created) writes `distlatest.yml.sig`; `upload-release.js` uploads it before `latest.yml`; `post-publish.js` requires it.
+   Once a key is embedded, `sign-update-feed.js` **fails the release** if no private key is given or if it does not match an embedded key: an unsigned release would be refused by every installed copy.
+4. **Rotation**: list the new public key next to the old one (up to 4), ship, sign with the new key, and drop the old key in a later release.
+5. **Do not skip step 2 and sign first**: signing without an embedded key is harmless but protects nobody.
+
+What it does and does not do: the app refuses a feed whose signature does not verify, whose `latest.yml.sig` is missing, or that names an older version than the running one. It does not stop an attacker who can also replace the app itself. A signature cannot say "this is the NEWEST release", so an attacker who replays an old, validly signed feed can only keep people on a version they could already have (never move them backwards, the updater ignores it). Unverified until the first real signed release: see the owner checklist in the Wave 2 report (sign a release, run it against a test copy via `VEX_UPDATE_FEED`).
+
 ## Installing from a release
 
 Download `Vex-Setup.exe` from GitHub Releases (always the latest: `https://github.com/0xmortuex/Vex/releases/latest/download/Vex-Setup.exe`) and run it. Vex updates itself from then on.
