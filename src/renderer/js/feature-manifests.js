@@ -940,6 +940,8 @@
       permissions: { reads: ['the word count of the article and how far the reader page is scrolled'], writes: ['whether it is on and the reading speed you typed'], sends: [] } },
     { id: 'saved-addresses', title: 'Saved addresses', group: 'Saved addresses', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['address-book', 'address-fill'],
       permissions: { reads: ['the addresses you saved; the empty fields of the form in front, only when you press Fill'], writes: ['the encrypted address file on this computer; the form fields, only after you confirm what goes into which site'], sends: [] } },
+    { id: 'downloads-pause-all', title: 'Pause or resume all downloads', group: 'Pause or resume all downloads', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['downloads-pause-all', 'downloads-resume-all'],
+      permissions: { reads: ['which downloads are running or paused, only when you run a command'], writes: ['pauses or resumes the running downloads; never cancels or deletes one'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

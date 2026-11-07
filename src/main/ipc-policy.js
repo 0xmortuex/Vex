@@ -98,6 +98,8 @@ const UI_ONLY_CHANNELS = new Set([
   'addresses:list', 'addresses:get', 'addresses:save', 'addresses:delete',
   // The speed test (main/speed-test.js): one 10 MB download from speed.cloudflare.com, only when the person presses it. Vex's own window only.
   'speedtest:run',
+  // Pause all / resume all downloads (main/downloads.js setAllPaused): Vex's own window only.
+  'downloads:set-all-paused',
   'screen-share:preflight', 'signout:why', 'commit:state',
   // Permission hygiene, what am I signed in to, the kill switch, the incident checklist and the password-field interlock.
   'hygiene:perm-config', 'hygiene:perm-summary', 'hygiene:perm-pin', 'hygiene:perm-decide', 'hygiene:perm-live', 'hygiene:perm-stop',

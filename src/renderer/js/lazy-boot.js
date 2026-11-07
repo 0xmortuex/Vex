@@ -62,6 +62,8 @@ const VexBoot = {
     { src: 'js/reader-time.js', usage: [] },
     // Saved addresses (encrypted, filled only on request): the two Ctrl+K commands register here; the address book is built when it is opened.
     { src: 'js/saved-addresses.js', usage: [] },
+    // Pause all / resume all downloads: the two Ctrl+K commands register here; main does the pausing (downloads.js setAllPaused).
+    { src: 'js/download-pause-all.js', usage: [] },
     // Feature packs: the inbox row's button and the one-time offer; the screen itself is built when it is opened.
     { src: 'js/feature-packs.js', usage: [] },
     // Sign-out warning for sites that log you out: does nothing unless a site has a timeout saved (site panel).

@@ -497,6 +497,8 @@ const VexFeatures = {
       what: 'At each start Vex compares how many sites you are signed in to with the last run. If it fell by more than half, one item in the Attention Inbox says so and points at the newest backup that checks out. It stays quiet on a new profile and after you clear data on purpose.' },
     { id: 'downloads', phrases: 'downloads downloaded files open when done open it when it finishes', cat: 'work', cmd: 'downloads', panel: 'downloads',
       what: 'Downloads you can pause, resume, cancel and retry, with the real byte counts \u2014 and \u201copen when done\u201d on any one of them.' },
+    { id: 'downloads-pause-all', feature: 'downloads-pause-all', newer: true, phrases: 'pause all downloads resume all downloads stop downloading free the connection bandwidth hold downloads', cat: 'work', cmd: 'downloads-pause-all', name: 'Pause or resume all downloads',
+      what: 'Pause every running download with one command and start them again later, for when you need the connection. Use Ctrl+K: Pause All Downloads or Resume All Downloads. There is no speed limit: Chromium cannot limit one download without slowing every page too.' },
     { id: 'sendphone', phrases: 'send to phone my phone', cat: 'work', cmd: 'sendphone',
       what: 'Hands the page you are on to your phone — by QR code, or straight to your other Vex if you have sync on.' },
     { id: 'queue', cat: 'work', cmd: 'queuepodcast', panel: 'queue', phrases: 'read later as a podcast saved articles read aloud playlist advances itself hands free queuepodcast',
@@ -1416,7 +1418,7 @@ const VexFeatures = {
       { name: 'Settling into work', ids: ['focus', 'focusflows', 'meeting', 'device-check', 'speed-test', 'feature-packs', 'jobsetup'] },
       { name: 'Tools, and doing things twice', ids: ['toolbox', 'toolbox-reference', 'toolbox-full', 'toolbox-favourites', 'tool-history', 'automations', 'chains', 'do-again', 'quick-commands', 'dictate'] },
       { name: 'Mail, parcels and money', ids: ['mail', 'triage', 'parcels', 'expenses', 'price-history'] },
-      { name: 'This machine', ids: ['resmon', 'downloads', 'after-downloads', 'checksum-compare', 'backup', 'backup-verify', 'auto-backup'] },
+      { name: 'This machine', ids: ['resmon', 'downloads', 'downloads-pause-all', 'after-downloads', 'checksum-compare', 'backup', 'backup-verify', 'auto-backup'] },
     ],
     media: [
       { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'lyrics', 'streaming-skip', 'sleep-timer', 'sound-policy', 'video-link-time', 'volume', 'site-eq', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },

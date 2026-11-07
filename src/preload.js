@@ -682,6 +682,7 @@ contextBridge.exposeInMainWorld('vex', {
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
+  downloadsSetAllPaused: (paused) => ipcRenderer.invoke('downloads:set-all-paused', paused),
   // When all downloads finish: sleep / shut down (main/after-downloads.js)
   afterDlGet:            () => ipcRenderer.invoke('afterdl:get'),
   afterDlArm:            (action) => ipcRenderer.invoke('afterdl:arm', action),
