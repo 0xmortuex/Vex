@@ -94,6 +94,8 @@ const UI_ONLY_CHANNELS = new Set([
   'startup:list', 'startup:signatures', 'applock:make-record', 'applock:stores', 'applock:reset', 'applock:lock-on-minimize', 'photoprep:open', 'photoprep:save','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
   // Saved payment cards (main/cards.js): the list, the full number for a fill the person pressed, saving, editing, removing. Vex's own window only.
   'cards:list', 'cards:reveal', 'cards:has', 'cards:save', 'cards:update', 'cards:delete',
+  // The speed test (main/speed-test.js): one 10 MB download from speed.cloudflare.com, only when the person presses it. Vex's own window only.
+  'speedtest:run',
   'screen-share:preflight', 'signout:why', 'commit:state',
   // Permission hygiene, what am I signed in to, the kill switch, the incident checklist and the password-field interlock.
   'hygiene:perm-config', 'hygiene:perm-summary', 'hygiene:perm-pin', 'hygiene:perm-decide', 'hygiene:perm-live', 'hygiene:perm-stop',
