@@ -6789,7 +6789,7 @@ const VexI18nUI = {
       'Apply': 'Uygula',
       'Not now': 'Şimdi değil',
       'Turn these back off': 'Bunları yeniden kapat',
-      'Study': 'Ders',
+      'Study': 'Ders çalış',
       'Developer': 'Geliştirici',
       'Model UN: dossier, procedure and speeches.': 'Model BM: dosya, usul ve konuşmalar.',
       'Exams, courses, notes, deadlines and reading for school.': 'Okul için sınavlar, dersler, notlar, son tarihler ve okumalar.',
