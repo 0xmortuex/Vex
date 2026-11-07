@@ -8754,6 +8754,8 @@ const _windowSet = require('./main/window-set').createWindowSet({
 });
 app.on('before-quit', () => _windowSet.beginQuit());
 let _appWindowsRestored = false;
+// Crashes of the main window's renderer, kept across windows made again (the crash-loop guard).
+const _renderRecoveryHistory = [];
 
 function createWindow() {
   // The window set (Settings > Links and windows) decides when it is on; when it is off the
@@ -8796,8 +8798,24 @@ function createWindow() {
   }
   // Stopped answering: written in the crash log with what was open, and a
   // Reload window offered instead of a dead window (src/main/window-hang.js).
+  // The renderer process of the window itself dying (src/main/render-recovery.js):
+  // reload once, then ask instead of looping. Made before the hang guard so a
+  // reload the hang guard asks for is not counted.
+  const _thisWin = mainWindow;
+  const _recovery = require('./main/render-recovery').createRenderRecovery({
+    win: _thisWin, history: _renderRecoveryHistory, exitWatch: _exitWatch, dialog, crashLog: _crashLog,
+    closing: () => { const host = secureSessions.owner(_thisWin.webContents); return !!(host && host.allowClose); },
+    recreate: (dead) => {
+      if (mainWindow !== dead) return;
+      createWindow();
+      _wireMainWindowKeys?.();
+      if (!dead.isDestroyed()) dead.destroy();
+    },
+    restartSafe: () => { app.relaunch({ args: [..._restartArgs().filter(a => a !== '--safe-mode'), '--safe-mode'] }); app.exit(0); },
+    log: (m) => console.error(m),
+  });
   require('./main/window-hang').createWindowHangGuard({
-    win: mainWindow, dialog, crashLog: _crashLog,
+    win: mainWindow, dialog, crashLog: _crashLog, beforeForcedCrash: () => _recovery.expectCrash(),
     openPages: () => webContents.getAllWebContents()
       .filter(wc => !wc.isDestroyed() && wc.getType() === 'webview')
       .map(wc => { const u = wc.getURL(); return /^file:/i.test(u) ? 'a Vex page' : u.replace(/[?#].*$/, '').slice(0, 60); }),
@@ -9442,7 +9460,8 @@ function createWindow() {
 
   // Signal renderer to save session before quit
   mainWindow.on('closed', () => {
-    mainWindow = null;
+    // A window made again after a crash is already the main one.
+    if (mainWindow === _thisWin) mainWindow = null;
     // Never leave the PiP window behind: it is frameless and always-on-top,
     // there would be no Vex UI left to close it from, and it would hold the
     // app open past window-all-closed.

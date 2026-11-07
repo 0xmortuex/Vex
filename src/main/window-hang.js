@@ -12,7 +12,7 @@
 //   * a question offers to reload the window. Tabs and settings are saved as
 //     they change, so a reload comes back with them; Wait leaves it alone.
 // If the window recovers by itself first, the question goes away unanswered.
-function createWindowHangGuard({ win, dialog, crashLog, openPages, log, now = () => Date.now() }) {
+function createWindowHangGuard({ win, dialog, crashLog, openPages, log, now = () => Date.now(), beforeForcedCrash = null }) {
   if (!win || typeof win.on !== 'function') throw new Error('createWindowHangGuard: no window');
   if (!dialog || typeof dialog.showMessageBox !== 'function') throw new Error('createWindowHangGuard: no dialog');
   if (!crashLog || typeof crashLog.add !== 'function') throw new Error('createWindowHangGuard: no crash log');
@@ -58,6 +58,8 @@ function createWindowHangGuard({ win, dialog, crashLog, openPages, log, now = ()
     const wc = win.webContents;
     // A renderer stuck in a loop never gets to run a reload: it is ended
     // first, and the reload starts a fresh one.
+    // render-recovery.js must not count this crash, nor reload twice.
+    if (typeof beforeForcedCrash === 'function') beforeForcedCrash();
     if (typeof wc.forcefullyCrashRenderer === 'function') wc.forcefullyCrashRenderer();
     wc.reload();
   }
