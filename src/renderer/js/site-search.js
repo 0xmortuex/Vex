@@ -119,8 +119,7 @@ const VexSiteSearch = {
     if (this._started) return this;
     this._started = true;
     if (typeof VexExtras !== 'undefined') {
-      VexExtras.registerCommand({
-        id: 'search-this-site', label: 'Search This Site', icon: 'search', isPrimary: true,
+      VexExtras.registerCommand({ id: 'search-this-site', label: 'Search This Site', icon: 'search', isPrimary: true,
         hint: 'Type some words and search only the site in front (as site:host words) with your search engine',
         keywords: 'search this site site search find on this website only within site: sitesinde ara bu sitede ara',
         action: () => { this.run('', true).catch(err => window.showToast?.(err.message, 'error')); },
