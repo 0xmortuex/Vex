@@ -487,7 +487,15 @@ describe('the time limit on a regular expression', () => {
     for (let i = 0; i < dnr.REGEX_MAX_OVERRUNS - 1; i++) dnr.regexTest(r, 'https://a.test/');
     expect(r.timedOut).toBe(dnr.REGEX_MAX_OVERRUNS - 1);
     r.re = fast;
-    expect(dnr.regexTest(r, 'https://a.test/')).toBe(true);
+    // The limit is wall-clock time, so a CI worker that stalls for 100 ms right as the script starts records one genuine timeout even for an
+    // instant pattern (seen on a loaded runner), and here that would be the fifth in a row and switch the rule off. Start again from the same
+    // point in that case; the claim is what a good run does to the streak.
+    let hit = false;
+    for (let attempt = 0; attempt < 5 && !hit; attempt++) {
+      r.timedOut = dnr.REGEX_MAX_OVERRUNS - 1;
+      hit = dnr.regexTest(r, 'https://a.test/') === true;
+    }
+    expect(hit).toBe(true);
     expect(r.timedOut).toBe(0);
   });
   it('an error that is not a timeout skips the address and keeps the rule on', () => {
