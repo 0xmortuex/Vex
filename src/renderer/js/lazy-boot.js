@@ -52,6 +52,8 @@ const VexBoot = {
     { src: 'js/lyrics-card.js', usage: [] },
     // What changed since the last launch: asks main once (after its own 20 s delay) and writes Attention Inbox rows only when something differs.
     { src: 'js/integrity-notes.js', usage: [] },
+    // Proxy and root-certificate changes (opt-in, Windows): only its Settings section and Ctrl+K command; main does the looking, and only when switched on.
+    { src: 'js/network-drift.js', usage: [] },
     // "Check my devices": only read when its Ctrl+K command or the offer in Meeting mode is used.
     { src: 'js/device-check.js', usage: [] },
     // Feature packs: the inbox row's button and the one-time offer; the screen itself is built when it is opened.

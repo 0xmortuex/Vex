@@ -11867,6 +11867,43 @@ ipcMain.handle('themepin:accept', async (event, id, url) => {
   try { return await _themePin.accept(id, url); }
   catch (err) { console.error('[ThemePin] accept failed:', err); return { ok: false, error: err.message }; }
 });
+// Did a proxy or a new root certificate appear since the last time (src/main/network-drift.js, js/network-drift.js)? Off until the owner
+// switches it on. Two read-only Windows commands, by absolute path and an argument list (no shell); only a fingerprint is kept.
+const _netDrift = require('./main/network-drift').createNetworkDrift({
+  file: path.join(userDataPath, 'network-drift.json'), fs,
+  run: (name, args, { timeoutMs }) => {
+    const system32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
+    const exe = { reg: path.join(system32, 'reg.exe'), 'powershell.exe': path.join(system32, 'WindowsPowerShell', 'v1.0', 'powershell.exe') }[name];
+    if (!exe) return Promise.reject(new Error('Not a command this check may run: ' + name));
+    return new Promise((resolve, reject) => {
+      require('child_process').execFile(exe, args, { timeout: timeoutMs, windowsHide: true, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (err, stdout) => (err ? reject(err) : resolve({ stdout })));
+    });
+  },
+  log: console,
+});
+async function _netDriftLook() {
+  const r = await _netDrift.check();
+  for (const note of _netDrift.notesFor(r)) _attentionNotes.post(note);
+  return r;
+}
+app.whenReady().then(() => { setTimeout(() => { if (_netDrift.get().enabled) _netDriftLook().catch(err => console.error('[NetworkDrift] the look failed:', err.message)); }, 90000).unref(); });
+ipcMain.handle('netdrift:get', (event) => {
+  _healthFromMainWindow(event);
+  try { return { ok: true, ..._netDrift.get() }; }
+  catch (err) { console.error('[NetworkDrift] could not read the setting:', err); return { ok: false, error: err.message }; }
+});
+ipcMain.handle('netdrift:set', (event, on) => {
+  _healthFromMainWindow(event);
+  try { return { ok: true, ..._netDrift.setEnabled(on) }; }
+  catch (err) { console.error('[NetworkDrift] could not change the setting:', err); return { ok: false, error: err.message }; }
+});
+ipcMain.handle('netdrift:check', async (event) => {
+  _healthFromMainWindow(event);
+  try {
+    const r = await _netDriftLook();
+    return { ok: true, baseline: r.baseline, proxy: r.proxy.status, added: r.certs.added.length, count: r.certs.count };
+  } catch (err) { console.error('[NetworkDrift] the look failed:', err); return { ok: false, error: err.message }; }
+});
 ipcMain.handle('health:scan', (event) => {
   _healthFromMainWindow(event);
   try { return { ok: true, ..._health.scan() }; }

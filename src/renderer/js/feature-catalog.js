@@ -277,6 +277,8 @@ const VexFeatures = {
       what: 'Load none of one site’s pictures, to save data on a slow or metered connection. Per site, undone from the same panel.' },
     { id: 'captive-portal', phrases: 'wifi wi-fi sign in login captive portal hotel airport cafe school network page will not load network login', cat: 'privacy', cmd: 'captive', name: 'Wi-Fi sign-in check',
       what: 'On a café, school or airport network, one press asks a plain page whether the network is holding you at a sign-in, then opens that sign-in page (HTTPS-only leaves its addresses alone until Vex closes) and can pause strict secure DNS for ten minutes. Nothing is asked until you press it; it is also offered on the page that did not load.' },
+    { id: 'network-drift', phrases: 'proxy pac proxy setup script root certificate trusted certificates trust store man in the middle someone listening school work antivirus vpn snoop network traffic added certificate', cat: 'privacy', cmd: 'network-drift', name: 'Proxy and certificate changes',
+      what: 'Off until you switch it on in Settings. A minute and a half after Vex starts it looks at the Windows proxy setting and at the root certificates your Windows account trusts, and tells you in the Attention Inbox when a proxy appeared or changed or a new root certificate was added since the last look. It changes nothing.' },
     { id: 'device-check', phrases: 'check my devices test camera microphone speakers headphones before a call meeting zoom teams mic test webcam test sound test', cat: 'work', cmd: 'device-check', name: 'Check my devices',
       what: 'Before a call: a live picture from your camera, a level meter for your microphone, a soft test tone on the speakers you pick, and the speed of your connection, each marked as looking good or needing a look. Nothing is recorded or sent.' },
     { id: 'feature-packs', feature: 'feature-packs', newer: true, phrases: 'packs turn on features waiting switched off staged offers mun study gaming developer apply undo choose features', cat: 'work', cmd: 'feature-packs', name: 'Feature packs',
@@ -1389,7 +1391,7 @@ const VexFeatures = {
     ],
     privacy: [
       { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint', 'gpc', 'referrer-trim', 'link-unwrap'] },
-      { name: 'The connection itself', ids: ['doh', 'https-only', 'captive-portal', 'tor', 'routing', 'routing-all', 'site-routes', 'dpi'] },
+      { name: 'The connection itself', ids: ['doh', 'https-only', 'captive-portal', 'network-drift', 'tor', 'routing', 'routing-all', 'site-routes', 'dpi'] },
       { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window'] },
           { name: 'One site at a time', ids: ['permissions', 'serial-usb', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'lite-mode', 'session-timeout', 'forget-site', 'sitebroken', 'siteidentity', 'open-in-browser'] },
       { name: 'Your passwords', ids: ['pwhealth', 'secrets-lifeboat', 'mass-signout'] },
