@@ -99,6 +99,8 @@ const PageActions = {
     return `(async function(){
   var steps = ${data};
   var flags = ${flags};
+  // 'auto' when Windows or Vex asks for less motion (VexMotion.scroll): an explicit 'smooth' ignores both.
+  var scrollBehavior = ${JSON.stringify(VexMotion.scroll())};
   var out = [];
   var norm = function(s){ return String(s||'').replace(/\\s+/g,' ').trim().toLowerCase(); };
   var visible = function(el){ var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
@@ -140,15 +142,15 @@ const PageActions = {
         out.push(label + (probeEl ? ': ok (would ' + s.op + ' ' + (s.by === 'text' ? '"' + s.value + '"' : s.value) + ', found <' + probeEl.tagName.toLowerCase() + '>)' : ': not found'));
         continue;
       }
-      if (s.op === 'scroll' && s.by === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); out.push(label + ': ok'); continue; }
-      if (s.op === 'scroll' && s.by === 'bottom') { window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }); out.push(label + ': ok'); continue; }
+      if (s.op === 'scroll' && s.by === 'top') { window.scrollTo({ top: 0, behavior: scrollBehavior }); out.push(label + ': ok'); continue; }
+      if (s.op === 'scroll' && s.by === 'bottom') { window.scrollTo({ top: document.documentElement.scrollHeight, behavior: scrollBehavior }); out.push(label + ': ok'); continue; }
       var el = null;
       if (s.op === 'click') el = find(s, 'a,button,[role=button],input[type=button],input[type=submit],summary,label');
       else if (s.op === 'scroll') el = find(s, 'h1,h2,h3,h4,h5,h6,section,article,[id],[role=heading]');
       else el = s.by === 'selector' ? document.querySelector(s.value) : null;
       if (!el) { out.push(label + ': not found'); continue; }
       if (s.op === 'click') { el.click(); }
-      else if (s.op === 'scroll') { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      else if (s.op === 'scroll') { el.scrollIntoView({ behavior: scrollBehavior, block: 'start' }); }
       else if (s.op === 'hide') { document.querySelectorAll(s.value).forEach(function(x){ x.style.setProperty('display', 'none', 'important'); }); }
       else if (s.op === 'type') { el.focus(); el.value = s.text; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
       out.push(label + ': ok');

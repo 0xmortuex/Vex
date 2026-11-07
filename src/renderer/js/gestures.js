@@ -41,8 +41,8 @@ const MouseGestures = {
   ACTIONS: {
     'back':          { label: 'Back',                 run: (wv) => { if (wv.canGoBack()) wv.goBack(); } },
     'forward':       { label: 'Forward',              run: (wv) => { if (wv.canGoForward()) wv.goForward(); } },
-    'top':           { label: 'Scroll to top',        run: (wv) => { wv.executeJavaScript('window.scrollTo({top:0,behavior:"smooth"})'); } },
-    'bottom':        { label: 'Scroll to bottom',     run: (wv) => { wv.executeJavaScript('window.scrollTo({top:document.documentElement.scrollHeight,behavior:"smooth"})'); } },
+    'top':           { label: 'Scroll to top',        run: (wv) => { wv.executeJavaScript('window.scrollTo({top:0,behavior:' + JSON.stringify(VexMotion.scroll()) + '})'); } },
+    'bottom':        { label: 'Scroll to bottom',     run: (wv) => { wv.executeJavaScript('window.scrollTo({top:document.documentElement.scrollHeight,behavior:' + JSON.stringify(VexMotion.scroll()) + '})'); } },
     'reload':        { label: 'Reload',               run: (wv) => { wv.reload(); } },
     'close-tab':     { label: 'Close tab',            run: (wv, t) => { if (t) TabManager.requestClose(t.id); } },
     // TabManager's method is reopenLastClosed; the old reopenClosedTab?.()

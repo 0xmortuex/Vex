@@ -604,7 +604,7 @@ const SettingsUI = {
       target = el.closest('.setting-toggle-row, .setting-row') || el;
       for (let d = el.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
     }
-    target.scrollIntoView({ behavior: 'smooth', block: el ? 'center' : 'start' });
+    target.scrollIntoView({ behavior: VexMotion.scroll(), block: el ? 'center' : 'start' });
     // The highlight is only seen: the keyboard goes to the setting that was found, so a screen reader reads it.
     const CONTROL = 'input:not([type="hidden"]), select, textarea, button:not(.set-info-btn):not(.set-more-btn)';
     const go = el && el.isConnected && el.matches && el.matches(CONTROL) ? el : target.querySelector(CONTROL);
@@ -830,7 +830,7 @@ const SettingsUI = {
           sub.style.setProperty('--chip-color', cat.color);
           sub.innerHTML = this._svg(cat.icon, 12) + '<span>' + (cat.short || cat.name) + '</span>';
           sub.dataset.tier = tier;
-          sub.addEventListener('click', () => { SettingsUI._wanted = { key: g.dataset.navKey, until: Date.now() + 3000 }; g.scrollIntoView({ behavior: 'smooth', block: 'start' }); SettingsUI._countChip(g.dataset.navKey, cat.short || cat.name); });
+          sub.addEventListener('click', () => { SettingsUI._wanted = { key: g.dataset.navKey, until: Date.now() + 3000 }; g.scrollIntoView({ behavior: VexMotion.scroll(), block: 'start' }); SettingsUI._countChip(g.dataset.navKey, cat.short || cat.name); });
           grp.row.appendChild(sub);
         }
       }
@@ -855,7 +855,7 @@ const SettingsUI = {
           if (panel.dataset.pane) { SettingsUI._pickCategory(root, key); SettingsUI._countChip(key, look.name); return; }
           SettingsUI._wanted = { key, until: Date.now() + 3000 };
           const shown = target.getClientRects().length ? target : Array.from(root.children).find(el => el.dataset && el.dataset.navKey === key && !el.classList.contains('set-nav-chip') && el.getClientRects().length);
-          (shown || target).scrollIntoView({ behavior: 'smooth', block: 'start' });
+          (shown || target).scrollIntoView({ behavior: VexMotion.scroll(), block: 'start' });
           SettingsUI._countChip(key, look.name);
         });
         nav.appendChild(navChip);

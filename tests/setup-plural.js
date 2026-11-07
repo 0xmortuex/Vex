@@ -3,3 +3,5 @@
 globalThis.VexPlural = require('../src/renderer/js/vex-plural.js').VexPlural;
 // The Turkish-correct search fold (js/vex-tr.js) is a global too: search boxes fold with VexTr.fold so "istanbul" finds "İstanbul".
 globalThis.VexTr = require('../src/renderer/js/vex-tr.js').VexTr;
+// The one reduced-motion answer (it lives in js/vex-plural.js): script that scrolls or animates asks VexMotion.
+globalThis.VexMotion = require('../src/renderer/js/vex-plural.js').VexMotion;

@@ -52,5 +52,48 @@ const VexPlural = {
   },
 };
 
-if (typeof window !== 'undefined') window.VexPlural = VexPlural;
-if (typeof module !== 'undefined' && module.exports) module.exports = { VexPlural };
+
+// === One answer to "should this move?" (VexMotion) ==========================
+//
+// (Lives in this small shared-helper file because the start-up script count is capped and a new tag is refused; it reads the Reduce
+// motion setting's data-reduce-motion attribute, js/appearance-prefs.js.)
+//
+// CSS stills transitions and animations by itself (css/a11y.css, under Windows' "Animation effects" and under Reduce motion in Vex),
+// but script does not follow: a Web Animations call, a requestAnimationFrame tween and above all scrollTo / scrollIntoView with
+// behavior: 'smooth' ignore both (measured in real Chromium with prefers-reduced-motion: reduce emulated and
+// scroll-behavior: auto !important: a smooth scroll still ran 128 frames). Script that moves things asks here.
+//   VexMotion.reduced()         true when Windows asks for less motion, or Vex's Reduce motion is on, or Game mode is holding
+//                               the interface still (both of those set data-reduce-motion on <html>)
+//   VexMotion.scroll()          'auto' when reduced, else 'smooth': the value for scrollTo / scrollBy / scrollIntoView behavior
+//   VexMotion.onChange(fn)      fn(reduced) whenever the answer changes (Windows' setting or Vex's); returns the unsubscribe
+const VexMotion = {
+  QUERY: '(prefers-reduced-motion: reduce)',
+
+  reduced() {
+    if (typeof document !== 'undefined' && document.documentElement && document.documentElement.hasAttribute('data-reduce-motion')) return true;
+    return typeof matchMedia === 'function' && matchMedia(this.QUERY).matches;
+  },
+
+  scroll() { return this.reduced() ? 'auto' : 'smooth'; },
+
+  onChange(fn) {
+    if (typeof fn !== 'function') throw new Error('VexMotion.onChange needs a function');
+    let last = this.reduced();
+    const check = () => { const now = this.reduced(); if (now !== last) { last = now; fn(now); } };
+    const offs = [];
+    if (typeof matchMedia === 'function') {
+      const mq = matchMedia(this.QUERY);
+      mq.addEventListener('change', check);
+      offs.push(() => mq.removeEventListener('change', check));
+    }
+    if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
+      const mo = new MutationObserver(check);
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-reduce-motion'] });
+      offs.push(() => mo.disconnect());
+    }
+    return () => offs.forEach(off => off());
+  },
+};
+
+if (typeof window !== 'undefined') { window.VexPlural = VexPlural; window.VexMotion = VexMotion; }
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexPlural, VexMotion };
