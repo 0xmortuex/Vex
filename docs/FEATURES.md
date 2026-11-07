@@ -922,6 +922,9 @@ Video, audio, screen sharing, streaming services.
 - **Volume kept per site** (`site-audio-memory`): Keeps a volume level per site and reminds you when a loud one is left on; also keeps the speed, captions and place in a long video, and can even out the loudness of a site. On an existing profile it starts off; turn it on in Settings > Volume.
   - Open: Ctrl+K: "Even out loudness on this site (toggle)", "Forget speed, captions and place for this site"; Settings > Volume: kept per site.
   - Default: New: starts off on an existing profile until you switch it on.
+- **Lyrics for what is playing** (`lyrics`): Shows the lyrics of the song that is playing in Spotify, YouTube Music or a tab, highlighting the line being sung. Looked up on lrclib.net with the artist, title, album and length only. Off until you turn it on.
+  - Open: Ctrl+K: "Show Lyrics for What Is Playing"; Settings > Games and media.
+  - Default: New: starts off on an existing profile until you switch it on.
 - **Game audio scenes** (`game-scenes`): Lowers or sets Vex’s own volume while a named game runs, and puts it back afterwards. On an existing profile it starts off; turn it on in Settings > Game audio scenes.
   - Open: Settings > Game audio scenes.
   - Default: New: starts off on an existing profile until you switch it on.
@@ -968,8 +971,6 @@ Video, audio, screen sharing, streaming services.
   - Open: Ctrl+K: "My Clips".
 - **Who is live** (`live`): The Twitch and YouTube channels you follow, and which are streaming right now — read from their own public pages, with no account. Vex says something once when one goes live.
   - Open: Ctrl+K: "Who Is Live".
-- **Lyrics for what is playing** (`lyrics`): Shows the lyrics of the song that is playing in Spotify, YouTube Music or a tab, highlighting the line being sung. Looked up on lrclib.net with the artist, title, album and length only. Off until you turn it on.
-  - Open: Ctrl+K: "Show Lyrics for What Is Playing".
 - **Skip intro and next episode** (`streaming-skip`): On Netflix, Prime Video and Disney+, presses the Skip Intro, Skip Recap, Next Episode and Continue Watching buttons for you. Off for every site until you turn that site on.
   - Open: Ctrl+K: "Skip Intro and Next Episode on Streaming Sites".
 - **Gets out of a game’s way** (`gaming`): When a full-screen game starts, Vex frees the graphics card, sleeps background tabs and holds background AI — and tells you what it did when you come back. Settings › Privacy Hardening › Gaming and streaming.
