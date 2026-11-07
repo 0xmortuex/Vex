@@ -2336,6 +2336,8 @@ const WebviewManager = {
       });
       // A file and line in a stack trace: open it in the editor (js/dev-desk.js; off by default).
       if (typeof DevDesk !== 'undefined') textItems.push(...DevDesk.selectionItems(e.params.selectionText));
+      // "Remember this in Recall" (js/recall-extras.js; off until switched on, never on a private tab or a bank page).
+      if (typeof VexRecallExtras !== 'undefined') textItems.push(...VexRecallExtras.selectionItems(e.params.selectionText, webview));
       // A selected asset or place id on a Roblox or DevForum page (js/dev-shortcuts.js; public data, asked only on click).
       if (typeof RobloxResolver !== 'undefined') textItems.push(...RobloxResolver.selectionItems(e.params.selectionText, webview.getURL ? webview.getURL() : ''));
       // Editable contexts already got a Copy row in editItems above.

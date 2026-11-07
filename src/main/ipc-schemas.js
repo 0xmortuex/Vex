@@ -641,6 +641,10 @@ define('recall:versions-kept', [web]);
 define('recall:versions-save recall:versions-save-kept', [web, optional(string(300)), string(300000)]);
 define('recall:versions-text', [keptId, finiteNumber]);
 define('recall:versions-diff', [keptId, finiteNumber, finiteNumber]);
+// Extra things remembered in Recall (src/main/evodata-extras-ipc.js).
+define('recall:extra-list recall:extra-clear', []);
+define('recall:extra-remove', [keptId]);
+define('recall:extra-add', [shape({ kind: oneOf(['clip', 'file', 'reminder', 'note']), text: string(4000), title: optional(string(300)), url: optional(string(1000)) })]);
 // Recall by meaning (src/main/recall-vectors.js): the embedding model and the
 // local Ollama address, the hosts Recall is told to stay out of, and how many
 // pages one step may read.

@@ -420,6 +420,11 @@ contextBridge.exposeInMainWorld('vex', {
   versionsDiff: (id, a, b) => ipcRenderer.invoke('recall:versions-diff', id, a, b),
   versionsForget: (id) => ipcRenderer.invoke('recall:versions-forget', id),
   versionsClear: () => ipcRenderer.invoke('recall:versions-clear'),
+  // Extra things remembered in Recall (src/main/evodata-extras-ipc.js).
+  extraAdd: (input) => ipcRenderer.invoke('recall:extra-add', input),
+  extraList: () => ipcRenderer.invoke('recall:extra-list'),
+  extraRemove: (id) => ipcRenderer.invoke('recall:extra-remove', id),
+  extraClear: () => ipcRenderer.invoke('recall:extra-clear'),
   // Knowledge base: what you keep, searchable on this PC (src/main/knowledge-ipc.js).
   kbPlan: (entries, covers) => ipcRenderer.invoke('kb:plan', entries, covers),
   kbPut: (items, args) => ipcRenderer.invoke('kb:put', items, args),

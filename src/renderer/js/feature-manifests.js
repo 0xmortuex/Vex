@@ -938,6 +938,9 @@
     // ---- Wave 5: text versions of a page (js/page-versions.js) ----
     { id: 'page-versions', title: 'Page text versions', maturity: 'new', storageKeys: ['vex.pageVersions.enabled'], commands: ['page-versions-keep', 'page-versions-save', 'page-versions-open'],
       permissions: { reads: ['the readable text of a page you marked, only when you save a version or a page watch on it sees a change; never from a private, Tor or routed tab and never from a bank, payment, sign-in, mail or health page'], writes: ['the text versions, as their own files in the profile folder (at most 100 pages, 20 versions each, 200 KB of text per version)'], sends: [] } },
+    // ---- Wave 5: things added to Recall by hand (js/recall-extras.js) ----
+    { id: 'recall-extras', title: 'Remembered in Recall', maturity: 'new', storageKeys: ['vex.recallExtras.enabled'], commands: ['recall-remember-selection', 'recall-remember-note', 'recall-remember-reminder', 'recall-remember-download', 'recall-extras-open'],
+      permissions: { reads: ['the text you selected on a page, the name of a download you pick, or the words you type; never from a private, Tor or routed tab and never from a bank, payment, sign-in, mail or health page'], writes: ['a small file in the profile folder with the things you added (at most 500, 400 KB in all); the page index in recall.json is not touched'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

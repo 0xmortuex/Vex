@@ -155,6 +155,8 @@ const UI_ONLY_CHANNELS = new Set([
   // Text versions of kept pages (main/evodata-versions-ipc.js): the same.
   'recall:versions-list', 'recall:versions-keep', 'recall:versions-kept', 'recall:versions-save', 'recall:versions-save-kept', 'recall:versions-of', 'recall:versions-text',
   'recall:versions-diff', 'recall:versions-forget', 'recall:versions-clear',
+  // Extra things remembered in Recall (main/evodata-extras-ipc.js): the same.
+  'recall:extra-add', 'recall:extra-list', 'recall:extra-remove', 'recall:extra-clear',
   // "Site down, or my bypass?" (main/bypass-probe.js): requests an address from this computer.
   'bypass:probe',
   // The Unblock centre (main/unblock-main.js): requests a site from this computer, may start the ByeDPI helper, keeps its list.

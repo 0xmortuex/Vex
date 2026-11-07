@@ -376,7 +376,8 @@ const Recall = {
     const statEl = container.querySelector('#recall-stat');
     const out = container.querySelector('#recall-results');
 
-    const state = { hits: [], total: 0, offset: 0, cursor: -1, query: '', busy: false };
+    // extras: how many of the first rows are things the person added by hand (js/recall-extras.js), not pages.
+    const state = { hits: [], total: 0, offset: 0, extras: 0, cursor: -1, query: '', busy: false };
     let timer = null;
 
     const refreshStats = async () => {
@@ -406,7 +407,7 @@ const Recall = {
       const range = this.WHEN_RANGES.find(r => r.id === whenSel.value) || this.WHEN_RANGES[0];
       return {
         limit: this.PAGE_SIZE,
-        offset: state.offset,
+        offset: Math.max(0, state.offset - state.extras),
         sort: sortSel.value,
         since: range.ms ? Date.now() - range.ms : 0,
         site: siteSel.value || undefined,
@@ -428,7 +429,33 @@ const Recall = {
       TabManager.createTab(url, !background);
     };
 
+    // A thing the person added by hand (js/recall-extras.js): a clip, a downloaded file's name, a reminder, a note. It carries
+    // its type as a label and has no favicon; it can be copied and forgotten.
+    const extraRow = (h) => {
+      const row = document.createElement('div');
+      row.className = 'recall-hit';
+      row.setAttribute('role', 'option');
+      row.dataset.url = h.url || '';
+      row.dataset.extra = h.extraId;
+      row.dataset.text = h.text;
+      row.innerHTML = `
+        <div class="recall-hit-top">
+          <span class="recall-hit-title">${esc(h.title)}</span>
+          <span class="recall-hit-when" title="${esc(h.at ? new Date(h.at).toLocaleString() : '')}">${esc(this.relativeTime(h.at))}</span>
+        </div>
+        <div class="recall-hit-snippet">${this.snippetHtml(h.snippet)}</div>
+        <div class="recall-hit-foot">
+          <span class="recall-hit-visits">${esc(window.vexTr ? window.vexTr(h.label) : h.label)}</span>
+          <span class="recall-hit-acts">
+            <button type="button" class="recall-icon-btn" data-act="copy" title="Copy the text" aria-label="Copy the text">${I.copy}</button>
+            <button type="button" class="recall-icon-btn" data-act="forget" title="Forget this" aria-label="Forget this">${I.forget}</button>
+          </span>
+        </div>`;
+      return row;
+    };
+
     const rowFor = (h) => {
+      if (h.extraId) return extraRow(h);
       const row = document.createElement('div');
       row.className = 'recall-hit';
       row.setAttribute('role', 'option');
@@ -465,9 +492,15 @@ const Recall = {
       e.stopPropagation();
       const act = btn.dataset.act;
       if (act === 'copy') {
-        try { await navigator.clipboard.writeText(row.dataset.url); window.showToast?.('Link copied'); } catch {}
+        try { await navigator.clipboard.writeText(row.dataset.extra ? row.dataset.text : row.dataset.url); window.showToast?.(row.dataset.extra ? 'Copied' : 'Link copied'); } catch {}
       } else if (act === 'forget') {
-        try { await window.vex?.recallForget?.({ url: row.dataset.url }); } catch {}
+        if (row.dataset.extra) {
+          // Something added by hand lives in its own small file, not in the page index.
+          try { await window.VexRecallExtras.forget(row.dataset.extra); } catch (err) { window.showToast?.(err.message, 'error'); return; }
+          state.extras = Math.max(0, state.extras - 1);
+        } else {
+          try { await window.vex?.recallForget?.({ url: row.dataset.url }); } catch {}
+        }
         row.remove();
         state.total = Math.max(0, state.total - 1);
         window.showToast?.('Forgotten');
@@ -532,8 +565,17 @@ const Recall = {
       // A slower earlier keystroke must never overwrite a newer result.
       if (seq !== this._seq || !container.isConnected) return;
       if (res.private) { out.innerHTML = '<div class="recall-idle">Recall is unavailable in private windows.</div>'; return; }
-      state.total = res.total;
-      state.hits = append ? state.hits.concat(res.hits) : res.hits;
+      // What the person added by hand (js/recall-extras.js; off until switched on) comes first, on the first page of a plain
+      // word search. It is searched in its own small file and merged here: recall.json is not touched.
+      let extra = [];
+      if (!append && !smart && !byMeaning && !siteSel.value && typeof this.extraHits === 'function') {
+        try { extra = await this.extraHits(q, options()); }
+        catch (err) { window.VexProblems?.note('Recall', 'Could not search what you added by hand', err); }
+        if (seq !== this._seq || !container.isConnected) return;
+      }
+      if (!append) state.extras = extra.length;
+      state.total = res.total + state.extras;
+      state.hits = append ? state.hits.concat(res.hits) : extra.concat(res.hits);
       if (!state.hits.length) {
         out.innerHTML = window.VexUI
           ? VexUI.emptyState('search', 'No pages matched ' + (q ? '“' + q + '”' : 'those filters'),
