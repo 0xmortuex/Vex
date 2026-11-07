@@ -10663,7 +10663,6 @@ const VexI18nUI = {
       'Open a video first: this Vimeo page is not one video': 'Önce bir video açın: bu Vimeo sayfası tek bir video değil',
       'This page uses the part of its address after # for its own navigation, so a time cannot be added to it': 'Bu sayfa adresinin # sonrasını kendi gezinmesi için kullanıyor, bu yüzden ona zaman eklenemez',
       'Could not read the time of the video': 'Videonun zamanı okunamadı',
-      'There is no page open': 'Açık bir sayfa yok',
       'There is no video on this page': 'Bu sayfada video yok',
       'The video is inside another site\'s frame, which has no address Vex can link to at a time': 'Video başka bir sitenin çerçevesinde; bu çerçevenin Vex’in zamanla bağlantı verebileceği bir adresi yok',
       // Bass, treble, mono and balance per site (js/site-eq.js)

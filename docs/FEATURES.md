@@ -965,10 +965,12 @@ Video, audio, screen sharing, streaming services.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Stop playing after a while** (`sleep-timer`): Stops everything that is playing after 15, 30, 60 or 90 minutes, or when the video ends, fading the sound out over the last 15 seconds. Ctrl+K, "Sleep Timer". It starts only when you start it.
   - Open: Settings > Sleep timer.
+  - Default: always on, no switch.
 - **One sound at a time** (`sound-policy`): When a tab starts playing, pauses the other playing tabs (with an Undo), and during a call (the microphone in use) pauses everything else and plays it again when the call ends. Both rules are off until you switch them on; Ctrl+K, "Why Did That Stop Playing?" says why something stopped.
   - Open: Ctrl+K: "One Sound at a Time", "Why Did That Stop Playing?"; Settings > One sound at a time.
 - **Bass, treble, mono and balance** (`site-eq`): Bass and treble sliders, a mono switch and a left/right balance in the volume box, kept for each site. Works on players Vex can reach (not protected video or a site that refuses) and says so when it cannot. Nothing changes until you move a slider.
   - Open: Ctrl+K: "Bass, Treble and Balance for This Site"; Settings > Bass, treble, mono and balance.
+  - Default: always on, no switch.
 - **Video and sound player** (`media-viewer`): Plays a video or a sound opened as a document (a link to one, a file, a dropped file) in a player of Vex's own, in the colours of your theme: a seek bar with a preview, speed from 0.25 to 4, a loop for a section, frame stepping, a picture of the frame, picture in picture, subtitles (.srt, .vtt, .ass) with size, colour and delay, chapters, the media keys and a night mode. A sound gets its cover, a spectrum and a queue of the folder; the place in each file is kept. On by default; Ctrl+K: Video and sound player opens its settings.
   - Open: Ctrl+K: "Video and sound player"; Settings > Video and sound player.
 - **Patch digest** (`patch-digest`): Keeps only the sentences in new patch notes that name a hero, item or word on your watch list, quoted word for word, up to five per patch. Open it with Ctrl+K: Patch digest. On an existing profile it starts off; turn it on in Settings > Games and media.

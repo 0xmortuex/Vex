@@ -704,11 +704,11 @@
       commands: ['cited-pages'], permissions: { reads: ['the text of a page you cited, to fingerprint it, and again when you open it later'], writes: ['a list of hashes of its longer lines (no text), and a copy in the archive library only when you press Keep a copy'], sends: [] } },
     { id: 'media-control', title: 'Media control', group: 'Media control', maturity: 'new', storageKeys: ['vex.mediaControl.prefs'],
       commands: ['media-control', 'media-only-this-tab'], permissions: { reads: ['which tabs and panels are making sound and the title a player publishes, when you open the list'], writes: ['mutes and pauses players when you press the buttons'], sends: [] } },
-    { id: 'sleep-timer', title: 'Sleep timer', group: 'Sleep timer', storageKeys: ['vex.sleepTimer.prefs'],
+    { id: 'sleep-timer', killSwitch: 'none', title: 'Sleep timer', group: 'Sleep timer', storageKeys: ['vex.sleepTimer.prefs'],
       commands: ['sleep-timer'], permissions: { reads: ['which tabs and panels have a player'], writes: ['pauses players, turns their sound down for the last 15 seconds, and optionally mutes the tabs, when the time is up'], sends: [] } },
-    { id: 'sound-policy', title: 'One sound at a time', group: 'One sound at a time', storageKeys: ['vex.soundPolicy.prefs'],
+    { id: 'sound-policy', title: 'One sound at a time', group: 'One sound at a time', storageKeys: ['vex.soundPolicy.prefs', 'vex.soundPolicy.prior'],
       commands: ['sound-policy', 'sound-why'], permissions: { reads: ['which tabs and panels are playing or using the microphone'], writes: ['pauses and resumes other players when one starts or a call begins'], sends: [] } },
-    { id: 'site-eq', title: 'Bass, treble, mono and balance', group: 'Bass, treble, mono and balance', storageKeys: ['vex.siteEq'],
+    { id: 'site-eq', killSwitch: 'none', title: 'Bass, treble, mono and balance', group: 'Bass, treble, mono and balance', storageKeys: ['vex.siteEq'],
       commands: ['site-eq'], permissions: { reads: ['the address of the page in front'], writes: ['bass, treble, mono and balance kept per site'], sends: [] } },
     // Vex's own video and sound player (src/renderer/media-viewer, main/media-viewer.js, js/media-viewer-host.js). It replaces the player a tab
     // had, so it is on for everyone, an existing profile included; the place it remembers per file lives in the player's own page, not in a vex.* key.

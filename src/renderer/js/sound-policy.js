@@ -64,6 +64,25 @@ const VexSoundPolicy = {
     return p;
   },
   enabled() { const p = this.prefs(); return p.oneAtATime || p.pauseOnCalls; },
+  // The usage switch. Off remembers which of the two rules were on and On puts exactly those back.
+  PRIOR: 'vex.soundPolicy.prior',
+  setEnabled(on) {
+    const p = this.prefs();
+    if (!on) {
+      if (!p.oneAtATime && !p.pauseOnCalls) return false;
+      try { localStorage.setItem(this.PRIOR, JSON.stringify({ oneAtATime: p.oneAtATime, pauseOnCalls: p.pauseOnCalls })); }
+      catch (err) { throw new Error('Could not save that setting: ' + err.message, { cause: err }); }
+      this.setPref('oneAtATime', false); this.setPref('pauseOnCalls', false);
+      return false;
+    }
+    if (p.oneAtATime || p.pauseOnCalls) return true;
+    let prior = null;
+    try { prior = JSON.parse(localStorage.getItem(this.PRIOR) || 'null'); }
+    catch (err) { console.error('[SoundPolicy] the saved rules could not be read, so both come back on:', err.message); }
+    const had = prior && (prior.oneAtATime === true || prior.pauseOnCalls === true) ? prior : { oneAtATime: true, pauseOnCalls: true };
+    this.setPref('oneAtATime', had.oneAtATime === true); this.setPref('pauseOnCalls', had.pauseOnCalls === true);
+    return true;
+  },
 
   // ---- pure ------------------------------------------------------------------------------
   hostOf(url) { try { return new URL(String(url)).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; } },

@@ -180,6 +180,8 @@ const VexUsageRegistry = {
       ChatLinkHygiene: () => (typeof ChatLinkHygiene !== 'undefined' ? ChatLinkHygiene : null),
       SafeWebExtras: () => (typeof SafeWebExtras !== 'undefined' ? SafeWebExtras : null),
       VexSnippets: () => (typeof VexSnippets !== 'undefined' ? VexSnippets : null),
+      VexLyrics: () => (typeof VexLyrics !== 'undefined' ? VexLyrics : null),
+      VexSoundPolicy: () => (typeof VexSoundPolicy !== 'undefined' ? VexSoundPolicy : null),
       VexLinkBar: () => (typeof VexLinkBar !== 'undefined' ? VexLinkBar : null),
       VexLoadBar: () => (typeof VexLoadBar !== 'undefined' ? VexLoadBar : null),
       VexPageScrollbars: () => (typeof VexPageScrollbars !== 'undefined' ? VexPageScrollbars : null),
@@ -471,6 +473,8 @@ const VexUsageRegistry = {
       ['link-triage', A.api(G.LinkTriage, 'enabled', 'setEnabled')],
       // Wave 2 capture tools
       ['text-snippets', A.api(G.VexSnippets, 'enabled', 'setEnabled')],
+      ['lyrics', A.api(G.VexLyrics, 'enabled', 'setEnabled')],
+      ['sound-policy', A.api(G.VexSoundPolicy, 'enabled', 'setEnabled')],
       ['table-extract', A.api(G.TableExtract, 'enabled', 'setEnabled')],
       ['video-tools', A.api(G.VideoTools, 'enabled', 'setEnabled')],
       ['newsletter-lane', A.api(G.NewsletterLane, 'enabled', 'setEnabled')],
