@@ -3967,7 +3967,9 @@ ipcMain.handle('siteforget:run', async (_e, opts) => {
     const { url, partition, exceptPageId } = opts || {};
     if (typeof url !== 'string' || url.length > 4096) throw new Error('That is not a web address');
     if (typeof partition !== 'string') throw new Error('The session of the tab is missing');
-    return await _siteForget.afterTabClosed({ url, partition, exceptPageId: Number.isInteger(exceptPageId) ? exceptPageId : null });
+    const forgot = await _siteForget.afterTabClosed({ url, partition, exceptPageId: Number.isInteger(exceptPageId) ? exceptPageId : null });
+    if (forgot && forgot.cleared) _massSignoutDeliberate('forget-site');   // the person's own rule removed a sign-in
+    return forgot;
   } catch (err) { return { ok: false, error: err.message }; }
 });
 let _forgetQuitDone = false;
@@ -3975,6 +3977,7 @@ app.on('will-quit', (event) => {
   if (_forgetQuitDone) return;
   _forgetQuitDone = true;
   event.preventDefault();
+  if (Object.values(_siteRules).some(r => r && r.forget === true)) _massSignoutDeliberate('forget-site-quit');
   _siteForget.onQuit()
     .catch(err => console.error('[SiteForget] could not forget the sites on quit:', err && err.message))
     .finally(() => app.quit());
@@ -8661,6 +8664,7 @@ require('./main/secure-stores').registerAppLock({
   // Same approach as browsing:clear-data (cookies, localStorage, IndexedDB, cache of
   // every session: tabs, containers, panels), but a failure is collected, not thrown midway.
   clearSessions: async () => {
+    _massSignoutDeliberate('app-lock-reset');
     const failures = [];
     for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) {
       try { await ses.clearStorageData(); await ses.clearCache(); }
@@ -12305,6 +12309,64 @@ require('./main/signed-in').registerSignedIn({
   vaultHosts: () => _vaultLoad().map(e => e.host),
   noteAction: (action, domains) => _protect.signout.noteAction(action, domains),
   isLocked: () => _vexLocked,
+});
+
+// "Many of your logins look gone" (src/main/mass-signout.js): at start, the number of sites with a lasting sign-in is compared
+// with the last run's; a fall of more than half (from at least 6) puts one item in the Attention Inbox. Stores one number
+// and one time (signin-baseline.json), never a list of sites. Every deliberate clearing path calls deliberate() below, so
+// clearing data on purpose can never raise it.
+let _massSignoutPending = null;
+const _massSignout = require('./main/mass-signout').createMassSignout({
+  file: path.join(userDataPath, 'signin-baseline.json'),
+  countSignIns: async () => {
+    const by = {};
+    for (const p of BROWSING_SESSIONS) by[p] = await secureSessions.fromPartition(p).cookies.get({});
+    return require('./main/signed-in').countPersistent(by);
+  },
+  newestBackup: () => {
+    const { newestValid } = require('./main/auto-backups');
+    const readFrom = (dir, name) => () => fs.readFileSync(path.join(dir, name), 'utf8');
+    const dir = path.join(userDataPath, 'backups');
+    const all = [
+      ..._updateBackups.list().map(b => ({ name: b.name, at: b.at, read: readFrom(dir, b.name) })),
+      ..._autoBackups.list().map(b => ({ name: b.name, at: b.at, read: readFrom(dir, b.name) })),
+    ];
+    return newestValid(all, _backupVex);
+  },
+  onDrop: (info) => {
+    _massSignoutPending = { before: info.before, now: info.now, backup: info.backup };
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('signins:mass-drop', _massSignoutPending); }
+    catch (err) { console.error('[SignIns] could not tell the window:', err.message); }
+  },
+  log: (m) => console.log(m),
+});
+const _massSignoutDeliberate = (why) => {
+  try { _massSignout.deliberate(why); }
+  catch (err) { console.error('[SignIns] could not forget the baseline after', why + ':', err.message); }
+};
+// Clear browsing data and the privacy clean-up remove sign-ins on purpose: both go through noteAction (main/signout-why.js).
+{
+  const _note = _protect.signout.noteAction.bind(_protect.signout);
+  _protect.signout.noteAction = (action, domains) => {
+    if (action === 'clear-all' || action === 'privacy-cleanup') _massSignoutDeliberate(action);
+    return _note(action, domains);
+  };
+}
+app.whenReady().then(() => {
+  const look = (first) => (first ? _massSignout.check() : _massSignout.refresh())
+    .catch(err => console.error('[SignIns] the sign-in count could not be compared:', err.message));
+  // After the cookie jars have had time to load (the same wait as the sign-out record), then every half hour.
+  setTimeout(() => look(true), 45000).unref?.();
+  setInterval(() => look(false), 30 * 60 * 1000).unref?.();
+});
+ipcMain.handle('signins:pending', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can ask');
+  return _massSignoutPending;
+});
+ipcMain.handle('signins:dismiss', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can ask');
+  _massSignoutPending = null;
+  return true;
 });
 
 // The password-field interlock (src/main/credential-guard.js) and the "I clicked something"

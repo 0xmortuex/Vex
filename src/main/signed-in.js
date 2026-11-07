@@ -120,6 +120,22 @@ function collect(cookiesByPartition, vaultHosts, now = Date.now()) {
   return { sites: out.slice(0, MAX_SITES), more: Math.max(0, out.length - MAX_SITES), savedWithoutSession: [...saved.keys()].filter(d => !sites.has(d)).length };
 }
 
+// How many sites hold a sign-in that outlives the browser (a cookie with an expiry date that has not passed): the number
+// the mass sign-out check compares between starts (main/mass-signout.js). Session cookies end with Vex by design and are
+// not counted. Names and dates only, in memory; nothing is kept but the number.
+function countPersistent(cookiesByPartition, now = Date.now()) {
+  const sites = new Set();
+  for (const cookies of Object.values(cookiesByPartition || {})) {
+    for (const c of Array.isArray(cookies) ? cookies : []) {
+      if (!looksLikeSignIn(c) || typeof c.domain !== 'string' || c.session) continue;
+      if (!Number.isFinite(c.expirationDate) || c.expirationDate * 1000 <= now) continue;
+      const domain = baseDomain(c.domain);
+      if (domain) sites.add(domain);
+    }
+  }
+  return sites.size;
+}
+
 function cookieUrl(c) {
   const dom = String(c.domain || '').replace(/^\./, '');
   if (!dom) throw new Error('a cookie has no domain');
@@ -174,4 +190,4 @@ function registerSignedIn({ ipcMain, sessions, vaultHosts, noteAction, isLocked 
   ipcMain.handle('hygiene:site-links', (_e, domain) => { guard(); return linksFor(domain); });
 }
 
-module.exports = { collect, clearEverywhere, linksFor, registerSignedIn, SITE_LINKS, GENERAL_STEPS, containerLabel };
+module.exports = { collect, countPersistent, clearEverywhere, linksFor, registerSignedIn, SITE_LINKS, GENERAL_STEPS, containerLabel };

@@ -78,6 +78,7 @@ define('updates:status updates:log updates:ack', []);
 define('updates:backup-save', [version, string(10 * 1024 * 1024)]);
 define('updates:backups', []);
 define('updates:backup-read', [string(120)]);
+define('signins:pending signins:dismiss', []);
 // The encrypted secrets lifeboat (src/main/secrets-lifeboat.js): the passphrase is checked again in main and never stored.
 const passphrase = value => typeof value === 'string' && value.length >= 1 && value.length <= 256;
 define('lifeboat:export', [passphrase, boolean]);

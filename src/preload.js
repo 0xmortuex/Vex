@@ -826,6 +826,12 @@ contextBridge.exposeInMainWorld('vex', {
     onProgress: (cb) => subscribe('updates:progress', cb),
     onInstallFailed: (cb) => subscribe('updates:install-failed', cb),
   },
+  // "Many of your logins look gone" (src/main/mass-signout.js, js/mass-signout.js).
+  signins: {
+    pending: () => ipcRenderer.invoke('signins:pending'),
+    dismiss: () => ipcRenderer.invoke('signins:dismiss'),
+    onMassDrop: (cb) => subscribe('signins:mass-drop', cb),
+  },
   // The encrypted secrets lifeboat (src/main/secrets-lifeboat.js, js/secrets-lifeboat.js): the window gets counts, never a secret.
   lifeboat: {
     exportSecrets: (passphrase, includeCards) => ipcRenderer.invoke('lifeboat:export', passphrase, includeCards),
