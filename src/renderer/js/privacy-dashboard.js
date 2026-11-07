@@ -85,8 +85,12 @@ const PrivacyDashboard = {
     list.className = 'pd-egress-list';
     const note = document.createElement('div');
     note.className = 'pd-own-note';
-    note.textContent = 'Only requests Vex itself makes: the host, the feature and how many bytes, never what was in them. Pages you browse are not listed. Kept for 30 days at most.';
-    host.append(sectionHead, proof, filters, list, note);
+    note.textContent = 'Only requests Vex itself makes: the host, the feature and how many bytes, never what was in them. Pages you browse are not listed.';
+    // The real size of the list, filled in from the ledger itself (see _egressPaint).
+    const windowNote = document.createElement('div');
+    windowNote.className = 'pd-own-note';
+    windowNote.id = 'pd-egress-window';
+    host.append(sectionHead, proof, filters, list, note, windowNote);
     const changed = () => { this._egFilter = { kind: kindSel.value, feature: featSel.value, host: hostIn.value.trim().toLowerCase() }; this._egressRefresh(); };
     kindSel.addEventListener('change', changed);
     featSel.addEventListener('change', changed);
@@ -131,6 +135,15 @@ const PrivacyDashboard = {
       proof.textContent = sum.count + ' request' + VexPlural.s(sum.count) + ' in the last 24 hours: ' + this._fmtBytes(sum.bytesOut) + ' sent, ' + this._fmtBytes(sum.bytesIn) + ' received.';
       proof.dataset.state = 'some';
     }
+    // The honest window: the list holds a number of lines, not a number of days, so say both limits and
+    // how far back it really reaches now.
+    const win = el.querySelector('#pd-egress-window');
+    if (win) {
+      const lim = sum.limits;
+      win.textContent = lim && sum.keptSince
+        ? 'Kept: at most ' + lim.max + ' lines or ' + lim.maxAgeDays + ' days, whichever comes first. Repeated requests to the same place share one line an hour. The oldest line now is from ' + new Date(sum.keptSince).toLocaleDateString([], { month: 'short', day: 'numeric' }) + '.'
+        : '';
+    }
     const featSel = el.querySelector('#pd-egress-feature');
     const chosen = this._egFilter.feature;
     const names = sum.byFeature.map(f => f.name);
@@ -152,7 +165,7 @@ const PrivacyDashboard = {
       const left = document.createElement('span');
       left.className = 'pd-host';
       left.title = r.host;
-      left.textContent = r.feature + ' → ' + r.host;
+      left.textContent = r.feature + ' → ' + r.host + (r.n > 1 ? ' (' + r.n + ')' : '');
       const right = document.createElement('span');
       right.className = 'pd-cross-count';
       right.textContent = new Date(r.t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · ' + this._fmtBytes(r.out) + ' out, ' + this._fmtBytes(r.in) + ' in' + (r.ok ? '' : ' · failed');

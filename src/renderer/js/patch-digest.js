@@ -140,7 +140,7 @@ const VexPatchDigest = {
     if (typeof AgentTools === 'undefined' || typeof PageWatch === 'undefined') throw new Error('Page reading is not available in this window');
     const refused = PageWatch.refusalFor({ url });
     if (refused) throw new Error(refused);
-    const r = await AgentTools._get(url);
+    const r = await AgentTools._get(url, null, null, 'Patch digest');
     const body = String(r.body || '');
     const fromFeed = this.feedItemText(body, (h) => AgentTools.htmlToText(h));
     return fromFeed || AgentTools.htmlToText(body).text;

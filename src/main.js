@@ -106,20 +106,17 @@ try {
 // back/forward; OptimizationGuide* download/hold on-device ML models Vex doesn't
 // use; Translate is Chromium's built-in translator (Vex has its own). Turning
 // them off trades a little convenience for lower resting memory.
-let _memorySaver = false;
-try {
-  const _fs = require('fs'), _path = require('path');
-  const _pf = _path.join(app.getPath('userData'), 'vex-persist.json');
-  const _j = JSON.parse(_fs.readFileSync(_pf, 'utf-8'));
-  _memorySaver = _j['vex.memorySaver'] === '1' || _j['vex.memorySaver'] === 1;
-} catch {}
+// The file (~2.5 MB) is read and parsed ONCE for both launch switches (main/boot-persist.js).
+const _bootPersist = require('./main/boot-persist');
+const _bootRead = _bootPersist.readBootPersist({ fs: require('fs'), path: require('path'), userData: app.getPath('userData') });
+let _memorySaver = _bootPersist.memorySaverOn(_bootRead);
 // Smooth scrolling (Settings > Tabs and navigation): Chromium's own, on unless the person switched it off. A launch
 // switch, so it is read from the same persisted file and takes a restart.
-try {
-  const _sf = require('fs'), _sp = require('path');
-  const _sj = JSON.parse(_sf.readFileSync(_sp.join(app.getPath('userData'), 'vex-persist.json'), 'utf-8'));
-  if (_sj['vex.smoothScroll'] === 'off') app.commandLine.appendSwitch('disable-smooth-scrolling');
-} catch (err) { if (!err || err.code !== 'ENOENT') console.warn('[Startup] could not read the smooth scrolling choice:', err && err.message); }
+{
+  const _smooth = _bootPersist.smoothScrollChoice(_bootRead);
+  if (_smooth.off) app.commandLine.appendSwitch('disable-smooth-scrolling');
+  if (_smooth.warning) console.warn(_smooth.warning);
+}
 let _disableFeatures = 'SpareRendererForSitePerProcess';
 if (_memorySaver) {
   _disableFeatures += ',BackForwardCache,OptimizationGuideModelDownloading,OptimizationHints,Translate';
@@ -164,7 +161,7 @@ let _egress = null;
 const _egressFetch = (impl, defaults) => (url, init) => (_egress ? _egress.wrap(impl, defaults)(url, init) : impl(url, init && init.egress ? { ...init, egress: undefined } : init));
 const boundedNetFetch = require('./main/network').createBoundedFetch(_egressFetch(net.fetch.bind(net), {}));
 // The AI agent's page reads: public internet only, every redirect re-checked (main/public-fetch.js).
-const boundedPublicFetch = require('./main/network').createBoundedFetch(_egressFetch(require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => net.resolveHost(h) }), { feature: 'Vex Agent page reads', kind: 'fetch' }));
+const boundedPublicFetch = require('./main/network').createBoundedFetch(_egressFetch(require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => net.resolveHost(h) }), {}));
 // The shared polite client (main/polite-fetch.js): per-host rate limit, Retry-After backoff, an ETag cache and
 // "metered connection" awareness. Every watcher goes through it: package feeds, page and price watches, AI news,
 // RSS, the GitHub watch and vault, and the Electron and extension release checks. A request with publicOnly goes
@@ -2619,7 +2616,7 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
 // addresses are checked on every hop; localhost only when the playground's
 // "Allow localhost" is on. Always answers { ok, … } or { ok:false, error }.
 const _apiPlayground = require('./main/api-playground').createApiPlayground({
-  publicFetch: require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => net.resolveHost(h) }),
+  publicFetch: _egressFetch(require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => net.resolveHost(h) }), { feature: 'API viewer', kind: 'fetch' }),
   localFetch: (url, init) => net.fetch(url, { ...init, redirect: 'manual', credentials: 'omit', bypassCustomProtocolHandlers: true }),
   boundedFactory: require('./main/network').createBoundedFetch,
 });
@@ -10228,7 +10225,7 @@ ipcMain.handle('web-suggest', async (event, query) => {
     const to = setTimeout(() => { try { ctrl.abort(); } catch {} }, 2500);
     let list = [];
     try {
-      const r = await boundedNetFetch(url, { signal: ctrl.signal });
+      const r = await boundedNetFetch(url, { signal: ctrl.signal, egress: { feature: 'Search suggestions', kind: 'fetch' } });
       if (r.ok) list = _typedAddress.parseSuggestions(await r.text());
     } finally { clearTimeout(to); }
     _suggestCache.set(q, { list, ts: Date.now() });

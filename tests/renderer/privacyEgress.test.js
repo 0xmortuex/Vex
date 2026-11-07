@@ -95,3 +95,23 @@ describe('filters and forgetting', () => {
     expect(el.querySelector('#pd-egress-proof').textContent).toMatch(/not available here \(This operation is unavailable in a private window\)/);
   });
 });
+
+describe('the real window of the list', () => {
+  it('no longer claims 30 days outright: it states both limits and how far back the list reaches', async () => {
+    summary = { ...summary, count: 3, nothingLeft: false, byFeature: [], limits: { max: 2000, maxAgeDays: 30 }, keptSince: Date.UTC(2026, 9, 20) };
+    PD._egressBuild(el);
+    expect(el.querySelector('.pd-own-note').textContent).not.toMatch(/30 days/);
+    await PD._egressRefresh();
+    const text = el.querySelector('#pd-egress-window').textContent;
+    expect(text).toMatch(/at most 2000 lines or 30 days, whichever comes first/);
+    expect(text).toMatch(/share one line an hour/);
+    expect(text).toMatch(/oldest line now is from/);
+  });
+
+  it('shows how many requests a combined line stands for', async () => {
+    rows = [{ t: Date.now(), feature: 'AI news', host: 'raw.githubusercontent.com', kind: 'fetch', out: 10, in: 20, ok: true, n: 14 }];
+    PD._egressBuild(el);
+    await PD._egressRefresh();
+    expect(el.querySelector('#pd-egress-list').textContent).toContain('AI news → raw.githubusercontent.com (14)');
+  });
+});

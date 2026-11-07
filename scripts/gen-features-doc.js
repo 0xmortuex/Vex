@@ -45,18 +45,47 @@ function loadCatalog() {
   return VexFeatures;
 }
 
-// Command id -> label, for commands registered with { id, label } or cmd('id', 'label').
+// Every .js file under the renderer folder, sub-folders included (brief-extras/ registers commands too).
+function jsFiles(dir) {
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.isDirectory()) out.push(...jsFiles(path.join(dir, e.name)));
+    else if (e.name.endsWith('.js')) out.push(path.join(dir, e.name));
+  }
+  return out;
+}
+
+// Commands whose label the source builds at run time (a getter, a ternary), so a regular expression cannot read a
+// single literal. The phrase a person types is the idle one. Each entry is checked against the source: the id and
+// the phrase must still sit on the same line of some file, or the generator stops (the entry has gone stale).
+const COMPUTED_LABELS = {
+  'sleep-timer': 'Sleep Timer',                    // command.js: get label() { ... ? VexSleepTimer.describe() : 'Sleep Timer' }
+  'guest:throwaway': 'Throwaway workspace',        // guest-session.js: label: this._tw ? 'New tab in the throwaway workspace' : 'Throwaway workspace'
+};
+
+// Command id -> label, for commands registered with { id, label }, { command, label } or cmd('id', 'label'),
+// plus the COMPUTED_LABELS above.
 function commandLabels() {
   const out = {};
-  for (const f of fs.readdirSync(JS)) {
-    if (!f.endsWith('.js')) continue;
-    const src = fs.readFileSync(path.join(JS, f), 'utf8');
+  const seen = new Set();
+  for (const file of jsFiles(JS)) {
+    const src = fs.readFileSync(file, 'utf8');
+    for (const [id, phrase] of Object.entries(COMPUTED_LABELS)) {
+      if (src.split('\n').some(l => l.includes("'" + id + "'") && l.includes("'" + phrase + "'"))) seen.add(id);
+    }
+    for (const m of src.matchAll(/\bcommand:\s*'([^']+)',\s*label:\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g)) {
+      if (!out[m[1]]) out[m[1]] = unq(m[2] !== undefined ? m[2] : m[3]);
+    }
     for (const m of src.matchAll(/\{\s*id:\s*'([^']+)',\s*label:\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g)) {
       if (!out[m[1]]) out[m[1]] = unq(m[2] !== undefined ? m[2] : m[3]);
     }
     for (const m of src.matchAll(/\bcmd\('([^']+)',\s*'((?:[^'\\]|\\.)*)'/g)) {
       if (!out[m[1]]) out[m[1]] = unq(m[2]);
     }
+  }
+  for (const [id, phrase] of Object.entries(COMPUTED_LABELS)) {
+    if (!seen.has(id)) throw new Error('COMPUTED_LABELS in scripts/gen-features-doc.js names "' + phrase + '" for ' + id + ', but no renderer file has both on one line any more. Update the entry.');
+    if (!out[id]) out[id] = phrase;
   }
   return out;
 }
@@ -78,13 +107,20 @@ function build(opts = {}) {
   for (const item of catalog.ITEMS) if (!entryOf.has(item.id)) entryOf.set(item.id, item);
 
   const missing = [];
+  const unresolved = [];
   const documented = new Set();
   const byCat = new Map(catalog.CATS.map(c => [c.id, []]));
   for (const m of manifests) {
     const item = entryOf.get(m.id);
     if (!item || !item.what) { missing.push(m.id); continue; }
     documented.add(item.id);
-    const cmds = (m.commands || []).filter(c => labels[c]).map(c => '"' + labels[c] + '"');
+    // A command the manifest lists but whose label cannot be read from the source is an error, not a silent gap
+    // in the Ctrl+K phrase (a getter or computed label used to make the phrase vanish from the doc).
+    const cmds = [];
+    for (const c of (m.commands || [])) {
+      if (labels[c]) cmds.push('"' + labels[c] + '"');
+      else unresolved.push(m.id + ' -> ' + c);
+    }
     const itemCmd = item.cmd && labels[item.cmd] && !(m.commands || []).includes(item.cmd) ? ['"' + labels[item.cmd] + '"'] : [];
     const phrases = cmds.concat(itemCmd);
     const where = [];
@@ -104,6 +140,12 @@ function build(opts = {}) {
       state ? '  - Default: ' + state + '.' : '',
     ].filter(Boolean).join('\n');
     (byCat.get(item.cat) || byCat.get('unique')).push(line);
+  }
+  if (unresolved.length) {
+    const err = new Error('Feature manifests list Ctrl+K commands whose label cannot be read from the source: ' + unresolved.join('; ')
+      + '. Register the command with a literal label (`registerCommand({ id: \'x\', label: \'Phrase\' ...`), or add it to COMPUTED_LABELS in scripts/gen-features-doc.js.');
+    err.unresolved = unresolved;
+    throw err;
   }
   if (missing.length) {
     const err = new Error('Feature manifests with no catalogue entry (add `feature: \'<id>\'` to an entry in feature-catalog.js): ' + missing.join(', '));

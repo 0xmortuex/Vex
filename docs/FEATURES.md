@@ -361,7 +361,7 @@ Blocking, isolation, Tor, and the things that follow you.
   - Open: Ctrl+K: "Share-safe mode: off for this share"; Settings > Safer browsing helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Guest session** (`guest-session`): Opens a window that keeps nothing, for a shared or public computer, with a Guest session label always visible. Open it from Ctrl+K, Guest session. On an existing profile it starts off; turn it on in Settings > Guest session.
-  - Open: Ctrl+K: "Guest session", "Forget this guest session", "Erase the throwaway workspace"; Settings > Guest session.
+  - Open: Ctrl+K: "Guest session", "Forget this guest session", "Throwaway workspace", "Erase the throwaway workspace"; Settings > Guest session.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Extension changes and pause** (`extension-diff`): Shows what each extension could read and do now compared with when you last reviewed, and lets you pause the extensions that can read the current site. Use Ctrl+K, Extension changes or Pause extensions on this site. On an existing profile it starts off; turn it on in Settings > Extension changes and pause.
   - Open: Ctrl+K: "Extension changes", "Pause extensions on this site"; Settings > Extension changes and pause.
@@ -822,7 +822,7 @@ Notes, sessions, monitoring, automation.
   - Open: Ctrl+K: "Phrases to copy", "Public holidays coming up"; Settings > Holidays and phrases from packs.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Watch templates** (`page-watch-templates`): Ready-made starting points for the page watcher: seats available, fare below your figure, new lowest price, and sale date. Ctrl+K: Remind Me Before This Ends sets a reminder with a link back to the page. On an existing profile it starts off; turn it on in Settings > Watch templates.
-  - Open: Ctrl+K: "Remind Me Before This Ends"; Settings > Watch templates.
+  - Open: Ctrl+K: "Watch This Page for Seats or Tickets", "Watch This Fare for a Lower Price", "Wishlist: Tell Me at a New Lowest Price", "Watch This Page for a Sale Date", "Remind Me Before This Ends"; Settings > Watch templates.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Page automations** (`page-automations`): Do a job on a site once and Vex repeats it for you: when you ask, from Ctrl+K, or on a schedule. It never records passwords or card numbers, always asks before anything that submits, buys, sends or deletes, and stops with a picture of the page if a button has moved. It is off until you switch it on in Settings > Page automations.
   - Open: Ctrl+K: "Record an automation on this page", "Page automations", "Stop the running automation", "Stop all automations"; Settings > Page automations.
@@ -975,7 +975,7 @@ Video, audio, screen sharing, streaming services.
   - Open: Ctrl+K: "Media control: what is making sound", "Mute everything except this tab"; Settings > Media control.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Stop playing after a while** (`sleep-timer`): Stops everything that is playing after 15, 30, 60 or 90 minutes, or when the video ends, fading the sound out over the last 15 seconds. Ctrl+K, "Sleep Timer". It starts only when you start it.
-  - Open: Settings > Sleep timer.
+  - Open: Ctrl+K: "Sleep Timer"; Settings > Sleep timer.
   - Default: always on, no switch.
 - **One sound at a time** (`sound-policy`): When a tab starts playing, pauses the other playing tabs (with an Undo), and during a call (the microphone in use) pauses everything else and plays it again when the call ends. Both rules are off until you switch them on; Ctrl+K, "Why Did That Stop Playing?" says why something stopped.
   - Open: Ctrl+K: "One Sound at a Time", "Why Did That Stop Playing?"; Settings > One sound at a time.
@@ -1588,7 +1588,7 @@ Features no other browser has, built out of the parts above.
   - Open: Settings > Feature usage.
   - Default: always on, no switch.
 - **Brief cards** (`brief-cards`): Four small New Tab and Morning Brief cards: permission summary, service status, an old highlight to revisit, and pages you flagged that changed. On an existing profile it starts off; turn it on in Settings > Brief cards.
-  - Open: Settings > Brief cards.
+  - Open: Ctrl+K: "Flag This Page in My Morning Brief"; Settings > Brief cards.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Is it me or the server** (`latency`): Times your own connection against Discord, Steam, Riot, Roblox, Epic and YouTube, and says in one sentence whether the slow part is your line or theirs.
   - Open: Ctrl+K: "Is It Me or the Server?".
