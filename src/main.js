@@ -3498,10 +3498,13 @@ ipcMain.handle('devbench:pkg', _devReply(async (_e, eco, name) => ({ info: await
 app.on('before-quit', () => _devLogTail.closeAll());
 
 const _analyticsStub = require('./main/analytics-stub');
+// Says in the log when a Discord upload request stays open (src/main/upload-watch.js); it changes no request.
+const _uploadWatch = require('./main/upload-watch').createUploadWatch({ log: (line) => console.warn(line) });
 function wireAdblockerOnSession(ses, tag) {
   if (!ses || ses.__vexAdblockWired) return;
   ses.__vexAdblockWired = true;
   ses.webRequest.onBeforeRequest((details, callback) => {
+    callback = _uploadWatch.wrap(details, tag, callback);
     // A folder opened in a tab goes to Vex's own folder browser (main/folder-viewer.js); every other request is untouched.
     if (_folderViewer.take(details, callback)) return;
     // Lighter Discord: the animated decoration is fetched as the still one
@@ -3758,6 +3761,7 @@ function wireMediaSnifferOnSession(ses) {
   if (!ses || ses.__vexMediaWired) return;
   ses.__vexMediaWired = true;
   ses.webRequest.onCompleted({ urls: ['http://*/*', 'https://*/*'] }, (details) => {
+    _uploadWatch.done(details, 'completed ' + details.statusCode);
     _extRequestCompleted(ses, details);
     _countNetBytes(details); // tab-cost
     _devRequestLog.record(details); // failed requests for a bug report (address only)
@@ -3792,7 +3796,7 @@ function wireMediaSnifferOnSession(ses) {
   });
   // Requests that never got an answer (the other half of a bug report). No other
   // code registers onErrorOccurred, so this does not replace anything.
-  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => { _devRequestLog.record(details); _requestRecorder.recordDone(details); _extRequestSeen(ses, 'onErrorOccurred', details); });
+  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => { _uploadWatch.done(details, 'error ' + details.error); _devRequestLog.record(details); _requestRecorder.recordDone(details); _extRequestSeen(ses, 'onErrorOccurred', details); });
   // The other webRequest events an extension can listen to. Electron gives one listener per event per session and the ones for the
   // request, its headers and the reply are Vex's own, so these are the free ones. webRequest.onHeadersReceived is told when the
   // response starts, with the headers as the page gets them (observing only).
