@@ -56,9 +56,9 @@ const VexCodeLibrary = {
   },
   withAttribution(entry) { return this.attribution(entry) + '\n' + entry.code; },
   search(list, query) {
-    const q = String(query || '').toLowerCase().trim();
+    const q = VexTr.fold(String(query || '').trim());
     if (!q) return list;
-    return list.filter(e => (e.code + ' ' + e.title + ' ' + e.url + ' ' + e.lang + ' ' + e.license).toLowerCase().includes(q));
+    return list.filter(e => VexTr.fold(e.code + ' ' + e.title + ' ' + e.url + ' ' + e.lang + ' ' + e.license).includes(q));
   },
 
   // ---- the list ----------------------------------------------------------------------------

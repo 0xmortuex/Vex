@@ -651,6 +651,7 @@ const Scheduler = {
       summary: a => (a.match ? 'Reload tabs matching "' + a.match + '"' : 'Reload every tab'),
       async run(task) {
         const needle = String(task.action.match || '').toLowerCase();
+        // vex-allow-lowercase: matches an address
         const tabs = (TabManager.tabs || []).filter(t => !needle || String(t.url || '').toLowerCase().includes(needle));
         let reloaded = 0;
         for (const tab of tabs) {

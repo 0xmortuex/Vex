@@ -262,16 +262,16 @@ const PersonasManager = (() => {
     if (!text) return null;
     const m = String(text).match(/@([A-Za-z0-9_]+)/);
     if (!m) return null;
-    const q = m[1].toLowerCase();
+    const q = VexTr.fold(m[1]);
     const all = getAll();
     // 1. exact prefix of full name (lowered, spaces stripped)
-    let hit = all.find(p => p.name.toLowerCase().replace(/\s+/g, '').startsWith(q));
+    let hit = all.find(p => VexTr.fold(p.name).replace(/\s+/g, '').startsWith(q));
     if (hit) return hit;
     // 2. any word in name starts with q
-    hit = all.find(p => p.name.toLowerCase().split(/\s+/).some(w => w.startsWith(q)));
+    hit = all.find(p => VexTr.fold(p.name).split(/\s+/).some(w => w.startsWith(q)));
     if (hit) return hit;
     // 3. contains anywhere
-    hit = all.find(p => p.name.toLowerCase().includes(q));
+    hit = all.find(p => VexTr.fold(p.name).includes(q));
     return hit || null;
   }
 

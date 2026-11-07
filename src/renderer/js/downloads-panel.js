@@ -552,12 +552,12 @@ const DownloadsPanel = {
   _query: '',
   _matches(dl, q) {
     if (!q) return true;
-    return String(dl.filename || '').toLowerCase().includes(q) || String(dl.url || '').toLowerCase().includes(q);
+    return VexTr.fold(dl.filename || '').includes(q) || VexTr.fold(dl.url || '').includes(q);
   },
   _applyFilter() {
     const list = document.getElementById('downloads-list');
     if (!list) return;
-    const q = String(this._query || '').trim().toLowerCase();
+    const q = VexTr.fold(String(this._query || '').trim());
     let shown = 0;
     for (const row of list.querySelectorAll('.download-item')) {
       const dl = this.downloads.find(d => d.id === row.dataset.id);

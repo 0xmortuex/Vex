@@ -69,6 +69,7 @@ const VexLogTailer = {
   // Entries that contain the query (case-insensitive); an empty query keeps all.
   filter(entries, query) {
     const q = String(query || '').toLowerCase();
+    // vex-allow-lowercase: live log filter runs over every entry on each refresh; log lines are ASCII tool output
     return q ? entries.filter(e => this.stripAnsi(e.raw).toLowerCase().includes(q)) : entries;
   },
   // The first (or `index`-th) crash with its surroundings, as an issue block, or null.
@@ -166,6 +167,7 @@ const VexLogTailer = {
       const row = document.createElement('div');
       const panic = this.isPanic(e.raw);
       if (panic) row.style.cssText = 'background:rgba(248,81,73,.22);border-left:3px solid #f85149;padding-left:4px';
+      // vex-allow-lowercase: live log filter runs over every entry on each refresh; log lines are ASCII tool output
       else if (q && this.stripAnsi(e.raw).toLowerCase().includes(q)) row.style.cssText = 'background:rgba(210,153,34,.22)';
       for (const seg of this.ansiSegments(e.raw)) {
         const s = document.createElement('span');

@@ -100,10 +100,10 @@ const LogReader = {
 
   // Lines containing the words (plain text, case-insensitive; no pattern, so nothing to blow up).
   search(parsed, query) {
-    const q = String(query == null ? '' : query).trim().toLowerCase();
+    const q = VexTr.fold(String(query == null ? '' : query).trim());
     if (!q) return [];
     const out = [];
-    parsed.lines.forEach((l, i) => { if (l.plain.toLowerCase().includes(q)) out.push(i); });
+    parsed.lines.forEach((l, i) => { if (VexTr.fold(l.plain).includes(q)) out.push(i); });
     return out;
   },
   // The next index in `list` after `from` (wrapping), or -1.

@@ -351,5 +351,6 @@
     "src/renderer/js/year-in-vex.js": 1,
     "src/site-tweaks.js": 3,
     "src/tor-launcher.js": 9
-  }
+  },
+  "no-raw-lowercase-search": {}
 }

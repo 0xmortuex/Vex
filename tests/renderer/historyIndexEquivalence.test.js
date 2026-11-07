@@ -22,12 +22,12 @@ function load() {
   H.activeFilter = 'all';
 }
 const ask = (q) => { document.getElementById('history-search-input').value = q; return H.getKeywordFiltered(); };
-// What the filter returned before the index existed: the same test over the whole time-filtered list.
+// What the filter returns without the index: the same Turkish-folded test (VexTr.fold, so "istanbul" finds "İstanbul") over the whole time-filtered list.
 const scan = (q) => {
-  const search = q.toLowerCase();
-  return H.getTimeFiltered().filter(e => !search || (e.title || '').toLowerCase().includes(search)
-    || (e.url || '').toLowerCase().includes(search) || (e.summary || '').toLowerCase().includes(search)
-    || (Array.isArray(e.tags) && e.tags.some(t => String(t).toLowerCase().includes(search))));
+  const search = VexTr.fold(q);
+  return H.getTimeFiltered().filter(e => !search || VexTr.fold(e.title || '').includes(search)
+    || VexTr.fold(e.url || '').includes(search) || VexTr.fold(e.summary || '').includes(search)
+    || (Array.isArray(e.tags) && e.tags.some(t => VexTr.fold(t).includes(search))));
 };
 
 // A small deterministic generator, so a failure can be reproduced.

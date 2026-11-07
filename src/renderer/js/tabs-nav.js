@@ -474,6 +474,7 @@
     try { host = new URL(String(url)).hostname.replace(/^www\./, ''); } catch { host = ''; }
     const site = (host.split('.').slice(-2, -1)[0] || host).toLowerCase();
     const seg = String(title == null ? '' : title).split(/\s+[|–—-]\s+/);
+    // vex-allow-lowercase: compares a title segment with the host name (ASCII)
     if (seg.length > 1 && site && seg[seg.length - 1].toLowerCase().includes(site)) seg.pop();
     const t = seg.join(' - ').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim();
     const d = when.getFullYear() + '-' + String(when.getMonth() + 1).padStart(2, '0') + '-' + String(when.getDate()).padStart(2, '0');

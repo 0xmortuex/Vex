@@ -105,8 +105,8 @@ const VexStudyEntry = {
     if (w.length > this.MAX_WORD || w.split(' ').length > 4) throw new Error('Select one word or a short phrase, not a sentence');
     if (!ctx) throw new Error('The sentence around the word could not be read');
     const parts = ctx.split(/(?<=[.!?…])["')\]]*\s+/).map(s => s.trim()).filter(Boolean);
-    const low = w.toLowerCase();
-    const hit = parts.find(p => p.toLowerCase().includes(low));
+    const low = VexTr.fold(w);
+    const hit = parts.find(p => VexTr.fold(p).includes(low));
     if (!hit) throw new Error('The word was not found in the text around it');
     return hit.length > 400 ? hit.slice(0, 400).replace(/\s+\S*$/, '') + '...' : hit;
   },

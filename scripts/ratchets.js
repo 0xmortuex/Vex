@@ -19,6 +19,12 @@
 //                            report with VexProblems.note(...) or rethrow.
 //                            A deliberate one carries, inside the block,
 //                            `vex-allow-empty-catch: <reason>`.
+//   no-raw-lowercase-search  src/renderer: no `.toLowerCase().includes(` / `.toLowerCase().indexOf(` on text a person
+//                            types or reads. JavaScript's toLowerCase turns "İstanbul" into "i̇stanbul" (i + combining
+//                            dot) and "ISI" into "isi" instead of "ısı", so a search for "istanbul" missed
+//                            "İstanbul". Search with VexTr.fold(text).includes(VexTr.fold(query)) (js/vex-tr.js).
+//                            A comparison that must stay exact (a URL, a language tag, an id, a quote check) carries,
+//                            on its line or the line before, `vex-allow-lowercase: <reason>`.
 //
 // Pure functions are exported so tests/main/ratchets.test.js can drive them.
 'use strict';
@@ -29,6 +35,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const ALLOWLIST = path.join(__dirname, 'ratchet-allowlist.json');
 const MARKER = 'vex-allow-empty-catch:';
+const LOWER_MARKER = 'vex-allow-lowercase:';
 
 // Replace comments with spaces and the inside of string/template literals with
 // spaces, keeping every newline and offset, so the rules can look at code only.
@@ -114,6 +121,19 @@ function findSilentCatches(src) {
   return hits;
 }
 
+// .toLowerCase().includes( and .toLowerCase().indexOf( in code (not in a string or comment), unless the line or the one before it says why.
+function findRawLowercaseSearch(src) {
+  const code = mask(src);
+  const lines = src.split('\n');
+  const hits = [];
+  for (const m of code.matchAll(/\.toLowerCase\(\)\s*\.(?:includes|indexOf)\s*\(/g)) {
+    const line = lineOf(src, m.index);
+    if (lines[line - 1].includes(LOWER_MARKER) || (line > 1 && lines[line - 2].includes(LOWER_MARKER))) continue;
+    hits.push({ line, text: 'toLowerCase().' + (m[0].includes('includes') ? 'includes' : 'indexOf') });
+  }
+  return hits;
+}
+
 const RULES = {
   'no-raw-interval': {
     why: 'use VexJobs.every(...) (js/jobs.js) so Game mode, battery and a hidden window pause it',
@@ -124,6 +144,11 @@ const RULES = {
     why: 'unasked messages go through VexAttention.notify(opts, () => showToast(...)); a toast for something the person just pressed is listed in the allowlist',
     dirs: ['src/renderer/js'],
     find: findUngatedToasts,
+  },
+  'no-raw-lowercase-search': {
+    why: 'search with VexTr.fold(text).includes(VexTr.fold(query)) (js/vex-tr.js): toLowerCase() misses "İstanbul" for "istanbul"; an exact comparison needs "' + LOWER_MARKER + ' <reason>" on its line or the line before',
+    dirs: ['src/renderer'],
+    find: findRawLowercaseSearch,
   },
   'no-silent-catch': {
     why: 'report with VexProblems.note(area, message, err) or let the error propagate; a deliberate one needs "' + MARKER + ' <reason>" inside the block',
@@ -208,7 +233,7 @@ function init(root = ROOT) {
   return next;
 }
 
-module.exports = { mask, findRawIntervals, findUngatedToasts, findSilentCatches, scan, compare, check, tighten, init, RULES, ALLOWLIST, MARKER };
+module.exports = { mask, findRawIntervals, findUngatedToasts, findSilentCatches, findRawLowercaseSearch, scan, compare, check, tighten, init, RULES, ALLOWLIST, MARKER };
 
 if (require.main === module) {
   const arg = process.argv[2];

@@ -497,7 +497,7 @@ const SettingsUI = {
     const out = new Map();
     const S = typeof VexSmartSearch !== 'undefined' ? VexSmartSearch : null;
     const parsed = S ? S.parse(query) : null;
-    const q = String(query || '').trim().toLowerCase();
+    const q = VexTr.fold(String(query || '').trim());
     let hits = [];
     if (parsed) {
       try {
@@ -512,7 +512,7 @@ const SettingsUI = {
     for (const g of groups) out.set(g, 0);
     for (const h of hits) out.set(h.g, Math.max(out.get(h.g) || 0, h.rank));
     for (const g of groups) {
-      if (!out.get(g) && ((g.textContent || '') + ' ' + (g.dataset.keywords || '')).toLowerCase().includes(q)) out.set(g, 5);
+      if (!out.get(g) && VexTr.fold((g.textContent || '') + ' ' + (g.dataset.keywords || '')).includes(q)) out.set(g, 5);
     }
     // A section inside a section is shown with it.
     for (const g of groups) {

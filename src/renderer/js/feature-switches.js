@@ -94,7 +94,7 @@ const VexFeatureSwitches = {
     list.className = 'vex-features-list';
     body.append(search, summary, list);
     const draw = () => {
-      const q = search.value.trim().toLowerCase();
+      const q = VexTr.fold(search.value.trim());
       const rows = this.rows();
       const on = rows.filter(r => r.switchable && r.on).length, switchable = rows.filter(r => r.switchable).length;
       summary.textContent = this._t('featSummary', '{on} of {n} switchable features are on. {fixed} cannot be switched off.')
@@ -102,7 +102,7 @@ const VexFeatureSwitches = {
       list.textContent = '';
       let lastGroup = null;
       for (const r of rows) {
-        if (q && !(r.title + ' ' + r.group).toLowerCase().includes(q)) continue;
+        if (q && !VexTr.fold(r.title + ' ' + r.group).includes(q)) continue;
         if (r.group !== lastGroup) {
           lastGroup = r.group;
           const h = document.createElement('div');

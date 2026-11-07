@@ -245,7 +245,9 @@ const ModKit = {
     if (q.length < 2) throw new Error('Type at least two characters of the name or id');
     const s = this.state();
     const c0 = s.cases.length, r0 = s.reports.length;
+    // vex-allow-lowercase: deleting a person's records must match exactly what was typed, never wider (a fold would also remove a different name)
     s.cases = s.cases.filter(c => !c.who.toLowerCase().includes(q));
+    // vex-allow-lowercase: deleting a person's records must match exactly what was typed, never wider (a fold would also remove a different name)
     s.reports = s.reports.filter(r => !String(r.about || '').toLowerCase().includes(q));
     this._save(s);
     return { cases: c0 - s.cases.length, reports: r0 - s.reports.length };
