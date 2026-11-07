@@ -396,6 +396,10 @@ const CommandBar = {
     { id: 'history-overlay', label: 'History (quick view)', hint: 'View browsing history in an overlay', icon: 'clipboard', action: () => CommandBar.showHistory() },
     { id: 'reset-command-order', label: 'Reset command order', hint: 'Forget which commands you use most, so Ctrl+K lists them by name again; nothing else is changed', icon: 'refresh', action: async () => { if (await window.vexConfirm({ title: 'Reset the command order?', message: 'Ctrl+K forgets how often and when you used each command. Your shortcut words and pinned commands stay.', okLabel: 'Reset' })) { CommandBar.resetUsage(); window.showToast?.('Ctrl+K lists commands by name again'); } } },
     { id: 'settings', label: 'Settings', hint: 'Open settings', icon: 'settings', action: () => SidebarManager.openPanel('settings') },
+    // Language, from Ctrl+K: only the OTHER language is offered to switch to; "Change Language" opens the control in Settings.
+    { id: 'language-turkish', label: 'Language: Switch to Turkish (Türkçe)', hint: 'Show Vex in Turkish; the same switch as Settings, General, Language', icon: 'globe', keywords: 'dil lisan turkce türkçe turkish language locale interface arayüz arayuz tr', when: () => CommandBar._lang() !== 'tr', action: () => CommandBar._switchLanguage('tr') },
+    { id: 'language-english', label: 'Language: Switch to English', hint: 'Show Vex in English; the same switch as Settings, General, Language', icon: 'globe', keywords: 'dil lisan ingilizce english language locale interface arayüz arayuz en', when: () => CommandBar._lang() !== 'en', action: () => CommandBar._switchLanguage('en') },
+    { id: 'language', label: 'Change Language', hint: 'Open the language setting', icon: 'globe', keywords: 'dil dili değiştir degistir lisan language locale türkçe turkce turkish english ingilizce arayüz arayuz', action: () => { if (window.SettingsUI?.openSection) SettingsUI.openSection('setting-language'); else SidebarManager.openPanel('settings'); } },
     { id: 'tools', label: 'Tools', hint: 'Open your tools', icon: 'wrench', action: () => CommandBar.showTools() },
     { id: 'start', label: 'Start Page', hint: 'Go to start page', icon: 'home', action: () => TabManager.createTab(START_URL, true) },
     { id: 'youtube', label: 'YouTube', hint: 'Open YouTube', icon: 'play', action: () => TabManager.createTab('https://youtube.com', true) },
@@ -1269,6 +1273,25 @@ const CommandBar = {
           },
         };
       });
+  },
+
+  // The language the window is in: 'en' or 'tr' (the same answer the Settings language list gives).
+  _lang() {
+    if (typeof VexI18nUI !== 'undefined' && typeof VexI18nUI.locale === 'function') return String(VexI18nUI.locale() || 'en').slice(0, 2);
+    let v = 'en';
+    try { v = localStorage.getItem('vex.lang') || 'en'; } catch (err) { console.warn('[Command] the language could not be read:', err.message); }
+    try { v = JSON.parse(v); } catch { /* vex-allow-empty-catch: the language is stored as plain text on some profiles */ }
+    return String(v || 'en').slice(0, 2);
+  },
+  // The same call as Settings > General > Language: it saves vex.lang, tells the window and reloads the start pages.
+  _switchLanguage(lang) {
+    try {
+      if (!window.Onboarding || typeof window.Onboarding.setLanguage !== 'function') throw new Error('the language setting is not loaded');
+      window.Onboarding.setLanguage(lang);
+    } catch (err) {
+      console.error('[Command] the language could not be changed:', err);
+      window.showToast?.('The language could not be changed: ' + ((err && err.message) || err), 'error');
+    }
   },
 
   // withScores: [{ c, score }] instead of the commands alone.
