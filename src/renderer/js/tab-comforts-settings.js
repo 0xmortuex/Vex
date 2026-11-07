@@ -75,6 +75,11 @@ const VexTabComfortsSettings = {
     toggle('A page of Vex\'s own when a site does not load', 'Try again, a hard reload, http:// after you confirm, your saved copy and the Wayback Machine. Nothing is tried by itself.',
       VexLoadFailure.enabled(), (on) => VexLoadFailure.setEnabled(on));
 
+    toggle('Offer to reload when I am back online', 'Only for a page that failed because there was no internet, once per failure. Not for a missing site or a certificate problem.',
+      VexLoadFailure.offerOn(), (on) => VexLoadFailure.setOffer(on));
+    toggle('Reload those pages by itself when I am back online', 'Off until you turn it on. The pages reload in the background without taking you away from the tab you are on.',
+      VexLoadFailure.autoOn(), (on) => VexLoadFailure.setAuto(on));
+
     toggle('Paste as plain text in the right-click menu', 'Also Ctrl+K, "Paste as plain text". Ctrl+Shift+V pastes plain text inside a page by itself.',
       VexPastePlain.enabled(), (on) => VexPastePlain.setEnabled(on));
 

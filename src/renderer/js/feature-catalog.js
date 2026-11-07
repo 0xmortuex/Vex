@@ -1362,6 +1362,8 @@ const VexFeatures = {
       what: 'A small Vex window you open with a hotkey while a game runs: a guide page, Discord, notes, a timer, music buttons and a quick search, without alt-tabbing. It is an ordinary window and never touches the game, so it is safe with anti-cheat. On an existing profile it starts off; turn it on in Settings > Game overlay.' },
     { id: 'clear-recent', feature: 'clear-recent', newer: true, cat: 'privacy', name: 'Clear the last 15 minutes', phrases: 'clear recent last 15 minutes last hour last day clear when i close clear on exit auto clear when vex closes cookies cache shared computer', cmd: 'clear-recent',
       what: 'Removes the visits and closed tabs of the last 15 minutes, hour or day without wiping everything, and can clear your browsing data every time Vex closes. That second part is off until you turn it on, leaves alone the sites you keep signed in, and never runs after a crash. Cookies, cache and site data cannot be cleared for a time range, so the range only covers what Vex itself keeps.' },
+    { id: 'offline-retry', setting: {"section":"setting-tab-comforts","label":"Tab comforts"}, feature: 'offline-retry', newer: true, cat: 'reading', name: 'Reload pages when I am back online', phrases: 'back online reload pages that failed connection dropped wifi came back no internet retry when online offline error',
+      what: 'When your connection comes back, Vex offers to reload the pages that failed only because you were offline, once for each failure. It can also reload them by itself in the background if you turn that on; it is off until you do. A missing site or a certificate problem is never retried this way.' },
   ],
 
   // Everything in one category.

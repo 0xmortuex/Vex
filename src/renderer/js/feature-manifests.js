@@ -934,6 +934,8 @@
       permissions: { reads: ['which features are switched off and waiting', 'your command counts, to put the ones you use first'], writes: ['when it was offered, and what the last Apply turned on'], sends: [] } },
     { id: 'clear-recent', title: 'Clear recent browsing data', group: 'Privacy', maturity: 'new', storageKeys: ['vex.autoClear'], commands: ['clear-recent'],
       permissions: { reads: ['your list of visits, the closed tabs and the sites you keep signed in'], writes: ['removes the visits and closed tabs of the range you pick; when you switch it on, clears cookies, site data, cache and visits at a normal quit'], sends: [] } },
+    { id: 'offline-retry', title: 'Reload pages when I am back online', killSwitch: 'none', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.offlineRetry.offer', 'vex.offlineRetry.auto'],
+      permissions: { reads: ['which tabs failed because there was no internet'], writes: ['only its two switches'], sends: ['Nothing of its own: a reload asks the page that failed, as pressing Reload would'] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');
