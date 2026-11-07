@@ -567,6 +567,8 @@ const VexFeatures = {
       what: 'Reads the verification code out of your Gmail and fills it — even with no Gmail tab open.' },
     { id: 'formfill', cat: 'logins', cmd: 'formfill', phrases: 'universal form fill one profile fills any form on any site no card details',
       what: 'One saved profile fills any signup or checkout form. It holds no card details: cards are kept separately, in Payment cards.' },
+    { id: 'saved-addresses', feature: 'saved-addresses', newer: true, phrases: 'saved addresses address book autofill checkout shipping address fill street city postcode delivery billing encrypted', cat: 'logins', cmd: 'address-fill', name: 'Saved addresses (encrypted)',
+      what: 'Keep a few addresses in an encrypted file on this computer and fill one into a checkout form on request. Use Ctrl+K: Fill Saved Address into This Page, or Saved Addresses to manage them.' },
     { id: 'filltotp', cat: 'logins', cmd: 'filltotp',
       phrases: 'fill 2fa code authenticator code field right click code manual one time code did not fill',
       what: 'Right-click a page’s code field and choose “Fill code from authenticator” (or use Ctrl+K) to type the current code of your account for that site, with a list to pick from when several match or none does.' },

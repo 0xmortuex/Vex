@@ -938,6 +938,8 @@
       permissions: { reads: ['the visible text of the page in front, only when you press Find'], writes: [], sends: [] } },
     { id: 'reader-time-left', title: 'Reader time left', group: 'Reader time left', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.reader.timeLeft'], commands: ['reader-time-left', 'reader-reading-speed'],
       permissions: { reads: ['the word count of the article and how far the reader page is scrolled'], writes: ['whether it is on and the reading speed you typed'], sends: [] } },
+    { id: 'saved-addresses', title: 'Saved addresses', group: 'Saved addresses', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['address-book', 'address-fill'],
+      permissions: { reads: ['the addresses you saved; the empty fields of the form in front, only when you press Fill'], writes: ['the encrypted address file on this computer; the form fields, only after you confirm what goes into which site'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

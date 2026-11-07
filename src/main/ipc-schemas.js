@@ -674,6 +674,10 @@ define('cards:reveal cards:delete', [string(64)]);
 define('cards:has', [string(64)]);
 define('cards:save', [shape({ number: string(64), name: optional(string(200)), nickname: optional(string(100)), expMonth: cardPart, expYear: optional(cardPart) })]);
 define('cards:update', [shape({ id: string(64), name: optional(string(200)), nickname: optional(string(100)), expMonth: optional(cardPart), expYear: optional(cardPart) })]);
+// Saved addresses (main/addresses.js). The text limits are re-checked and cut in main.
+define('addresses:list', []);
+define('addresses:get addresses:delete', [string(64)]);
+define('addresses:save', [shape({ id: optional(string(64)), label: optional(string(200)), name: string(400), street: string(400), city: string(400), postcode: optional(string(100)), country: optional(string(400)), phone: optional(string(100)) })]);
 define('totp:import-migration', [string(65536)]);
 define('totp:export-backup totp:import-backup', [string(1024)]);
 define('totp:rename', [string(256), string(4096), string(4096)]);
