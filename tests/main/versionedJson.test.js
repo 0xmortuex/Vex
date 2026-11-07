@@ -44,7 +44,7 @@ describe('the readers accept the bare shape and the envelope', () => {
   const put = (name, value) => fs.writeFileSync(path.join(dir, name), JSON.stringify(value));
 
   it('hid-grants.json', () => {
-    const grants = { 'persist:main::https://a.example': [{ vendorId: 1, productId: 2 }] };
+    const grants = { 'persist:main|https://a.example': [{ vendorId: 1, productId: 2 }] };
     for (const value of [grants, { v: 2, data: grants }]) {
       put('hid-grants.json', value);
       expect(createHidGrants({ userDataPath: dir }).isGranted('persist:main', 'https://a.example', 1, 2)).toBe(true);

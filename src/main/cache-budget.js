@@ -47,6 +47,7 @@ const REPORT_ONLY = Object.freeze({ key: 'cacheStorage', rel: ['Service Worker',
 function partitionIdOf(dirName) {
   let name;
   try { name = decodeURIComponent(String(dirName)); } catch { return null; }   // a name that is not valid escaping is not one of ours
+  if (/^\.+$/.test(name)) return null;   // '.' and '..' are the folder itself and its parent, never a partition
   return /^[A-Za-z0-9._ -]{1,120}$/.test(name) ? 'persist:' + name : null;
 }
 

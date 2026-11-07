@@ -42,7 +42,11 @@ function cleanAddress(input) {
 
 // What the window's list may see: enough to tell the addresses apart, not the street or the phone.
 function publicView(a) {
-  return { id: a.id, label: a.label || '', name: a.name || '', city: a.city || '', country: a.country || '', updatedAt: a.updatedAt };
+  // The default label is "street, city"; the list must not carry the street, so a label that contains it is shown as "name, city".
+  const label = a.label || '';
+  const hidesStreet = a.street && label.toLowerCase().includes(String(a.street).toLowerCase());
+  const shown = hidesStreet ? [a.name, a.city].filter(Boolean).join(', ').slice(0, LIMITS.label) : label;
+  return { id: a.id, label: shown, name: a.name || '', city: a.city || '', country: a.country || '', updatedAt: a.updatedAt };
 }
 
 function createAddressService({ app, safeStorage, ipcMain, isLocked = () => false, now = () => new Date(), fsImpl = require('fs') }) {

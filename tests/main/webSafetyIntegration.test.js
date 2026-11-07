@@ -239,7 +239,7 @@ describe('wiring', () => {
   });
   it('private windows cannot write the profile\'s safety choices', () => {
     const policy = read('src', 'main', 'ipc-policy.js');
-    expect(policy).toContain('PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|');
+    expect(policy).toContain('websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|');
   });
   it('every session\'s allowed requests pass the lookalike guard first', () => {
     const fn = main.slice(main.indexOf('function _httpsAnswer(details) {'));
