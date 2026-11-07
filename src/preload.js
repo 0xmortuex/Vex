@@ -1247,6 +1247,16 @@ contextBridge.exposeInMainWorld('vexHid', {
   respond:         (payload) => ipcRenderer.invoke('hid:select-respond', payload),
 });
 
+contextBridge.exposeInMainWorld('vexDevices', {
+  // Web Serial / WebUSB chooser. Main fires 'devices:select-request' when a site calls navigator.serial.requestPort()
+  // or navigator.usb.requestDevice(); the renderer replies with the picked id (or '') and whether to remember it.
+  onSelectRequest: (cb) => subscribe('devices:select-request', cb),
+  rendererReady:   () => ipcRenderer.send('devices:renderer-ready'),
+  respond:         (payload) => ipcRenderer.invoke('devices:select-respond', payload),
+  grantsList:      () => ipcRenderer.invoke('devices:grants-list'),
+  grantsRevoke:    (id) => ipcRenderer.invoke('devices:grants-revoke', { id }),
+});
+
 contextBridge.exposeInMainWorld('vexSpellcheck', {
   // Replace a misspelled word with a spellcheck suggestion. replaceMisspelling
   // lives on webContents in the main process — the <webview> tag element does

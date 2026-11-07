@@ -687,6 +687,10 @@ define('totp:add', [value => string(16384)(value) || shape({ secret: string(1638
 // site's request hung until it timed out (v2.31.95 to v2.32.33).
 define('permission:respond', [shape({ id: string(160), decision: oneOf(['allow','deny']), remember: optional(oneOf([true, false, 'session', 'day'])) })]);
 define('hid:select-respond', [shape({ id: string(160), deviceId: optional(string(1024)) })]);
+// Web Serial / WebUSB chooser (main/device-chooser.js): the pick, whether to remember it, and Settings' list and revoke.
+define('devices:select-respond', [shape({ id: string(160), deviceId: optional(string(1024)), remember: optional(boolean) })]);
+define('devices:renderer-ready devices:grants-list', []);
+define('devices:grants-revoke', [shape({ id: string(2000) })]);
 define('screen-share:preflight', [integer]);
 define('commit:state', []);
 define('signout:why', [optional(string(255))]);

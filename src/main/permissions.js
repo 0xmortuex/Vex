@@ -418,6 +418,9 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // WebHID: keep navigator.hid available. Which device a site gets is the
     // chooser's pick alone (main.js, wireWebHidOnSession).
     if (permission === 'hid') return true;
+    // Web Serial and WebUSB the same way: without this Chromium never even asks the chooser (measured, Electron 42).
+    // Which device a site gets is the chooser's pick alone (main/device-chooser.js); Tor is refused above.
+    if (permission === 'serial' || permission === 'usb') return true;
     // DRM playback (EME) is auto-OK like a normal browser, so the sync check
     // Chromium runs during requestMediaKeySystemAccess() doesn't block Spotify.
     if (permission === 'mediaKeySystem' || permission === 'fullscreen' || permission === 'pointerLock') return true;

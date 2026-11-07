@@ -142,6 +142,15 @@ const PermissionsSettings = (() => {
       `}
     `;
 
+    // Serial ports and USB devices a site was given and may keep (js/device-picker.js, loaded when this list is drawn).
+    const devicesHost = document.createElement('div');
+    devicesHost.className = 'perm-live perm-devices';
+    container.appendChild(devicesHost);
+    if (window.vexDevices && window.VexLazy) {
+      window.VexLazy.ensure('js/device-picker.js').then(() => window.DevicePicker.renderGrants(devicesHost))
+        .catch(err => VexProblems?.note('Permissions', 'Could not list the remembered devices', err));
+    }
+
     // What is happening now, above what is merely allowed.
     const liveHost = document.createElement('div');
     liveHost.className = 'perm-live';

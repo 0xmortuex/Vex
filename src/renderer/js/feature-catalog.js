@@ -213,6 +213,8 @@ const VexFeatures = {
       what: 'A separate window that saves no history, cookies or logins when it closes. It does not hide your connection: for that, use a Tor tab.' },
     { id: 'permissions', phrases: 'camera microphone location permission allow block site', cat: 'privacy', name: 'Site permissions', setting: { section: 'permissions-panel-content' },
       what: 'Who got your location, mic, camera, notifications or USB — and taking it back.' },
+    { id: 'serial-usb', phrases: 'serial usb web serial webusb com port esp32 arduino flasher logic analyzer qemu serial console device chooser microcontroller', cat: 'privacy', cmd: 'serial-usb', name: 'Serial and USB devices', setting: { section: 'permissions-panel-content', label: 'Site permissions' },
+      what: 'Opens a chooser when a page asks for a serial port or USB device. You pick it, it is not kept unless you say so, and Settings lists and revokes the ones you kept.' },
     { id: 'clearsite', phrases: 'clear cookies clear cache site data', cat: 'privacy', cmd: 'clearsite',
       what: 'Wipes one site\'s cookies and storage and reloads — the cure for a stuck login or a stale "unsupported browser".' },
     { id: 'sitedata', phrases: 'cookie editor edit cookie remove one cookie local storage session storage what a site stores', cat: 'privacy', cmd: 'sitedata', name: 'Cookies and storage for this site',
@@ -1389,7 +1391,7 @@ const VexFeatures = {
       { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint', 'gpc', 'referrer-trim', 'link-unwrap'] },
       { name: 'The connection itself', ids: ['doh', 'https-only', 'captive-portal', 'tor', 'routing', 'routing-all', 'site-routes', 'dpi'] },
       { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window'] },
-          { name: 'One site at a time', ids: ['permissions', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'lite-mode', 'session-timeout', 'forget-site', 'sitebroken', 'siteidentity', 'open-in-browser'] },
+          { name: 'One site at a time', ids: ['permissions', 'serial-usb', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'lite-mode', 'session-timeout', 'forget-site', 'sitebroken', 'siteidentity', 'open-in-browser'] },
       { name: 'Your passwords', ids: ['pwhealth', 'secrets-lifeboat', 'mass-signout'] },
     ],
     reading: [

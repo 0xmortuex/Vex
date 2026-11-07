@@ -31,6 +31,8 @@ const VexBoot = {
     { src: 'js/auto-backup.js', usage: [] },
     // Encrypted secrets file (export / check / restore): opened from the backup dialog or Ctrl+K; main does the work.
     { src: 'js/secrets-lifeboat.js', usage: [] },
+    // Web Serial / WebUSB chooser and the remembered-devices list: opened by app.js when a page asks (VexLazy.ensure), and for Ctrl+K.
+    { src: 'js/device-picker.js', usage: [] },
     // "Many of your logins look gone": listens for main's one notice and files it in the Attention Inbox.
     { src: 'js/mass-signout.js', usage: [] },
     { src: 'js/voice-match.js', usage: [] },
