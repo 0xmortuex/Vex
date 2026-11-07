@@ -80,6 +80,9 @@ const VexTabComfortsSettings = {
     toggle('Reload those pages by itself when I am back online', 'Off until you turn it on. The pages reload in the background without taking you away from the tab you are on.',
       VexLoadFailure.autoOn(), (on) => VexLoadFailure.setAuto(on));
 
+    toggle('Click the microphone or camera icon on a tab to turn it off', 'Off until you turn it on. Asks the page to end the microphone and camera without leaving it; Ctrl+K has the same for this tab or all tabs.',
+      localStorage.getItem('vex.captureMute.badge') === 'on', (on) => localStorage.setItem('vex.captureMute.badge', on ? 'on' : 'off'));
+
     toggle('Paste as plain text in the right-click menu', 'Also Ctrl+K, "Paste as plain text". Ctrl+Shift+V pastes plain text inside a page by itself.',
       VexPastePlain.enabled(), (on) => VexPastePlain.setEnabled(on));
 
