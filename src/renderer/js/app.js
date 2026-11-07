@@ -1724,6 +1724,11 @@ function vexOwnTextFocused(doc) {
       return;
     }
     if (chat) VexChatLinks.after(created, chat);
+    if (data.requestId && data.background) {
+      // Opened by an extension behind the tab in front: keep it laid out and awake so the extension can screenshot and drive it.
+      const opened = typeof created === 'string' ? TabManager.tabs.find(t => t.id === created) : created;
+      if (opened) { opened.extOpenedAt = Date.now(); window.VexExtDebugBar?.syncLayout?.(); }
+    }
     if (data.requestId) answerExtensionTab(data.requestId, created);
   });
   // An extension's tabs.create waits to hear which tab it got (main.js,

@@ -23,7 +23,26 @@ const VexExtDebugBar = {
 
   set(rows) {
     this._rows = Array.isArray(rows) ? rows : [];
+    this.syncLayout();
     this.refresh();
+  },
+
+  // Is this page (web contents id) held by an extension right now? Pure over the rows.
+  holds(wcId) { return this.forTab(this._rows, wcId).length > 0; },
+
+  // A tab an extension holds (or just opened in the background) keeps a real, laid-out, invisible page when it is not in front. A
+  // display:none page has a 0x0 viewport and cannot be screenshotted, which is what the extension saw (measured in Electron 42: innerWidth 0
+  // and no screenshot; opacity:0 in layout gives the full size and a picture). Normal tabs are untouched.
+  syncLayout() {
+    if (typeof WebviewManager === 'undefined' || typeof TabManager === 'undefined') return;
+    if (!Array.isArray(TabManager.tabs)) return;
+    for (const tab of TabManager.tabs) {
+      const wv = WebviewManager.webviews.get(tab.id);
+      if (!wv) continue;
+      let id = null;
+      try { id = wv.getWebContentsId(); } catch { id = null; }   // vex-allow-empty-catch: a page not attached yet is held by nobody
+      wv.classList.toggle('ext-held', TabManager.extOpenedRecently(tab) || (id != null && this.holds(id)));
+    }
   },
 
   refresh() {
@@ -104,7 +123,7 @@ const VexExtDebugBar = {
     if (!window.vex || typeof window.vex.onExtensionsDebugState !== 'function') return;
     if (typeof window.vex.onExtensionsGrantAsk === 'function') window.vex.onExtensionsGrantAsk((request) => this.ask(request));
     window.vex.onExtensionsDebugState((rows) => this.set(rows));
-    window.addEventListener('vex:tab-activated', () => this.refresh());
+    window.addEventListener('vex:tab-activated', () => { this.syncLayout(); this.refresh(); });
     window.addEventListener('resize', () => this._place());
     try { this.set(await window.vex.extensionsDebugState()); }
     catch (err) { console.error('[Extensions] could not read which tabs an extension holds:', err); }
