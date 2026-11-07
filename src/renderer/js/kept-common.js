@@ -22,7 +22,7 @@ const VexKept = {
       const hit = VexI18nUI.lookup(text);
       if (hit) out = hit;
     }
-    return out.replace(/{(d)}/g, (_m, i) => String(args[Number(i) - 1]));
+    return out.replace(/\{(\d)\}/g, (_m, i) => String(args[Number(i) - 1]));
   },
 
   // Ask main (window.vex.<name>). Throws an Error with main's own sentence when it says no.
