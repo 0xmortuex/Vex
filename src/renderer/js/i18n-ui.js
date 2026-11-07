@@ -11621,6 +11621,7 @@ const VexI18nUI = {
       'its name is what you typed': 'adı tam olarak yazdığınız şey',
       'its name starts with what you typed': 'adı yazdığınız şeyle başlıyor',
       'a word in its name starts with what you typed': 'adındaki bir sözcük yazdığınız şeyle başlıyor',
+      'its name contains the words you typed together': 'adı yazdığınız sözcükleri bir arada içeriyor',
       'its id starts with what you typed': 'kimliği yazdığınız şeyle başlıyor',
       'every word you typed is in its name or description': 'yazdığınız her sözcük adında ya da açıklamasında var',
       'its name contains what you typed': 'adı yazdığınız şeyi içeriyor',

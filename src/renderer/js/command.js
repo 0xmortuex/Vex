@@ -1058,6 +1058,9 @@ const CommandBar = {
     let score = 0;
     if (label.startsWith(q)) score = 100;
     else if (low.twin && low.twin.startsWith(q)) score = 100;
+    // The whole phrase typed, inside the name at a word boundary ("setup wizard" in "Run Setup Wizard"): above a feature that only has the words somewhere
+    // in its keywords (a feature row scores 80) and below a name that starts with it.
+    else if (q.includes(' ') && (label.includes(' ' + q) || (low.twin && low.twin.includes(' ' + q)))) score = 92;
     else if (low.words.some(w => w.startsWith(q))) score = 85;
     else if (low.twinWords.some(w => w.startsWith(q))) score = 85;
     else if (id.startsWith(q)) score = 80;
@@ -1348,7 +1351,7 @@ const CommandBar = {
       if (pinned) return head + this._say('you pinned it') + (used ? '; ' + used : '');
       return head + (u ? this._say(u.n === 1 ? 'you used {1} time, last {2}' : 'you used {1} times, last {2}', u.n, when) : this._say('a suggestion Vex starts with'));
     }
-    const tiers = [[100, 'its name starts with what you typed'], [85, 'a word in its name starts with what you typed'], [80, 'its id starts with what you typed'],
+    const tiers = [[100, 'its name starts with what you typed'], [92, 'its name contains the words you typed together'], [85, 'a word in its name starts with what you typed'], [80, 'its id starts with what you typed'],
       [70, 'every word you typed is in its name or description'], [60, 'its name contains what you typed'], [45, 'its description contains what you typed'], [30, 'the letters you typed appear in its name in order']];
     const score = this._scoreCommand(q, item);
     const exact = score === 100 && this._nameExtra(q, item, score) >= 9;
