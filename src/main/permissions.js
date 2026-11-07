@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { atomicWrite } = require('./file-store');
+const { unwrap } = require('./versioned-json');
 
 // One spelling of an origin for every decision key: scheme://host[:port],
 // no trailing slash, no path. Electron's handlers spell the same origin two
@@ -167,7 +168,7 @@ function loadMainDecisions() {
   if (cachedDecisions) return { ...cachedDecisions };
   try {
     if (fs.existsSync(permissionsFile)) {
-      cachedDecisions = JSON.parse(fs.readFileSync(permissionsFile, 'utf-8')) || {};
+      cachedDecisions = unwrap(JSON.parse(fs.readFileSync(permissionsFile, 'utf-8'))) || {};
       return { ...cachedDecisions };
     }
   } catch {}

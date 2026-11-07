@@ -30,6 +30,7 @@ const SECURE_FILES = Object.freeze([
   { id: 'ai-keys', file: 'ai-keys.enc', label: 'AI provider keys' },
   { id: 'mcp-auth', file: 'mcp-auth.enc', label: 'Tool-server sign-ins' },
   { id: 'mail', file: 'mail-accounts.enc', label: 'Mail accounts' },
+  { id: 'queue-secret', file: 'queue-secret.enc', label: 'Queue read secret' },
   { id: 'sync-key', file: 'sync-key.bin', label: 'Sync key' },
   { id: 'sync-meta', file: 'sync-meta.json', label: 'Sync details' },
 ]);

@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { atomicWriteSync } = require('./file-store');
+const { unwrap } = require('./versioned-json');
 
 const SEP = '|';   // "persist:main|https://site.example"; neither part has one
 const LEGACY_PARTITION = 'persist:main';
@@ -23,7 +24,7 @@ function createHidGrants({ userDataPath, writeFile = (f, s) => atomicWriteSync(f
     if (cache) return cache;
     let raw = {};
     if (fs.existsSync(file)) {
-      raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      raw = unwrap(JSON.parse(fs.readFileSync(file, 'utf-8')));
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('hid-grants.json is not a list of grants');
     }
     const out = {};

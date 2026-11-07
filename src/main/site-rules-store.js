@@ -13,13 +13,14 @@
 // The result says which of these happened; the caller posts the notice (main/attention-notes.js).
 const fs = require('fs');
 const { atomicWriteSync, readJsonRecoverSync, keepCorruptCopy } = require('./file-store');
+const { unwrap } = require('./versioned-json');
 
 function loadSiteRules({ file, clean, fsImpl = fs, now = Date.now() }) {
   if (typeof clean !== 'function') throw new Error('loadSiteRules needs the clean function');
   let r = readJsonRecoverSync(file, { fsImpl, now });
   let cleaned = null;
   if (r.data !== null) {
-    try { cleaned = clean(r.data); }
+    try { cleaned = clean(unwrap(r.data)); }
     catch (error) {
       // Parses, but is not rules: treated like a damaged file.
       const corruptCopy = r.corruptCopy || keepCorruptCopy(file, now);

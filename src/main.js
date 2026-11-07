@@ -469,7 +469,7 @@ function _recordTracker(reqUrl, wcId) {
   } catch {}
 }
 function privacyLoad() {
-  try { const fs = require('fs'); if (fs.existsSync(PRIVACY_FILE())) privacyCfg = { ...privacyCfg, ...JSON.parse(fs.readFileSync(PRIVACY_FILE(), 'utf8')) }; } catch {}
+  try { const fs = require('fs'); if (fs.existsSync(PRIVACY_FILE())) privacyCfg = { ...privacyCfg, ...require('./main/versioned-json').unwrap(JSON.parse(fs.readFileSync(PRIVACY_FILE(), 'utf8'))) }; } catch {}
   privacyCfg = _headerPrivacy(privacyCfg);
   return privacyCfg;
 }
@@ -1040,7 +1040,7 @@ app.whenReady().then(() => { setTimeout(() => { _integrity.run(); }, 20000).unre
 
 // Local sidebar config (userData/sidebar-config.json) — lets the renderer
 // fetch personalized tool URLs that must stay out of the public repo.
-registerSidebarConfigIpc(ipcMain, userDataPath);
+registerSidebarConfigIpc(ipcMain, userDataPath, () => secretStore);   // the queue secret is kept sealed (SecretStore)
 
 // === Download tracking helper (hoisted so private-window sessions can reuse it) ===
 // skipPrivate: not to private windows (a normal window's download was listed
@@ -2207,7 +2207,7 @@ function recallStore() {
   let records = [];
   try {
     const fsx = require('fs');
-    if (fsx.existsSync(RECALL_FILE())) records = JSON.parse(fsx.readFileSync(RECALL_FILE(), 'utf8'));
+    if (fsx.existsSync(RECALL_FILE())) records = require('./main/versioned-json').unwrap(JSON.parse(fsx.readFileSync(RECALL_FILE(), 'utf8')));
     if (!Array.isArray(records)) records = [];
   } catch { records = []; }
   const before = records.length;
