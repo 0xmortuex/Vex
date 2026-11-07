@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { requestHeadBytes } = require('../../src/main/egress-ledger.js');
 const { createEgressLedger, classify, hostOf, isThisMachine, DAY_MS } = Object.assign({ DAY_MS: 24 * 3600 * 1000 }, require('../../src/main/egress-ledger.js'));
 
 let dir, file, clock, ledger, notes;
@@ -101,7 +102,8 @@ describe('wrap()', () => {
     const out = await f('https://updates.example/latest.yml?v=1', { method: 'POST', body: 'héllo' });
     expect(out).toBe(res);
     expect(inner).toHaveBeenCalledWith('https://updates.example/latest.yml?v=1', { method: 'POST', body: 'héllo' });
-    expect(ledger.list()[0]).toMatchObject({ feature: 'Vex updates', kind: 'update', host: 'updates.example', out: 6, in: 321, ok: true, status: 200 });
+    // out = the request line + the headers set + the body (6 bytes)
+    expect(ledger.list()[0]).toMatchObject({ feature: 'Vex updates', kind: 'update', host: 'updates.example', out: requestHeadBytes('POST', 'https://updates.example/latest.yml?v=1') + 6, in: 321, ok: true, status: 200 });
   });
 
   it('takes the caller\u2019s hint from init.egress and removes it before the request goes out', async () => {
