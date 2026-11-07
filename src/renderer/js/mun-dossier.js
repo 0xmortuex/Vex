@@ -51,6 +51,16 @@ const VexMunDossier = {
   // as "A/RES/78/1" counts). -> { url, title }
   cleanSource(src) {
     const s = typeof src === 'string' ? { url: src, title: '' } : (src || {});
+    // W4: an item may point at a Sources record (js/sources.js). The address and title are copied from it so the
+    // item still reads on its own if the record is later removed. Old items have no sourceId and load as before.
+    if (s.sourceId) {
+      if (typeof VexSources === 'undefined') throw new Error('Sources are not available');
+      const rec = VexSources.get(String(s.sourceId));
+      if (!rec) throw new Error('That source is gone');
+      const out = this.cleanSource({ url: rec.url, title: rec.title });
+      out.sourceId = rec.id;
+      return out;
+    }
     const url = String(s.url || '').trim();
     const title = String(s.title || '').trim().slice(0, 200);
     if (url) {
@@ -82,6 +92,25 @@ const VexMunDossier = {
     items.forEach((it, i) => L.push('[' + (i + 1) + '] ' + (it.source.title || it.source.url) + (it.source.url && it.source.title ? ' - ' + it.source.url : '')));
     return L.join('\n') + '\n';
   },
+  // The Sources records the items of a dossier point at (ids, each once).
+  sourceIds(d) {
+    const ids = [];
+    for (const k of Object.keys(d.sections || {})) for (const it of d.sections[k] || []) {
+      const id = it && it.source && it.source.sourceId;
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+    return ids;
+  },
+  // The bibliography of the linked sources, in the citation style already chosen in Settings (or `style`).
+  // A linked record that was removed from Sources is counted in `missing`, not written. -> { text, count, missing }
+  bibliography(d, style) {
+    const ids = this.sourceIds(d);
+    if (!ids.length) return { text: '', count: 0, missing: 0 };
+    if (typeof VexSources === 'undefined') throw new Error('Sources are not available');
+    const have = new Set(VexSources.list().map(r => r.id));
+    const r = VexSources.allText(style, ids.filter(id => have.has(id)));
+    return { text: r.text, count: r.count, missing: ids.filter(id => !have.has(id)).length };
+  },
   completeness(d) {
     return this.SECTIONS.map(([k, label]) => ({ key: k, label, count: (d.sections[k] || []).length }));
   },
@@ -108,8 +137,9 @@ const VexMunDossier = {
     if (!d) throw new Error('That dossier is gone');
     const sec = d.sections[key] || (d.sections[key] = []);
     if (sec.length >= this.MAX_ITEMS) throw new Error('That section is full');
-    if (sec.some(i => i.text === t && i.source.url === src.url && i.source.title === src.title)) return { added: false };
+    if (sec.some(i => i.text === t && i.source.url === src.url && i.source.title === src.title && (i.source.sourceId || '') === (src.sourceId || ''))) return { added: false };
     sec.push({ id: 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4), text: t.slice(0, 2000), source: src, at: Date.now() });
+    if (src.sourceId) d.v = 2;      // v2: items may carry source.sourceId. A dossier without v is v1 and reads the same.
     this._write(list);
     return { added: true };
   },
@@ -134,6 +164,19 @@ const VexMunDossier = {
     if (typeof ResearchBoard === 'undefined') throw new Error('The research board is not available');
     const r = await ResearchBoard.addFromActive();     // refuses private/Tor pages and an empty selection
     return this.addItem(id, key, { text: r.item.text, source: { url: r.item.url, title: r.item.title } });
+  },
+
+  // An item that points at a Sources record: choose the record, then write the item.
+  async pickSource(id, key) {
+    if (typeof VexSources === 'undefined') throw new Error('Sources are not available');
+    const recs = VexSources.list();
+    if (!recs.length) throw new Error('No sources are saved yet. Save them from a research brief or with "Keep this page as a source"');
+    const lines = recs.map((r, i) => (i + 1) + '. ' + r.title.slice(0, 80)).join('\n');
+    const n = await window.vexPrompt({ title: 'Saved source', message: lines, label: 'Number of the source', okLabel: 'Next' }); if (n == null) return;
+    const rec = recs[Number(n) - 1];
+    if (!rec) throw new Error('There is no source with that number');
+    const text = await window.vexPrompt({ title: 'Item', label: 'Item', multiline: true, okLabel: 'Add' }); if (text == null) return;
+    return this.addItem(id, key, { text, source: { sourceId: rec.id } });
   },
 
   // Six notes and an index, in one project space.
@@ -206,6 +249,7 @@ const VexMunDossier = {
               this.addItem(d.id, k, { text, source }); draw();
             } catch (e) { fail(e); }
           }),
+          G.button('From a saved source', async () => { try { await this.pickSource(d.id, k); draw(); } catch (e) { fail(e); } }, { label: 'Add an item that points at a saved source' }),
           G.button('From the page', async () => { try { await this.addFromPage(d.id, k); draw(); } catch (e) { fail(e); } }),
           G.button('From the research board', () => { try { const n = this.importBoard(d.id, k); window.showToast?.(n + ' quote(s) added'); draw(); } catch (e) { fail(e); } }),
         );

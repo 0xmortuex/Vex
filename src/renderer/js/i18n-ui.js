@@ -15386,6 +15386,25 @@ const VexI18nUI = {
       'How GitHub opens': 'GitHub’ın nasıl açıldığı',
       'GitHub could not ask how to open: {1}': 'GitHub nasıl açılacağını soramadı: {1}',
       // --- end GitHub: Control Center or direct ---
+      // --- W4 flows: research -> sources -> dossier -> position paper ---
+      'Save sources': 'Kaynakları kaydet',
+      'Keep the pages of this brief as source records, to cite them and link them in a dossier': 'Bu özetin sayfalarını kaynak kaydı olarak sakla; atıf yapabilir ve bir dosyaya bağlayabilirsiniz',
+      'Sources saved: {1} new, {2} already kept': 'Kaynaklar kaydedildi: {1} yeni, {2} zaten kayıtlıydı',
+      'Sources are not available here': 'Kaynaklar burada kullanılamıyor',
+      'Sources are not available': 'Kaynaklar kullanılamıyor',
+      'Sources is switched off in Settings': 'Kaynaklar Ayarlar’dan kapatılmış',
+      'From a saved source': 'Kayıtlı bir kaynaktan',
+      'Add an item that points at a saved source': 'Kayıtlı bir kaynağa bağlı bir madde ekle',
+      'Saved source': 'Kayıtlı kaynak',
+      'Number of the source': 'Kaynağın numarası',
+      'Item': 'Madde',
+      'No sources are saved yet. Save them from a research brief or with "Keep this page as a source"': 'Henüz kayıtlı kaynak yok. Bir araştırma özetinden ya da “Bu sayfayı kaynak olarak sakla” ile kaydedin',
+      'There is no source with that number': 'Bu numarada bir kaynak yok',
+      'That dossier is gone': 'Bu dosya artık yok',
+      'The dossier is not available': 'Dosya kullanılamıyor',
+      'Bibliography from a dossier': 'Bir dosyadan kaynakça',
+      'No bibliography': 'Kaynakça yok',
+      // --- end W4 flows: research -> sources ---
     },
   },
 
