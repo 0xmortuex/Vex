@@ -57,6 +57,26 @@ try {
 }
 console.log('[Profiles] this is profile', _profile.id, '-', _profile.dir);
 
+// === No remote debugging of a real profile (src/main/debug-guard.js) =========
+// A packaged Vex started with --remote-debugging-port/-pipe, --remote-allow-origins
+// or an --inspect flag exits here, before a window or a session exists, unless its
+// profile is a throwaway one made by the test harness. Chromium may already have
+// opened the port by now, so the answer is to exit, not to strip the switch.
+// With no such switch, a leftover DevToolsActivePort file is deleted.
+try {
+  const _dbgGuard = require('./main/debug-guard');
+  const _dbg = _dbgGuard.decide({ packaged: app.isPackaged, argv: process.argv, userData: app.getPath('userData'), env: process.env, tmpdir: require('os').tmpdir(), fs: require('fs') });
+  if (_dbg.action === 'refuse') {
+    console.error('[Security] ' + _dbgGuard.refusalMessage(_dbg));
+    process.exit(2);
+  }
+  if (!_dbg.found.length) _dbgGuard.removeStaleDevToolsPort({ fs: require('fs'), userData: app.getPath('userData') });
+} catch (err) {
+  console.error('[Security] the remote-debugging check failed:', err);
+  // A broken check must never stop a normal start (that would also block updates), but must not wave a debug port through either.
+  if (app.isPackaged && process.argv.some(a => /remote-debugging|inspect/i.test(a))) process.exit(2);
+}
+
 // Third-party storage partitioning is ON, as in Chrome since ~115: a site
 // embedded in another gets storage of its own per top-level site. It used to
 // be switched off here for Firebase's signInWithRedirect, whose auth-domain

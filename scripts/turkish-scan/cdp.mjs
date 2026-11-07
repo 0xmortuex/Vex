@@ -4,13 +4,15 @@
 // Tiny CDP helper for the Turkish-leftovers scan. Node 24 (global WebSocket, fetch).
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 
 export async function launch({ worktree, profile, port, log }) {
-  fs.mkdirSync(profile, { recursive: true });
+  // Marks the throwaway profile so even a packaged Vex would accept the debugging port (src/main/debug-guard.js).
+  const probeEnv = createRequire(import.meta.url)('../lib/probe-profile.js').prepare(profile).env;
   const exe = 'C:\\Claude code free\\vex\\node_modules\\electron\\dist\\electron.exe';
   const out = fs.openSync(log, 'a');
   const child = spawn(exe, ['.', `--user-data-dir=${profile}`, `--remote-debugging-port=${port}`], {
-    cwd: worktree, env: { ...process.env, VEX_NO_OS_SCHEDULE: '1' }, stdio: ['ignore', out, out], detached: false,
+    cwd: worktree, env: { ...process.env, ...probeEnv, VEX_NO_OS_SCHEDULE: '1' }, stdio: ['ignore', out, out], detached: false,
   });
   return child;
 }
