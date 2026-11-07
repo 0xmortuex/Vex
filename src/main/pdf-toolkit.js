@@ -418,7 +418,9 @@ async function compress(bytes, name) {
     fresh.setCreator('Vex');
     out = Buffer.from(await fresh.save({ useObjectStreams: true }));
   }
-  if (out.length >= before) throw new Error('This PDF is already as compact as Vex can make it (' + before + ' bytes). Its size is mostly pictures, which are not re-encoded here');
+  // A saving of a few bytes is not compaction: the file is rebuilt with the current date inside a compressed block, so the same pages come out a
+  // byte longer or shorter from one run to the next. Under 1% (and under 100 bytes) counts as "already as compact".
+  if (out.length > before - Math.max(100, Math.floor(before * 0.01))) throw new Error('This PDF is already as compact as Vex can make it (' + before + ' bytes). Its size is mostly pictures, which are not re-encoded here');
   return { bytes: out, pages: doc.getPageCount(), before, after: out.length };
 }
 

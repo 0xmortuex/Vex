@@ -251,7 +251,8 @@ describe('where it is reached from', () => {
     const link = await S.toLink((await S.parse(fileText())).space);
     const box = q('#command-input');
     box.value = link; box.dispatchEvent(new Event('input', { bubbles: true }));
-    await tick();
+    // The review opens after the link is parsed (async): wait for it (up to 2 s) instead of one fixed 30 ms a loaded CI runner can miss.
+    for (let i = 0; i < 67 && !q('#vex-share-space-review'); i++) await tick();
     expect(box.value).toBe('');
     expect(q('#vex-share-space-review')).not.toBeNull();
     expect(q('#vex-share-space-review').dataset.sub).toContain('link');
