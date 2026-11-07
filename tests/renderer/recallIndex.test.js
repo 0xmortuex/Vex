@@ -311,7 +311,12 @@ describe('performance at scale', () => {
     const idx = new RecallIndex(records);
     const buildMs = Date.now() - t0;
 
-    const time = (fn) => { const s = Date.now(); for (let i = 0; i < 20; i++) fn(); return (Date.now() - s) / 20; };
+    // How fast is this machine right now: a fixed amount of arithmetic (about 8 ms on an idle development PC). Measured before AND after the
+    // timings, and the slower reading counts: a runner that was calm for one reading and busy for the searches failed a ceiling by 10 ms once.
+    const spin = () => { const s = Date.now(); let x = 0; for (let i = 0; i < 3e6; i++) x += i % 7; return (Date.now() - s) || 1; };
+    const spinBefore = spin();
+    // The best of three batches of 20: one slow moment on a busy machine does not decide it.
+    const time = (fn) => { let best = Infinity; for (let b = 0; b < 3; b++) { const s = Date.now(); for (let i = 0; i < 20; i++) fn(); best = Math.min(best, (Date.now() - s) / 20); } return best; };
     const rare = time(() => idx.search('needle1234'));
     const common = time(() => idx.search('packet inspection'));
     const miss = time(() => idx.search('zzzznotindexed'));
@@ -330,8 +335,7 @@ describe('performance at scale', () => {
     // loaded one it rises and the ceilings rise with it. A real regression —
     // the scan-every-page engine this replaced was already ~25 ms at 400 pages
     // — blows through them whatever the factor.
-    const spin = () => { const s = Date.now(); let x = 0; for (let i = 0; i < 3e6; i++) x += i % 7; return (Date.now() - s) || 1; };
-    const factor = Math.max(1, Math.min(spin() / 8, 12));
+    const factor = Math.max(1, Math.min(Math.max(spinBefore, spin()) / 8, 12));
     expect(rare).toBeLessThan(120 * factor);
     expect(common).toBeLessThan(400 * factor);
     expect(miss).toBeLessThan(120 * factor);
