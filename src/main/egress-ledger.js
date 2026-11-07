@@ -15,6 +15,18 @@
 // which is what crossed the wire). Headers a platform adds itself (cookies, the
 // user agent) and the answer's headers are not counted.
 //
+// Size of the list: MAX lines or MAX_AGE, whichever comes first. A chatty source
+// (a poll, search suggestions) would fill it in about two weeks and push out the
+// rare lines that matter (an update, Sync, a breach check), so:
+//   * repeated requests of a chatty kind (news, fetch, other) to the same place
+//     for the same feature share ONE line per clock hour, with a count `n`;
+//   * the important kinds (ai, sync, update, breach, extension) are never merged:
+//     every one keeps its own line;
+//   * when the list is full the feature with the most lines gives up its oldest
+//     line, so one feature can never evict the others (a fair share for each).
+// The file stays version 1: `n`, `bad` and `t2` are optional fields on a line, a
+// file written before them loads unchanged, and an older Vex ignores them.
+//
 // The ledger is itself sensitive (it says which hosts you used which feature
 // with), so it is bounded two ways (MAX entries and MAX_AGE), kept in one file
 // next to the other private files, and `clear()` forgets all of it.
@@ -26,6 +38,8 @@ const KINDS = ['ai', 'sync', 'update', 'news', 'breach', 'extension', 'fetch', '
 const MAX = 2000;
 const MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const DAY_MS = 24 * 3600 * 1000;
+const HOUR_MS = 3600 * 1000;
+const ROLLED_KINDS = ['news', 'fetch', 'other'];
 const SAVE_DELAY_MS = 3000;
 // The honest label for a request whose caller did not name its feature and whose host the classifier does not know.
 const OTHER_FEATURE = 'Other Vex request';
@@ -98,7 +112,7 @@ function createEgressLedger({ file, fs, now = () => Date.now(), max = MAX, maxAg
     if (raw) {
       try {
         const data = JSON.parse(raw);
-        if (data && data.v === 1 && Array.isArray(data.entries)) entries = data.entries.filter(valid);
+        if (data && data.v === 1 && Array.isArray(data.entries)) entries = data.entries.filter(valid).sort((a, b) => a.t - b.t);
         else note('[Egress] the ledger file has an unknown shape and is started again');
       } catch (err) { note('[Egress] the ledger file is not readable and is started again: ' + err.message); }
     }
@@ -113,7 +127,25 @@ function createEgressLedger({ file, fs, now = () => Date.now(), max = MAX, maxAg
   function prune() {
     const cutoff = now() - maxAgeMs;
     if (entries.length && entries[0].t < cutoff) entries = entries.filter(e => e.t >= cutoff);
-    if (entries.length > max) entries = entries.slice(entries.length - max);
+    if (entries.length <= max) return;
+    // Full: the feature with the most lines gives up its oldest, one line at a time, so a chatty
+    // feature loses its own history before any other feature loses a line.
+    const byFeature = new Map();
+    entries.forEach((e, i) => { const l = byFeature.get(e.feature); if (l) l.push(i); else byFeature.set(e.feature, [i]); });
+    const heads = new Map([...byFeature.keys()].map(f => [f, 0]));
+    const drop = new Set();
+    let over = entries.length - max;
+    while (over-- > 0) {
+      let pick = null, pickLeft = -1;
+      for (const [f, list] of byFeature) {
+        const left = list.length - heads.get(f);
+        // the larger share loses; on a tie the one whose oldest line is older
+        if (left > pickLeft || (left === pickLeft && list[heads.get(f)] < byFeature.get(pick)[heads.get(pick)])) { pick = f; pickLeft = left; }
+      }
+      drop.add(byFeature.get(pick)[heads.get(pick)]);
+      heads.set(pick, heads.get(pick) + 1);
+    }
+    entries = entries.filter((_, i) => !drop.has(i));
   }
 
   function save() {
@@ -150,10 +182,25 @@ function createEgressLedger({ file, fs, now = () => Date.now(), max = MAX, maxAg
       ok: !!ok, status: Number(status) || 0,
     };
     load();
-    entries.push(entry);
+    let line = entry;
+    if (ROLLED_KINDS.includes(k)) {
+      // one line per feature + host + kind per clock hour, with a count and the summed sizes
+      const bucket = Math.floor(entry.t / HOUR_MS);
+      for (let i = entries.length - 1; i >= 0 && Math.floor(entries[i].t / HOUR_MS) >= bucket; i--) {
+        const e = entries[i];
+        if (Math.floor(e.t / HOUR_MS) !== bucket || e.feature !== f || e.host !== entry.host || e.kind !== k) continue;
+        e.n = (e.n || 1) + 1;
+        e.out += entry.out; e.in += entry.in;
+        if (!entry.ok) { e.bad = (e.bad || 0) + 1; e.ok = false; }
+        e.t2 = entry.t; e.status = entry.status;
+        line = e;
+        break;
+      }
+    }
+    if (line === entry) entries.push(entry);
     prune();
     saveSoon();
-    return entry;
+    return line;
   }
 
   // Bytes that arrive after the line was written (a body that streams in).
@@ -164,6 +211,7 @@ function createEgressLedger({ file, fs, now = () => Date.now(), max = MAX, maxAg
   }
   function markFailed(line) {
     if (!line) return;
+    if ((line.n || 1) > 1) line.bad = (line.bad || 0) + 1;
     line.ok = false;
     saveSoon();
   }
@@ -264,17 +312,19 @@ function createEgressLedger({ file, fs, now = () => Date.now(), max = MAX, maxAg
       const m = new Map();
       for (const e of rows) {
         const r = m.get(e[key]) || { name: e[key], count: 0, out: 0, in: 0 };
-        r.count++; r.out += e.out; r.in += e.in;
+        r.count += e.n || 1; r.out += e.out; r.in += e.in;
         m.set(e[key], r);
       }
       return [...m.values()].sort((a, b) => b.count - a.count);
     };
     return {
-      sinceMs, count: rows.length,
+      sinceMs, count: rows.reduce((n, e) => n + (e.n || 1), 0),
       bytesOut: rows.reduce((n, e) => n + e.out, 0), bytesIn: rows.reduce((n, e) => n + e.in, 0),
-      lastAt: rows.length ? rows[0].t : 0,
+      lastAt: rows.length ? (rows[0].t2 || rows[0].t) : 0,
+      limits: { max, maxAgeDays: Math.round(maxAgeMs / DAY_MS) },
       byFeature: by('feature'), byHost: by('host'), byKind: by('kind'),
       nothingLeft: rows.length === 0,
+      lines: entries.length,
       keptSince: entries.length ? entries[0].t : now(),
     };
   }
@@ -293,4 +343,4 @@ let shared = null;
 function setShared(ledger) { shared = ledger; }
 function getShared() { return shared; }
 
-module.exports = { createEgressLedger, classify, hostOf, isThisMachine, setShared, getShared, KINDS, MAX, MAX_AGE_MS, OTHER_FEATURE, requestHeadBytes };
+module.exports = { createEgressLedger, classify, hostOf, isThisMachine, setShared, getShared, KINDS, MAX, MAX_AGE_MS, OTHER_FEATURE, ROLLED_KINDS, requestHeadBytes };
