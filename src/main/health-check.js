@@ -172,7 +172,7 @@ function createHealthCheck({ fs, userDataPath, getPersisted, now = () => new Dat
       add({ id: 'orphan-bak:' + n, severity: 'info', title: n + ' has no data file next to it',
         detail: 'It may be the only copy of that store, so it is left alone.', fix: null });
     }
-    const BACKUP_NAME = /^(?:before-|settings-)[^/\\]+\.json$/;
+    const BACKUP_NAME = /^(?:(?:before-|settings-|auto-daily-|auto-weekly-)[^/\\]+\.json|secrets-before-restore-[^/\\]+\.vexsecrets)$/;
     for (const n of readdir(backupsDir)) {
       if (BACKUP_NAME.test(n) || TMP_FILE.test(n)) continue;
       add({ id: 'orphan-backup:' + n, severity: 'info', title: 'backups/' + n + ' is not a backup Vex made',

@@ -477,6 +477,8 @@ const VexFeatures = {
       what: 'One file with your notes, sessions, keybindings, site rules, panels and the whole look \u2014 and a way to put it all back. Saved logins are never in it.' },
     { id: 'backup-verify', phrases: 'test backup verify checksum restore drill rehearsal check backup is good damaged corrupt before reinstall dry run', cat: 'work', cmd: 'backup-test', name: 'Test a backup before you need it',
       what: 'Every backup now carries a checksum that is checked before anything is restored, and also holds your site rules, site permissions, reminders and which extensions are switched off. \u201cTest this backup\u201d reads a backup into a throwaway folder and shows what it holds against what Vex has now, without touching your profile.' },
+    { id: 'auto-backup', phrases: 'automatic backup daily weekly rolling schedule onedrive documents second folder keep copies safe lose settings reinstall', cat: 'work', cmd: 'auto-backup', name: 'Automatic daily backup',
+      what: 'Once a day, if you turn it on, Vex saves a backup into its own backups folder (and, if you choose, into a second folder such as OneDrive) and keeps the last 7 daily and 4 weekly copies. It waits while a game is running, on battery power and during your quiet hours, and tells the Attention Inbox if a backup could not be saved. Saved logins are never in it.' },
     { id: 'downloads', phrases: 'downloads downloaded files open when done open it when it finishes', cat: 'work', cmd: 'downloads', panel: 'downloads',
       what: 'Downloads you can pause, resume, cancel and retry, with the real byte counts \u2014 and \u201copen when done\u201d on any one of them.' },
     { id: 'sendphone', phrases: 'send to phone my phone', cat: 'work', cmd: 'sendphone',
@@ -1396,7 +1398,7 @@ const VexFeatures = {
       { name: 'Settling into work', ids: ['focus', 'focusflows', 'meeting', 'device-check', 'jobsetup'] },
       { name: 'Tools, and doing things twice', ids: ['toolbox', 'toolbox-reference', 'toolbox-full', 'toolbox-favourites', 'tool-history', 'automations', 'chains', 'do-again', 'quick-commands', 'dictate'] },
       { name: 'Mail, parcels and money', ids: ['mail', 'triage', 'parcels', 'expenses', 'price-history'] },
-      { name: 'This machine', ids: ['resmon', 'downloads', 'after-downloads', 'checksum-compare', 'backup', 'backup-verify'] },
+      { name: 'This machine', ids: ['resmon', 'downloads', 'after-downloads', 'checksum-compare', 'backup', 'backup-verify', 'auto-backup'] },
     ],
     media: [
       { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'lyrics', 'streaming-skip', 'sleep-timer', 'sound-policy', 'video-link-time', 'volume', 'site-eq', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },

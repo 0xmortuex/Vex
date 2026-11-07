@@ -826,12 +826,20 @@ contextBridge.exposeInMainWorld('vex', {
     onProgress: (cb) => subscribe('updates:progress', cb),
     onInstallFailed: (cb) => subscribe('updates:install-failed', cb),
   },
-  // Backup coverage, the restore rehearsal (src/main/backup-stores.js; js/backup.js).
+  // Backup coverage, the restore rehearsal and the rolling automatic backup (src/main/backup-stores.js, auto-backups.js; js/backup.js, js/auto-backup.js).
   backup: {
     collectMain: () => ipcRenderer.invoke('backup:collect-main'),
     applyMain: (main) => ipcRenderer.invoke('backup:apply-main', main),
     undoMain: () => ipcRenderer.invoke('backup:undo-main'),
     drill: (text, live) => ipcRenderer.invoke('backup:drill', text, live),
+    autoState: () => ipcRenderer.invoke('backup:auto-state'),
+    autoSet: (on) => ipcRenderer.invoke('backup:auto-set', on),
+    autoChooseFolder: () => ipcRenderer.invoke('backup:auto-choose-folder'),
+    autoClearFolder: () => ipcRenderer.invoke('backup:auto-clear-folder'),
+    autoDue: () => ipcRenderer.invoke('backup:auto-due'),
+    autoSave: (text) => ipcRenderer.invoke('backup:auto-save', text),
+    autoList: () => ipcRenderer.invoke('backup:auto-list'),
+    autoRead: (name) => ipcRenderer.invoke('backup:auto-read', name),
   },
   // Profiles (js/profiles-ui.js, src/main/profiles.js): each one a separate Vex.
   profiles: {

@@ -78,10 +78,13 @@ define('updates:status updates:log updates:ack', []);
 define('updates:backup-save', [version, string(10 * 1024 * 1024)]);
 define('updates:backups', []);
 define('updates:backup-read', [string(120)]);
-// Backup coverage, the restore rehearsal (src/main/backup-stores.js): checked again in main.
-define('backup:collect-main backup:undo-main', []);
+// Backup coverage, the restore rehearsal and the rolling automatic backup (src/main/backup-stores.js, auto-backups.js): checked again in main.
+define('backup:collect-main backup:undo-main backup:auto-state backup:auto-choose-folder backup:auto-clear-folder backup:auto-due backup:auto-list', []);
 define('backup:apply-main', [object]);
 define('backup:drill', [string(10 * 1024 * 1024), object]);
+define('backup:auto-set', [boolean]);
+define('backup:auto-save', [string(10 * 1024 * 1024)]);
+define('backup:auto-read', [string(120)]);
 // Health check (src/main/health-check.js): a scan takes nothing; a repair
 // names finding ids from that scan (never paths) and whether the person
 // agreed to the ones that need a yes; an undo names the run it returned.

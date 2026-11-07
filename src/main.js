@@ -11464,10 +11464,11 @@ ipcMain.handle('updates:backup-read', (event, name) => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 
-// === Backup coverage, and the restore rehearsal ===
-// (src/main/backup-stores.js; the window half is js/backup.js)
+// === Backup coverage, the restore rehearsal and the rolling automatic backup ===
+// (src/main/backup-stores.js, src/main/auto-backups.js; the window half is js/backup.js and js/auto-backup.js)
 // The four files only this process keeps (site rules, site permissions, reminders, switched-off extensions) travel in the
-// backup and come back through their own cleaners; "Test this backup" rehearses a restore in a temp folder.
+// backup and come back through their own cleaners; "Test this backup" rehearses a restore in a temp folder; the rolling
+// backup is opt-in and gated here (game, battery, quiet hours, one a day).
 function _backupFromMainWindow(event) {
   if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can use backups');
 }
@@ -11496,6 +11497,18 @@ const _backupStores = require('./main/backup-stores').createBackupStores({
   },
   log: console,
 });
+const _autoBackups = require('./main/auto-backups').createAutoBackups({
+  fs, dir: path.join(userDataPath, 'backups'), configFile: path.join(userDataPath, 'auto-backup.json'), VexBackup: _backupVex,
+  gates: {
+    game: () => !!(_mergedGameState().game || _gameModeSession.active()),
+    // Windows' Battery Saver is not readable from Electron (main/power-watch.js); "on battery power" is the stricter stand-in.
+    battery: () => require('electron').powerMonitor.isOnBatteryPower() || !!(_powerWatchLazy && _powerWatchLazy.lean()),
+    quiet: () => !!(_protect && _protect.quiet && _protect.quiet.isQuietNow()),
+    // An encrypted profile must not get a plaintext copy of itself (as saveAtFirstStart).
+    encrypted: () => !!_profileCrypt.status().enabled,
+  },
+  log: console,
+});
 const _backupReply = async (event, work) => {
   try { _backupFromMainWindow(event); return await work(); }
   catch (err) { return { ok: false, error: err.message }; }
@@ -11507,6 +11520,22 @@ ipcMain.handle('backup:drill', (event, text, live) => _backupReply(event, async 
   const mainLive = _backupStores.counts(await _backupStores.collect());
   return require('./main/backup-stores').drillBackup({ text, live: { ...(live || {}), main: mainLive }, VexBackup: _backupVex, SiteRules: require('./main/site-rules') });
 }));
+ipcMain.handle('backup:auto-state', (event) => _backupReply(event, async () => ({ ok: true, state: _autoBackups.state() })));
+ipcMain.handle('backup:auto-set', (event, on) => _backupReply(event, async () => ({ ok: true, state: _autoBackups.setConfig({ on }) })));
+ipcMain.handle('backup:auto-clear-folder', (event) => _backupReply(event, async () => ({ ok: true, state: _autoBackups.setConfig({ folder2: null }) })));
+ipcMain.handle('backup:auto-choose-folder', (event) => _backupReply(event, async () => {
+  const picked = await dialog.showOpenDialog(mainWindow, { title: 'Choose a folder for the second copy of the automatic backup', properties: ['openDirectory', 'createDirectory'], defaultPath: app.getPath('documents') });
+  if (picked.canceled || !picked.filePaths || !picked.filePaths[0]) return { ok: true, canceled: true, state: _autoBackups.state() };
+  return { ok: true, state: _autoBackups.setConfig({ folder2: picked.filePaths[0] }) };
+}));
+ipcMain.handle('backup:auto-due', (event) => _backupReply(event, async () => ({ ok: true, ..._autoBackups.due() })));
+ipcMain.handle('backup:auto-save', (event, text) => _backupReply(event, async () => {
+  const r = _autoBackups.save(text);
+  if (r.ok) console.log('[AutoBackup] saved', r.name, r.bytes, 'bytes', r.weekly ? '(and the weekly one)' : '', r.second && !r.second.ok ? '- the second copy failed' : '');
+  return r;
+}));
+ipcMain.handle('backup:auto-list', (event) => _backupReply(event, async () => ({ ok: true, items: _autoBackups.list() })));
+ipcMain.handle('backup:auto-read', (event, name) => _backupReply(event, async () => ({ ok: true, text: _autoBackups.read(name) })));
 
 // === Health check and self-repair (src/main/health-check.js, js/vex-health.js) ===
 // Settings › Health check. Only Vex's own main window may ask, and it names

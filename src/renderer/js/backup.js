@@ -459,6 +459,11 @@ const VexBackup = {
       // Made by Vex itself around each update (src/main/update-backups.js).
       + '<div id="bk-updates" hidden><div class="vexsr-sub" style="margin-top:12px">Saved before updates — Vex backs up by itself before it installs one (or when a new version first starts, if it was installed another way), and keeps the last five.</div>'
       + '<div id="bk-update-list" class="vexsr-list"></div></div>'
+      // The rolling automatic backup (js/auto-backup.js, src/main/auto-backups.js): off until the person turns it on.
+      + '<div id="bk-auto"><label class="vexsr-check"><input type="checkbox" id="bk-auto-on"> Back up automatically, once a day</label>'
+      + '<div class="vexsr-sub">Keeps the last 7 daily and 4 weekly copies in Vex\'s backups folder. It waits while a game is running, on battery power and during your quiet hours, and it never holds saved logins. A second copy can go to a folder you choose, such as OneDrive: that copy holds your notes and settings as plain text, so choose a place only you can read.</div>'
+      + '<div class="vexsr-row"><button id="bk-auto-folder" class="vexsr-x">Also copy to a folder…</button><button id="bk-auto-clear" class="vexsr-x" hidden>Stop copying there</button><span id="bk-auto-where" class="vexsr-mode"></span></div>'
+      + '<div id="bk-auto-status" class="vexsr-sub"></div><div id="bk-auto-list" class="vexsr-list"></div></div>'
       + '<div id="bk-msg" class="vexsr-msg"></div>'
       + '<div class="vexsr-note">Saved logins and authenticator codes are never in the file. They are kept encrypted by Vex itself and cannot be read from here — a backup that contained them would be a password file sitting in your Downloads folder. '
       + 'Restoring writes everything in the file over what Vex has now; what the file does not have is left as it is. It can be undone until you close Vex, and Vex has to be restarted for all of it to take.</div>'
@@ -510,7 +515,17 @@ const VexBackup = {
       await this._test(data, m, msg);
     });
     this._listUpdateBackups(m, msg);
+    this._mountAuto(m, msg);
     return m;
+  },
+
+  // The automatic-backup section (js/auto-backup.js is a late module; asked for if it is not there yet).
+  _mountAuto(m, msg) {
+    const go = () => window.VexAutoBackup.mount(m, msg).catch(err => msg('The automatic backup settings could not be shown: ' + err.message, true));
+    if (window.VexAutoBackup) { go(); return; }
+    if (window.VexLazy && typeof window.VexLazy.ensure === 'function') {
+      window.VexLazy.ensure('js/auto-backup.js').then(go).catch(err => msg('The automatic backup settings could not be loaded: ' + err.message, true));
+    } else m.querySelector('#bk-auto').hidden = true;
   },
 
   // The backups Vex made before its updates (src/main/update-backups.js), each

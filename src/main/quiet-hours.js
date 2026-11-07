@@ -196,7 +196,11 @@ function createQuietHours({ store, show, now = () => Date.now(), log, setInterva
   async function heldList() { await init(); return held.map(h => ({ title: h.title, body: h.body, at: h.at, site: h.site || null })); }
   async function dropHeld() { await init(); const n = held.length; held = []; await saveHeld(); return { dropped: n }; }
 
-  return { gated, release, tick, start, stop, getConfig, setConfig, heldList, dropHeld, verdict, inWindow, init, pause, resume, isPaused };
+  // Is it quiet right now (the window, or notifications paused from the tray)? Synchronous, for work that
+  // should keep still then (the automatic backup); false until the settings have been read.
+  function isQuietNow() { return !!config && (isPaused() || (config.enabled && inWindow())); }
+
+  return { gated, release, tick, start, stop, getConfig, setConfig, heldList, dropHeld, verdict, inWindow, init, pause, resume, isPaused, isQuietNow };
 }
 
 module.exports = { createQuietHours, validateConfig, normalizeVip, DEFAULTS };

@@ -27,6 +27,8 @@ const VexBoot = {
   KEEP: 10,
   LATE_MODULES: [
     { src: 'js/release-checklist.js', usage: ['release-check'] },
+    // Automatic backup (opt-in): asks main a few minutes after start-up whether one is due; with the switch off, main says no at once.
+    { src: 'js/auto-backup.js', usage: [] },
     { src: 'js/voice-match.js', usage: [] },
     { src: 'js/voice-control.js', usage: ['voice-control'] },
     { src: 'js/sidebar-groups-ui.js', usage: [] },
