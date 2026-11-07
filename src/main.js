@@ -4103,6 +4103,34 @@ ipcMain.handle('siteforget:run', async (_e, opts) => {
     return forgot;
   } catch (err) { return { ok: false, error: err.message }; }
 });
+// Clear history, cookies and cache when Vex closes (opt-in, main/quit-clear.js). It runs inside the same quit wait as the sweep
+// above: onQuit is wrapped, so the pinned will-quit handler below is unchanged. Only a deliberate exit (exit-kinds ending()).
+const _quitClear = require('./main/quit-clear').createQuitClear({
+  getConfig: () => _readPersistString('vex.autoClear', null),
+  partitions: () => BROWSING_SESSIONS,
+  sessionFor: (partition) => secureSessions.fromPartition(partition),
+  ending: () => _exitWatch.ending(),
+  noteDeliberate: () => _massSignoutDeliberate('auto-clear-quit'),
+  // The main-side steps of browsing:clear-data that concern history, plus the time other devices should clear their older visits.
+  clearHistory: async () => {
+    await dataStore.flush(); await preferences.flush();
+    await dataStore.remove('history');
+    recallStore().clear();
+    await recallFlush(true);
+    await preferences.clearKeys(['vex.history', 'vex.recentlyClosed']);
+    preferences.set('vex.historyClearedAt', new Date().toISOString());
+    await preferences.flush();
+  },
+  log: console,
+});
+{
+  const _siteForgetQuit = _siteForget.onQuit.bind(_siteForget);
+  _siteForget.onQuit = async () => {
+    try { await _quitClear.run(); }
+    catch (err) { console.error('[AutoClear] could not clear on quit:', err && err.message); }
+    return _siteForgetQuit();
+  };
+}
 let _forgetQuitDone = false;
 app.on('will-quit', (event) => {
   if (_forgetQuitDone) return;

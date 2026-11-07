@@ -932,6 +932,8 @@
     { id: 'feature-packs', title: 'Feature packs', group: 'Minimal Vex', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.featurePacks'], commands: ['feature-packs'],
       usesKeys: ['vex.registry', 'vex.commandUsage'],
       permissions: { reads: ['which features are switched off and waiting', 'your command counts, to put the ones you use first'], writes: ['when it was offered, and what the last Apply turned on'], sends: [] } },
+    { id: 'clear-recent', title: 'Clear recent browsing data', group: 'Privacy', maturity: 'new', storageKeys: ['vex.autoClear'], commands: ['clear-recent'],
+      permissions: { reads: ['your list of visits, the closed tabs and the sites you keep signed in'], writes: ['removes the visits and closed tabs of the range you pick; when you switch it on, clears cookies, site data, cache and visits at a normal quit'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

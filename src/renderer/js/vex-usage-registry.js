@@ -476,6 +476,7 @@ const VexUsageRegistry = {
       ['text-snippets', A.api(G.VexSnippets, 'enabled', 'setEnabled')],
       ['lyrics', A.api(G.VexLyrics, 'enabled', 'setEnabled')],
       ['caret-browsing', A.api(G.VexCaretBrowsing, 'enabled', 'setEnabled')],
+      ['clear-recent', A.api(G.VexClearRecent, 'enabled', 'setEnabled')],
       ['sound-policy', A.api(G.VexSoundPolicy, 'enabled', 'setEnabled')],
       ['table-extract', A.api(G.TableExtract, 'enabled', 'setEnabled')],
       ['video-tools', A.api(G.VideoTools, 'enabled', 'setEnabled')],

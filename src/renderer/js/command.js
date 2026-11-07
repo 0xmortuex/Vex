@@ -482,6 +482,7 @@ const CommandBar = {
       if (!btn) throw new Error('Clearing browsing data is not available in this window');
       btn.click();
     } },
+    { id: 'clear-recent', label: 'Clear Recent Browsing Data', hint: 'Remove the last 15 minutes, hour or day of visits, or clear everything when Vex closes', icon: 'trash', action: async () => { try { if (!window.VexClearRecent) await VexLazy.ensure('js/clear-recent.js'); window.VexClearRecent.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'export-data', label: 'Export All Data', hint: 'Download all Vex data as JSON', icon: 'save', action: () => { document.getElementById('setting-export')?.click(); } },
     // The documents you agreed to, to read again at any time (js/legal.js).
     ...[

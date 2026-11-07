@@ -1360,6 +1360,8 @@ const VexFeatures = {
       what: 'Four small New Tab and Morning Brief cards: permission summary, service status, an old highlight to revisit, and pages you flagged that changed. On an existing profile it starts off; turn it on in Settings > Brief cards.' },
     { id: 'game-overlay', setting: {"section":"setting-game-overlay","label":"Game overlay"}, feature: 'game-overlay', newer: true, cat: 'media', name: 'Game overlay', phrases: 'in game overlay hotkey over game guide wiki discord notes timer stopwatch music spotify search roblox borderless always on top click through second screen alt tab', cmd: 'game-overlay',
       what: 'A small Vex window you open with a hotkey while a game runs: a guide page, Discord, notes, a timer, music buttons and a quick search, without alt-tabbing. It is an ordinary window and never touches the game, so it is safe with anti-cheat. On an existing profile it starts off; turn it on in Settings > Game overlay.' },
+    { id: 'clear-recent', feature: 'clear-recent', newer: true, cat: 'privacy', name: 'Clear the last 15 minutes', phrases: 'clear recent last 15 minutes last hour last day clear when i close clear on exit auto clear when vex closes cookies cache shared computer', cmd: 'clear-recent',
+      what: 'Removes the visits and closed tabs of the last 15 minutes, hour or day without wiping everything, and can clear your browsing data every time Vex closes. That second part is off until you turn it on, leaves alone the sites you keep signed in, and never runs after a crash. Cookies, cache and site data cannot be cleared for a time range, so the range only covers what Vex itself keeps.' },
   ],
 
   // Everything in one category.
@@ -1390,7 +1392,7 @@ const VexFeatures = {
     privacy: [
       { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint', 'gpc', 'referrer-trim', 'link-unwrap'] },
       { name: 'The connection itself', ids: ['doh', 'https-only', 'captive-portal', 'tor', 'routing', 'routing-all', 'site-routes', 'dpi'] },
-      { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window'] },
+      { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window', 'clear-recent'] },
           { name: 'One site at a time', ids: ['permissions', 'serial-usb', 'clearsite', 'sitedata', 'siterules', 'site-useragent', 'site-images', 'lite-mode', 'session-timeout', 'forget-site', 'sitebroken', 'siteidentity', 'open-in-browser'] },
       { name: 'Your passwords', ids: ['pwhealth', 'secrets-lifeboat', 'mass-signout'] },
     ],

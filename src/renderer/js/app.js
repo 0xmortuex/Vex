@@ -663,6 +663,12 @@ function vexOwnTextFocused(doc) {
     }
   });
 
+  // Clear the last 15 minutes / hour / day, and clear when Vex closes (js/clear-recent.js, loaded when first asked)
+  document.getElementById('setting-clear-recent')?.addEventListener('click', async () => {
+    try { if (!window.VexClearRecent) await VexLazy.ensure('js/clear-recent.js'); window.VexClearRecent.open(); }
+    catch (error) { window.showToast?.(error.message, 'error'); }
+  });
+
   // Auto-save sessions toggle
   const autosaveToggle = document.getElementById('setting-autosave');
   if (autosaveToggle) {
