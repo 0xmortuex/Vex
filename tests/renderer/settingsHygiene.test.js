@@ -114,7 +114,9 @@ describe('script order in index.html', () => {
       ['vex-fun.js', 'vex-sounds.js'], ['vex-usage-registry.js', 'app.js'], ['vex-integration.js', 'app.js'],
       ['packs-ui.js', 'packs-consumers.js'], ['packs-consumers.js', 'app.js'], ['brief-integration.js', 'vex-integration.js'],
     ];
-    const bad = pairs.filter(([a, b]) => at(a) < 0 || at(b) < 0 || at(a) > at(b)).map(([a, b]) => a + ' before ' + b);
+    // A late module is in the window after every blocking script, so it counts as position Infinity.
+    const pos = (f) => (at(f) >= 0 ? at(f) : (late.includes(f) ? Infinity : -1));
+    const bad = pairs.filter(([a, b]) => pos(a) < 0 || pos(b) < 0 || pos(a) > pos(b)).map(([a, b]) => a + ' before ' + b);
     expect(bad).toEqual([]);
   });
 

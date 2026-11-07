@@ -190,6 +190,16 @@ const VexBoot = {
     { src: 'js/dark-mode.js', usage: [] },
     // Page automations: record a job on a site and replay it. The rules and the in-page code load the first time they are used (VexLazy.ensure).
     { src: 'js/page-automations.js', usage: ['page-automations'] },
+    // Off-by-default features moved out of index.html (platform health). None is read by another file at load time; each only registers a Settings row/group or wraps an entry point once and does nothing until its switch is on.
+    // Co-op focus timer: needs a relay address the person pastes in (Settings group built at load; nothing is sent without it).
+    { src: 'js/coop-timer.js', usage: [] },
+    // Friend profile card: a picture of your profile, made on a button press (Settings group built at load).
+    { src: 'js/friend-card.js', usage: [] },
+    // Living Vex rows that are all off until chosen. Each installs itself when loaded after start-up (readyState check) and registers its Settings rows with VexLiving (living-core.js stays early).
+    { src: 'js/tab-personality.js', usage: [] },
+    { src: 'js/seasonal-worlds.js', usage: [] },
+    { src: 'js/weather-layer.js', usage: [] },
+    { src: 'js/focus-scenes.js', usage: [] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

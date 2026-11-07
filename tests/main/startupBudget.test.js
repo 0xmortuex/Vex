@@ -56,7 +56,7 @@ describe('the real boot against the budget (T3-066)', () => {
   });
   it('more than forty modules load after start-up, and none is also a blocking tag', () => {
     expect(sb.lateModules(ROOT).length).toBeGreaterThanOrEqual(40);
-    // 686: js/ai-keys.js is read by the router from its first request (bring your own AI key), so it cannot be a late module.
-    expect(sb.measure(ROOT).scripts).toBeLessThanOrEqual(686);
+    // 680 (686 minus the six off-by-default modules moved to the late list: coop-timer, friend-card, tab-personality, seasonal-worlds, weather-layer, focus-scenes). Was 686: js/ai-keys.js is read by the router from its first request (bring your own AI key), so it cannot be a late module.
+    expect(sb.measure(ROOT).scripts).toBeLessThanOrEqual(680);
   });
 });
