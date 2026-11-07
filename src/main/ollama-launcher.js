@@ -14,6 +14,7 @@
 const path = require('path');
 
 const PORT = 11434;
+const APPROVED_REASONS = ['person-pressed-start', 'setting-on'];
 
 function candidates({ platform, env }) {
   const out = [];
@@ -33,7 +34,7 @@ function createOllamaLauncher({ platform, env, exists, spawn, probe, sleep, log,
   const note = typeof log === 'function' ? log : () => {};
   let inFlight = null;
 
-  async function start() {
+  async function start(reason) {
     if (await probe()) return { running: true, started: false };
     const exe = candidates({ platform, env }).find(p => { try { return exists(p); } catch { return false; } });
     if (!exe) return { running: false, started: false, error: 'Ollama is not installed — Settings › AI has the install guide' };
@@ -45,7 +46,7 @@ function createOllamaLauncher({ platform, env, exists, spawn, probe, sleep, log,
     // the probe below settles which.
     child.on('exit', (code) => { if (code) failed = failed || new Error('ollama serve exited with code ' + code); });
     if (typeof child.unref === 'function') child.unref();
-    note('[Ollama] starting ' + exe);
+    note('[Ollama] Vex is starting Ollama (' + (reason || 'no reason given') + '): ' + exe);
 
     const deadline = Date.now() + waitMs;
     while (Date.now() < deadline) {
@@ -58,9 +59,18 @@ function createOllamaLauncher({ platform, env, exists, spawn, probe, sleep, log,
 
   return {
     // Two callers at once share one attempt.
-    ensure() {
-      if (!inFlight) inFlight = start().finally(() => { inFlight = null; });
+    ensure(reason) {
+      if (!inFlight) inFlight = start(reason).finally(() => { inFlight = null; });
       return inFlight;
+    },
+    // The only way in from the window: Vex never starts Ollama on its own. The
+    // window must say a person approved it (pressed Start, or ticked "Start
+    // Ollama without asking"); anything else is refused and nothing is spawned.
+    ensureApproved(request) {
+      if (!request || request.approved !== true || !APPROVED_REASONS.includes(request.reason)) {
+        return Promise.resolve({ running: false, started: false, error: 'Ollama was not started: it needs your approval' });
+      }
+      return this.ensure(request.reason);
     },
   };
 }
@@ -74,4 +84,4 @@ function httpProbe(http) {
   });
 }
 
-module.exports = { createOllamaLauncher, candidates, httpProbe, PORT };
+module.exports = { createOllamaLauncher, APPROVED_REASONS, candidates, httpProbe, PORT };

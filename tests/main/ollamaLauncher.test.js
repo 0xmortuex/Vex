@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-const { createOllamaLauncher, candidates } = require('../../src/main/ollama-launcher.js');
+const { createOllamaLauncher, candidates, APPROVED_REASONS } = require('../../src/main/ollama-launcher.js');
 
 const WIN_ENV = { LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local', ProgramFiles: 'C:\\Program Files', PATH: 'C:\\Windows;C:\\tools' };
 const INSTALLED = 'C:\\Users\\u\\AppData\\Local\\Programs\\Ollama\\ollama.exe';
@@ -78,8 +78,34 @@ describe('ensure', () => {
     expect(deps.spawn).toHaveBeenCalledTimes(2);
   });
 
-  it('takes nothing from the caller: no path, no arguments', () => {
+  it('takes no path and no arguments from the window, only a reason from a fixed list', () => {
     const { l } = launcher();
-    expect(l.ensure.length).toBe(0);
+    expect(l.ensureApproved.length).toBe(1);
+    expect(APPROVED_REASONS).toEqual(['person-pressed-start', 'setting-on']);
+  });
+});
+
+// Vex never starts Ollama on its own: the window has to say a person approved it.
+describe('ensureApproved: the only way in from the window', () => {
+  const REFUSED = { running: false, started: false, error: 'Ollama was not started: it needs your approval' };
+
+  it('refuses without approval and spawns nothing', async () => {
+    const { l, deps } = launcher();
+    for (const bad of [undefined, null, {}, { approved: true }, { approved: 'true', reason: 'setting-on' }, { approved: false, reason: 'setting-on' }, { approved: true, reason: 'because' }, 'yes']) {
+      expect(await l.ensureApproved(bad)).toEqual(REFUSED);
+    }
+    expect(deps.probe).not.toHaveBeenCalled();
+    expect(deps.spawn).not.toHaveBeenCalled();
+  });
+
+  it('starts it for an approved request and logs the reason once', async () => {
+    let n = 0;
+    const log = vi.fn();
+    const { l, deps } = launcher({ probe: vi.fn(async () => ++n >= 4), log });
+    expect(await l.ensureApproved({ approved: true, reason: 'person-pressed-start' })).toEqual({ running: true, started: true });
+    expect(deps.spawn).toHaveBeenCalledTimes(1);
+    const starts = log.mock.calls.map(c => c[0]).filter(m => /Vex is starting Ollama/.test(m));
+    expect(starts).toHaveLength(1);
+    expect(starts[0]).toContain('person-pressed-start');
   });
 });

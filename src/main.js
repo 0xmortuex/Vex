@@ -1675,7 +1675,7 @@ const _ollamaLauncher = require('./main/ollama-launcher').createOllamaLauncher({
   sleep: (ms) => new Promise(r => setTimeout(r, ms)),
   log: (m) => console.log(m),
 });
-ipcMain.handle('ollama:ensure', () => _ollamaLauncher.ensure());
+ipcMain.handle('ollama:ensure', (_e, request) => _ollamaLauncher.ensureApproved(request));
 
 // How full the graphics card is. A local model lives in video memory, and a
 // game fills it: the AI then falls back to the processor and every request
