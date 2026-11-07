@@ -2557,6 +2557,18 @@ ipcMain.handle('net:latency', async () => {
   }
 });
 
+// === Check my connection speed =============================================
+// Only when the person presses it: one fixed 10 MB download from speed.cloudflare.com, in the egress ledger as "Speed test"
+// (src/main/speed-test.js). Nothing about the person is sent.
+ipcMain.handle('speedtest:run', async () => {
+  const speed = require('./main/speed-test');
+  try {
+    return await speed.runSpeedTest({ fetchImpl: _egressFetch(net.fetch.bind(net), { feature: 'Speed test', kind: 'fetch' }) });
+  } catch (err) {
+    return { ok: false, error: (err && err.message) || 'The speed test failed' };
+  }
+});
+
 // === RSS fetch (renderer fetch would be CORS-blocked for arbitrary feeds) ===
 ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
   try {
@@ -2737,6 +2749,8 @@ const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddM
   dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), breachCheckOn: () => _readPersistString('vex.breachCheck', false) === true, onChange: () => _syncSecretsChanged() });
 // Saved payment cards (main/cards.js): encrypted like the vault, this device only, no CVV kept.
 const { flushCards, load: _cardsLoad, save: _cardsSave } = require('./main/cards').createCardService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
+// Saved addresses (main/addresses.js): encrypted like the cards, this device only, filled only when the person asks.
+const { flushAddresses } = require('./main/addresses').createAddressService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
 // A copied password or one-time code, cleared after 30 s by the main process
 // even when Vex no longer has the focus (main/secret-clipboard.js).
 require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard, app });
@@ -10280,7 +10294,7 @@ ipcMain.handle('storage-save', async (_event, key, data) => {
   return written;
 });
 ipcMain.handle('storage-load', (_event, key) => dataStore.read(key));
-ipcMain.handle('storage:flush', async () => { await _userscripts.flush(); await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallFlush(); await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushCards(); await flushPermissions(); return true; });
+ipcMain.handle('storage:flush', async () => { await _userscripts.flush(); await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallFlush(); await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushCards(); await flushAddresses(); await flushPermissions(); return true; });
 ipcMain.handle('browsing:clear-data', async () => {
   await dataStore.flush(); await preferences.flush();
   _protect.signout.noteAction('clear-all');

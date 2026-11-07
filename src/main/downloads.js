@@ -550,6 +550,25 @@ function control(id, action) {
   throw new Error('Unknown download action: ' + action);
 }
 
+// Pause or resume every transfer that is running, for the person's own "Pause all downloads" / "Resume all downloads" command.
+// Only transfers in the live list move: one still waiting for an answer in the holding folder is not in it (it is added when it
+// is allowed), so this can never release a download Vex is holding back. Chromium offers no speed limit for one transfer
+// (session.enableNetworkEmulation throttles the whole session, page loads included), so stopping and starting is what is offered.
+function setAllPaused(paused) {
+  if (typeof paused !== 'boolean') throw new Error('Pause or resume: true or false');
+  const out = { ok: true, changed: 0, failed: 0 };
+  for (const [id, item] of [..._liveDownloads]) {
+    if (safeCall(item, 'isPaused', false) === paused) continue;
+    try {
+      const r = control(id, paused ? 'pause' : 'resume');
+      if (r && r.ok) out.changed++; else out.failed++;
+    } catch (err) {
+      console.error('[Downloads] could not ' + (paused ? 'pause' : 'resume') + ' a download:', err.message);
+      out.failed++;
+    }
+  }
+  return out;
+}
 if (ipcMain) {
   // A download that explains itself: where it came from, what it really is,
   // what to open it with. The hash is made when asked for, from the finished
@@ -570,6 +589,10 @@ if (ipcMain) {
       }
     }
     return out;
+  });
+  ipcMain.handle('downloads:set-all-paused', (_e, paused) => {
+    try { return setAllPaused(paused); }
+    catch (err) { return { ok: false, error: err.message }; }
   });
   ipcMain.handle('downloads:control', (_e, id, action) => {
     try { return control(id, action); }
@@ -622,7 +645,7 @@ function retry(sender, url, id) {
   return { ok: true };
 }
 
-return { wireDownloadsOnSession, resumePending, control, askWhere, _takeAsk, markMine, autoDownloadCheck, _liveDownloads, retry, isDownloadedFile, _noteFile, _sources, flushKnown: () => _knownWrites,
+return { wireDownloadsOnSession, resumePending, control, setAllPaused, askWhere, _takeAsk, markMine, autoDownloadCheck, _liveDownloads, retry, isDownloadedFile, _noteFile, _sources, flushKnown: () => _knownWrites,
   // The finished files Vex downloaded (not a private window's), newest first: the read-only mark-of-the-web check reads them.
   knownFiles: () => [..._loadKnown()], markOfTheWeb: _motw };
 }

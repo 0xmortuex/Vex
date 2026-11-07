@@ -142,7 +142,7 @@ For rate limiting it also keeps your IP address for up to about 16 minutes. It d
 - **On-device AI (WebLLM).** Runs inside Vex on your graphics card. When you click Download, the model is fetched from huggingface.co (and a small runtime file from raw.githubusercontent.com). After that, nothing is sent.
 - **Dictation** (speech to text) runs on your PC. The first time, after asking you, Vex downloads the Whisper model from huggingface.co. Your voice is never sent.
 - **Voice control** (say a command, or dictate) runs on your PC. Only when you press Download in Settings, Vex downloads the speech engine (whisper.cpp, 9 MB) from github.com and one speech model (60 or 190 MB) from huggingface.co, and checks each against a fixed checksum before using it. The microphone is open only while you hold the key or have started listening, with a red panel on screen; the audio is kept in memory, handed to the engine on this PC and never saved or sent.
-- **Reading text from images and scanned PDFs** (OCR) runs on your PC. The first time, Vex downloads the English language data from cdn.jsdelivr.net.
+- **Reading text from images and scanned PDFs** (OCR) runs on your PC. The first time, after asking you once, Vex downloads the English and Turkish language data (about 5.1 MB) from cdn.jsdelivr.net, checked against a fixed checksum. Copy Text from Image, page and screenshot reading, and the redaction tool all use that one download, and it appears in "what left this computer" as "Text-from-image language pack". The pictures never leave your PC.
 
 ### Cloud AI (off until you set it up)
 
@@ -195,6 +195,7 @@ Choose "Prefer local" to keep requests on your PC while Ollama is running (a fai
 | Dictionary | Wiktionary (en.wiktionary.org) | The word |
 | Currency converter | open.er-api.com | Nothing but the request (rates are saved for 12 hours) |
 | Free games list | Epic Games and Steam | Nothing but the request |
+| Speed test (only when you run Ctrl+K › Check My Connection Speed; never by itself) | speed.cloudflare.com (Cloudflare's public speed-test address) | One plain download request for a fixed 10 MB test file: no cookies and nothing about you or your pages, only your IP address as with any request. The result is shown and forgotten. It is listed in "what left this computer" as Speed test |
 | RSS feeds | The addresses you added | A normal request, when you open the feeds or a digest runs |
 | Link checker and site crawler | The sites you check (no cookies are sent) | A normal request |
 | Userscripts: install or update from an address | The address you give (no cookies are sent) | A normal request, only when you press the button; nothing is fetched in the background |

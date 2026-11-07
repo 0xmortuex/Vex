@@ -134,6 +134,21 @@ const VexImageText = {
       cachePath: english ? '.' : this.CACHE_PATH, cacheMethod: 'readOnly', langPath: this.OFFLINE, logger,
     });
   },
+  // A worker for the OTHER OCR callers (page OCR, redaction, slide and screenshot reading). They used to start Tesseract with its
+  // defaults, which fetch English data from a CDN with no ledger line; now they use the same pack as above: the person agrees once,
+  // main downloads it through the egress ledger, and the worker only ever reads the cache. Throws when the person says no.
+  async packWorker(logger) {
+    const mode = await this.ensurePack();
+    if (mode === 'declined') throw new Error('The picture was not read: it needs the language data, and nothing was downloaded');
+    await this.seedCache(await window.vex.ocrLangStatus());
+    return this._worker(false, logger);
+  },
+  // One reading with the pack worker; `output` is Tesseract's third argument (for example { blocks: true }). → { data }
+  async recognizeWithPack(image, { logger, output } = {}) {
+    const worker = await this.packWorker(logger);
+    try { return await worker.recognize(image, {}, output || {}); }
+    finally { await worker.terminate().catch(err => window.VexProblems?.note('Copy text from image', 'the worker did not stop', err)); }
+  },
   // The picture, no larger than MAX_SIDE, as a PNG data address.
   async shrink(dataUrl) {
     const blob = await (await fetch(dataUrl)).blob();

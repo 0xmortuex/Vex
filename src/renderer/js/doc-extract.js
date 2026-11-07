@@ -367,14 +367,14 @@ const DocExtract = {
     return text;
   },
 
+  // The OCR engine for page, screenshot, slide and redaction reading. The language data comes from the same pack as Copy Text from
+  // Image (agreed once, downloaded by main through the egress ledger, read from the cache only); the engine itself never goes online.
+  // The language argument of recognize() is kept for the callers, but the pack reads English and Turkish together.
   async _loadOcr() {
     if (this._ocrLib) return this._ocrLib;
-    const base = new URL('vendor/runtime/', window.location.href);
-    const mod = await import(new URL('tesseract.mjs', base).href);
-    const api = mod.default || mod;
-    this._ocrLib = { recognize: (image, language, options = {}) => api.recognize(image, language, {
-      ...options, workerPath: new URL('worker.min.js', base).href, corePath: base.href, workerBlobURL: false
-    }) };
+    if (typeof VexLazy === 'undefined') throw new Error('The text reader is not available here');
+    await VexLazy.ensure('js/image-text.js');
+    this._ocrLib = { recognize: (image, _language, options = {}) => VexImageText.recognizeWithPack(image, { logger: options.logger }) };
     return this._ocrLib;
   },
 

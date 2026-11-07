@@ -284,6 +284,7 @@ contextBridge.exposeInMainWorld('vex', {
   linkUnwrapAllowOnce: (opts) => ipcRenderer.invoke('linkunwrap:allow-once', opts),
   // How long a few well-known services take to answer, and yours for comparison.
   netLatency: () => ipcRenderer.invoke('net:latency'),
+  speedTestRun: () => ipcRenderer.invoke('speedtest:run'),
   // What a word means, asked of a dictionary from the main process.
   dictLookup: (word) => ipcRenderer.invoke('dict:lookup', word),
   cookiesList: (opts) => ipcRenderer.invoke('cookies:list', opts),
@@ -558,6 +559,10 @@ contextBridge.exposeInMainWorld('vex', {
   cardsSave: (entry) => ipcRenderer.invoke('cards:save', entry),
   cardsUpdate: (entry) => ipcRenderer.invoke('cards:update', entry),
   cardsDelete: (id) => ipcRenderer.invoke('cards:delete', id),
+  addressesList: () => ipcRenderer.invoke('addresses:list'),
+  addressesGet: (id) => ipcRenderer.invoke('addresses:get', id),
+  addressesSave: (entry) => ipcRenderer.invoke('addresses:save', entry),
+  addressesDelete: (id) => ipcRenderer.invoke('addresses:delete', id),
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),
   vaultHealth: () => ipcRenderer.invoke('vault:health'),
@@ -677,6 +682,7 @@ contextBridge.exposeInMainWorld('vex', {
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
+  downloadsSetAllPaused: (paused) => ipcRenderer.invoke('downloads:set-all-paused', paused),
   // When all downloads finish: sleep / shut down (main/after-downloads.js)
   afterDlGet:            () => ipcRenderer.invoke('afterdl:get'),
   afterDlArm:            (action) => ipcRenderer.invoke('afterdl:arm', action),

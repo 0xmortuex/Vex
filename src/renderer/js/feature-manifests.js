@@ -935,6 +935,16 @@
     { id: 'feature-packs', title: 'Feature packs', group: 'Minimal Vex', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.featurePacks'], commands: ['feature-packs'],
       usesKeys: ['vex.registry', 'vex.commandUsage'],
       permissions: { reads: ['which features are switched off and waiting', 'your command counts, to put the ones you use first'], writes: ['when it was offered, and what the last Apply turned on'], sends: [] } },
+    { id: 'speed-test', title: 'Connection speed test', group: 'Connection speed test', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['speed-test'],
+      permissions: { reads: ['nothing from your pages or files'], writes: [], sends: ['One plain 10 MB download request to speed.cloudflare.com (no cookies, nothing about you), only when you press the command; listed in what left this computer as Speed test'] } },
+    { id: 'regex-find', title: 'Find with regular expression', group: 'Find with regular expression', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['regex-find'],
+      permissions: { reads: ['the visible text of the page in front, only when you press Find'], writes: [], sends: [] } },
+    { id: 'reader-time-left', title: 'Reader time left', group: 'Reader time left', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.reader.timeLeft'], commands: ['reader-time-left', 'reader-reading-speed'],
+      permissions: { reads: ['the word count of the article and how far the reader page is scrolled'], writes: ['whether it is on and the reading speed you typed'], sends: [] } },
+    { id: 'saved-addresses', title: 'Saved addresses', group: 'Saved addresses', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['address-book', 'address-fill'],
+      permissions: { reads: ['the addresses you saved; the empty fields of the form in front, only when you press Fill'], writes: ['the encrypted address file on this computer; the form fields, only after you confirm what goes into which site'], sends: [] } },
+    { id: 'downloads-pause-all', title: 'Pause or resume all downloads', group: 'Pause or resume all downloads', killSwitch: 'none', maturity: 'new', storageKeys: [], commands: ['downloads-pause-all', 'downloads-resume-all'],
+      permissions: { reads: ['which downloads are running or paused, only when you run a command'], writes: ['pauses or resumes the running downloads; never cancels or deletes one'], sends: [] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');
