@@ -53,6 +53,7 @@ const SitePanel = {
       note: 'Several files the page downloads by itself. A file you click always downloads.' },
     // Asked since src/main/web-permissions-extra.js; a private window asks every time and keeps nothing.
     { id: 'keyboardLock', name: 'Keep keys like Esc in full screen', icon: 'keyboard' },
+    { id: 'window-management', name: 'See all your screens', icon: 'monitor' },
   ],
   CONTAINERS: ['work', 'personal', 'shopping'],
 

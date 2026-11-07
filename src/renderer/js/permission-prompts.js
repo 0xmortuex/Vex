@@ -43,6 +43,7 @@ const PermissionPrompts = (() => {
     // Requests Vex used to refuse without asking (src/main/web-permissions-extra.js). `full` is the whole
     // sentence after the site's name, translated as one piece (the verb ends a Turkish sentence).
     'keyboardLock':   { icon: ICONS.keyboard, full: 'wants to take over some keyboard keys (like Esc) while this page is full screen', label: 'keyboard keys in full screen', note: 'Without this, Esc leaves full screen at once.' },
+    'window-management': { icon: ICONS.screen, full: 'wants to see all your screens and place windows on them', label: 'all your screens' },
     // A program or script from a site with no standing (src/main/web-safety.js).
     'risky-download': { icon: ICONS.shield, ask: 'send you a file that can run code', label: 'a risky download', note: 'The file waits unopened until you decide.' }
   };

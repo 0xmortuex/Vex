@@ -11,13 +11,13 @@ describe('what each request is, and under which key it is kept', () => {
   });
 
   it('the three that belong to the page are kept under the page origin and their own name', () => {
-    for (const p of ['keyboardLock']) {
+    for (const p of ['keyboardLock', 'window-management']) {
       expect(extra.planExtra(base(p)), p).toEqual({ origin: 'https://app.example.com', part: p });
     }
   });
 
   it('a frame inside the page can never ask for those three', () => {
-    for (const p of ['keyboardLock']) {
+    for (const p of ['keyboardLock', 'window-management']) {
       expect(extra.planExtra(base(p, { details: { isMainFrame: false, requestingUrl: 'https://ads.example/x' } })).deny, p).toBeTruthy();
       expect(extra.planExtra(base(p, { details: { isMainFrame: true, requestingUrl: 'https://other.example/' } })).deny, p + ' other origin').toBeTruthy();
       expect(extra.planExtra(base(p, { details: { isMainFrame: false, requestingUrl: top } })).deny, p + ' frame of the same origin').toBeTruthy();
@@ -28,6 +28,8 @@ describe('what each request is, and under which key it is kept', () => {
     expect(extra.planExtra(base('keyboardLock', { fullscreen: true })).deny).toBeUndefined();
     expect(extra.planExtra(base('keyboardLock', { fullscreen: false })).deny).toBeTruthy();
     expect(extra.planExtra(base('keyboardLock', { fullscreen: undefined })).deny).toBeTruthy();
+    // the others do not care about full screen
+    expect(extra.planExtra(base('window-management', { fullscreen: false })).deny).toBeUndefined();
   });
 
   it('refuses anything that is not a web page or not one of the four', () => {

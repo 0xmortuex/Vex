@@ -32,7 +32,7 @@ const { atomicWriteSync } = require('./file-store');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // What decays, in the names permissions.js stores them under.
-const EXPIRING = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'display-capture', 'clipboard-read', 'midi', 'midiSysex', 'serial', 'usb', 'keyboardLock']);
+const EXPIRING = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'display-capture', 'clipboard-read', 'midi', 'midiSysex', 'serial', 'usb', 'keyboardLock', 'window-management']);
 // What a page may not ask for out of nowhere.
 const TRAP_GUARDED = new Set(['notifications', 'geolocation', 'clipboard-read', 'midi', 'midiSysex']);
 const LIVE_PARTS = new Set(['camera', 'microphone', 'geolocation', 'display-capture']);

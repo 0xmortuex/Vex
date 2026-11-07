@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// The question for the requests Vex used to refuse without asking (keyboardLock): English and Turkish copy, the buttons, and that a private window offers
+// The question for the requests Vex used to refuse without asking (keyboardLock, window-management): English and Turkish copy, the buttons, and that a private window offers
 // only "this time". Pure DOM, no Electron.
 import { describe, it, expect, beforeEach } from 'vitest';
 require('../../src/renderer/js/vex-utils.js');
@@ -23,6 +23,7 @@ const turkish = () => { window.vexTr = (text) => { const hit = VexI18nUI.lookup(
 
 const REQUESTS = [
   { permission: 'keyboardLock', origin: 'https://game.example', en: 'wants to take over some keyboard keys (like Esc) while this page is full screen', trWord: 'klavye tuşlarını' },
+  { permission: 'window-management', origin: 'https://slides.example', en: 'wants to see all your screens and place windows on them', trWord: 'ekranlarınızı' },
 ];
 
 describe.each(REQUESTS)('the question for $permission', (req) => {

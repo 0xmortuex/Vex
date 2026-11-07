@@ -122,7 +122,7 @@ const PermissionsSettings = (() => {
             const permission = idx >= 0 ? key.slice(idx + 2) : '';
             // 'media' is an answer saved before requests were told apart: it covers
             // the camera and the microphone, never a screen share.
-            const NAMES = { media: 'camera and microphone', camera: 'camera', microphone: 'microphone', 'display-capture': 'screen sharing', geolocation: 'location', notifications: 'notifications', 'clipboard-read': 'reading the clipboard', midi: 'MIDI devices', midiSysex: 'MIDI devices (SysEx)', popups: 'pop-ups', 'automatic-downloads': 'automatic downloads', keyboardLock: 'keeping keys like Esc in full screen' };
+            const NAMES = { media: 'camera and microphone', camera: 'camera', microphone: 'microphone', 'display-capture': 'screen sharing', geolocation: 'location', notifications: 'notifications', 'clipboard-read': 'reading the clipboard', midi: 'MIDI devices', midiSysex: 'MIDI devices (SysEx)', popups: 'pop-ups', 'automatic-downloads': 'automatic downloads', keyboardLock: 'keeping keys like Esc in full screen', 'window-management': 'seeing all your screens' };
             const tr = (text, ...vals) => { let out = (window.VexI18nUI && window.VexI18nUI.lookup(text)) || text; vals.forEach((v, i) => { out = out.split('{' + (i + 1) + '}').join(String(v)); }); return out; };
             const badge = decision === 'allow' ? VexIcons.svg('check', { size: 11 }) + ' Allowed' : VexIcons.svg('x', { size: 11 }) + ' Blocked';
             return `
@@ -131,7 +131,7 @@ const PermissionsSettings = (() => {
                   <div class="perm-row-origin">${_esc(origin)}</div>
                   <div class="perm-row-detail">
                     <span class="perm-badge ${_esc(decision)}">${badge}</span>
-                    ${_esc(NAMES[permission] ? (/^(?:keyboardLock)$/.test(permission) ? tr(NAMES[permission]) : NAMES[permission]) : (/^external:/.test(permission) ? 'opening ' + permission.slice(9) + ': links in another program' : permission))}
+                    ${_esc(NAMES[permission] ? (/^(?:keyboardLock|window-management)$/.test(permission) ? tr(NAMES[permission]) : NAMES[permission]) : (/^external:/.test(permission) ? 'opening ' + permission.slice(9) + ': links in another program' : permission))}
                   </div>
                 </div>
                 <button class="btn-secondary-sm" data-perm-key="${_esc(key)}">Revoke</button>
