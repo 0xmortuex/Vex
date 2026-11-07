@@ -194,6 +194,8 @@ const VexBoot = {
     { src: 'js/agent-activity-ui.js', usage: [] },
     // Vex as an MCP server: the Settings section, the access token and the window-side bridge main asks for tabs and history. OFF until switched on; main does the work.
     { src: 'js/mcp-server-ui.js', usage: [] },
+    // Program hook (opt-in): the Settings section and the two events that start in this window; main starts nothing unless it was switched on there.
+    { src: 'js/os-hook-ui.js', usage: [] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)

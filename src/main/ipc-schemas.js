@@ -968,6 +968,13 @@ define('agentaudit:list', [optional(value => Number.isSafeInteger(value) && valu
 // Vex as an MCP server (main/mcp-server-ipc.js): Vex's own window only.
 define('evomcp:status evomcp:rotate-token', []);
 define('evomcp:set-enabled', [boolean]);
+// The program hook (main/os-hook.js): Vex's own window only. The window can name an event and a one-use token for a program main
+// opened a dialog for; it never names a program, a path or a command.
+define('oshook:status oshook:pick-program', []);
+define('oshook:set-enabled', [boolean]);
+define('oshook:add', [shape({ event: oneOf(['download-finished', 'reminder-fired', 'exam-armed', 'ci-red']), token: string(64), args: optional(value => Array.isArray(value) && value.length <= 8 && value.every(a => typeof a === 'string' && a.length <= 200)) })]);
+define('oshook:remove', [oneOf(['download-finished', 'reminder-fired', 'exam-armed', 'ci-red'])]);
+define('oshook:event', [shape({ event: oneOf(['exam-armed', 'ci-red']) })]);
 function validate(channel, args) {
   if (channel.startsWith('@ghostery/')) return; // Vendor-owned API; the outer policy still bounds JSON and verifies its sender.
   const checks = schemas.get(channel);

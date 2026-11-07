@@ -553,6 +553,13 @@ contextBridge.exposeInMainWorld('vex', {
   evoMcpStatus: () => ipcRenderer.invoke('evomcp:status'),
   evoMcpSetEnabled: (on) => ipcRenderer.invoke('evomcp:set-enabled', on),
   evoMcpRotateToken: () => ipcRenderer.invoke('evomcp:rotate-token'),
+  // The program hook (main/os-hook.js).
+  osHookStatus: () => ipcRenderer.invoke('oshook:status'),
+  osHookSetEnabled: (on) => ipcRenderer.invoke('oshook:set-enabled', on),
+  osHookPickProgram: () => ipcRenderer.invoke('oshook:pick-program'),
+  osHookAdd: (req) => ipcRenderer.invoke('oshook:add', req),
+  osHookRemove: (event) => ipcRenderer.invoke('oshook:remove', event),
+  osHookEvent: (req) => ipcRenderer.invoke('oshook:event', req),
   webhookStart: (req) => ipcRenderer.invoke('webhook:start', req),
   webhookStop: () => ipcRenderer.invoke('webhook:stop'),
   webhookStatus: () => ipcRenderer.invoke('webhook:status'),
