@@ -59,7 +59,6 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:dep-radar', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
   ['vex:deploy-desk', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
   ['vex:electron-ticker', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
-  ['vex:exams-changed', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
   ['vex:exam-mode', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
   ['vex:form-rescue-changed', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
   ['vex:game-warmdown', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],

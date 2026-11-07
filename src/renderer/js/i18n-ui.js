@@ -15405,6 +15405,17 @@ const VexI18nUI = {
       'Bibliography from a dossier': 'Bir dosyadan kaynakça',
       'No bibliography': 'Kaynakça yok',
       // --- end W4 flows: research -> sources ---
+      // --- W4 flows: exam planner -> exam mode ---
+      'Keep Vex quiet during this exam?': 'Bu sınav boyunca Vex sessiz kalsın mı?',
+      'Exam mode': 'Sınav modu',
+      'Turn it on then': 'O zaman aç',
+      'Exam mode will turn on at {1}': 'Sınav modu saat {1}’de açılacak',
+      'Exam mode is on until {1}': 'Sınav modu {1} saatine kadar açık',
+      'Exam mode will turn on for {1} at {2}.': '{1} için sınav modu {2} tarihinde açılacak.',
+      'Cancel that': 'Bunu iptal et',
+      'That exam is gone or was moved, so there is nothing to turn on': 'Bu sınav silinmiş ya da taşınmış, açılacak bir şey yok',
+      'That exam is already over': 'Bu sınav zaten bitti',
+      // --- end W4 flows: exam planner -> exam mode ---
     },
   },
 
