@@ -51,6 +51,8 @@ const SitePanel = {
     { id: 'midi', name: 'MIDI devices', icon: 'music' },
     { id: 'automatic-downloads', name: 'Automatic downloads', icon: 'download',
       note: 'Several files the page downloads by itself. A file you click always downloads.' },
+    // Asked since src/main/web-permissions-extra.js; a private window asks every time and keeps nothing.
+    { id: 'keyboardLock', name: 'Keep keys like Esc in full screen', icon: 'keyboard' },
   ],
   CONTAINERS: ['work', 'personal', 'shopping'],
 

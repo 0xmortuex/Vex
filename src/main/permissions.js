@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { atomicWrite } = require('./file-store');
+const extra = require('./web-permissions-extra');
 
 // One spelling of an origin for every decision key: scheme://host[:port],
 // no trailing slash, no path. Electron's handlers spell the same origin two
@@ -292,6 +293,52 @@ function setUiCamera(contents, on) {
   return !!on;
 }
 
+// === keyboardLock, window-management and idle-detection (rules: web-permissions-extra.js) ===
+// A private window, a Tor tab or a burner tab remembers nothing, so it asks every time: its in-memory
+// store is never consulted for these, and an answer is never written to it.
+function isEphemeralContents(ses, contents) {
+  if (ses && (ses.__vexTor || ses.__vexEphemeral)) return true;
+  const partition = contents ? secureSessions.partitionOf(contents) : 'persist:main';
+  return !!partition && !partition.startsWith('persist:');
+}
+// Whether the page is in HTML full screen RIGHT NOW. Read from the page itself: a page that lies here only
+// earns itself a question, never an answer, because keyboardLock is always asked. A failure is refused.
+async function pageIsFullscreen(contents) {
+  return (await contents.executeJavaScript('document.fullscreenElement !== null', true)) === true;
+}
+function askExtraPermission(ses, webContents, permission, callback, details) {
+  let topUrl = '';
+  try { topUrl = webContents.getURL(); } catch (err) { console.error('[Permissions] could not read the page address:', err.message); return callback(false); }
+  const run = async () => {
+    let fullscreen = false;
+    if (permission === 'keyboardLock') {
+      try { fullscreen = await pageIsFullscreen(webContents); }
+      catch (err) { console.error('[Permissions] could not tell whether the page is in full screen, keyboardLock refused:', err.message); }
+    }
+    const plan = extra.planExtra({ permission, details, topUrl, fullscreen });
+    if (plan.deny) { console.log(`[Permissions] DENIED (${permission}): ${plan.deny}`); return callback(false); }
+    const priv = isEphemeralContents(ses, webContents);
+    const saved = priv ? null : savedDecision(decisionsFor(webContents), plan.origin, [plan.part], sessionDecisionsFor(webContents));
+    const verdict = extra.resolveExtra(saved, priv);
+    if (verdict === 'allow') { if (hygiene) hygiene.noteUse(webContents, plan.origin, [plan.part]); return callback(true); }
+    if (verdict === 'deny') return callback(false);
+
+    const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    Object.assign(callback, { _host: secureSessions.owner(webContents), _contents: webContents, _origin: plan.origin, _permission: plan.part, _parts: [plan.part], _noRemember: priv });
+    pendingPermissions.set(id, callback);
+    sendPermissionRequest({ id, permission: plan.part, origin: plan.origin, ...(priv ? { choice: 'this-time', remember: false } : {}) });
+    setTimeout(() => {
+      if (!pendingPermissions.has(id)) return;
+      pendingPermissions.delete(id);
+      try { callback(false); } catch (err) { console.warn('[Permissions] could not refuse a request that ran out:', err.message); }
+      const win = callback._host && callback._host.win;
+      try { if (win && !win.isDestroyed()) win.webContents.send('permission:expired', { id }); }
+      catch (err) { console.warn('[Permissions] could not say a request ran out:', err.message); }
+    }, 120000);
+  };
+  run().catch((err) => { console.error('[Permissions] ' + permission + ' request failed, refused:', err); try { callback(false); } catch (e) { console.warn('[Permissions] callback already used:', e.message); } });
+}
+
 function wirePermissionsOnSession(ses, tag, opts) {
   if (!ses || ses.__vexPermsWired) return;
   ses.__vexPermsWired = true;
@@ -346,7 +393,11 @@ function wirePermissionsOnSession(ses, tag, opts) {
     if (opts.autoAllowMedia && MEDIA_PERMS.has(permission) && isDiscordOrigin(origin)) return callback(true);
 
     const NEEDS_PROMPT = new Set(['geolocation', 'media', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture', 'clipboard-read']);
-    if (!NEEDS_PROMPT.has(permission)) {
+    // These were refused here unasked (measured,
+    // Electron 42). They are asked now, by their own rules (src/main/web-permissions-extra.js). Everything
+    // else unlisted is still refused.
+    const isExtra = extra.EXTRA_PERMISSIONS.has(permission);
+    if (!NEEDS_PROMPT.has(permission) && !isExtra) {
       // Unknown permission — deny by default, but log so we can add it later
       console.log(`[Permissions] DENIED (unlisted): ${permission}`);
       return callback(false);
@@ -359,6 +410,8 @@ function wirePermissionsOnSession(ses, tag, opts) {
       console.log(`[Permissions] DENIED (paranoid mode): ${origin} asked for ${permission}`);
       return callback(false);
     }
+
+    if (isExtra) return askExtraPermission(ses, webContents, permission, callback, details);
 
     // Check persisted decisions — under what is really being asked for.
     const parts = mediaParts(permission, details);
@@ -433,6 +486,8 @@ function wirePermissionsOnSession(ses, tag, opts) {
     const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
     // A site in paranoid mode is granted nothing, whatever it was allowed before.
     if (webSafety && webSafety.isParanoid(requestingOrigin)) return false;
+    // A private, Tor or burner window remembers none of these, so it never reports one as granted.
+    if (extra.EXTRA_PERMISSIONS.has(permission) && isEphemeralContents(ses, _wc)) return false;
     return savedDecision(decisionsFor(_wc), requestingOrigin, parts, sessionDecisionsFor(_wc)) === 'allow';
   });
 }
@@ -593,7 +648,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 // or a private window's in-memory one (never to disk), which is exactly where
 // Settings › Site permissions lists it. A "just this visit" answer for the same
 // permission is dropped too, or it would go on overruling the choice.
-const PAGE_PERMISSIONS = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'midi', 'midiSysex', 'popups', AUTO_DOWNLOADS]);
+const PAGE_PERMISSIONS = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'midi', 'midiSysex', 'popups', AUTO_DOWNLOADS, 'keyboardLock']);
 function setPageDecision(contents, origin, permission, decision) {
   origin = originKey(origin);
   if (!/^https?:\/\//.test(origin)) throw new Error('Only a website has permissions');
