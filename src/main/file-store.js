@@ -19,9 +19,15 @@ async function withRetry(op, delays = RETRY_DELAYS_MS) {
   }
 }
 
+// The temp files of the writes running right now (this process), so the leftover clean-up (main/temp-cleanup.js)
+// can never remove one a live write is using.
+const liveTemps = new Set();
+const isTempInUse = (file) => liveTemps.has(file);
+
 async function atomicWrite(file, bytes, { backup = true, retryDelays = RETRY_DELAYS_MS } = {}) {
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
   const temp = file + '.' + randomUUID() + '.tmp';
+  liveTemps.add(temp);
   try {
     const handle = await fs.promises.open(temp, 'wx', 0o600);
     try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
@@ -30,7 +36,7 @@ async function atomicWrite(file, bytes, { backup = true, retryDelays = RETRY_DEL
       catch (e) { if (e.code !== 'ENOENT') throw e; }
     }
     await withRetry(() => fs.promises.rename(temp, file), retryDelays);
-  } finally { await fs.promises.rm(temp, { force: true }).catch(() => {}); }
+  } finally { liveTemps.delete(temp); await fs.promises.rm(temp, { force: true }).catch(() => {}); }
 }
 
 // The same write for code that cannot await (a config saved from a synchronous handler, the boot-guard state,
@@ -51,6 +57,7 @@ function withRetrySync(op, delays = SYNC_RETRY_DELAYS_MS, sleep = sleepSync) {
 function atomicWriteSync(file, bytes, { backup = true, fsImpl = fs, retryDelays = SYNC_RETRY_DELAYS_MS, sleep = sleepSync } = {}) {
   fsImpl.mkdirSync(path.dirname(file), { recursive: true });
   const temp = file + '.' + randomUUID() + '.tmp';
+  liveTemps.add(temp);
   try {
     const fd = fsImpl.openSync(temp, 'wx', 0o600);
     try { fsImpl.writeFileSync(fd, bytes); fsImpl.fsyncSync(fd); } finally { fsImpl.closeSync(fd); }
@@ -59,7 +66,7 @@ function atomicWriteSync(file, bytes, { backup = true, fsImpl = fs, retryDelays 
       catch (e) { if (e.code !== 'ENOENT') throw e; }
     }
     withRetrySync(() => fsImpl.renameSync(temp, file), retryDelays, sleep);
-  } finally { fsImpl.rmSync(temp, { force: true }); }
+  } finally { liveTemps.delete(temp); fsImpl.rmSync(temp, { force: true }); }
 }
 
 // Reads a JSON file written with atomicWrite/atomicWriteSync. { data, source }: source is 'missing' (no file, no
@@ -288,4 +295,4 @@ class SecretStore {
     return value;
   }
 }
-module.exports = { atomicWrite, atomicWriteSync, readJsonRecoverSync, JsonStore, SecretStore, keepCorruptCopy, dataSum };
+module.exports = { atomicWrite, atomicWriteSync, isTempInUse, readJsonRecoverSync, JsonStore, SecretStore, keepCorruptCopy, dataSum };

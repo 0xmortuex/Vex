@@ -9534,7 +9534,9 @@ app.whenReady().then(() => {
   } catch (err) { console.warn('[Cleanup] Memory data cleanup failed:', err.message); }
   // Temp files a cut-off save left behind, in the folders Vex saves into
   // (src/main/temp-cleanup.js).
-  require('./main/temp-cleanup').removeStaleTemps([userDataPath, storagePath])
+  // gotTheLock: this process holds the profile's single-instance lock, so no other Vex is writing here and a
+  // 10-minute-old leftover is safe to remove; a temp file of a write running right now never is (file-store isTempInUse).
+  require('./main/temp-cleanup').removeStaleTemps([userDataPath, storagePath], { holdsProfileLock: gotTheLock, inUse: require('./main/file-store').isTempInUse })
     .then(({ removed, failed }) => {
       if (removed.length) console.log(`[Cleanup] Removed ${removed.length} leftover temp file(s):`, removed.map(f => path.basename(f)).join(', '));
       for (const f of failed) console.error('[Cleanup] Could not remove leftover temp file', f.file, '-', f.error);
