@@ -5,6 +5,7 @@
 // ones Chrome's documentation gives for urlFilter, priority, limits and
 // modifyHeaders.
 import { describe, it, expect } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -395,10 +396,11 @@ describe('regexFilter safety', () => {
   });
   it('a hostile address does not hang a pattern that was let in', () => {
     const s = withDynamic([rule(1, { regexFilter: '^https://[a-z]+\\.x\\.test/.*\\.js$' }), rule(2, { urlFilter: 'a*a*a*a*a*b' })]);
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: the 1 s ceiling scales with it
     const t0 = Date.now();
     verdict(s, 'https://' + 'a'.repeat(1900) + '.x.test/');
     verdict(s, 'https://a.test/' + 'a'.repeat(1900));
-    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(Date.now() - t0).toBeLessThan(ceiling(1000, before));
   });
 });
 

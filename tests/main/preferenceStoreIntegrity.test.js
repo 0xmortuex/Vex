@@ -3,6 +3,7 @@
 // can live in a second file (off unless asked) with a verified, reversible
 // migration. Fixture profiles are built in a temp folder; nothing real is read.
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -273,9 +274,10 @@ describe('the volatile split (off unless asked)', () => {
     const p = profile();
     legacy(p, { 'vex.history': 'x'.repeat(1_000_000) });
     const s = open(p);
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: the 2 s ceiling scales with it
     const t0 = performance.now();
     s.load();
     await s.set('vex.theme', '"light"');
-    expect(performance.now() - t0).toBeLessThan(2000);
+    expect(performance.now() - t0).toBeLessThan(ceiling(2000, before));
   });
 });

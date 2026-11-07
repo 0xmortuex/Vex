@@ -1,6 +1,6 @@
 // src/main/webhook-inspector.js (T3-058): a loopback receiver the owner starts, size-capped,
 // self-stopping, never forwarding. These tests talk to a real listener on 127.0.0.1 (this computer).
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 const http = require('http');
 const net = require('net');
 const { createWebhookInspector, MAX_BODY, MAX_REQUESTS } = require('../../src/main/webhook-inspector.js');
@@ -76,9 +76,9 @@ describe('starting', () => {
     expect(timers.length).toBe(1);
     expect(timers[0].ms).toBe(7 * 60000);
     timers[0].fn();
-    await new Promise(r => setTimeout(r, 50));
-    expect(inspector.status().running).toBe(false);
-    await expect(send({ port })).rejects.toThrow();
+    // The listener closes on a real socket: poll for it instead of a fixed 50 ms (a loaded runner can take longer).
+    await vi.waitFor(() => expect(inspector.status().running).toBe(false));
+    await vi.waitFor(async () => { await expect(send({ port })).rejects.toThrow(); });
   });
 });
 

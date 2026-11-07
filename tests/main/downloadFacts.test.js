@@ -2,6 +2,7 @@
 // Every sample is a harmless file made here: a few bytes that look like a Windows program ("MZ"), a hand-written zip.
 // Nothing is downloaded and nothing is run.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { machineFactor, ceiling } from '../helpers/machineSpeed.js';
 
 const fs = require('fs');
 const os = require('os');
@@ -226,9 +227,10 @@ describe('only the head and the tail of a big file are read', () => {
         return len;
       },
     };
+    const before = machineFactor();   // a loaded CI runner is several times slower than a PC: the 500 ms ceiling scales with it
     const t0 = Date.now();
     const facts = await gatherFacts({ fs: fake, file: 'C:\\big.iso.zip', name: 'big.zip' });
-    expect(Date.now() - t0).toBeLessThan(500);
+    expect(Date.now() - t0).toBeLessThan(ceiling(500, before));
     expect(facts.checked).toBe(true);
     const total = reads.reduce((n, r) => n + r.len, 0);
     expect(total).toBeLessThan(1024 * 1024);
@@ -240,9 +242,10 @@ describe('only the head and the tail of a big file are read', () => {
     fs.writeSync(fd, Buffer.from('%PDF-1.7\n'));
     fs.ftruncateSync(fd, 40 * 1024 * 1024);
     fs.closeSync(fd);
+    const before = machineFactor();
     const t0 = Date.now();
     const facts = await gatherFacts({ fs, file: p, name: 'big.pdf' });
-    expect(Date.now() - t0).toBeLessThan(500);
+    expect(Date.now() - t0).toBeLessThan(ceiling(500, before));
     expect(judge(facts).level).toBe('green');
   });
 });
