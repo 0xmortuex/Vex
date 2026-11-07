@@ -109,3 +109,25 @@ describe('asking to let an extension control tabs', () => {
     delete window.vexConfirm;
   });
 });
+
+describe('a tab an extension holds keeps a laid-out page (2026-11-07)', () => {
+  it('marks the held tab ext-held, and only that one', () => {
+    const a = document.createElement('webview'), b = document.createElement('webview');
+    globalThis.TabManager = { activeTabId: 't9', tabs: [{ id: 't1' }, { id: 't2' }], extOpenedRecently: () => false };
+    globalThis.WebviewManager = { webviews: new Map([['t1', Object.assign(a, { getWebContentsId: () => 6 })], ['t2', Object.assign(b, { getWebContentsId: () => 7 })]]) };
+    VexExtDebugBar.set([{ tabId: 6, extId: 'a', name: 'Claude' }]);
+    expect(a.classList.contains('ext-held')).toBe(true);
+    expect(b.classList.contains('ext-held')).toBe(false);
+    expect(VexExtDebugBar.holds(6)).toBe(true);
+    expect(VexExtDebugBar.holds(7)).toBe(false);
+    VexExtDebugBar.set([]);
+    expect(a.classList.contains('ext-held')).toBe(false);
+  });
+  it('marks a tab an extension just opened in the background', () => {
+    const a = document.createElement('webview');
+    globalThis.TabManager = { activeTabId: 't9', tabs: [{ id: 't1' }], extOpenedRecently: () => true };
+    globalThis.WebviewManager = { webviews: new Map([['t1', Object.assign(a, { getWebContentsId: () => 6 })]]) };
+    VexExtDebugBar.syncLayout();
+    expect(a.classList.contains('ext-held')).toBe(true);
+  });
+});

@@ -451,6 +451,14 @@ html:not([data-loadbar]) #webviews-container.wv-loading::after {
 #webviews-container webview.active {
   display: flex;
 }
+/* A tab an extension opened or holds (js/ext-debug-bar.js): laid out at full size but invisible and untouchable, so its page has a real
+   viewport and can be screenshotted while another tab is in front. */
+#webviews-container webview.ext-held:not(.active) {
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
 
 /* Panels */
 #panels-container {

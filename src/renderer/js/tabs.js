@@ -2442,8 +2442,16 @@ const TabManager = {
   // discard) funnel through sleepTab -> _isKeptAwake, so this one gate covers them.
   _neverSleepHosts() { try { const a = JSON.parse(localStorage.getItem('vex.neverSleepHosts') || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); } },
   _hostOfTab(tab) { try { return new URL(tab.url).hostname.replace(/^www./, ''); } catch { return ''; } },
+  // A tab an extension opened behind the tab in front in the last half hour: it is being driven, so it keeps its page and its layout.
+  extOpenedRecently(tab) { return !!(tab && tab.extOpenedAt && Date.now() - tab.extOpenedAt < 30 * 60 * 1000); },
+
   _isKeptAwake(tab) {
     if (!tab) return false;
+    if (this.extOpenedRecently(tab)) return true;
+    try {   // an extension holds its page through the debugger: sleeping it would close the target under the extension
+      const held = WebviewManager.webviews.get(tab.id);
+      if (held && window.VexExtDebugBar && window.VexExtDebugBar.holds(held.getWebContentsId())) return true;
+    } catch { /* vex-allow-empty-catch: a page with no web contents yet is held by nobody */ }
     if (this.isCapturing(tab)) return true;   // recording: never slept from under it
     if (window.VexExamSafeMode && window.VexExamSafeMode.active()) return true;   // exam mode: no page is slept (js/exam-safe-mode.js)
     if (tab.keepAwakeUntil && Date.now() < tab.keepAwakeUntil) return true;
