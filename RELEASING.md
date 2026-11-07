@@ -146,6 +146,16 @@ Today the updater checks the installer's SHA-512 against `latest.yml`, and both 
 
 What it does and does not do: the app refuses a feed whose signature does not verify, whose `latest.yml.sig` is missing, or that names an older version than the running one. It does not stop an attacker who can also replace the app itself. A signature cannot say "this is the NEWEST release", so an attacker who replays an old, validly signed feed can only keep people on a version they could already have (never move them backwards, the updater ignores it). Unverified until the first real signed release: see the owner checklist in the Wave 2 report (sign a release, run it against a test copy via `VEX_UPDATE_FEED`).
 
+## Electron fuses and app.asar integrity
+
+Vex installs per user, in a folder that any program running as you can write to. `package.json` `build.electronFuses` therefore switches off `runAsNode` (Vex.exe can no longer be run as a Node interpreter with `ELECTRON_RUN_AS_NODE=1`), the `NODE_OPTIONS` variable and the `--inspect` flags, and switches on `enableEmbeddedAsarIntegrityValidation` plus `onlyLoadAppFromAsar` (Vex.exe refuses an `app.asar` that differs from the one it was built with, and ignores an unpacked `resourcesapp` folder). Cookie encryption is left as it was.
+
+electron-builder flips the fuses right before it signs, so the order with Widevine is unchanged: fuses, then Authenticode (if configured), then `afterSign` (castLabs VMP). Nothing flips or edits `Vex.exe` after `vmp-sign.js`.
+
+`scripts/verify-fuses.js` (run by `verify-packaged-boot.js`, so by `npm run publish`) reads the fuses and the integrity record back from the built exe and fails the publish if any differs from `package.json`, or if the record does not match `resourcesapp.asar`. By hand: `node scripts/verify-fuses.js distwin-unpacked`. An unfused (older) build fails this check, which is correct.
+
+Things to check after the first `npm run pack` with this change (not done by an agent; it needs the real build and castLabs signing): (1) the `verify-fuses` line passes, (2) `node scripts/verify-drm.js --boot` still passes (DRM works, the app starts), (3) the packaged Vex starts normally from `distwin-unpacked` and from an installed copy, (4) an update installed over the old version still starts. If the app refuses to start after the fuse change, `enableEmbeddedAsarIntegrityValidation` is the one to turn off first.
+
 ## Installing from a release
 
 Download `Vex-Setup.exe` from GitHub Releases (always the latest: `https://github.com/0xmortuex/Vex/releases/latest/download/Vex-Setup.exe`) and run it. Vex updates itself from then on.
