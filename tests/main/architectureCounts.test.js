@@ -1,5 +1,5 @@
 // docs/ARCHITECTURE.md used to say "about 450 Vitest files" and "every src/main module has its own test file".
-// There are over 1,400 test files, and three modules no test requires. Keep the document's numbers true.
+// There are over 1,400 test files, and four modules no test requires. Keep the document's numbers true.
 import { describe, it, expect } from 'vitest';
 
 const fs = require('fs');
@@ -39,7 +39,7 @@ describe('docs/ARCHITECTURE.md test counts', () => {
   });
 
   it('names exactly the src/main modules that no test requires', () => {
-    expect(untested.sort()).toEqual(['protect.js', 'restart-smoke.js', 'ui-smoke.js']);
+    expect(untested.sort()).toEqual(['evodata-entity-store.js', 'protect.js', 'restart-smoke.js', 'ui-smoke.js']);
     for (const name of untested) expect(doc).toContain('`' + name + '`');
     const n = /Of the (\d+) `\.js` files under `src\/main`, (\d+) are required by name/.exec(doc);
     expect(n, 'the sentence with the module counts').toBeTruthy();
