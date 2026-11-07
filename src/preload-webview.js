@@ -4707,3 +4707,138 @@ const VEX_SECRET_PATTERNS = [
     } catch { /* vex-allow-empty-catch: a card script must never throw into the page it runs on */ }
   });
 })();
+
+// === Caret browsing (js/caret-browsing.js) ======================================
+// Chromium's own caret browsing (--enable-caret-browsing) did nothing in this build (measured in a real <webview>: the arrow keys
+// left the caret where it was), so this is a small one of Vex's own. Vex says when it is on ('vex-caret', true / false). Then the
+// arrow keys move a visible caret through the page's text (Shift extends the selection, Ctrl moves by word or to the ends of the
+// page, Home / End go to the ends of the line, Enter follows a link the caret is in) using Selection.modify. A click in the text
+// already places the caret. It never touches a text field or an editable area (they keep their keys), a key the page handled itself
+// (preventDefault) is left alone, and Alt/Meta combinations (Alt+Left is Back) are not read. Drawn in a closed shadow root.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.on) return;
+  const KEYS = { ArrowLeft: ["backward", "character"], ArrowRight: ["forward", "character"], ArrowUp: ["backward", "line"], ArrowDown: ["forward", "line"], Home: ["backward", "lineboundary"], End: ["forward", "lineboundary"] };
+  let active = false, host = null, bar = null, frame = 0;
+
+  function isEditable(el) {
+    return !!el && el.nodeType === 1 && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  }
+  function typingTarget(e) {
+    const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+    return isEditable(path[0] || e.target) || isEditable(document.activeElement);
+  }
+  function seen(node) {
+    const el = node.parentElement;
+    if (!el || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|TEXTAREA)$/.test(el.tagName)) return false;
+    const cs = getComputedStyle(el);
+    return cs.visibility !== "hidden" && cs.display !== "none";
+  }
+  // The first text in view, for the first arrow key when there is no caret yet.
+  function placeFirst(sel) {
+    const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let n = 0, node = walker.nextNode(); node && n < 5000; node = walker.nextNode(), n++) {
+      const at = node.nodeValue.search(/\S/);
+      if (at < 0 || !seen(node)) continue;
+      range.selectNodeContents(node);
+      const rects = range.getClientRects();
+      for (let i = 0; i < rects.length; i++) {
+        const r = rects[i];
+        if (r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth) { sel.collapse(node, at); return true; }
+      }
+    }
+    return false;
+  }
+  // Where the caret is: a box a few pixels wide at the edge of the character next to it.
+  function caretRect(sel) {
+    const node = sel.focusNode, off = sel.focusOffset;
+    if (!node) return null;
+    const range = document.createRange();
+    if (node.nodeType === 3) {
+      const len = node.nodeValue.length;
+      let side = "left";
+      if (off < len) range.setStart(node, off), range.setEnd(node, off + 1);
+      else if (off > 0) { range.setStart(node, off - 1); range.setEnd(node, off); side = "right"; }
+      else return null;
+      const rs = range.getClientRects();
+      const r = rs.length ? rs[side === "left" ? 0 : rs.length - 1] : null;
+      return r && r.height > 0 ? { x: side === "left" ? r.left : r.right, y: r.top, h: r.height } : null;
+    }
+    const child = node.childNodes[off] || node;
+    const el = child.nodeType === 1 ? child : child.parentElement;
+    const r = el && el.getBoundingClientRect();
+    return r && r.height > 0 ? { x: r.left, y: r.top, h: Math.min(r.height, 28) } : null;
+  }
+  function paint() {
+    frame = 0;
+    if (!active || !bar) return;
+    const sel = getSelection();
+    const r = sel && sel.rangeCount && sel.isCollapsed && !isEditable(document.activeElement) ? caretRect(sel) : null;
+    if (!r || r.x < -2 || r.y < -2 || r.x > innerWidth + 2 || r.y > innerHeight + 2) { bar.style.display = "none"; return; }
+    bar.style.cssText = "display:block;left:" + Math.round(r.x) + "px;top:" + Math.round(r.y) + "px;height:" + Math.max(8, Math.round(r.h)) + "px";
+  }
+  function schedule() { if (!frame) frame = requestAnimationFrame(paint); }
+  function reveal(sel) {
+    const r = sel.rangeCount ? caretRect(sel) : null;
+    if (!r) return;
+    const dx = r.x < 8 ? r.x - 24 : r.x > innerWidth - 8 ? r.x - innerWidth + 24 : 0;
+    const dy = r.y < 8 ? r.y - 40 : r.y + r.h > innerHeight - 8 ? r.y + r.h - innerHeight + 40 : 0;
+    if (dx || dy) window.scrollBy(dx, dy);
+  }
+  function onKey(e) {
+    if (!active || !e.isTrusted || e.defaultPrevented || e.metaKey || e.altKey || e.repeat && e.key === "Enter") return;
+    if (typingTarget(e)) return;
+    const sel = getSelection();
+    if (!sel) return;
+    if (e.key === "Enter" && !e.ctrlKey && !e.shiftKey) {
+      const a = sel.rangeCount && sel.isCollapsed && sel.focusNode && (sel.focusNode.nodeType === 1 ? sel.focusNode : sel.focusNode.parentElement);
+      const link = a && a.closest && a.closest("a[href]");
+      if (link) { e.preventDefault(); link.click(); }
+      return;
+    }
+    const step = KEYS[e.key];
+    if (!step || typeof sel.modify !== "function") return;
+    const vertical = e.key === "ArrowUp" || e.key === "ArrowDown";
+    if (e.ctrlKey && vertical) return;
+    let gran = step[1];
+    if (e.ctrlKey) gran = vertical ? gran : e.key === "Home" || e.key === "End" ? "documentboundary" : "word";
+    e.preventDefault();
+    if (!sel.rangeCount) { if (placeFirst(sel)) schedule(); return; }
+    sel.modify(e.shiftKey ? "extend" : "move", step[0], gran);
+    reveal(sel);
+    schedule();
+  }
+  function start() {
+    if (active) return;
+    active = true;
+    host = document.createElement("div");
+    host.style.cssText = "all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647";
+    const root = host.attachShadow({ mode: "closed" });
+    const css = document.createElement("style");
+    css.textContent = ".c{position:fixed;display:none;width:2px;background:#fff;mix-blend-mode:difference;animation:b 1.1s steps(1) infinite}@keyframes b{50%{opacity:0}}" +
+      "@media (prefers-reduced-motion: reduce){.c{animation:none}}@media (forced-colors: active){.c{background:Highlight;mix-blend-mode:normal}}";
+    bar = document.createElement("div");
+    bar.className = "c";
+    root.append(css, bar);
+    (document.documentElement || document.body).appendChild(host);
+    window.addEventListener("keydown", onKey, false);
+    document.addEventListener("selectionchange", schedule, true);
+    window.addEventListener("scroll", schedule, true);
+    window.addEventListener("resize", schedule, true);
+    schedule();
+  }
+  function stop() {
+    if (!active) return;
+    active = false;
+    window.removeEventListener("keydown", onKey, false);
+    document.removeEventListener("selectionchange", schedule, true);
+    window.removeEventListener("scroll", schedule, true);
+    window.removeEventListener("resize", schedule, true);
+    if (host && host.parentNode) host.parentNode.removeChild(host);
+    host = bar = null;
+  }
+  ipcRenderer.on("vex-caret", (_event, want) => { if (want === true) start(); else stop(); });
+})();

@@ -279,6 +279,8 @@ const VexFeatures = {
       what: 'Before a call: a live picture from your camera, a level meter for your microphone, a soft test tone on the speakers you pick, and the speed of your connection, each marked as looking good or needing a look. Nothing is recorded or sent.' },
     { id: 'lyrics', phrases: 'lyrics song words sing along karaoke now playing spotify synced lrc lrclib', cat: 'media', cmd: 'lyrics', name: 'Lyrics for what is playing',
       what: 'Shows the lyrics of the song that is playing in Spotify, YouTube Music or a tab, highlighting the line being sung. Looked up on lrclib.net with the artist, title, album and length only. Off until you turn it on.' },
+    { id: 'caret-browsing', phrases: 'caret browsing f7 keyboard cursor in page text select text with arrow keys without mouse screen reader low vision accessibility move through text', cat: 'reading', cmd: 'caret-browsing', name: 'Caret browsing',
+      what: 'F7 (or Ctrl+K, "Caret Browsing") puts a text cursor in the page: the arrow keys move it through the text, Shift selects, Ctrl moves by word, and Enter follows a link. It asks before it turns on, and it starts off.' },
     { id: 'streaming-skip', phrases: 'skip intro skip recap next episode are you still watching continue watching netflix prime video disney binge', cat: 'media', cmd: 'streaming-skip', name: 'Skip intro and next episode',
       what: 'On Netflix, Prime Video and Disney+, presses the Skip Intro, Skip Recap, Next Episode and Continue Watching buttons for you. Off for every site until you turn that site on.' },
     { id: 'session-timeout', phrases: 'session timeout logged out e-devlet edevlet exam portal bank signed out idle warning stay signed in keep alive form expires', cat: 'privacy', cmd: 'session-timeout', name: 'Sign-out warning',
@@ -1382,7 +1384,7 @@ const VexFeatures = {
     ],
     reading: [
       { name: 'Getting to the words', ids: ['reading-mode', 'readfree', 'copyunlock', 'doctext', 'find-in-page', 'page-nav', 'site-search', 'image-text'] },
-      { name: 'Getting through them', ids: ['readaloud', 'speedread', 'bionic', 'accessibility', 'zoom', 'dictionary'] },
+      { name: 'Getting through them', ids: ['readaloud', 'speedread', 'bionic', 'accessibility', 'caret-browsing', 'zoom', 'dictionary'] },
       { name: 'In another language', ids: ['translate', 'translate-side'] },
       { name: 'Keeping what you read', ids: ['save-pdf', 'save-page', 'archive-page', 'archive-library', 'annotations', 'cards', 'cite', 'pagediff'] },
     ],

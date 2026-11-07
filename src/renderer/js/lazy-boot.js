@@ -38,6 +38,8 @@ const VexBoot = {
     { src: 'js/captive-portal.js', usage: [] },
     // Skip intro / next episode switches for streaming sites: only read when its Ctrl+K command is used.
     { src: 'js/streaming-skip.js', usage: [] },
+    // Caret browsing: only read when F7 or its Ctrl+K command is used (and at start-up when it was left on).
+    { src: 'js/caret-browsing.js', usage: [] },
     // Lyrics card: only read when its Ctrl+K command or the Lyrics button on Now Playing is used.
     { src: 'js/lyrics-card.js', usage: [] },
     // "Check my devices": only read when its Ctrl+K command or the offer in Meeting mode is used.
