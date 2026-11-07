@@ -29,7 +29,8 @@ function faultyFs(failStep, { code = 'EIO', partial = false } = {}) {
   }
   wrapped.writeFileSync = (target, data, ...rest) => {
     if (failStep === 'writeFileSync') {
-      if (partial && typeof target === 'number') fs.writeSync(target, String(data).slice(0, Math.floor(String(data).length / 2)));
+      // half of the bytes land first: into the temp file's descriptor, or - for code that still writes the file itself - into the file
+      if (partial) fs.writeFileSync(target, String(data).slice(0, Math.floor(String(data).length / 2)));
       throw boom();
     }
     return fs.writeFileSync(target, data, ...rest);
