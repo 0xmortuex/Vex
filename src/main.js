@@ -7945,9 +7945,10 @@ app.on('web-contents-created', (_event, contents) => {
           // tab (js/peek.js); it went to the far end (found 2026-10-10).
           win.webContents.send('peek:open', { url, partition: openerPartition, opener: contents.id });
         } else {
+          // A link opened in a new tab goes through the same redirect skipping as one clicked in place (the pop-up check above needed a click).
+          const url = _unwrapTarget(contents, details.url, { newTab: true }) || details.url;
           win.webContents.send('tab:create-from-external', {
-            // A link opened in a new tab goes through the same redirect skipping as one clicked in place (the pop-up check above needed a click).
-            url: _unwrapTarget(contents, url, { newTab: true }) || url,
+            url,
             background: disposition === 'background-tab' || disposition === 'save-to-disk',
             // A Tor / burner / private / container tab's link stays in that
             // session; it opened in persist:main before (found 2026-09-29).
