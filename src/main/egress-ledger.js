@@ -21,6 +21,8 @@ const MAX = 2000;
 const MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const DAY_MS = 24 * 3600 * 1000;
 const SAVE_DELAY_MS = 3000;
+// The honest label for a request whose caller did not name its feature and whose host the classifier does not know.
+const OTHER_FEATURE = 'Other Vex request';
 
 // The host of a URL and nothing else. Throws for something that is not a URL
 // so a bad caller is seen, not recorded as "unknown".
@@ -35,7 +37,7 @@ function hostOf(url) {
 // URL, then forgets everything but the host.
 function classify(url) {
   let u;
-  try { u = new URL(String(url)); } catch { return { feature: 'Vex', kind: 'other' }; }
+  try { u = new URL(String(url)); } catch { return { feature: OTHER_FEATURE, kind: 'other' }; }
   const host = u.hostname.toLowerCase();
   const p = u.pathname;
   if (host === 'api.pwnedpasswords.com') return { feature: 'Password breach check', kind: 'breach' };
@@ -44,7 +46,7 @@ function classify(url) {
   if (host === 'open.er-api.com') return { feature: 'Currency rates', kind: 'fetch' };
   if (host === 'clients2.google.com' || host.endsWith('chromewebstore.google.com')) return { feature: 'Extension updates', kind: 'extension' };
   if (host === 'github.com' || host === 'api.github.com' || host.endsWith('.githubusercontent.com')) return { feature: 'GitHub download', kind: 'update' };
-  return { feature: 'Vex', kind: 'fetch' };
+  return { feature: OTHER_FEATURE, kind: 'fetch' };
 }
 
 // A request to this machine or the local network (Ollama, a dev server) did not
@@ -218,4 +220,4 @@ let shared = null;
 function setShared(ledger) { shared = ledger; }
 function getShared() { return shared; }
 
-module.exports = { createEgressLedger, classify, hostOf, isThisMachine, setShared, getShared, KINDS, MAX, MAX_AGE_MS };
+module.exports = { createEgressLedger, classify, hostOf, isThisMachine, setShared, getShared, KINDS, MAX, MAX_AGE_MS, OTHER_FEATURE };

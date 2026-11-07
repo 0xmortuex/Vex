@@ -36,7 +36,7 @@ describe('what a line holds', () => {
     expect(classify('https://api.pwnedpasswords.com/range/ABCDE')).toEqual({ feature: 'Password breach check', kind: 'breach' });
     expect(classify('https://x.workers.dev/sync/pull')).toEqual({ feature: 'Vex Sync', kind: 'sync' });
     expect(classify('https://x.workers.dev/')).toEqual({ feature: 'Cloud AI', kind: 'ai' });
-    expect(classify('https://example.com/')).toEqual({ feature: 'Vex', kind: 'fetch' });
+    expect(classify('https://example.com/')).toEqual({ feature: 'Other Vex request', kind: 'fetch' });
     expect(hostOf('https://User:Pw@Example.COM:8443/a?b')).toBe('example.com');
   });
 

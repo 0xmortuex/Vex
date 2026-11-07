@@ -80,7 +80,7 @@ const McpClient = (() => {
     const payload = { jsonrpc: '2.0', method, params: params || {} };
     if (!opts.notification) payload.id = ++_id;
     // Main adds the server's token (kept encrypted there) when it has one.
-    const res = await window.vex.apiRequest({ url: server.url, method: 'POST', headers, body: JSON.stringify(payload), ...(server.hasAuth ? { mcpServer: server.id } : {}) });
+    const res = await window.vex.apiRequest({ url: server.url, method: 'POST', headers, body: JSON.stringify(payload), egress: 'MCP server', ...(server.hasAuth ? { mcpServer: server.id } : {}) });
     if (!res || !res.ok) throw new Error((res && res.error) || 'Request failed');
     if (res.status >= 400) throw new Error('Server returned ' + res.status + (res.body ? ': ' + res.body.slice(0, 200) : ''));
     // Capture a session id handed back on initialize.

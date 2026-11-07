@@ -432,20 +432,20 @@ const PageWatch = {
     } else if (watch.raw && !watch.selector) {
       // A feed (a radar watch): the markup itself, because the pattern looks
       // for its tags and the readable-text reader would strip them.
-      const rr = await AgentTools._get(watch.url, conditional, this.POLITE);
+      const rr = await AgentTools._get(watch.url, conditional, this.POLITE, 'Page watch');
       if (rr.status === 304) return { notModified: true };
       const h = rr.headers || {};
       etag = h.etag || h.ETag || null; lastModified = h['last-modified'] || h['Last-Modified'] || null;
       text = String(rr.body || '');
     } else if (!watch.selector) {
-      const r = await AgentTools.readUrl(watch.url, { maxText: Infinity, headers: conditional, polite: this.POLITE });
+      const r = await AgentTools.readUrl(watch.url, { maxText: Infinity, headers: conditional, polite: this.POLITE, egress: 'Page watch' });
       if (r.notModified) return { notModified: true };
       text = String(r.text || '');
       etag = r.etag || null; lastModified = r.lastModified || null;
     } else {
       // A part of the page needs the real document, so this path reads the
       // page's markup rather than the readable text.
-      raw = await AgentTools._get(watch.url, conditional, this.POLITE);
+      raw = await AgentTools._get(watch.url, conditional, this.POLITE, 'Page watch');
       if (raw.status === 304) return { notModified: true };
       const h = raw.headers || {};
       etag = h.etag || h.ETag || null; lastModified = h['last-modified'] || h['Last-Modified'] || null;
@@ -513,7 +513,7 @@ const PageWatch = {
   // without publicOnly, which refuses private addresses on every hop).
   async _getLocal(url) {
     if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Web access is not available in this build');
-    const r = await window.vex.apiRequest({ url, headers: { 'User-Agent': AgentTools.UA, 'Accept-Language': 'en-US,en;q=0.9' }, polite: this.POLITE });
+    const r = await window.vex.apiRequest({ url, headers: { 'User-Agent': AgentTools.UA, 'Accept-Language': 'en-US,en;q=0.9' }, egress: 'Page watch', polite: this.POLITE });
     if (!r || !r.ok) throw new Error((r && r.error) || 'The request failed');
     if (r.status >= 400) throw new Error('HTTP ' + r.status + ' from ' + new URL(url).hostname);
     return r;

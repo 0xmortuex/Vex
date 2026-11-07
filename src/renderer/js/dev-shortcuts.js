@@ -233,7 +233,7 @@ const RobloxResolver = {
     if (wait > 0) await new Promise(r => setTimeout(r, wait));
     this._last = Date.now();
     // publicOnly: no cookie of yours goes with it, and nothing on this computer or your network is asked.
-    const r = await v.apiRequest({ url, method: 'GET', publicOnly: true, headers: { Accept: 'application/json' } });
+    const r = await v.apiRequest({ url, method: 'GET', publicOnly: true, egress: 'Developer shortcuts', headers: { Accept: 'application/json' } });
     if (!r || !r.ok) throw new Error((r && r.error) || 'Roblox could not be reached');
     if (r.status === 429) throw new Error('Roblox is limiting requests. Try again in a minute.');
     return r;
