@@ -126,6 +126,84 @@ describe('language commands', () => {
   });
 });
 
+describe('settings commands', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'src/renderer/index.html'), 'utf8');
+  const mine = () => CommandBar.commands.filter(c => /^set-/.test(c.id) || c.id === 'check-for-updates');
+  const anchorOf = (c) => (String(c.action).match(/_openSetting\(['"]([^'"]+)['"]\)/) || [])[1];
+
+  beforeEach(() => { localStorage.clear(); });
+
+  it('there are the expected ones, each with a name, a hint, an icon and search words in both languages', () => {
+    const ids = mine().map(c => c.id);
+    for (const id of ['set-search-engine', 'set-download-folder', 'set-download-ask', 'set-adblocker', 'set-reduce-motion', 'set-theme-auto', 'set-website-appearance',
+      'set-login-item', 'set-tray-keep', 'set-memory-saver', 'set-tab-layout', 'set-weather-place', 'set-search-suggest', 'set-sidebar', 'set-streamer-mode',
+      'set-default-browser', 'set-passwords', 'check-for-updates']) expect(ids, id).toContain(id);
+    for (const c of mine()) {
+      expect(c.label && c.hint && c.icon, c.id).toBeTruthy();
+      expect(typeof c.keywords === 'string' && c.keywords.split(/\s+/).length >= 5, c.id + ' keywords').toBe(true);
+      expect(/[çğıöşüÇĞİÖŞÜ]/.test(c.keywords), c.id + ' has Turkish search words').toBe(true);
+    }
+  });
+
+  it('each has a Turkish text for its label and its hint, different from the English', () => {
+    for (const c of mine()) {
+      expect(TR[c.label], 'label of ' + c.id).toBeTruthy();
+      expect(TR[c.label], 'label of ' + c.id).not.toBe(c.label);
+      expect(TR[c.hint], 'hint of ' + c.id).toBeTruthy();
+      expect(TR[c.hint], 'hint of ' + c.id).not.toBe(c.hint);
+    }
+  });
+
+  it('each opens a control that exists (in index.html, or drawn by a script)', () => {
+    const scripts = fs.readdirSync(JS).filter(n => n.endsWith('.js')).map(n => fs.readFileSync(path.join(JS, n), 'utf8')).join('\n');
+    for (const c of mine().filter(x => x.id !== 'check-for-updates')) {
+      const anchor = anchorOf(c);
+      expect(anchor, c.id).toBeTruthy();
+      expect(c.opens, c.id).toBe(anchor);
+      expect(html.includes('id="' + anchor + '"') || scripts.includes("'" + anchor + "'") || scripts.includes('"' + anchor + '"'), c.id + ' -> ' + anchor).toBe(true);
+    }
+  });
+
+  it('the update check is the one Settings, About makes', () => {
+    expect(String(byId('check-for-updates').action)).toContain('_checkForUpdates');
+    const checkManually = vi.fn(() => Promise.resolve({ ok: true }));
+    window.UpdateNotifier = { checkManually };
+    globalThis.UpdateNotifier = window.UpdateNotifier;
+    byId('check-for-updates').action();
+    expect(checkManually).toHaveBeenCalledTimes(1);
+    delete globalThis.UpdateNotifier; delete window.UpdateNotifier;
+  });
+
+  it('one press opens Settings at the control', () => {
+    const openSection = vi.fn();
+    window.SettingsUI = { openSection };
+    byId('set-search-engine').action();
+    byId('set-passwords').action();
+    expect(openSection.mock.calls).toEqual([['setting-search-engine'], ['passwords-panel-content']]);
+    delete window.SettingsUI;
+  });
+
+  it('a command named what you typed is first', () => {
+    for (const c of mine()) {
+      const got = CommandBar._rankCommands(c.label).map(x => x.id);
+      expect(got[0], c.label).toBe(c.id);
+    }
+  });
+
+  it('the Library row for a control a command opens is not listed twice', () => {
+    globalThis.VexFeatures = {
+      search: () => [{ id: 'search-engine', name: 'Which search engine', what: 'Pick the engine', phrases: 'search engine', setting: { id: 'setting-search-engine' } },
+        { id: 'other', name: 'Search tips', what: 'Tips for search', phrases: 'search engine tips' }],
+      nameOf: f => f.name, iconOf: () => '', actions: () => [],
+    };
+    try {
+      const ids = CommandBar._featureResults('search engine', [byId('set-search-engine')]).map(r => r.id);
+      expect(ids).toEqual(['feature:other']);
+      expect(CommandBar._featureResults('search engine', []).map(r => r.id)).toContain('feature:search-engine');
+    } finally { delete globalThis.VexFeatures; }
+  });
+});
+
 describe('command ids', () => {
   it('are unique across command.js', () => {
     const src = fs.readFileSync(path.join(JS, 'command.js'), 'utf8');
