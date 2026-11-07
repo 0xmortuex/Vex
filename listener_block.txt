@@ -1,0 +1,7 @@
+// Node warns (MaxListenersExceededWarning) at the 11th listener of one name on one emitter. Neither case below is a leak: each feature adds ONE
+// 'destroyed' listener per web contents (about 15 of them: request recorder, ad verdict, extension tabs, popup blocker, folder viewer, permissions,
+// session security...) and ONE 'will-quit' listener on the app (about 18 shutdown steps), once, not per call (checked 2026-11-07). So the limit
+// is raised for exactly these two emitters, and a real per-call leak still shows: it would pass the new limit fast. This handler must stay the
+// FIRST web-contents-created one, so the limit is set before the other handlers add theirs.
+app.setMaxListeners(40);
+app.on('web-contents-created', (_e, contents) => { contents.setMaxListeners(40); });

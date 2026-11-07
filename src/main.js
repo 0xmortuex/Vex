@@ -6218,6 +6218,8 @@ function _extGrantState() {
 const _extDebugger = require('./main/extension-debugger').createExtensionDebugger({
   pageOf: (ses, tabId) => _extPage(ses, tabId),
   usable: (page) => !!page && !page.isDestroyed() && !_extPageIsPrivate(page) && _extEventsMod.navigableUrl(page.getURL()),
+  // A tab the extension has just opened has no address until its first page commits; attach waits for it (a private tab never waits).
+  pending: (page) => !!page && !page.isDestroyed() && !_extPageIsPrivate(page) && /^(?:about:blank)?$/i.test(page.getURL()),
   allowed: (folder) => _extGrants.has(_extGrantState(), 'debugger', folder),
   emit: (ses, extId, type, args) => { _extDispatch(ses, extId, type, args).catch(err => console.error(`[Extensions] ${type} did not reach ${extId}:`, err.message)); },
   changed: (rows) => _extDebugState(rows),
@@ -6961,7 +6963,7 @@ async function _extApi(senderUrl, ses, request) {
       // getTargets is also what an extension asks while it starts, so it only counts once the person has opened its side panel (Claude's first call of a task).
       const engaged = r.op === 'debugger.getTargets' ? Date.now() - (_extPanelOpenedAt.get(extId) || 0) < 30 * 60 * 1000 : true;
       if (engaged && r.op !== 'debugger.detach' && !_extGrants.has(_extGrantState(), 'debugger', folder)) _extAskGrant(folder, 'debugger');
-      if (r.op === 'debugger.attach') return _extDebugger.attach({ ses, key, extId, folder, tabId, version: args.version });
+      if (r.op === 'debugger.attach') return _extDebugger.attachWhenReady({ ses, key, extId, folder, tabId, version: args.version });
       if (r.op === 'debugger.detach') return _extDebugger.detach({ key, tabId });
       if (r.op === 'debugger.sendCommand') return _extDebugger.sendCommand({ key, tabId, method: args.method, params: args.params, sessionId: args.sessionId });
       if (!_extGrants.has(_extGrantState(), 'debugger', folder)) throw new Error(require('./main/extension-debugger').DENIED);

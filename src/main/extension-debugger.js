@@ -23,9 +23,24 @@ const REASONS = Object.freeze({
   'replaced with devtools': 'replaced_with_devtools',
   'canceled by user': 'canceled_by_user',
 });
+const ATTACH_WAIT_MS = 8000;   // how long a tab that has not committed its first page is waited for
+const ATTACH_POLL_MS = 100;
 const DENIED = 'Vex has not let this extension control other tabs. Turn on "Allow it to control other tabs" on its card in Settings > Extensions.';
 
-function createExtensionDebugger({ pageOf, usable, allowed, emit, changed = () => {}, pagesOf = () => [] }) {
+// What a refused page was, for the log: the scheme and host only (never the path or query, which can hold a person's data).
+function describeUrl(url) {
+  const text = String(url || '');
+  if (text === '') return 'no address yet (its first page has not committed)';
+  try {
+    const u = new URL(text);
+    return u.host ? `${u.protocol}//${u.host}` : u.protocol;
+  } catch { return 'an address that is not a URL'; }
+}
+
+// pending(page) -> whether the page is still in its first, not yet committed state ('' or about:blank: a webview's getURL() is '' until the
+// first page commits, measured on Electron 42), where a web page may still be on its way. wait/now are injectable for tests.
+function createExtensionDebugger({ pageOf, usable, allowed, emit, changed = () => {}, pagesOf = () => [], pending = () => false, log = console.warn,
+  wait = (ms) => new Promise(r => setTimeout(r, ms)), now = Date.now }) {
   const attached = new Map();   // `${key}|${tabId}` -> { ses, key, extId, folder, tabId, page, onMessage, onDetach }
   const rows = () => [...attached.values()].map(a => ({ tabId: a.tabId, extId: a.extId, folder: a.folder }));
   const slot = (key, tabId) => key + '|' + tabId;
@@ -52,7 +67,11 @@ function createExtensionDebugger({ pageOf, usable, allowed, emit, changed = () =
     if (!allowed(folder)) throw new Error(DENIED);
     const page = pageOf(ses, tabId);
     if (!page) throw new Error(`No tab with id: ${tabId}.`);
-    if (!usable(page)) throw new Error('Cannot access a chrome:// URL');
+    if (!usable(page)) {
+      // The message stays what Chrome says (an extension may match it); the reason goes to the log, without the page's path or query.
+      log(`[Extensions] debugger.attach refused for tab ${tabId}: ${page.isDestroyed && page.isDestroyed() ? 'the tab is gone' : describeUrl(page.getURL())}${typeof page.isLoading === 'function' && page.isLoading() ? ' (still loading)' : ''}`);
+      throw new Error('Cannot access a chrome:// URL');
+    }
     if (attached.has(slot(key, tabId)) || page.debugger.isAttached()) throw new Error(`Another debugger is already attached to the tab with id: ${tabId}.`);
     const a = { ses, key, extId, folder, tabId, page };
     a.onMessage = (_e, method, params, sessionId) => {
@@ -67,6 +86,18 @@ function createExtensionDebugger({ pageOf, usable, allowed, emit, changed = () =
     attached.set(slot(key, tabId), a);
     changed(rows());
     return undefined;
+  }
+
+  // attach for a tab an extension has only just opened: its page has not committed ('' until then), so it is waited for (bounded) rather
+  // than refused as if it were a Vex page. A page that is already a Vex, file or extension page is refused at once, as before.
+  async function attachWhenReady(args, { timeoutMs = ATTACH_WAIT_MS, pollMs = ATTACH_POLL_MS } = {}) {
+    const start = now();
+    for (;;) {
+      if (!allowed(args.folder)) return attach(args);
+      const page = pageOf(args.ses, args.tabId);
+      if (!page || usable(page) || !pending(page) || now() - start >= timeoutMs) return attach(args);
+      await wait(pollMs);
+    }
   }
 
   function detach({ key, tabId }) {
@@ -105,7 +136,7 @@ function createExtensionDebugger({ pageOf, usable, allowed, emit, changed = () =
     return n;
   }
 
-  return { attach, detach, sendCommand, targets, stop, rows, _attached: attached };
+  return { attach, attachWhenReady, detach, sendCommand, targets, stop, rows, _attached: attached };
 }
 
-module.exports = { createExtensionDebugger, DENIED, REASONS };
+module.exports = { createExtensionDebugger, DENIED, REASONS, describeUrl, ATTACH_WAIT_MS };
