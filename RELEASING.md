@@ -148,13 +148,24 @@ What it does and does not do: the app refuses a feed whose signature does not ve
 
 ## Electron fuses and app.asar integrity
 
-Vex installs per user, in a folder that any program running as you can write to. `package.json` `build.electronFuses` therefore switches off `runAsNode` (Vex.exe can no longer be run as a Node interpreter with `ELECTRON_RUN_AS_NODE=1`), the `NODE_OPTIONS` variable and the `--inspect` flags, and switches on `enableEmbeddedAsarIntegrityValidation` plus `onlyLoadAppFromAsar` (Vex.exe refuses an `app.asar` that differs from the one it was built with, and ignores an unpacked `resourcesapp` folder). Cookie encryption is left as it was.
+**Fuses are OFF in release builds.** They are opt-in: set `VEX_FUSES=1` when building and `scripts/code-signing.js` (electron-builder's parent config) adds `electronFuses` from `scripts/lib/fuse-config.js`; unset, electron-builder flips nothing and the build is made the way v52.84.4 was.
 
-electron-builder flips the fuses right before it signs, so the order with Widevine is unchanged: fuses, then Authenticode (if configured), then `afterSign` (castLabs VMP). Nothing flips or edits `Vex.exe` after `vmp-sign.js`.
+Why off: on 2026-11-08 `npm run publish` built a fused `Vex.exe`, and castLabs EVS answered `ValidityError: Binary signature denied` when `scripts/vmp-sign.js` asked it to VMP-sign it (EVS signs only packages derived from official Electron releases). v52.84.4, built without fuses, signed fine, and the fuses are the only change to the binary since. That they are the cause is suspected, not proven.
 
-`scripts/verify-fuses.js` (run by `verify-packaged-boot.js`, so by `npm run publish`) reads the fuses and the integrity record back from the built exe and fails the publish if any differs from `package.json`, or if the record does not match `resourcesapp.asar`. By hand: `node scripts/verify-fuses.js distwin-unpacked`. An unfused (older) build fails this check, which is correct.
+What the set does (`scripts/lib/fuse-config.js`): switches off `runAsNode` (Vex.exe can no longer be run as a Node interpreter with `ELECTRON_RUN_AS_NODE=1`), the `NODE_OPTIONS` variable and the `--inspect` flags, and switches on `enableEmbeddedAsarIntegrityValidation` plus `onlyLoadAppFromAsar` (Vex.exe refuses an `app.asar` that differs from the one it was built with, and ignores an unpacked `resources/app` folder). Cookie encryption is left as it was. So a release build does NOT have these protections yet.
 
-Things to check after the first `npm run pack` with this change (not done by an agent; it needs the real build and castLabs signing): (1) the `verify-fuses` line passes, (2) `node scripts/verify-drm.js --boot` still passes (DRM works, the app starts), (3) the packaged Vex starts normally from `distwin-unpacked` and from an installed copy, (4) an update installed over the old version still starts. If the app refuses to start after the fuse change, `enableEmbeddedAsarIntegrityValidation` is the one to turn off first.
+electron-builder writes the `INTEGRITY` resource (the app.asar hash, log line `updating asar integrity executable resource`) into `Vex.exe` by default, whether or not the fuses are on (only `disableAsarIntegrity` stops it). The v52.84.4 build had it and signed, so it is not what EVS objects to; only the fuse validating it is new.
+
+CI still checks them: `.github/workflows/verify.yml` sets `VEX_FUSES: '1'` for the pack step and the `verify-fuses` step (CI skips VMP signing with `VEX_SKIP_VMP_VERIFY`, so EVS is not involved). `scripts/verify-fuses.js` (also run by `verify-packaged-boot.js`, so by `npm run publish`) reads the fuses and the integrity record back from the built exe and fails if any differs from the set, or if the record does not match `resources/app.asar`. With `VEX_FUSES` unset it prints `fuses not requested (VEX_FUSES unset): not checked` and passes. By hand: `$env:VEX_FUSES='1'; node scripts/verify-fuses.js dist\win-unpacked`.
+
+Testing a fused build against EVS, in isolation (does not touch a release):
+
+```powershell
+$env:VEX_FUSES = '1'; npm run pack
+python -m castlabs_evs.vmp sign-pkg -f dist\win-unpacked
+```
+
+If it signs, the fuses can be made the default (remove the `VEX_FUSES` condition in `scripts/code-signing.js`), then run `node scripts/verify-drm.js --boot`, start the packaged Vex from `dist\win-unpacked` and from an installed copy, and check an update installed over the old version still starts. If EVS denies it again, the fuses stay off; then ask castLabs support whether binaries with fuses flipped or an asar-integrity resource can be signed, and try with `enableEmbeddedAsarIntegrityValidation` alone off to find which fuse it objects to.
 
 ## Supply-chain checks
 
