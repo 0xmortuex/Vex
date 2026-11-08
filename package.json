@@ -77,13 +77,6 @@
     "npmRebuild": false,
     "buildDependenciesFromSource": false,
     "afterSign": "scripts/vmp-sign.js",
-    "electronFuses": {
-      "runAsNode": false,
-      "enableNodeOptionsEnvironmentVariable": false,
-      "enableNodeCliInspectArguments": false,
-      "enableEmbeddedAsarIntegrityValidation": true,
-      "onlyLoadAppFromAsar": true
-    },
     "beforePack": "scripts/window-bundle.js",
     "electronDownload": {
       "version": "42.11.18+wvcus",

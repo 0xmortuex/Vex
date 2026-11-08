@@ -41,9 +41,10 @@ function check() {
   if (built !== pkg.version) throw new Error(`dist/ holds version ${built || '?'}, but package.json says ${pkg.version} — a stale build`);
 
   const exe = path.join(dist, 'win-unpacked', 'Vex.exe');
-  // The fuses (package.json build.electronFuses) must really be in the built exe before it is started or shipped.
+  // With VEX_FUSES=1 the fuses (scripts/lib/fuse-config.js) must really be in the built exe before it is started or shipped;
+  // unset, verify-fuses.js says 'not requested' and passes (fuses are opt-in, RELEASING.md).
   const fuses = spawnSync(process.execPath, [path.join(__dirname, 'verify-fuses.js'), path.join(dist, 'win-unpacked')], { cwd: root, stdio: 'inherit', windowsHide: true });
-  if (fuses.status !== 0) throw new Error('the built Vex does not have the Electron fuses package.json asks for — NOT uploading it. See the output above.');
+  if (fuses.status !== 0) throw new Error('the built Vex does not have the Electron fuses VEX_FUSES=1 asks for — NOT uploading it. See the output above.');
   // The vendored third-party files inside the built app.asar must be the ones recorded in scripts/vendor-manifest.json.
   const vendor = spawnSync(process.execPath, [path.join(__dirname, 'vendor-manifest.js'), '--check', '--asar', path.join(dist, 'win-unpacked', 'resources', 'app.asar')], { cwd: root, stdio: 'inherit', windowsHide: true });
   if (vendor.status !== 0) throw new Error('the vendored third-party files in the built app differ from scripts/vendor-manifest.json — NOT uploading it. See the output above.');

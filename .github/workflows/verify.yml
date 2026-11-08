@@ -48,9 +48,13 @@ jobs:
       - run: npm run pack -- --config.directories.output=scratchpad/ci-package
         env:
           VEX_SKIP_VMP_VERIFY: '1'
-      # The packaged app must carry the Electron fuses package.json asks for, its asar must match the integrity record in
-      # Vex.exe, and the vendored third-party files must be the ones recorded in scripts/vendor-manifest.json.
+          VEX_FUSES: '1'
+      # Fuses are opt-in (release builds leave them off, see RELEASING.md); CI builds with them (VEX_FUSES) and checks them:
+      # the packaged app must carry the Electron fuses scripts/lib/fuse-config.js asks for, its asar must match the integrity
+      # record in Vex.exe, and the vendored third-party files must be the ones recorded in scripts/vendor-manifest.json.
       - run: node scripts/verify-fuses.js scratchpad/ci-package/win-unpacked
+        env:
+          VEX_FUSES: '1'
       - run: node scripts/vendor-manifest.js --check --asar scratchpad/ci-package/win-unpacked/resources/app.asar
       # A CycloneDX bill of materials from package-lock.json (no network); fails if the lockfile can no longer be described.
       - run: node scripts/gen-sbom.js --check

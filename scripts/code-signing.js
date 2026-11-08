@@ -48,6 +48,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { FUSES, fusesRequested } = require('./lib/fuse-config');
 
 // Today's only signing option, kept for the unsigned build so it stays byte
 // for byte what it was (it only feeds resources/app-update.yml, which Vex's
@@ -117,7 +118,14 @@ function electronBuilderConfig() {
   console.log(describe(setup));
   // A configured build that fails to sign any file stops instead of shipping
   // half signed (electron-builder throws from its signer).
-  return setup.mode === 'none' ? { win: setup.win } : { forceCodeSigning: true, win: setup.win };
+  const config = setup.mode === 'none' ? { win: setup.win } : { forceCodeSigning: true, win: setup.win };
+  // Fuses are opt-in (VEX_FUSES=1): castLabs EVS denied a fused Vex.exe. An absent key
+  // means electron-builder flips nothing (scripts/lib/fuse-config.js).
+  if (fusesRequested(process.env)) {
+    config.electronFuses = { ...FUSES };
+    console.log('[Fuses] VEX_FUSES=1: flipping Electron fuses (not for a release that castLabs EVS must sign)');
+  }
+  return config;
 }
 
 // Whether one file's signature is what the configured mode promises.
