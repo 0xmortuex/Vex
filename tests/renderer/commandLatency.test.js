@@ -154,15 +154,17 @@ describe('one provider failing never blanks the palette', () => {
 describe('slow providers answer late, with a still-searching line', () => {
   it('shows the first paint without it, "still searching" after 80 ms, then adds the answer', async () => {
     CommandBar.commands = [{ id: 'new', label: 'New Tab', icon: 'plus', action() {} }];
-    CommandBar.registerProvider({ id: 'notes', label: 'Notes', search: () => new Promise(r => setTimeout(() => r([{ id: 'note:1', label: 'New boiler note', action() {} }]), 200)) });
+    // The provider takes 1.5 s, so "still searching" (after 80 ms) has a window over a second wide and a loaded CI runner cannot step over it; each stage is
+    // polled for (a fixed wait(140) then wait(220) lost the window once the runner stalled).
+    CommandBar.registerProvider({ id: 'notes', label: 'Notes', search: () => new Promise(r => setTimeout(() => r([{ id: 'note:1', label: 'New boiler note', action() {} }]), 1500)) });
     const t0 = performance.now();
     CommandBar.search('new');
     expect(performance.now() - t0).toBeLessThan(CI_BUDGET_MS);
     expect(CommandBar.results.map(r => r.id)).not.toContain('note:1');
     expect(statusText()).toBe('');
-    await wait(140);
+    for (let i = 0; i < 40 && statusText() !== 'Still searching: Notes…'; i++) await wait(25);
     expect(statusText()).toBe('Still searching: Notes…');
-    await wait(220);
+    for (let i = 0; i < 200 && !CommandBar.results.some(r => r.id === 'note:1'); i++) await wait(25);
     expect(CommandBar.results.map(r => r.id)).toContain('note:1');
     expect(rows()).toBe(CommandBar.results.length);
     expect(statusText()).toBe('');
@@ -192,7 +194,8 @@ describe('slow providers answer late, with a still-searching line', () => {
     CommandBar.registerProvider({ id: 'slow', label: 'Slow', search: (q) => new Promise(r => setTimeout(() => r([{ id: 'late:' + q, label: 'late ' + q, action() {} }]), 100)) });
     CommandBar.search('new');
     CommandBar.search('new t');
-    await wait(220);
+    // The late answer arrives ~100 ms after the search; wait for it (up to 5 s) instead of a fixed 220 ms a loaded CI runner can miss.
+    for (let i = 0; i < 200 && !CommandBar.results.some(r => r.id === 'late:new t'); i++) await wait(25);
     const ids = CommandBar.results.map(r => r.id);
     expect(ids).toContain('late:new t');
     expect(ids).not.toContain('late:new');
