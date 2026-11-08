@@ -9439,9 +9439,8 @@ function createWindow() {
     // http=/https= rules) is passed through unchanged.
     const port = spec.startsWith('socks') ? parseInt(spec.slice(spec.lastIndexOf(':') + 1), 10) : 0;
     if (!port) return { proxyRules: spec };
-    const pac = "function FindProxyForURL(u,h){"
-      + "if(shExpMatch(h,'discord.media')||shExpMatch(h,'*.discord.media'))return 'DIRECT';"
-      + "return 'SOCKS5 127.0.0.1:" + port + "';}";
+    // Voice and the attachment upload host go direct, the rest of the panel rides the bypass (main/discord-pac.js says why).
+    const pac = require('./main/discord-pac').panelPac(port);
     return { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
   };
   // While all of Vex goes through one route, the Discord and Roblox panels go
