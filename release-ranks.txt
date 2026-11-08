@@ -171,3 +171,40 @@ f54b681848fdd47584109be8cca97d2e9982b491 none # merge commit (the work is ranked
 f1bbd3d713d5c37b567d4a2151806ecea5954a17 none # merge commit (the work is ranked on its own commits)
 0428418d95c85d112d8420675413c30bfdecf306 none # merge commit (the work is ranked on its own commits)
 4af281ff533d5ab1c5300afc18e506ab10e78aa3 none # merge commit (the work is ranked on its own commits)
+
+# Merge commits of the 2026-11-05..08 integration (wave1/integration): they carry no change of their own
+3fd5c6e none                       # merge commit
+d84d7c5 none                       # merge commit
+e8d6d18 none                       # merge commit
+c243803 none                       # merge commit
+8694bb8 none                       # merge commit
+949726b none                       # merge commit
+b727510 none                       # merge commit
+4c73a09 none                       # merge commit
+3e9c516 none                       # merge commit
+9bc650b none                       # merge commit
+0f18414 none                       # merge commit
+232b490 none                       # merge commit
+a626b1e none                       # merge commit
+e5ec316 none                       # merge commit
+6a1c598 none                       # merge commit
+93d8223 none                       # merge commit
+5746309 none                       # merge commit
+9afc3d8 none                       # merge commit
+5dd3311 none                       # merge commit
+dab36d9 none                       # merge commit
+b967b56 none                       # merge commit
+1e3303d none                       # merge commit
+1e7a220 none                       # merge commit
+136d839 none                       # merge commit
+cfc0b18 none                       # merge commit
+318f900 none                       # merge commit
+021d5ea none                       # merge commit
+5b53b69 none                       # merge commit
+4bc9cc3 none                       # merge commit
+d35c1e1 none                       # merge commit
+d80b7fc none                       # merge commit
+0f6d0f6 none                       # merge commit
+65f85cc none                       # merge commit
+7de6d8b none                       # merge commit
+3f6fee8 none                       # merge commit
