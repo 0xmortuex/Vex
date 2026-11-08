@@ -125,6 +125,13 @@ function electronBuilderConfig() {
     config.electronFuses = { ...FUSES };
     console.log('[Fuses] VEX_FUSES=1: flipping Electron fuses (not for a release that castLabs EVS must sign)');
   }
+  // VEX_LOCAL_ELECTRON=1: build from the Electron that npm already installed (node_modules/electron/dist, the same castLabs
+  // v42.11.18+wvcus files) instead of downloading the zip again. GitHub's release-file host answered 503, 504 and "socket hang up" for
+  // that download for hours (2026-11-08), which stopped a release before it began.
+  if (process.env.VEX_LOCAL_ELECTRON === '1') {
+    config.electronDist = path.join(__dirname, '..', 'node_modules', 'electron', 'dist');
+    console.log('[Electron] VEX_LOCAL_ELECTRON=1: using the installed Electron at ' + config.electronDist + ' (no download)');
+  }
   return config;
 }
 

@@ -89,6 +89,25 @@ describe('the electron-builder config', () => {
     expect(signed.lines[0]).toMatch(/code signing ON: certificate file \(CSC_LINK\)/);
   });
 
+  it('builds from the installed Electron only when VEX_LOCAL_ELECTRON=1 (GitHub\'s download host failed for hours and stopped a release)', () => {
+    const run = (env) => {
+      const saved = process.env;
+      process.env = env;
+      const log = console.log;
+      const lines = [];
+      console.log = (...a) => lines.push(a.join(' '));
+      try { return { cfg: signing(), lines }; } finally { process.env = saved; console.log = log; }
+    };
+    expect(run({}).cfg.electronDist).toBeUndefined();
+    expect(run({ VEX_LOCAL_ELECTRON: '0' }).cfg.electronDist).toBeUndefined();
+    const local = run({ VEX_LOCAL_ELECTRON: '1' });
+    expect(local.cfg.electronDist).toBe(path.join(root, 'node_modules', 'electron', 'dist'));
+    expect(local.lines.some((l) => /VEX_LOCAL_ELECTRON=1: using the installed Electron/.test(l))).toBe(true);
+    // it does not touch the signing or fuse settings
+    expect(local.cfg.electronFuses).toBeUndefined();
+    expect(local.cfg.win).toEqual(run({}).cfg.win);
+  });
+
   it('VMP signing runs as afterSign, after electron-builder has Authenticode-signed the .exe files', () => {
     expect(pkg.build.afterSign).toBe('scripts/vmp-sign.js');
     expect(pkg.build.afterPack).toBeUndefined();
