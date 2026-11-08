@@ -63,7 +63,8 @@ function createUploadWatch({ now = Date.now, setTimer = setTimeout, clearTimer =
     clearTimer(entry.timer);
     const ms = now() - entry.started;
     // A quick, ordinary finish says nothing; only one that was slow or that failed is a line.
-    if (ms >= waitMs || /error|fail/i.test(String(outcome))) log('[UploadWatch] ' + entry.text + ' ended after ' + Math.round(ms / 1000) + ' s: ' + outcome);
+    // The session says which route the request took: the Discord panel (persist:discord) rides the bypass, a normal tab only for discord.* hosts.
+    if (ms >= waitMs || /error|fail/i.test(String(outcome))) log('[UploadWatch] ' + entry.text + ' ended after ' + Math.round(ms / 1000) + ' s: ' + outcome + ' (' + entry.tag + ')');
     return true;
   }
 

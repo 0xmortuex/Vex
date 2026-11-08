@@ -57,5 +57,6 @@ describe('upload watch', () => {
     f.watch.wrap({ id: 5, url: 'https://discord.com/api/v9/x', method: 'POST' }, 't', () => {});
     f.watch.done({ id: 5 }, 'error net::ERR_CONNECTION_RESET');
     expect(f.lines[0]).toContain('ERR_CONNECTION_RESET');
+    expect(f.lines[0]).toContain('(t)');   // the session (the tag given to wrap): panel or tab
   });
 });
