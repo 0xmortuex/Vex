@@ -204,7 +204,7 @@ describe('the files', () => {
     expect(s.keep('https://example.com/page5', 'P5').id).toBe(V.pageId('https://example.com/page5'));
     s.forget(V.pageId('https://example.com/page5'));
     expect(() => s.keep('https://example.com/one-more', 'x')).not.toThrow();
-  });
+  }, 240000);   // 100+ safe disk writes: slow on a loaded Windows CI runner
   it('keeps 20 versions on disk, the newest', () => {
     const s = open();
     s.keep(URL1, 'Terms');

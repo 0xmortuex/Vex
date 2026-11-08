@@ -174,7 +174,7 @@ describe('the file', () => {
     for (let i = 0; i < 503; i++) evicted += s.add({ kind: 'note', text: 'note ' + i }).evicted;
     expect(evicted).toBe(3);
     expect(s.list().length).toBe(500);
-  });
+  }, 240000);   // 503 saves, each rewriting the file safely with a flush: over 30 s on a loaded Windows CI runner (it timed out there)
   it('a write that fails half way leaves the list as it was, and says so', () => {
     const s = open();
     s.add({ kind: 'note', text: 'safe' });
