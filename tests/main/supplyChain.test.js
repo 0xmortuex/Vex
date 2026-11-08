@@ -23,6 +23,12 @@ describe('CI workflow', () => {
     expect(workflow).toMatch(/vendor-manifest\.js --check --asar scratchpad\/ci-package/);
     expect(workflow).toMatch(/gen-sbom\.js --check/);
   });
+  it('builds the CI package with fuses (VEX_FUSES) and checks them with the same variable', () => {
+    const lines = workflow.split(/\r?\n/);
+    const stepAt = (needle) => { const i = lines.findIndex(l => l.includes(needle)); expect(i).toBeGreaterThan(-1); return lines.slice(i, i + 5).join('\n'); };
+    expect(stepAt('npm run pack -- --config.directories.output=scratchpad/ci-package')).toMatch(/VEX_FUSES: '1'/);
+    expect(stepAt('node scripts/verify-fuses.js scratchpad/ci-package/win-unpacked')).toMatch(/VEX_FUSES: '1'/);
+  });
   it('does not use npm ci --ignore-scripts until that is proven (owner decision, RELEASING.md)', () => {
     expect(workflow).toMatch(/- run: npm ci\s*$/m);
     expect(workflow).not.toMatch(/--ignore-scripts/);
