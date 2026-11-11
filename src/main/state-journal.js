@@ -26,10 +26,24 @@
 //
 // All of it stays on this PC, in files of Vex's own folder. The journal is one
 // line per snapshot (deflated), appended; only pruning rewrites the file.
+//
+// Reading is by position. The index, built once when the journal is first
+// used, holds where each line starts, so a moment is one small read and one
+// inflate off the main thread. It used to be the whole file read, split and
+// every line inflated and parsed until the right one turned up, six times
+// over for one "this time yesterday" (at + diff): about 200 ms of the main
+// process and some 360 MB of short-lived memory on a 5 MB journal, on every
+// Morning Brief, and Vex's main process stalled for seconds behind it when
+// memory was short (found 2026-11-11 in the crash log: "Main process
+// stalled ... last IPC journal:diff"). For the same reason the days rule
+// drops expired snapshots together, once the oldest is an hour past the
+// line, instead of rewriting the whole file for each one about once a minute.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const { promisify } = require('util');
+const inflateAsync = promisify(zlib.inflate);
 
 const DAY = 24 * 3600 * 1000;
 const DEFAULT_LIMITS = Object.freeze({
@@ -45,6 +59,14 @@ const DEFAULT_LIMITS = Object.freeze({
 });
 const MIN_RETENTION = 1;
 const MAX_RETENTION = 365;
+// How far past the retention line the oldest snapshot may be before the expired ones are dropped (see the top).
+const PRUNE_SLACK_MS = 3600 * 1000;
+// While the index is built, the event loop gets a turn every this many lines.
+const INDEX_YIELD_EVERY = 64;
+// Moments read recently, kept parsed.
+const ENTRY_CACHE = 8;
+// The start of a line as append() writes it: the time and the content hash come before the snapshot.
+const LINE_HEAD = /^\{"ts":(\d+),"hash":"([^"\\]*)","snap":\{/;
 const MAX_URL = 2048;
 
 // Same 32-bit FNV-1a as js/time-travel.js; plus the length so a collision
@@ -194,7 +216,10 @@ function createStateJournal({
   const cfgFile = path.join(dir, 'journal-config.json');
   const canSeal = () => { try { return !!encryptionAvailable() && typeof seal === 'function' && typeof unseal === 'function'; } catch { return false; } };
 
-  let index = null;      // [{ ts, bytes, hash }] oldest first
+  let index = null;      // [{ ts, bytes, hash, off }] oldest first; off is where the line starts in the file
+  let fileBytes = 0;     // the size of the journal file as it is on disk
+  let tornTail = false;  // the file does not end in a newline (a write was cut short)
+  const entries = new Map();   // ts -> the parsed line, for the last few moments read
   let cfg = null;
   let revs = null;       // { id: [{ ts, h, title, content }] } oldest first
   let chain = Promise.resolve();
@@ -215,27 +240,73 @@ function createStateJournal({
     await fs.promises.writeFile(cfgFile, JSON.stringify(cfg));
   }
 
-  async function readLines() {
-    let raw;
-    try { raw = await fs.promises.readFile(file, 'utf8'); } catch (e) { if (e.code === 'ENOENT') return []; throw e; }
-    return raw.split('\n').filter(Boolean);
-  }
-  function parseLine(line) {
-    const o = JSON.parse(plainCodec.decode(line));
-    return o;
+  // The time and hash of one line, without building its snapshot when the line is one of ours.
+  function headOf(lineBytes) {
+    const text = zlib.inflateSync(Buffer.from(lineBytes.toString('latin1'), 'base64')).toString('utf8');
+    const m = LINE_HEAD.exec(text);
+    if (m) return { ts: Number(m[1]), hash: m[2] };
+    const o = JSON.parse(text);
+    if (!Number.isFinite(o.ts) || !o.snap) throw new Error('not a snapshot');
+    return { ts: o.ts, hash: typeof o.hash === 'string' ? o.hash : '' };
   }
 
   async function loadIndex() {
     if (index) return index;
-    index = [];
-    for (const line of await readLines()) {
-      try {
-        const o = parseLine(line);
-        if (Number.isFinite(o.ts) && o.snap) index.push({ ts: o.ts, bytes: Buffer.byteLength(line) + 1, hash: o.hash || '' });
-      } catch (err) { log('[journal] skipped an unreadable line: ' + err.message); }
+    let buf;
+    try { buf = await fs.promises.readFile(file); } catch (e) { if (e.code !== 'ENOENT') throw e; buf = Buffer.alloc(0); }
+    const built = [];
+    let off = 0, seen = 0;
+    while (off < buf.length) {
+      let end = buf.indexOf(10, off);
+      if (end === -1) end = buf.length;
+      if (end > off) {
+        try {
+          const head = headOf(buf.subarray(off, end));
+          built.push({ ts: head.ts, bytes: end - off + 1, hash: head.hash, off });
+        } catch (err) { log('[journal] skipped an unreadable line: ' + err.message); }
+        if (++seen % INDEX_YIELD_EVERY === 0) await new Promise(resolve => setImmediate(resolve));
+      }
+      off = end + 1;
     }
-    index.sort((a, b) => a.ts - b.ts);
+    built.sort((a, b) => a.ts - b.ts);
+    fileBytes = buf.length;
+    tornTail = buf.length > 0 && buf[buf.length - 1] !== 10;
+    entries.clear();
+    index = built;
     return index;
+  }
+
+  // One line of the file, parsed: { ts, hash, snap }. Only that line is read.
+  async function readEntry(e) {
+    const hit = entries.get(e.ts);
+    if (hit) return hit;
+    const bytes = Buffer.alloc(e.bytes - 1);
+    const handle = await fs.promises.open(file, 'r');
+    try { await handle.read(bytes, 0, bytes.length, e.off); } finally { await handle.close(); }
+    const o = JSON.parse((await inflateAsync(Buffer.from(bytes.toString('latin1'), 'base64'))).toString('utf8'));
+    if (o.ts !== e.ts) throw new Error('The journal file is not what its index says at ' + e.off);
+    entries.set(e.ts, o);
+    if (entries.size > ENTRY_CACHE) entries.delete(entries.keys().next().value);
+    return o;
+  }
+  // The newest index entry at or before `ts`, and its place. -> -1 when there is none.
+  function placeAt(idx, ts) {
+    let lo = 0, hi = idx.length - 1, at = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (idx[mid].ts <= ts) { at = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    return at;
+  }
+  // The file changed under the index (it should not: one Vex owns the folder): build the index again, once.
+  async function reading(fn) {
+    try { return await fn(await loadIndex()); }
+    catch (err) {
+      if (!/is not what its index says|Unexpected|incorrect header|invalid/i.test(String(err && err.message))) throw err;
+      log('[journal] the index was rebuilt: ' + err.message);
+      index = null;
+      return fn(await loadIndex());
+    }
   }
 
   async function loadRevs() {
@@ -276,25 +347,34 @@ function createStateJournal({
     }
   }
 
+  // The file with only the lines of `keep`, copied as they are (nothing is inflated or parsed).
   async function rewrite(keep) {
-    if (!keep.length) { await fs.promises.rm(file, { force: true }); index = []; return; }
-    const lines = await readLines();
-    const byTs = new Map();
-    for (const line of lines) {
-      try { const o = parseLine(line); byTs.set(o.ts, line); } catch { /* unreadable: dropped */ }
+    entries.clear();
+    if (!keep.length) { await fs.promises.rm(file, { force: true }); index = []; fileBytes = 0; tornTail = false; return; }
+    const buf = await fs.promises.readFile(file);
+    const parts = [], next = [];
+    let off = 0;
+    for (const e of keep) {
+      const line = buf.subarray(e.off, Math.min(buf.length, e.off + e.bytes - 1));
+      parts.push(line, Buffer.from('\n'));
+      next.push({ ...e, bytes: line.length + 1, off });
+      off += line.length + 1;
     }
-    const out = keep.map(e => byTs.get(e.ts)).filter(Boolean);
     const tmp = file + '.tmp';
-    await fs.promises.writeFile(tmp, out.join('\n') + '\n');
+    await fs.promises.writeFile(tmp, Buffer.concat(parts));
     await fs.promises.rename(tmp, file);
-    index = keep.filter(e => byTs.has(e.ts)).map(e => ({ ...e, bytes: Buffer.byteLength(byTs.get(e.ts)) + 1 }));
+    index = next;
+    fileBytes = off;
+    tornTail = false;
   }
 
-  async function pruneNow() {
+  // `force`: drop what is past the retention line now (the person changed the days, or asked), without the slack.
+  async function pruneNow(force = false) {
     const idx = await loadIndex();
     const c = await loadCfg();
     const cutoff = now() - c.retentionDays * DAY;
-    let keep = idx.filter(e => e.ts >= cutoff);
+    let keep = idx.slice();
+    if (idx.length && idx[0].ts < cutoff - (force ? 0 : PRUNE_SLACK_MS)) keep = idx.filter(e => e.ts >= cutoff);
     if (!keep.length && idx.length) keep = [idx[idx.length - 1]];     // never drop the newest
     let total = keep.reduce((s, e) => s + e.bytes, 0);
     // Over the cap: drop down to 90% of it, so a journal that is full does not
@@ -334,19 +414,15 @@ function createStateJournal({
     if (last && t - last.ts < L.minGapMs) return { stored: false, reason: 'too-soon', revisions: revChanged };
     const line = plainCodec.encode(JSON.stringify({ ts: t, hash, snap: red.snap }));
     await fs.promises.mkdir(dir, { recursive: true });
-    await fs.promises.appendFile(file, line + '\n');
-    idx.push({ ts: t, bytes: Buffer.byteLength(line) + 1, hash });
+    // A file whose last write was cut short gets its missing newline first, so this line starts on its own.
+    const lead = tornTail ? '\n' : '';
+    await fs.promises.appendFile(file, lead + line + '\n');
+    const bytes = Buffer.byteLength(line) + 1;
+    idx.push({ ts: t, bytes, hash, off: fileBytes + lead.length });
+    fileBytes += lead.length + bytes;
+    tornTail = false;
     const pruned = await pruneNow();
     return { stored: true, ts: t, pruned, revisions: revChanged };
-  }
-
-  async function readEntry(ts) {
-    for (const line of await readLines()) {
-      let o;
-      try { o = parseLine(line); } catch { continue; }
-      if (o.ts === ts) return o;
-    }
-    return null;
   }
 
   async function list({ from = 0, to = Infinity } = {}) {
@@ -355,22 +431,23 @@ function createStateJournal({
   }
 
   // The snapshot in force at `ts`: the newest one at or before it.
-  async function at(ts) {
-    const idx = await loadIndex();
-    let hit = null;
-    for (const e of idx) { if (e.ts <= ts) hit = e; else break; }
-    if (!hit) return null;
-    const o = await readEntry(hit.ts);
-    if (!o) return null;
-    const prev = idx[idx.indexOf(hit) - 1];
-    let before = null;
-    if (prev) { const p = await readEntry(prev.ts); before = p && p.snap; }
-    return { ts: o.ts, snap: o.snap, diffFromPrevious: diffSnapshots(before, o.snap) };
+  function at(ts) {
+    return reading(async (idx) => {
+      const i = placeAt(idx, ts);
+      if (i === -1) return null;
+      const o = await readEntry(idx[i]);
+      const before = i > 0 ? (await readEntry(idx[i - 1])).snap : null;
+      return { ts: o.ts, snap: o.snap, diffFromPrevious: diffSnapshots(before, o.snap) };
+    });
   }
 
-  async function diff(tsA, tsB) {
-    const a = await at(tsA), b = await at(tsB);
-    return { a: a && a.ts, b: b && b.ts, ...diffSnapshots(a && a.snap, b && b.snap) };
+  function diff(tsA, tsB) {
+    return reading(async (idx) => {
+      const ia = placeAt(idx, tsA), ib = placeAt(idx, tsB);
+      const a = ia === -1 ? null : await readEntry(idx[ia]);
+      const b = ib === -1 ? null : await readEntry(idx[ib]);
+      return { a: a && a.ts, b: b && b.ts, ...diffSnapshots(a && a.snap, b && b.snap) };
+    });
   }
 
   async function noteVersions(id) {
@@ -408,26 +485,26 @@ function createStateJournal({
     }
     if (enabled !== undefined) c.enabled = !!enabled;
     await saveCfg();
-    await pruneNow();
+    await pruneNow(true);
     return stats();
   }
 
   async function forget() {
     await fs.promises.rm(file, { force: true });
     await fs.promises.rm(revFile, { force: true });
-    index = []; revs = {};
+    index = []; revs = {}; fileBytes = 0; tornTail = false; entries.clear();
     return stats();
   }
 
   const q = (fn) => (...a) => enqueue(() => fn(...a));
   return {
     append: q(append), list: q(list), at: q(at), diff: q(diff), noteVersions: q(noteVersions),
-    noteVersionAt: q(noteVersionAt), stats: q(stats), configure: q(configure), forget: q(forget), prune: q(pruneNow),
+    noteVersionAt: q(noteVersionAt), stats: q(stats), configure: q(configure), forget: q(forget), prune: q(() => pruneNow(true)),
     limits: L,
   };
 }
 
 module.exports = {
   createStateJournal, redactSnapshot, diffSnapshots, contentHash, hashText, cleanUrl, isExcludedTab,
-  DEFAULT_LIMITS, plainCodec,
+  DEFAULT_LIMITS, plainCodec, PRUNE_SLACK_MS,
 };

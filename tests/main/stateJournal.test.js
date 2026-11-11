@@ -233,3 +233,124 @@ describe('note versions', () => {
     expect(require('zlib').inflateSync(Buffer.from(raw.trim(), 'base64')).toString()).not.toContain('DISTINCTIVE-BODY-TEXT');
   });
 });
+
+// Found 2026-11-11 in the crash log of a real profile: "Main process stalled ... last IPC journal:diff", six times
+// in three days. One "this time yesterday" read the whole journal (5 MB, 2247 lines) and inflated and parsed every
+// line, six times over. The journal now reads by position.
+describe('reading by position', () => {
+  const urlsAt = async (j, ts) => (await j.at(ts)).snap.tabs.map(t => t.u);
+  async function filled(n, opts) {
+    const b = build({ limits: { minGapMs: 0 }, ...opts });
+    b.times = [];
+    for (let i = 0; i < n; i++) {
+      b.clock.now += MIN;
+      await b.j.append(snap([tab('https://site' + i + '.example/'), tab('https://shared.example/')]));
+      b.times.push(b.clock.now);
+    }
+    return b;
+  }
+
+  it('a moment is read without reading the journal file again, from a journal opened fresh', async () => {
+    const first = await filled(30);
+    const again = createStateJournal({ dir: first.dir, now: () => first.clock.now });
+    await again.stats();                                    // the index is built here, once
+    const wholeFileReads = [];
+    const realRead = fs.promises.readFile;
+    fs.promises.readFile = function (target, ...rest) { if (String(target).endsWith('journal.jsonl')) wholeFileReads.push(target); return realRead.call(this, target, ...rest); };
+    try {
+      expect(await urlsAt(again, first.times[12])).toEqual(['https://site12.example/', 'https://shared.example/']);
+      const d = await again.diff(first.times[3], first.times[29]);
+      expect(d.tabs.removed.map(t => t.u)).toEqual(['https://site3.example/']);
+      expect(d.tabs.added.map(t => t.u)).toEqual(['https://site29.example/']);
+      expect((await again.at(first.times[0])).diffFromPrevious.tabs.added).toHaveLength(2);
+    } finally { fs.promises.readFile = realRead; }
+    expect(wholeFileReads).toEqual([]);
+  });
+
+  it('every moment reads back right, between two snapshots too', async () => {
+    const { j, times } = await filled(25);
+    for (const i of [0, 1, 7, 13, 24]) {
+      expect(await urlsAt(j, times[i])).toContain('https://site' + i + '.example/');
+      expect(await urlsAt(j, times[i] + MIN - 1)).toContain('https://site' + i + '.example/');
+    }
+    expect(await j.at(times[0] - 1)).toBeNull();
+    expect((await j.at(times[24] + DAY)).ts).toBe(times[24]);
+  });
+
+  it('after the size cap dropped the oldest, the ones kept still read back right', async () => {
+    const { j, times, dir } = await filled(60, { limits: { minGapMs: 0, maxBytes: 3000 } });
+    const kept = await j.list();
+    expect(kept.length).toBeLessThan(60);
+    for (const e of kept) {
+      const i = times.indexOf(e.ts);
+      expect(await urlsAt(j, e.ts)).toContain('https://site' + i + '.example/');
+    }
+    // And for a journal opened fresh on the rewritten file.
+    const again = createStateJournal({ dir, limits: { minGapMs: 0, maxBytes: 3000 } });
+    expect((await again.list()).map(e => e.ts)).toEqual(kept.map(e => e.ts));
+    expect(await urlsAt(again, kept[0].ts)).toContain('https://site' + times.indexOf(kept[0].ts) + '.example/');
+  });
+
+  it('a line that cannot be read is skipped and the ones after it are still found', async () => {
+    const { dir, times, clock } = await filled(6);
+    const file = path.join(dir, 'journal.jsonl');
+    const lines = fs.readFileSync(file, 'utf8').split('\n');
+    lines.splice(3, 0, 'this-is-not-a-snapshot');
+    fs.writeFileSync(file, lines.join('\n'));
+    const logged = [];
+    const again = createStateJournal({ dir, now: () => clock.now, log: (m) => logged.push(m) });
+    expect((await again.list()).length).toBe(6);
+    expect(logged.join(' ')).toMatch(/skipped an unreadable line/);
+    expect(await urlsAt(again, times[2])).toContain('https://site2.example/');
+    expect(await urlsAt(again, times[3])).toContain('https://site3.example/');
+    expect(await urlsAt(again, times[5])).toContain('https://site5.example/');
+  });
+
+  it('a file whose last write was cut short keeps working: the next snapshot starts on its own line', async () => {
+    const { dir, times, clock } = await filled(3);
+    const file = path.join(dir, 'journal.jsonl');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/\n$/, ''));       // no final newline
+    const again = createStateJournal({ dir, now: () => clock.now, limits: { minGapMs: 0 } });
+    clock.now += MIN;
+    expect((await again.append(snap([tab('https://after.example/')]))).stored).toBe(true);
+    expect(await urlsAt(again, times[2])).toContain('https://site2.example/');
+    expect(await urlsAt(again, clock.now)).toEqual(['https://after.example/']);
+    const fresh = createStateJournal({ dir, now: () => clock.now });
+    expect((await fresh.list()).length).toBe(4);
+    expect(await urlsAt(fresh, clock.now)).toEqual(['https://after.example/']);
+  });
+
+  it('a file changed under the index is read again rather than answered wrongly', async () => {
+    const { dir, j, times } = await filled(8);
+    const file = path.join(dir, 'journal.jsonl');
+    await j.at(times[1]);
+    const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+    fs.writeFileSync(file, lines.slice(4).join('\n') + '\n');                        // the first four went away behind its back
+    expect(await urlsAt(j, times[6])).toContain('https://site6.example/');
+    expect((await j.list()).length).toBe(4);
+  });
+});
+
+describe('the days rule drops expired snapshots together', () => {
+  it('does not rewrite the file for a snapshot that is only just past the line', async () => {
+    const { PRUNE_SLACK_MS } = require('../../src/main/state-journal.js');
+    const { j, clock } = build({ limits: { minGapMs: 0 } });
+    await j.append(snap([tab('https://first.example/')]));
+    clock.now += 30 * DAY + 10 * MIN;                      // the first is ten minutes past the line
+    await j.append(snap([tab('https://second.example/')]));
+    expect((await j.list()).length).toBe(2);
+    clock.now += PRUNE_SLACK_MS;                             // now over an hour past it
+    await j.append(snap([tab('https://third.example/')]));
+    expect((await j.list()).length).toBe(2);
+    expect(await j.at(T0)).toBeNull();
+  });
+  it('changing the days, or asking, drops them at once', async () => {
+    const { j, clock } = build({ limits: { minGapMs: 0 } });
+    await j.append(snap([tab('https://first.example/')]));
+    clock.now += 30 * DAY + 10 * MIN;
+    await j.append(snap([tab('https://second.example/')]));
+    expect((await j.stats()).count).toBe(2);
+    await j.prune();
+    expect((await j.stats()).count).toBe(1);
+  });
+});
