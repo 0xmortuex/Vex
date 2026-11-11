@@ -96,6 +96,28 @@ describe('what nothing else was catching', () => {
     expect(VexProblems.all()[0].message).toBe('A background step failed: save failed');
   });
 
+  // Found 2026-11-11: "A background step failed: The WebView must be attached to the DOM..." was in a real log six
+  // times with only Electron's own stack line, so nobody could tell which part of Vex had asked.
+  it('keeps the line of Vex\'s own code that asked, not only the internal line that threw', () => {
+    VexProblems.init();
+    const err = new Error('The WebView must be attached to the DOM and the dom-ready event emitted before this method can be called.');
+    err.stack = 'Error: The WebView must be attached to the DOM\n'
+      + '    at WebViewElement.getWebContentsId (node:electron/js2c/isolated_bundle:2:6539)\n'
+      + '    at Object.syncAudio (file:///C:/Users/Ada/AppData/Local/Programs/Vex/resources/app.asar/src/renderer/js/tab-audio.js:88:23)\n'
+      + '    at async Object.tick (file:///C:/Users/Ada/AppData/Local/Programs/Vex/resources/app.asar/src/renderer/js/jobs.js:40:7)';
+    window.dispatchEvent(Object.assign(new Event('unhandledrejection'), { reason: err }));
+    const detail = VexProblems.all()[0].detail;
+    expect(detail).toBe('at WebViewElement.getWebContentsId (node:electron/js2c/isolated_bundle:2:6539) <- Object.syncAudio js/tab-audio.js:88:23');
+    expect(detail).not.toMatch(/Users|Ada|AppData/);          // no folder of the person's PC
+  });
+  it('one line is enough when the first line is already Vex\'s own, and a bundled chunk counts as Vex\'s own', () => {
+    expect(VexProblems.frames('Error: x\n    at save (file:///C:/vex/src/renderer/js/notes.js:12:5)\n    at later (file:///C:/vex/src/renderer/js/app.js:1:1)')).toBe('at save js/notes.js:12:5');
+    expect(VexProblems.frames('Error: x\n    at JSON.parse (<anonymous>)\n    at read (file:///C:/vex/src/renderer/bundle/window-3.js:48211:17)')).toBe('at JSON.parse (<anonymous>) <- read bundle/window-3.js:48211:17');
+    expect(VexProblems.frames('Error: x\n    at JSON.parse (<anonymous>)')).toBe('at JSON.parse (<anonymous>)');
+    expect(VexProblems.frames('')).toBe('');
+    expect(VexProblems.frames(undefined)).toBe('');
+  });
+
   it('but not an image or script that failed to load — that is not a fault', () => {
     VexProblems.init();
     const img = document.createElement('img');

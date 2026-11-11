@@ -220,6 +220,20 @@ const VexProblems = (() => {
     return out.join('\n');
   }
 
+  // Where a rejected promise came from, for the log: the line right under the message, and the first line that
+  // is Vex's own code when that is a different one. The first line is often Electron's or Chromium's
+  // ("at WebViewElement.getWebContentsId (node:electron/js2c/isolated_bundle:2:6539)"): it says what threw, not
+  // which part of Vex asked, and a problem seen six times could not be traced (found 2026-11-11). File addresses
+  // are cut down to js/<file>:line:column, so no folder of the person's PC is kept.
+  function frames(stack) {
+    const lines = String(stack || '').split('\n').slice(1).map(l => l.trim()).filter(Boolean);
+    const first = lines[0] || '';
+    const short = (l) => l.replace(/^at\s+/, '').replace(/\(?(?:file|vex|app):\/\/[^\s)]*?\/((?:js|bundle)\/[^\s)]+)\)?/, '$1').slice(0, 120);
+    const own = lines.find(l => /[\/\\](?:js|bundle)[\/\\][\w.-]+\.js:\d+/.test(l));
+    if (!own || own === first) return first ? (/[\/\\](?:js|bundle)[\/\\]/.test(first) ? 'at ' + short(first) : first) : '';
+    return first + ' <- ' + short(own);
+  }
+
   // An uncaught error in the interface used to reach the DevTools console and
   // nowhere else, so a feature could be broken for days with no trace.
   function init() {
@@ -234,7 +248,7 @@ const VexProblems = (() => {
     }, true);
     window.addEventListener('unhandledrejection', (e) => {
       const r = e && e.reason;
-      note('Vex interface', 'A background step failed: ' + ((r && r.message) || String(r || 'unknown')).slice(0, 160), (r && r.stack) ? String(r.stack).split('\n')[1]?.trim() : '');
+      note('Vex interface', 'A background step failed: ' + ((r && r.message) || String(r || 'unknown')).slice(0, 160), (r && r.stack) ? frames(r.stack) : '');
     });
     if (window.vex && typeof window.vex.getAppVersion === 'function') {
       Promise.resolve(window.vex.getAppVersion()).then(setVersion)
@@ -243,7 +257,7 @@ const VexProblems = (() => {
     return true;
   }
 
-  return { groups, groupLine, reproStub, init, note, guard, all, current, older, since, count, olderCount, clear, restore, restored, lines, olderLines, setVersion, ago, KEY, MAX };
+  return { groups, groupLine, reproStub, init, note, guard, frames, all, current, older, since, count, olderCount, clear, restore, restored, lines, olderLines, setVersion, ago, KEY, MAX };
 })();
 
 // Wired at load, before every other script: an error thrown while Vex is
