@@ -204,7 +204,8 @@ const VexTimeTravel = {
     const got = await window.vex.journalAt(then);
     if (!got) return null;
     const diff = await window.vex.journalDiff(got.ts, Date.now());
-    const lines = [(got.snap.tabs || []).length + ' tabs were open ' + this.when(got.ts) + '.'].concat(this.describeDiff(diff));
+    const open = (got.snap.tabs || []).length;
+    const lines = [open + (open === 1 ? ' tab was open ' : ' tabs were open ') + this.when(got.ts) + '.'].concat(this.describeDiff(diff));
     return { id: 'time-travel', title: 'This time yesterday', icon: 'history', lines, at: got.ts };
   },
 

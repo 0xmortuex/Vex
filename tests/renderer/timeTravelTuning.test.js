@@ -68,6 +68,20 @@ describe('time travel collector', () => {
     expect(n).toBe(1);
     expect(made).toEqual([['https://gone.example/', undefined]]);
   });
+
+  it('the Morning Brief line counts one tab as one tab ("1 tabs were open" was what it said)', async () => {
+    const before = globalThis.window;
+    const snapOf = (n) => ({ tabs: Array.from({ length: n }, (_, i) => ({ u: 'https://s' + i + '.example/' })) });
+    const run = async (n) => {
+      globalThis.window = { vex: { journalAt: async () => ({ ts: Date.now() - 24 * 3600 * 1000, snap: snapOf(n) }), journalDiff: async () => null } };
+      return (await VexTimeTravel.briefSection()).lines[0];
+    };
+    try {
+      expect(await run(1)).toBe('1 tab was open 1 day ago.');
+      expect(await run(3)).toBe('3 tabs were open 1 day ago.');
+      expect(await run(0)).toBe('0 tabs were open 1 day ago.');
+    } finally { globalThis.window = before; }
+  });
 });
 
 describe('tuning actions never run without a yes', () => {
