@@ -28,11 +28,6 @@ Bu sürüm oturum açmayla ilgili. Bir 2FA kodu saatten üretilir; bu yüzden 19
 - **“1 tabs were open”.** Sabah özetinin “Dün bu zaman” satırı artık tek sekme için “1 tab was open” diyor.
 - **Her açılışta “Could not join the Morning Brief”.** Otopilot, Sabah özeti yüklenmeden önce onu arıyor ve bir an sonra katıldığı halde her seferinde bir sorun bildiriyordu. Artık hiçbir şey bildirilmiyor ve Otopilot yine katılıyor.
 
-## v57.90.0 (2026-11-11) — Hazırlandı ama yayımlanmadı
-
-### Notlar
-- **Bu sürüm hazırlandı ve hiç yayımlanmadı.** İçindeki her şey, yayımlanan sürüm olan yukarıdaki v57.92.5’ın parçasıdır.
-
 ## v57.66.1 (2026-11-08) — Daha güvenli kaydetme ve yedekleme, günlük medya ve gezinti araçları, dürüst gizlilik ve isteğe bağlı bir yapay zekâ sunucusu olarak Vex
 
 Bu sürüm Vex’i bozulması daha zor ve kurtarması daha kolay hale getiriyor: ayarlar elektrik kesintisi yarım yazamayacak şekilde kaydediliyor, çöken pencere geri geliyor ve yedekler ihtiyaç duymadan önce denetleniyor. Ayrıca uzun bir günlük araç listesi ekliyor (sistem tepsisi simgesi, uyku zamanlayıcısı, şarkı sözleri, resimlerden Türkçe metin, tek bir sitede arama) ve bilgisayarınızdan neyin çıktığını açıkça söylüyor. Arka planda çalışan, ağa bağlanan veya bilgisayarınızda bir şey başlatan her şey siz açana kadar kapalıdır.

@@ -26,11 +26,6 @@ This release is about signing in. A 2FA code is made from the time, so a PC cloc
 - **"1 tabs were open".** The Morning Brief's "This time yesterday" line now says "1 tab was open" for one tab.
 - **"Could not join the Morning Brief" at every start.** Autopilot looked for the Morning Brief before the brief had loaded and reported a problem each time, although it joined a moment later. Nothing is reported now, and it still joins.
 
-## v57.90.0 (2026-11-11) — Cut but not published
-
-### Notes
-- **This version was prepared and never published.** Everything in it is part of v57.92.5 above, which is the version that was released.
-
 ## v57.66.1 (2026-11-08) — Safer saving and backups, everyday media and browsing tools, honest privacy, and Vex as an opt-in AI server
 
 This release makes Vex harder to break and easier to recover: settings are saved so a power cut cannot half-write them, a crashed window comes back, and backups are checked before you need them. It adds a long list of everyday tools (a tray icon, a sleep timer, lyrics, text from pictures in Turkish, search inside one site) and tells you plainly what leaves your computer. Anything that runs in the background, reaches the network or starts something on your PC is off until you switch it on.
