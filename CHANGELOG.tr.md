@@ -2,7 +2,7 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
-## v57.86.2 (2026-11-11) — Bilgisayar saati yanlışken de çalışan 2FA kodları, sitenin “hayır” dediğini duyan geçiş anahtarları ve daha az donma
+## v57.87.5 (2026-11-11) — Bilgisayar saati yanlışken de çalışan 2FA kodları, sitenin “hayır” dediğini duyan geçiş anahtarları ve daha az donma
 
 Bu sürüm oturum açmayla ilgili. Bir 2FA kodu saatten üretilir; bu yüzden 19 saniye ileri giden bir bilgisayar saati bir sitenin her kodu reddetmesine yol açıyordu ve nedenini söyleyen bir şey yoktu. Vex artık saati denetliyor, saat yanlışken kodları düzeltiyor ve bunu size söylüyor. Geçiş anahtarları, bir site birini artık kabul etmediğini söylediğinde bunu dinliyor ve o anahtarı sonsuza dek önermiyor; Ayarlar da her sitenin ne istediğini ve Vex’in ne yanıt verdiğini gösteriyor. Tarayıcının tamamının iki ile beş saniye donmasının olası bir nedeni giderildi. Burada kendiliğinden internete ulaşan tek şey saat denetimidir: Kimlik doğrulayıcı bir kod gösterdiğinde veya doldurduğunda detectportal.firefox.com adresine çerezsiz tek bir istek. Ayarlar › Otomatik doldurma içinde bir anahtarı vardır ve gizlilik politikasında listelenmiştir.
 
@@ -16,11 +16,13 @@ Bu sürüm oturum açmayla ilgili. Bir 2FA kodu saatten üretilir; bu yüzden 19
 - **Geçiş anahtarı penceresi, iki kez isteyen siteyi fark eder.** Bir site, Vex bir anahtarla oturum açtıktan sonraki iki dakika içinde yeniden geçiş anahtarı isterse, pencere hiçbir şey olmamış gibi aynı anahtarı önermek yerine sitenin büyük olasılıkla o anahtarı reddettiğini ve bunun nasıl aşılacağını söyler.
 - **Yanlış saatle kod doldurulduğunda uyarı.** Düzeltmeyi durdur’u seçtiyseniz ve saatiniz hâlâ yanlışsa, bir sayfaya 2FA kodu doldurulurken bu söylenir; en çok on dakikada bir kez.
 - **Çökme günlüğü Vex’i neyin dondurduğunu adıyla söyler.** “Main process stalled” satırı artık yalnızca donmadan önceki son olayı değil, Vex’i bekleten görevi de (varsa) adıyla belirtir.
+- **Sorun günlüğü Vex’in hangi bölümünün başarısız olduğunu söyler.** Başarısız olan bir arka plan adımı için sorun günlüğü (Bellek panelinde ve Ctrl+K › Copy diagnostics içinde) artık yalnızca hatayı veren iç satırı değil, isteği yapan Vex kodunun satırını da saklar; bilgisayarınızın klasör adları buna girmez.
 
 ### Düzeltildi
 - **İki ile beş saniyelik donmaların olası bir nedeni.** Sabah özetinin “Dün bu zaman” satırları Zaman yolculuğu günlüğünün tamamını altı kez baştan okuyordu; birkaç haftalık bir günlükte bu yaklaşık 200 ms iş ve yüzlerce megabayt kısa ömürlü bellek demekti ve bellek azken Vex bunun arkasında donabiliyordu. Bir an artık tek bir küçük okumadır (aynı günlükte 16 ms). 30 gününü doldurmuş bir günlük de artık yaklaşık dakikada bir baştan yazılmıyor.
 - **Geçiş anahtarı dosyasının eski bir kopyası geri geldikten sonra bir anahtar reddedilebiliyordu.** Bu cihazda kalan bir geçiş anahtarı, yalnızca artması gereken bir sayaç bildirir. Geri yüklenen bir yedekten sonra sayaç sitenin hatırladığından düşük kalıyor ve sayacı denetleyen bir site, sayaç yeniden yetişene kadar her oturum açmayı reddediyordu. Sayaç artık asla saatin gerisinde kalmaz.
 - **Her oyun başlangıcında “Could not free the graphics card”.** Ollama kapalıyken ekran kartında Vex’e ait boşaltılacak bir şey yoktur; yine de her oyun başlangıcı bunu bir sorun olarak bildiriyordu (bir bilgisayarda üç günde 173 kez). Artık olduğu gibi ele alınıyor: boşaltılacak bir şey yok. Çalışan ama yanıt vermeyen bir Ollama yine bildirilir.
+- **“1 tabs were open”.** Sabah özetinin “Dün bu zaman” satırı artık tek sekme için “1 tab was open” diyor.
 - **Her açılışta “Could not join the Morning Brief”.** Otopilot, Sabah özeti yüklenmeden önce onu arıyor ve bir an sonra katıldığı halde her seferinde bir sorun bildiriyordu. Artık hiçbir şey bildirilmiyor ve Otopilot yine katılıyor.
 
 ## v57.66.1 (2026-11-08) — Daha güvenli kaydetme ve yedekleme, günlük medya ve gezinti araçları, dürüst gizlilik ve isteğe bağlı bir yapay zekâ sunucusu olarak Vex
