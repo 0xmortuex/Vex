@@ -18,16 +18,34 @@
 //
 // The IPC tracker (noteIpc) is two assignments per message. It records a
 // channel name, never a payload.
+//
+// "The last IPC" is a hint: it is only the last message handled before the
+// freeze (found 2026-11-11: six lines named journal:diff, which was part of the
+// cause, and four named persist-apply, which was not). So the handlers are also
+// timed (noteIpcRun: how long each one ran before it gave the event loop back),
+// and a stall line names the one that ran longest inside the stall when that
+// was a quarter of a second or more. That one is a fact, not a hint.
 const STALL_MS = 2000;
 const CHECK_EVERY_MS = 2000;
 const RESOLUTION_MS = 100;
 const MIN_GAP_MS = 60 * 1000;
 const MAX_PER_SESSION = 10;
 const RESUME_GRACE_MS = 30 * 1000;
+// A handler that held the event loop this long is worth naming in a stall line.
+const SLOW_RUN_MS = 250;
 
 const last = { channel: '', at: 0 };
 function noteIpc(channel, at = Date.now()) { last.channel = channel; last.at = at; }
 function lastIpc() { return { channel: last.channel, at: last.at }; }
+// The handler that ran longest without a pause since the last look (see the top). `ms` is how long its
+// synchronous part took: from being called until it returned or first awaited.
+const slow = { channel: '', ms: 0, at: 0 };
+function noteIpcRun(channel, ms, at = Date.now()) {
+  if (!(ms >= SLOW_RUN_MS) || ms <= slow.ms) return;
+  slow.channel = channel; slow.ms = ms; slow.at = at;
+}
+function slowestRun() { return { channel: slow.channel, ms: slow.ms, at: slow.at }; }
+function forgetRuns() { slow.channel = ''; slow.ms = 0; slow.at = 0; }
 function featureOf(channel) {
   const m = /^([a-z0-9@-]+)[:/]/i.exec(String(channel || ''));
   return m ? m[1] : (channel ? String(channel) : '');
@@ -44,8 +62,10 @@ function createStallWatch({ perf, crashLog, activeFeature = null, now = () => Da
   function describe(ms) {
     const ipc = lastIpc();
     const parts = ['blocked for about ' + (Math.round(ms / 100) / 10) + ' s'];
+    const ran = slowestRun();
+    if (ran.channel) parts.push('the handler of "' + ran.channel + '" ran for ' + (Math.round(ran.ms / 100) / 10) + ' s without a pause');
     if (ipc.channel) parts.push('last IPC "' + ipc.channel + '" ' + Math.max(0, Math.round((now() - ipc.at) / 1000)) + ' s ago');
-    const feature = (typeof activeFeature === 'function' ? activeFeature() : null) || featureOf(ipc.channel);
+    const feature = (typeof activeFeature === 'function' ? activeFeature() : null) || featureOf(ran.channel || ipc.channel);
     if (feature) parts.push('feature ' + feature);
     if (held) parts.push(held + ' more stall' + (held === 1 ? '' : 's') + ' not written');
     return parts.join('; ');
@@ -56,11 +76,12 @@ function createStallWatch({ perf, crashLog, activeFeature = null, now = () => Da
     if (!hist) return false;
     const ms = hist.max / 1e6;
     hist.reset();
-    if (!(ms >= thresholdMs)) return false;
+    if (!(ms >= thresholdMs)) { forgetRuns(); return false; }
     const t = now();
-    if (resumedAt && t - resumedAt < RESUME_GRACE_MS) { note('[Stall] ' + Math.round(ms) + ' ms right after resuming from sleep; not written'); return false; }
-    if (wrote >= MAX_PER_SESSION || (lastWrote && t - lastWrote < MIN_GAP_MS)) { held++; return false; }
+    if (resumedAt && t - resumedAt < RESUME_GRACE_MS) { forgetRuns(); note('[Stall] ' + Math.round(ms) + ' ms right after resuming from sleep; not written'); return false; }
+    if (wrote >= MAX_PER_SESSION || (lastWrote && t - lastWrote < MIN_GAP_MS)) { held++; forgetRuns(); return false; }
     const detail = describe(ms);
+    forgetRuns();
     held = 0; lastWrote = t; wrote++;
     note('[Stall] main process ' + detail);
     return crashLog.add('Main process stalled', detail) !== false;
@@ -81,4 +102,4 @@ function createStallWatch({ perf, crashLog, activeFeature = null, now = () => Da
   return { start, stop, check, markResumed, running: () => !!timer };
 }
 
-module.exports = { createStallWatch, noteIpc, lastIpc, featureOf, STALL_MS, MIN_GAP_MS, MAX_PER_SESSION };
+module.exports = { createStallWatch, noteIpc, lastIpc, noteIpcRun, slowestRun, forgetRuns, featureOf, STALL_MS, MIN_GAP_MS, MAX_PER_SESSION, SLOW_RUN_MS };

@@ -291,7 +291,7 @@ function noteRefusal(channel, err) {
 function recentRefusals() { return _refusals.slice().reverse(); }
 
 // The last channel handled, for the stall watch (stall-watch.js): a name, never a payload.
-const { noteIpc } = require('./stall-watch');
+const { noteIpc, noteIpcRun } = require('./stall-watch');
 function installIpcPolicy(ipcMain, security) {
   const handle = ipcMain.handle.bind(ipcMain), on = ipcMain.on.bind(ipcMain);
   function authorize(channel, event, args) {
@@ -359,14 +359,19 @@ function installIpcPolicy(ipcMain, security) {
       if (channel === 'web-suggest') return [];
       if (PRIVATE_DISABLED.test(channel)) throw new Error('This operation is unavailable in a private window');
     }
-    return callback(event, ...args);
+    // How long the handler holds the event loop before it returns or first awaits, for the stall watch.
+    const began = Date.now();
+    try { return callback(event, ...args); }
+    finally { noteIpcRun(channel, Date.now() - began); }
   });
   ipcMain.on = (channel, callback) => on(channel, (event, ...args) => {
     try {
       const host = authorize(channel, event, args);
       noteIpc(channel);
       if (host?.privatePartition && PRIVATE_DISABLED.test(channel)) return;
-      callback(event, ...args);
+      const began = Date.now();
+      try { callback(event, ...args); }
+      finally { noteIpcRun(channel, Date.now() - began); }
     }
     catch (err) {
       noteRefusal(channel, err);

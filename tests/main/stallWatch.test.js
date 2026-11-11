@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 const fs = require('fs');
 const path = require('path');
-const { createStallWatch, noteIpc, lastIpc, featureOf } = require('../../src/main/stall-watch.js');
+const { createStallWatch, noteIpc, lastIpc, noteIpcRun, slowestRun, forgetRuns, featureOf, SLOW_RUN_MS } = require('../../src/main/stall-watch.js');
 
 function rig(extra = {}) {
   let t = 1_000_000;
@@ -92,6 +92,57 @@ describe('stall watch', () => {
     expect(featureOf('storage-save')).toBe('storage-save');
     noteIpc('a:b');
     expect(Object.keys(lastIpc()).sort()).toEqual(['at', 'channel']);
+  });
+});
+
+// Found 2026-11-11: "last IPC" is only the last message handled before a freeze. Four lines in a real crash log
+// named persist-apply, whose handler takes 10 ms. The handlers are timed, and a line names the one that held the
+// event loop longest when it held it for a quarter of a second or more.
+describe('naming the handler that held the event loop', () => {
+  it('a stall line names the handler that ran longest, ahead of the last IPC, and takes its feature', () => {
+    forgetRuns();
+    const r = rig();
+    r.w.start();
+    noteIpcRun('journal:diff', 3100, 1_000_500);
+    noteIpcRun('tabs:favicon', 400, 1_000_600);
+    noteIpc('persist-apply', 1_001_000);
+    r.advance(3500);
+    r.stall(3300);
+    expect(r.w.check()).toBe(true);
+    expect(r.added[0][1]).toBe('blocked for about 3.3 s; the handler of "journal:diff" ran for 3.1 s without a pause; last IPC "persist-apply" 3 s ago; feature journal');
+  });
+  it('says nothing about handlers when none was slow, and forgets a slow one that belonged to no stall', () => {
+    forgetRuns();
+    const r = rig();
+    r.w.start();
+    noteIpcRun('tabs:favicon', SLOW_RUN_MS - 1);
+    expect(slowestRun().channel).toBe('');
+    noteIpcRun('vault:list', 900);
+    expect(slowestRun()).toMatchObject({ channel: 'vault:list', ms: 900 });
+    r.stall(1200);                       // under the threshold: no stall
+    expect(r.w.check()).toBe(false);
+    expect(slowestRun().channel).toBe('');
+    noteIpc('settings:save', 1_000_000);
+    r.stall(2400);
+    expect(r.w.check()).toBe(true);
+    expect(r.added[0][1]).not.toMatch(/handler of/);
+  });
+  it('the IPC policy times both kinds of handler, and a handler that throws is still timed', async () => {
+    forgetRuns();
+    const { installIpcPolicy } = require('../../src/main/ipc-policy.js');
+    const handlers = new Map(), listeners = new Map();
+    const ipcMain = { handle: (c, f) => handlers.set(c, f), on: (c, f) => listeners.set(c, f) };
+    installIpcPolicy(ipcMain, { isUiFrame: () => true, owner: () => ({ id: 1 }), isAuxiliary: () => false, ownsTarget: () => true });
+    const burn = (ms) => { const until = Date.now() + ms; while (Date.now() < until) { /* hold the event loop */ } };
+    ipcMain.handle('journal:stats', async () => { burn(SLOW_RUN_MS + 30); await null; return 'ok'; });
+    const event = { sender: {}, senderFrame: { url: 'file:///index.html' } };
+    expect(await handlers.get('journal:stats')(event)).toBe('ok');
+    expect(slowestRun().channel).toBe('journal:stats');
+    expect(slowestRun().ms).toBeGreaterThanOrEqual(SLOW_RUN_MS);
+    forgetRuns();
+    ipcMain.handle('journal:forget', () => { burn(SLOW_RUN_MS + 30); throw new Error('boom'); });
+    await expect(handlers.get('journal:forget')(event)).rejects.toThrow('boom');
+    expect(slowestRun().channel).toBe('journal:forget');
   });
 });
 
