@@ -78,10 +78,10 @@ describe('check', () => {
     await w.check.check();
     w.advance(30000);
     await w.check.check();
-    expect(w.calls).toBe(1);
+    expect(w.calls).toBe(2);                         // the two requests of the first look, none since
     w.advance(clock.WRONG_CACHE_MS);
     await w.check.check();
-    expect(w.calls).toBe(2);
+    expect(w.calls).toBe(4);
   });
   it('measures again at once when the PC clock was set', async () => {
     const w = world(19200);
@@ -89,7 +89,7 @@ describe('check', () => {
     w.advance(3000);
     w.setPc(0);                                  // "Sync now"
     const r = await w.check.check();
-    expect(w.calls).toBe(2);
+    expect(w.calls).toBe(3);                     // two to call it wrong, one to find it right
     expect(r.wrong).toBe(false);
   });
   it('rejects when the clock could not be measured', async () => {
@@ -98,6 +98,38 @@ describe('check', () => {
   it('shares one request between callers that ask together', async () => {
     const w = world(19200);
     await Promise.all([w.check.check(), w.check.check(), w.check.time()]);
+    expect(w.calls).toBe(2);                     // one look (two requests, the clock being wrong), not three
+  });
+});
+
+// The probe sits behind a cache that may keep an answer for an hour. A stored answer handed out with the Date it
+// had when it was stored would read as "your clock is half an hour fast" on a PC whose clock is right, and
+// correcting by it would break every code. Found by reading the probe's real headers, 2026-11-11.
+describe('an answer that must not be believed', () => {
+  it('one that came out of a cache is not a measurement: the PC clock is used', async () => {
+    const calls = { n: 0 };
+    const c = clock.createClockCheck({ now: () => T, mono: () => 0, request: async () => { calls.n++; return { date: header(T - 1800 * 1000), age: 1800, sentAt: T, receivedAt: T + 50 }; } });
+    await expect(c.check()).rejects.toThrow(/came from a cache \(1800 s old\)/);
+    expect(await c.time()).toMatchObject({ known: false, wrong: false, now: T });
+    expect(calls.n).toBe(1);                         // and nothing is asked again for a minute
+  });
+  it('a clock is called wrong only when a second request agrees', async () => {
+    const w = world(19200);
+    const r = await w.check.check();
+    expect(r.wrong).toBe(true);
+    expect(w.calls).toBe(2);
+  });
+  it('one stale answer between fresh ones does not make a right clock wrong', async () => {
+    let n = 0;
+    const c = clock.createClockCheck({ now: () => T, mono: () => 0, request: async () => (++n === 1
+      ? { date: header(T - 1700 * 1000), age: 0, sentAt: T, receivedAt: T + 50 }      // stale, and the cache did not say so
+      : { date: header(T), age: 0, sentAt: T, receivedAt: T + 50 }) });
+    await expect(c.check()).rejects.toThrow(/two answers disagreed/);
+    expect(await c.time()).toMatchObject({ known: false, wrong: false });
+  });
+  it('a right clock is asked once', async () => {
+    const w = world(800);
+    await w.check.check();
     expect(w.calls).toBe(1);
   });
 });
@@ -121,7 +153,7 @@ describe('time (what the codes are made from)', () => {
     w.advance(5000);
     w.setPc(-600000);                            // someone set the clock ten minutes back
     const t = await w.check.time();
-    expect(w.calls).toBe(2);
+    expect(w.calls).toBe(4);
     expect(t.wrong).toBe(true);
     expect(Math.abs(t.now - w.real)).toBeLessThanOrEqual(1000);
   });
@@ -135,7 +167,7 @@ describe('time (what the codes are made from)', () => {
     w.advance(clock.FAIL_RETRY_MS + 1);
     w.online = true;
     expect((await w.check.time()).known).toBe(true);
-    expect(w.calls).toBe(2);
+    expect(w.calls).toBe(3);
   });
   it('a slow first answer does not hold the code up: the PC clock is used meanwhile', async () => {
     let release;
@@ -169,6 +201,9 @@ describe('createRequest', () => {
         seen.push(options);
         const em = new EventEmitter();
         em.abort = () => {};
+        em.sent = {};
+        em.setHeader = (k, v) => { em.sent[k] = v; };
+        seen.headers = em.sent;
         em.end = () => setTimeout(() => answer(em), 0);
         return em;
       },
@@ -178,8 +213,13 @@ describe('createRequest', () => {
     const net = fakeNet((em) => { const res = new EventEmitter(); res.statusCode = 200; res.headers = { date: [header(T)] }; em.emit('response', res); });
     let now = 1000;
     const r = await clock.createRequest(net, { now: () => (now += 50) })(clock.PROBE_URL);
-    expect(net.seen).toEqual([{ url: clock.PROBE_URL, method: 'HEAD', credentials: 'omit', useSessionCookies: false }]);
-    expect(r).toEqual({ status: 200, date: header(T), sentAt: 1050, receivedAt: 1100 });
+    expect([...net.seen]).toEqual([{ url: clock.PROBE_URL, method: 'HEAD', credentials: 'omit', useSessionCookies: false, cache: 'no-store' }]);
+    expect(net.seen.headers).toEqual({ 'Cache-Control': 'no-cache', Pragma: 'no-cache' });
+    expect(r).toEqual({ status: 200, date: header(T), age: 0, sentAt: 1050, receivedAt: 1100 });
+  });
+  it('reports how long the answer sat in a cache, when a cache says so', async () => {
+    const net = fakeNet((em) => { const res = new EventEmitter(); res.statusCode = 200; res.headers = { date: header(T), age: ['1840'] }; em.emit('response', res); });
+    expect((await clock.createRequest(net)(clock.PROBE_URL)).age).toBe(1840);
   });
   it('rejects on a network error and on no answer', async () => {
     await expect(clock.createRequest(fakeNet((em) => em.emit('error', new Error('net::ERR_INTERNET_DISCONNECTED'))))(clock.PROBE_URL)).rejects.toThrow(/DISCONNECTED/);

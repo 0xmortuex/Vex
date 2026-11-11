@@ -17,6 +17,12 @@
 //   - elapsed time is followed on a clock that only counts (`mono`), so the moment the PC clock is set, by the person
 //     or by Windows, the old answer no longer adds up and is thrown away; the corrected time never jumps with it.
 //   - no answer (offline, a slow or unreadable reply): the PC clock is used, and nothing is asked again for a minute.
+//
+// A wrong answer here would be worse than none: it would "correct" a clock that is right and make every code
+// wrong. The probe sits behind a cache (Varnish, s-maxage=3600), and a cache may hand out a stored answer with
+// the `Date` it had when it was stored. So: the request asks not to be answered from a cache and is not kept in
+// Vex's own; an answer that says it came from one (an `Age` above zero) is not used; and a clock is only called
+// wrong when a SECOND request agrees with the first to within two seconds.
 'use strict';
 
 const PROBE_URL = 'https://detectportal.firefox.com/canonical.html';
@@ -30,6 +36,8 @@ const JUMP_MS = 2000;
 const MAX_ROUND_TRIP_MS = 4000;
 // How long a code waits for a first measurement before it is made from the PC clock.
 const CODE_WAIT_MS = 1500;
+// A clock is called wrong only when two requests say so and differ by no more than this.
+const AGREE_MS = 2000;
 
 // PC clock minus server clock, in ms (positive: the PC is ahead). The server stamped its answer somewhere between the
 // request leaving and the answer arriving, and a `Date` header drops the fraction of the second (half a second on average).
@@ -45,7 +53,9 @@ function offsetMs(dateHeader, sentAt, receivedAt) {
 // → (url) => Promise<{ status, date, sentAt, receivedAt }>
 function createRequest(net, { timeoutMs = 6000, now = () => Date.now() } = {}) {
   return (url) => new Promise((resolve, reject) => {
-    const req = net.request({ url, method: 'HEAD', credentials: 'omit', useSessionCookies: false });
+    const req = net.request({ url, method: 'HEAD', credentials: 'omit', useSessionCookies: false, cache: 'no-store' });
+    req.setHeader('Cache-Control', 'no-cache');
+    req.setHeader('Pragma', 'no-cache');
     let done = false;
     const finish = (fn, value) => { if (done) return; done = true; clearTimeout(timer); fn(value); };
     const timer = setTimeout(() => { try { req.abort(); } catch { /* vex-allow-empty-catch: aborting a request that has already finished or failed is not an error */ } finish(reject, new Error('clock check: timed out')); }, timeoutMs);
@@ -53,9 +63,11 @@ function createRequest(net, { timeoutMs = 6000, now = () => Date.now() } = {}) {
     req.on('response', (res) => {
       const receivedAt = now();
       const date = [].concat(res.headers.date || [])[0] || '';
+      // Seconds the answer sat in a cache, when a cache says so.
+      const age = Number([].concat(res.headers.age || [])[0] || 0) || 0;
       res.on('data', () => {});
       res.on('error', () => {});
-      finish(resolve, { status: res.statusCode, date, sentAt, receivedAt });
+      finish(resolve, { status: res.statusCode, date, age, sentAt, receivedAt });
     });
     req.on('error', (err) => finish(reject, err));
     sentAt = now();
@@ -101,12 +113,24 @@ function createClockCheck({ request, now = () => Date.now(), mono = () => perfor
   // The measured time now: where the server's clock was when it answered, plus the time counted since.
   const measuredNow = () => Math.round(last.wallAt - last.offsetMs + (mono() - last.monoAt));
 
+  // One request -> PC clock minus server clock, in ms. An answer out of a cache is not a measurement.
+  async function once() {
+    const r = await request(probeUrl);
+    if (r && r.age > 0) throw new Error('clock check: the answer came from a cache (' + r.age + ' s old), so it does not say what time it is');
+    return offsetMs(r && r.date, r && r.sentAt, r && r.receivedAt);
+  }
+
   function measure() {
     if (!running) {
       running = (async () => {
         try {
-          const r = await request(probeUrl);
-          const ms = offsetMs(r && r.date, r && r.sentAt, r && r.receivedAt);
+          let ms = await once();
+          if (wrongBy(ms)) {
+            // Being wrong about this breaks every code, so it is asked twice (see the top).
+            const again = await once();
+            if (Math.abs(again - ms) > AGREE_MS) throw new Error('clock check: two answers disagreed (' + Math.round(ms / 1000) + ' s and ' + Math.round(again / 1000) + ' s), so neither is used');
+            ms = again;
+          }
           last = { offsetMs: ms, wallAt: now(), monoAt: mono() };
           failedAt = null;
         } catch (err) {
@@ -142,4 +166,4 @@ function createClockCheck({ request, now = () => Date.now(), mono = () => perfor
   return { check, time };
 }
 
-module.exports = { PROBE_URL, WARN_SECONDS, CACHE_MS, WRONG_CACHE_MS, FAIL_RETRY_MS, JUMP_MS, MAX_ROUND_TRIP_MS, CODE_WAIT_MS, offsetMs, probeUrlFrom, createRequest, createClockCheck };
+module.exports = { PROBE_URL, WARN_SECONDS, CACHE_MS, WRONG_CACHE_MS, FAIL_RETRY_MS, JUMP_MS, MAX_ROUND_TRIP_MS, CODE_WAIT_MS, AGREE_MS, offsetMs, probeUrlFrom, createRequest, createClockCheck };
