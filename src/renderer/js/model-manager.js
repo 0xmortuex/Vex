@@ -52,13 +52,27 @@ const ModelManager = {
   // in three days in a real profile, found 2026-11-11) for anyone whose Ollama is closed. An Ollama that is
   // there and does not answer in time is still an error: its model is still on the card.
   NOT_RUNNING: /Failed to fetch|ERR_CONNECTION_REFUSED|ECONNREFUSED|NetworkError|Load failed/i,
-  async freeGpu() {
-    let loaded;
-    try { loaded = await Ollama.running(); }
+  // An Ollama that is there but slow to answer is asked once more. A game start is when the PC is at its busiest,
+  // the question gets three seconds, and the card is exactly what the game needs then: in the same profile
+  // "Could not free the graphics card: timeout" was noted at 23 game starts, each one a game that ran with the
+  // model (about 5.5 GB of an 8 GB card) still loaded.
+  SLOW: /timeout|timed out|aborted/i,
+  RETRY_AFTER_MS: 2000,
+  async _loaded() {
+    try { return await Ollama.running(); }
     catch (err) {
-      if (this.NOT_RUNNING.test(String(err && err.message))) return { freed: 0, models: [] };
+      if (this.NOT_RUNNING.test(String(err && err.message))) return [];
+      if (!this.SLOW.test(String(err && err.message))) throw err;
+    }
+    await new Promise(resolve => setTimeout(resolve, this.RETRY_AFTER_MS));
+    try { return await Ollama.running(); }
+    catch (err) {
+      if (this.NOT_RUNNING.test(String(err && err.message))) return [];
       throw err;
     }
+  },
+  async freeGpu() {
+    const loaded = await this._loaded();
     if (!loaded.length) return { freed: 0, models: [] };
     let freedMB = 0;
     const names = [];

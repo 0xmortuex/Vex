@@ -91,11 +91,39 @@ describe('freeing the card', () => {
     }
     expect(Ollama.unload).not.toHaveBeenCalled();
   });
-  it('an Ollama that is there and does not answer is still an error: its model is still on the card', async () => {
-    globalThis.Ollama.running = vi.fn(async () => { throw new Error('timeout'); });
-    await expect(ModelManager.freeGpu()).rejects.toThrow('timeout');
-    globalThis.Ollama.running = vi.fn(async () => { throw new Error('Ollama answered 500'); });
-    await expect(ModelManager.freeGpu()).rejects.toThrow('500');
+  // The same log: "Could not free the graphics card: timeout" at 23 game starts. Ollama was running and busy, the
+  // question gets three seconds, and the model stayed on the card for the whole game.
+  it('an Ollama that is slow to answer is asked once more, and the card is freed when it then answers', async () => {
+    const waited = ModelManager.RETRY_AFTER_MS;
+    ModelManager.RETRY_AFTER_MS = 0;
+    try {
+      let calls = 0;
+      globalThis.Ollama.running = vi.fn(async () => { if (++calls === 1) throw new Error('timeout'); return [{ name: 'qwen3.5:latest', vramMB: 5600 }]; });
+      expect(await ModelManager.freeGpu()).toEqual({ freed: 5600, models: ['qwen3.5:latest'] });
+      expect(Ollama.running).toHaveBeenCalledTimes(2);
+      expect(Ollama.unload).toHaveBeenCalledWith('qwen3.5:latest');
+    } finally { ModelManager.RETRY_AFTER_MS = waited; }
+  });
+  it('an Ollama that is there and still does not answer is an error: its model is still on the card', async () => {
+    const waited = ModelManager.RETRY_AFTER_MS;
+    ModelManager.RETRY_AFTER_MS = 0;
+    try {
+      globalThis.Ollama.running = vi.fn(async () => { throw new Error('timeout'); });
+      await expect(ModelManager.freeGpu()).rejects.toThrow('timeout');
+      expect(Ollama.running).toHaveBeenCalledTimes(2);                 // once more, not for ever
+      globalThis.Ollama.running = vi.fn(async () => { throw new Error('Ollama answered 500'); });
+      await expect(ModelManager.freeGpu()).rejects.toThrow('500');
+      expect(Ollama.running).toHaveBeenCalledTimes(1);                 // an answer that is an error is not asked again
+    } finally { ModelManager.RETRY_AFTER_MS = waited; }
+  });
+  it('slow, then gone: an Ollama that closed between the two questions has nothing to free', async () => {
+    const waited = ModelManager.RETRY_AFTER_MS;
+    ModelManager.RETRY_AFTER_MS = 0;
+    try {
+      let calls = 0;
+      globalThis.Ollama.running = vi.fn(async () => { throw new Error(++calls === 1 ? 'timeout' : 'Failed to fetch'); });
+      expect(await ModelManager.freeGpu()).toEqual({ freed: 0, models: [] });
+    } finally { ModelManager.RETRY_AFTER_MS = waited; }
   });
 
   it('one model that refuses does not stop the others', async () => {
