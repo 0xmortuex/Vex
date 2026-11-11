@@ -18,6 +18,21 @@ beforeEach(async () => {
   localStorage.setItem('vex.downloads', JSON.stringify([{ id: 'd1', filename: 'slides.pdf', startedAt: '2026-10-01T10:00:00Z' }, { id: 'd2', filename: 'secret.pdf', ephemeral: true }]));
 });
 
+describe('a course id', () => {
+  it('is never one that another course has, even for two made in the same millisecond with the same random draw', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1794000000000);
+    const draws = [0.5, 0.5, 0.25];
+    const rand = vi.spyOn(Math, 'random').mockImplementation(() => (draws.length ? draws.shift() : 0.75));
+    try {
+      localStorage.removeItem(C.KEY || 'vex.courses');
+      const { VexCourseSpaces: fresh1 } = fresh(JS + 'course-spaces.js');
+      const first = await fresh1.add({ name: 'Physics', term: 'Autumn 2026' });
+      const second = await fresh1.add({ name: 'Chemistry', term: 'Autumn 2026' });
+      expect(second.id).not.toBe(first.id);
+    } finally { now.mockRestore(); rand.mockRestore(); }
+  });
+});
+
 describe('units and the term tree', () => {
   it('keeps unique units, trimmed, in order', () => {
     expect(a.units).toEqual(['Week 1', 'Week 2']);

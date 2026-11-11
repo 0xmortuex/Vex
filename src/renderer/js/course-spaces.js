@@ -98,7 +98,12 @@ const VexCourseSpaces = {
     let space = spaceId ? ProjectSpaces.get(spaceId) : null;
     if (spaceId && !space) throw new Error('That space is gone');
     if (!space) space = await ProjectSpaces.create(f.name, { fromCurrentTabs });
-    const c = { id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4), ...f, spaceId: space.id, at: Date.now() };
+    // The time plus two random characters is the same for two courses made in the same millisecond about once in
+    // 1,300 times, and the second course then answered to the first one's tags (a test run failed on exactly
+    // that, 2026-11-08). An id that is taken is made again.
+    let id;
+    do { id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4); } while (list.some(x => x.id === id));
+    const c = { id, ...f, spaceId: space.id, at: Date.now() };
     list.push(c);
     this._write(list);
     return c;

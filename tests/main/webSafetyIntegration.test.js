@@ -50,10 +50,15 @@ function setup(opts = {}) {
   session = { on: (n, fn) => { session._will = fn; } };
   service.wireDownloadsOnSession(session, 'test');
 }
-let clicks = 0;
+let lastClick = 0;
 // Each download is the person's own click, so the "page started it by itself" check stays out of the way.
+// A click is told apart from the one before by its time, so every click here gets a time of its own: later than
+// the last, and never in the future. (It was "now minus 7 ms per click": two downloads exactly 7 ms apart got the
+// SAME time, the second looked like a download the page started by itself, and "ordinary downloads ... are never
+// asked" failed on a slow runner, 2026-11-09.)
 const download = (page, url) => {
-  gestures.set(page.id, Date.now() - (++clicks) * 7);
+  lastClick = Math.max(lastClick + 1, Date.now() - 1000);
+  gestures.set(page.id, lastClick);
   const item = fakeItem(url);
   const event = { preventDefault: vi.fn() };
   session._will(event, item, page);
