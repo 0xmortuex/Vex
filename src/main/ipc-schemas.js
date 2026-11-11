@@ -613,6 +613,9 @@ define('tabs:carry-history', [value => typeof value === 'string' && /^c\d{1,9}$/
 define('tabs:favicon', [integer, web]);
 // Connect ahead to a link's site (main/preconnect.js): the page by its id, the link's address.
 define('tabs:preconnect', [integer, web]);
+// The person sent one of the window's own pages somewhere, or is about to open a tab for an address (main/person-nav.js).
+define('tabs:person-navigated', [integer]);
+define('tabs:person-opening', [web]);
 // A taskbar action waiting for the interface, and the jump list being rewritten (main/jump-list.js).
 define('jump:take jumplist:apply', []);
 // The windows of last time (main/window-set.js): what is remembered, and bringing the latest closed one back.

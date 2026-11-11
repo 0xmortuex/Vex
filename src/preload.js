@@ -688,6 +688,9 @@ contextBridge.exposeInMainWorld('vex', {
   tabFavicon:           (pageId, url) => ipcRenderer.invoke('tabs:favicon', pageId, url),
   // Connect ahead to a link's site while the pointer rests on it (js/preconnect.js, main/preconnect.js).
   tabPreconnect:        (pageId, url) => ipcRenderer.invoke('tabs:preconnect', pageId, url),
+  // A page the person opened themselves may hand off to another program without a click on it (main/person-nav.js).
+  tabPersonNavigated:   (pageId) => ipcRenderer.invoke('tabs:person-navigated', pageId),
+  tabPersonOpening:     (url) => ipcRenderer.invoke('tabs:person-opening', url),
   // Taskbar actions (js/jump-actions.js, main/jump-list.js): the one waiting for the interface, and a nudge that one arrived.
   windowsState:         () => ipcRenderer.invoke('windows:state'),
   windowsReopenClosed:  () => ipcRenderer.invoke('windows:reopen-closed'),

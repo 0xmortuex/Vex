@@ -35,7 +35,7 @@ const GUEST_CHANNELS = new Set(['extensions:external-ids', 'extensions:external-
   // printing. Each handler checks that the asking frame is that page.
   'officeview:download', 'officeview:open-external', 'officeview:print']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'drm:clear-site', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
-  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
+  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect', 'tabs:person-navigated',
   // The site panel's per-page permissions and certificate (main.js): a private
   // window's page keeps its answers in memory, so these stay allowed there.
   'permissions:set-for-page', 'permissions:reset-for-page', 'site:certificate', 'hygiene:perm-stop',
@@ -88,7 +88,7 @@ const UI_ONLY_CHANNELS = new Set([
   // The Attention Budget (main/notify.js): the window's quiet state, and the toasts it held back.
   'attention:state', 'attention:denied', 'attention:clear-denied',
   // Ctrl+Tab by recency (main/mru-keys.js) and the Back/Forward menu's list of a tab's pages.
-  'tabs:mru-keys', 'tabs:nav-list', 'tabs:preconnect', 'jump:take', 'jumplist:apply', 'windows:state', 'windows:reopen-closed',
+  'tabs:mru-keys', 'tabs:nav-list', 'tabs:preconnect', 'tabs:person-navigated', 'tabs:person-opening', 'jump:take', 'jumplist:apply', 'windows:state', 'windows:reopen-closed',
   // Which languages the spell checker uses (main.js, js/spell-lang.js).
   'spellcheck:set-languages', 'spellcheck:state',
   'panelguard:throttle',

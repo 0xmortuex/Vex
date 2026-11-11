@@ -1731,7 +1731,7 @@ function vexOwnTextFocused(doc) {
       catch (err) { window.VexProblems?.note('Chat links', 'Could not judge a link that came from a chat', err); }
     }
     let created;
-    try { created = TabManager.createTab(data.url || null, !data.background, inheritGroup, { partition: chat && chat.partition ? chat.partition : data.partition, openerTabId: linked ? linked.id : null }); }
+    try { created = TabManager.createTab(data.url || null, !data.background, inheritGroup, { partition: chat && chat.partition ? chat.partition : data.partition, openerTabId: linked ? linked.id : null, byPerson: data.clicked === true }); }
     catch (err) {
       console.error('[Tabs] createTab failed:', err.message);
       if (data.requestId) window.vex.tabCreatedForExtension({ id: data.requestId, ok: false, error: err.message });
@@ -2074,7 +2074,8 @@ function vexOwnTextFocused(doc) {
       }
       if (typeof LinkRouting !== 'undefined' && LinkRouting.intercept(link, null)) return;
       try {
-        const tab = TabManager.createTab(link, true);
+        // A link from another program is the person's own doing (they clicked it there).
+        const tab = TabManager.createTab(link, true, null, { byPerson: true });
         console.log('[Vex URL] renderer: TabManager.createTab returned:', tab && tab.id ? `tab id=${tab.id}` : tab);
       } catch (err) {
         console.error('[Vex URL] renderer: TabManager.createTab threw:', err && err.stack || err);

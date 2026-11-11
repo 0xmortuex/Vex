@@ -393,6 +393,11 @@ const TabManager = {
     // file://-loaded start page renders in-theme; real URLs pass through.
     const target = url || START_URL;
     const resolvedUrl = isStartPage(target) ? startUrlWithTheme() : target;
+    // A tab the person is opening themselves (a click or key press in Vex is behind this call, or the caller says
+    // so with opts.byPerson): its page may hand off to another program without a click on it (main/person-nav.js).
+    if (typeof window !== 'undefined' && window.WebviewManager && typeof window.WebviewManager.personOpening === 'function') {
+      window.WebviewManager.personOpening(resolvedUrl, !!(opts && opts.byPerson));
+    }
     const tab = {
       id,
       url: resolvedUrl,

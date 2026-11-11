@@ -1576,6 +1576,26 @@ const WebviewManager = {
     return typeof PrivacyPack !== 'undefined' && !!(PrivacyPack.cfg && PrivacyPack.cfg.httpsOnly);
   },
 
+  // Telling main that the PERSON sent a page somewhere or is opening a tab (main/person-nav.js): that page may then
+  // hand off to another program (a Roblox invite link starts the Roblox app) without a click on the page itself.
+  // "The person" means a click or key press in Vex's own window is behind the call (the address bar's Enter, a
+  // bookmark, Reload), or the caller knows it (a link from another program, a link they clicked in a page). A
+  // restored session, a page watch and anything else Vex does by itself tell main nothing.
+  personActing() {
+    try { return !!(navigator.userActivation && navigator.userActivation.isActive); } catch { return false; }
+  },
+  personNavigated(wv, url) {
+    if (!this.personActing() || !wv || typeof window.vex?.tabPersonNavigated !== 'function') return;
+    let id;
+    // No page in the tab yet (an address typed the moment the tab opened): the address is expected instead.
+    try { id = wv.getWebContentsId(); } catch { this.personOpening(url); return; }
+    window.vex.tabPersonNavigated(id).catch(err => console.warn('[Vex] could not tell main the page was opened by you:', err && err.message));
+  },
+  personOpening(url, sure = false) {
+    if (!(sure || this.personActing()) || !/^https?:\/\//i.test(String(url || '')) || typeof window.vex?.tabPersonOpening !== 'function') return;
+    window.vex.tabPersonOpening(url).catch(err => console.warn('[Vex] could not tell main the tab was opened by you:', err && err.message));
+  },
+
   // opts.httpFallback: the address was typed without a scheme and https was
   // guessed (VexTypedAddress.resolve).
   navigate(url, opts = {}) {
@@ -1626,6 +1646,7 @@ const WebviewManager = {
         // failures: the tab took the address and said "Could not open".
         const asked = TabManager.tabs.find(t => t.id === tabId);
         if (asked) asked._typedUrl = url;
+        this.personNavigated(wv, this.viewerAddress(url));
         const settle = () => {
           const tab = TabManager.tabs.find(t => t.id === tabId);
           if (!tab || tab._typedUrl !== url) return null;
@@ -1704,6 +1725,7 @@ const WebviewManager = {
   reload() {
     const wv = this.getActiveWebview();
     if (!wv) return;
+    this.personNavigated(wv);
     // A plain wv.reload() on a blanked tab just reloads about:blank, so the page
     // never comes back. Restore the real URL instead — this is the fix for
     // "tabs stuck on about:blank after wake, won't come back even on refresh".

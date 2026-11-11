@@ -7619,11 +7619,18 @@ function _popupRefused(contents, openerUrl, url) {
   return true;
 }
 const _externalRefusalSaid = new Map();   // page id|scheme -> when the window was last told
+// A page the person has just opened themselves counts as clicked (main/person-nav.js): a Roblox invite link pasted
+// into the address bar, or arriving from Discord, starts the Roblox app with no click on the page at all.
+const _personNav = require('./main/person-nav').createPersonNav();
+// The window says so, for a tab of its own: the person sent this page somewhere (address bar, Reload) ...
+ipcMain.handle('tabs:person-navigated', (_e, pageId) => { _personNav.started(pageId); return true; });
+// ... or is about to open a tab for this address (a bookmark, a link from another program, a link they clicked).
+ipcMain.handle('tabs:person-opening', (_e, url) => _personNav.expect(url));
 function handleExternalProtocol(url, contents) {
   const scheme = _mainHelpers.externalScheme(url);
   if (!scheme) return false;
   const app = _mainHelpers.externalAppName(scheme);
-  const gesture = _mainHelpers.hasRecentGesture(_lastGestureAt.get(contents.id));
+  const gesture = _mainHelpers.hasRecentGesture(_lastGestureAt.get(contents.id)) || _personNav.allows(contents.id);
   const host = secureSessions.owner(contents);
   if (_mainHelpers.refusesExternalApps(secureSessions.partitionOf(contents), contents.session)) {
     console.log(`[Protocol] not opening a ${scheme}: link from a private, off-the-record or Tor page`);
@@ -8350,6 +8357,9 @@ app.on('web-contents-created', (_event, contents) => {
             // The page the link was in, so the tab opens next to its own
             // (js/app.js); it went to the far end (found 2026-10-10).
             opener: contents.id,
+            // The person clicked the link (not a page with pop-ups allowed opening it by itself): the page
+            // it opens may hand off to another program, as one typed in the address bar may (main/person-nav.js).
+            clicked: _mainHelpers.hasRecentGesture(_lastGestureAt.get(contents.id)) || undefined,
             // Clicked inside a chat (Discord, WhatsApp Web ...): from the opener's address only.
             // js/chat-links.js flags a new domain and may open it in a throwaway session.
             fromChat: require('./main/chat-origin').chatLinkFrom(openerUrl, url) || undefined,
@@ -8364,6 +8374,15 @@ app.on('web-contents-created', (_event, contents) => {
   // webview's location to roblox-player://…, so catch those before Chromium
   // blocks them.
   _watchGestures(contents);
+  // Which pages the person opened themselves (main/person-nav.js): a new tab's first address is matched here, and
+  // the time it finished loading is noted. Only the main frame's own document counts.
+  contents.on('did-start-navigation', (evt, url, isInPlace, isMainFrame) => {
+    const main = evt && typeof evt.isMainFrame === 'boolean' ? evt.isMainFrame : isMainFrame;
+    const same = evt && typeof evt.isSameDocument === 'boolean' ? evt.isSameDocument : isInPlace;
+    if (main && !same) _personNav.claim(contents.id, (evt && evt.url) || url);
+  });
+  contents.on('did-finish-load', () => _personNav.loaded(contents.id));
+  contents.once('destroyed', () => _personNav.forget(contents.id));
   contents.on('will-navigate', (evt, url) => {
     if (handleExternalProtocol((evt && evt.url) || url, contents)) {
       evt.preventDefault();
