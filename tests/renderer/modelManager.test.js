@@ -82,6 +82,22 @@ describe('freeing the card', () => {
     expect(Ollama.unload).not.toHaveBeenCalled();
   });
 
+  // Found 2026-11-11 in a real profile: "Gaming: Could not free the graphics card: Failed to fetch", 173 times in
+  // three days. Ollama was simply closed, and every game start reported it as a problem.
+  it('an Ollama that is not running holds nothing on the card: nothing to free, and not an error', async () => {
+    for (const message of ['Failed to fetch', 'net::ERR_CONNECTION_REFUSED', 'connect ECONNREFUSED 127.0.0.1:11434']) {
+      globalThis.Ollama.running = vi.fn(async () => { throw new TypeError(message); });
+      expect(await ModelManager.freeGpu(), message).toEqual({ freed: 0, models: [] });
+    }
+    expect(Ollama.unload).not.toHaveBeenCalled();
+  });
+  it('an Ollama that is there and does not answer is still an error: its model is still on the card', async () => {
+    globalThis.Ollama.running = vi.fn(async () => { throw new Error('timeout'); });
+    await expect(ModelManager.freeGpu()).rejects.toThrow('timeout');
+    globalThis.Ollama.running = vi.fn(async () => { throw new Error('Ollama answered 500'); });
+    await expect(ModelManager.freeGpu()).rejects.toThrow('500');
+  });
+
   it('one model that refuses does not stop the others', async () => {
     globalThis.VexProblems = { note: vi.fn() };
     globalThis.Ollama.running = vi.fn(async () => [{ name: 'a', vramMB: 100 }, { name: 'b', vramMB: 200 }]);

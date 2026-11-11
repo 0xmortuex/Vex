@@ -46,8 +46,19 @@ const ModelManager = {
 
   // Hand the card back: unloads every loaded model (about 5.5 GB here). Ollama
   // keeps running, and the next request loads the model again.
+  //
+  // Ollama not running at all is "nothing loaded", not a failure: it holds nothing on the card. It used to be
+  // reported as a problem at every game start ("Could not free the graphics card: Failed to fetch", 173 times
+  // in three days in a real profile, found 2026-11-11) for anyone whose Ollama is closed. An Ollama that is
+  // there and does not answer in time is still an error: its model is still on the card.
+  NOT_RUNNING: /Failed to fetch|ERR_CONNECTION_REFUSED|ECONNREFUSED|NetworkError|Load failed/i,
   async freeGpu() {
-    const loaded = await Ollama.running();
+    let loaded;
+    try { loaded = await Ollama.running(); }
+    catch (err) {
+      if (this.NOT_RUNNING.test(String(err && err.message))) return { freed: 0, models: [] };
+      throw err;
+    }
     if (!loaded.length) return { freed: 0, models: [] };
     let freedMB = 0;
     const names = [];
