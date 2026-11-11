@@ -434,3 +434,33 @@ describe('no network of its own', () => {
     }
   });
 });
+
+// Found 2026-11-11 in a real profile: "Autopilot: Could not join the Morning Brief (Cannot access 'VexBrief' before
+// initialization)", 93 times in three days. In the packaged window this file and js/brief.js are parts of one script,
+// so while this file loads `VexBrief` exists but may not be read yet, and even `typeof VexBrief` throws.
+describe('loading before the brief inside one bundled script', () => {
+  it('is quiet when the brief is declared later in the same script, and joins once it is there', () => {
+    const vm = require('node:vm');
+    const src = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/autopilot.js'), 'utf8');
+    const noted = [];
+    const registered = [];
+    const sandbox = { console, setTimeout, clearTimeout, registered, noted };
+    sandbox.window = sandbox;
+    sandbox.VexProblems = { note: (...a) => noted.push(a) };
+    sandbox.document = { addEventListener() {}, getElementById: () => null, createElement: () => ({ style: {}, appendChild() {}, setAttribute() {} }), head: { appendChild() {} }, body: { appendChild() {} } };
+    sandbox.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+    vm.createContext(sandbox);
+    // One script, as the window bundle makes it: autopilot.js first, the brief's declaration after it.
+    const out = vm.runInContext(src + '\nconst early = VexAutopilot._briefRegistered;\nconst VexBrief = { register(def) { registered.push(def.id); } };\n[early, VexAutopilot.registerWithBrief(), VexAutopilot.registerWithBrief()];', sandbox);
+    expect(noted).toEqual([]);                       // nothing was reported as a problem
+    expect(out).toEqual([undefined, true, false]);   // not joined at load, joined on the next call, once
+    expect(registered).toEqual(['autopilot']);
+  });
+  it('an error that is not "not there yet" is not swallowed', () => {
+    const broken = Object.create(VexAutopilot);
+    broken._brief = VexAutopilot._brief;
+    Object.defineProperty(globalThis, 'VexBrief', { configurable: true, get() { throw new TypeError('boom'); } });
+    try { expect(() => broken.registerWithBrief()).toThrow('boom'); }
+    finally { delete globalThis.VexBrief; }
+  });
+});

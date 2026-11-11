@@ -324,10 +324,21 @@ const VexAutopilot = {
       action: { label: 'Open Autopilot', cmd: { type: 'autopilot-open' } },
     };
   },
+  // Called when this file loads and again by js/brief-integration.js once the brief is there, whichever is first.
+  // In the window bundle this file and js/brief.js are parts of ONE script, and until that script has reached
+  // `const VexBrief` the name exists but may not be read: even `typeof VexBrief` throws "Cannot access 'VexBrief'
+  // before initialization". That was reported as "Could not join the Morning Brief" at every start (93 times in
+  // three days in a real profile, found 2026-11-11) although the second call always joined. Not there yet is
+  // simply "not yet".
+  _brief() {
+    try { return typeof VexBrief === 'undefined' ? null : VexBrief; }
+    catch (err) { if (err instanceof ReferenceError) return null; throw err; }
+  },
   registerWithBrief() {
-    if (typeof VexBrief === 'undefined' || typeof VexBrief.register !== 'function' || this._briefRegistered) return false;
+    const brief = this._brief();
+    if (!brief || typeof brief.register !== 'function' || this._briefRegistered) return false;
     const me = this;
-    VexBrief.register({
+    brief.register({
       id: 'autopilot', title: 'Needs you', icon: 'sparkles', order: 5, defaultOn: true, ttlMs: 60000, maxItems: 5,
       build(ctx) { return me.briefPayload(ctx && ctx.now); },
     });
