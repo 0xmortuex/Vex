@@ -1,17 +1,19 @@
 # Changelog
 
-## v57.88.5 (2026-11-11) — 2FA codes that work with a wrong PC clock, passkeys that hear a site say no, and fewer freezes
+## v57.90.0 (2026-11-11) — 2FA codes that work with a wrong PC clock, passkeys that hear a site say no, and fewer freezes
 
 This release is about signing in. A 2FA code is made from the time, so a PC clock that was 19 seconds fast made a site refuse every code, and nothing said why. Vex now checks the clock, corrects the codes while it is wrong and tells you. Passkeys now listen when a site says it no longer accepts one, instead of offering it for ever, and Settings shows what each site asked for and what Vex answered. A likely cause of whole-browser freezes of two to five seconds is removed. One thing here reaches the internet by itself: the clock check, a single request with no cookies to detectportal.firefox.com when the Authenticator shows or fills a code. It has a switch in Settings › Autofill, and the privacy policy lists it.
 
 ### New
-- **2FA codes that work when your PC clock is wrong.** When the Authenticator shows or fills a code, Vex compares your PC clock with a web server's. While your clock is 5 seconds or more off, the codes are made from the right time, and a line above the codes says so, with Stop correcting and a button that opens the Windows time settings. A clock that is right is never corrected. Try: Open the Authenticator panel. With a correct clock nothing extra is shown; the switch is Settings › Autofill › Check my PC clock for 2FA codes. (feature: authenticator-clock)
+- **2FA codes that work when your PC clock is wrong.** When the Authenticator shows or fills a code, Vex compares your PC clock with a web server's. While your clock is 5 seconds or more off, the codes are made from the right time, and a line above the codes says so, with Stop correcting and a button that opens the Windows time settings. A clock that is right is never corrected, and a clock is only called wrong when two requests agree, never on an answer that came out of a cache. Try: Open the Authenticator panel. With a correct clock nothing extra is shown; the switch is Settings › Autofill › Check my PC clock for 2FA codes. (feature: authenticator-clock)
 - **Passkeys: Vex hears a site say it no longer accepts one.** Sites such as Discord and Google tell the browser when a passkey is unknown to them or was removed from your account. Vex now listens: it stops offering that passkey on the site, tells you once, and keeps it in Settings › Passkeys, marked, with an Offer again button. It also takes the account's current name from the site. Nothing is deleted. Try: Open Settings › Passkeys. A passkey that a site refused is marked there, with Offer again beside it.
 - **Recent passkey requests.** Settings › Passkeys now lists what each site asked for and what Vex answered since Vex started: signed in and with which passkey, cancelled, left to a security key, or not answered and why. It is kept in memory only and holds nothing from private or Tor tabs. Try: Sign in to a site with a passkey, then open Settings › Passkeys › Recent passkey requests.
 
 ### Changed
 - **The passkey sheet says why it has nothing to offer.** When Vex holds a passkey for a site and still offers none, the sheet now says which case it is: the site no longer accepts it, or the site did not ask for it (removed there, another account, or its setup never finished), and what to do next.
 - **The passkey sheet notices a site that asks twice.** If a site asks for a passkey again within two minutes of Vex signing in with one, the sheet says the site is probably refusing that passkey and how to get past it, instead of offering it again as if nothing had happened.
+- **The passkey sheet steers you to your Vex PIN.** Where a site only prefers that you are verified, the PIN stays optional, but the cursor now starts in it and its label says that some sites refuse a sign-in made without it. If a site asks again right after a sign-in made without the PIN, the sheet says so and asks for the PIN this time. Recent passkey requests shows whether the PIN was used. Try: With a Vex PIN set, sign in to a site with a passkey; the cursor is in the PIN field.
+- **The passkey sheet in Turkish.** In a Turkish Vex the sheets for saving and using a passkey, their buttons and their notes are now in Turkish.
 - **A warning when a code is filled from a wrong clock.** If you chose Stop correcting and your clock is still wrong, filling a 2FA code into a page says so, at most once in ten minutes.
 - **The crash log names what froze Vex.** A "Main process stalled" line now names the task that held Vex up when one did, not only the last thing that happened before the freeze.
 - **The problem log says which part of Vex failed.** For a background step that failed, the problem log (in the Memory panel, and in Ctrl+K › Copy diagnostics) now keeps the line of Vex's own code that asked, not only the internal line that threw, with no folder names of your PC in it.
@@ -22,6 +24,11 @@ This release is about signing in. A 2FA code is made from the time, so a PC cloc
 - **"Could not free the graphics card" at every game start.** With Ollama closed there is nothing of Vex's on the graphics card to free, yet every game start reported it as a problem (173 times in three days on one PC). It is now treated as what it is: nothing to free. An Ollama that is running but slow to answer at a game start (23 times on the same PC) is asked once more, so its model is unloaded instead of staying on the card for the whole game; if it still does not answer, that is reported.
 - **"1 tabs were open".** The Morning Brief's "This time yesterday" line now says "1 tab was open" for one tab.
 - **"Could not join the Morning Brief" at every start.** Autopilot looked for the Morning Brief before the brief had loaded and reported a problem each time, although it joined a moment later. Nothing is reported now, and it still joins.
+
+## v57.88.5 (2026-11-11) — Cut but not published
+
+### Notes
+- **This version was prepared and never published.** Everything in it is part of v57.90.0 above, which is the version that was released.
 
 ## v57.66.1 (2026-11-08) — Safer saving and backups, everyday media and browsing tools, honest privacy, and Vex as an opt-in AI server
 
