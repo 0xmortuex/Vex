@@ -63,3 +63,12 @@
   border: 1px solid var(--border); border-radius: var(--vex-radius, 10px);
 }
 .pk-item-actions { display: flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+/* A passkey the site said it no longer accepts, and the recent requests (js/passkeys.js). */
+.pk-aside { display: block; margin-top: 2px; font-size: 12px; color: var(--warning, #c27c0e); }
+.pk-attempts { margin: 10px 0; }
+.pk-attempts > summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text); padding: 4px 0; }
+.pk-attempts-intro, .pk-attempts-note { margin: 4px 0 6px; font-size: 12px; }
+.pk-attempt { display: grid; grid-template-columns: max-content minmax(90px, max-content) 1fr; gap: 2px 12px; padding: 5px 0; border-top: 1px solid var(--border); font-size: 12.5px; }
+.pk-attempt-when { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.pk-attempt-site { font-weight: 600; overflow-wrap: anywhere; }
+.pk-attempt-what { overflow-wrap: anywhere; }

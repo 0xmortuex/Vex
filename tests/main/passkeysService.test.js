@@ -22,7 +22,11 @@ let dir;
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-passkeys-test-')); });
 afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
+const NOW_MS = Date.UTC(2026, 9, 12, 12, 0, 0);
+const NOW_S = Math.floor(NOW_MS / 1000);
+
 function setup(over = {}) {
+  const clock = { ms: NOW_MS };
   const state = { locked: false, pin: null, sync: false, suppressed: false, partition: 'persist:main', privateWindow: false, tor: false, asks: [], sent: [], answer: null, pinTries: [] };
   Object.assign(state, over.state || {});
   const handlers = new Map();
@@ -58,14 +62,14 @@ function setup(over = {}) {
       } else state.sent.push([channel, payload]);
       return true;
     },
-    now: () => Date.UTC(2026, 9, 12, 12, 0, 0),
+    now: () => clock.ms,
     ...(over.deps || {}),
   });
   svc.register();
   const frame = { url: ORIGIN + '/signin?x=1' };
   const wc = { id: 41, mainFrame: frame, on() {}, once() {} };
   const event = (f = frame) => ({ sender: wc, senderFrame: f });
-  return { svc, state, handlers, event, frame, wc, files: () => fs.readdirSync(dir) };
+  return { svc, state, handlers, event, frame, wc, clock, files: () => fs.readdirSync(dir) };
 }
 
 const createReq = (over = {}) => ({
@@ -181,16 +185,45 @@ describe('sign in', () => {
   it('signs a challenge a relying party verifies, with a counter that rises', async () => {
     const { h, stored, id } = await withPasskey();
     h.state.answer = (p) => ({ action: 'use', credentialId: p.accounts[0].credentialId });
-    for (const n of [1, 2]) {
+    const seen = [];
+    for (let n = 0; n < 3; n++) {
       const req = getReq();
       const res = await h.svc.handleRequest(h.event(), req);
       expect(res.ok).toBe(true);
       expect(res.credential.id).toBe(id);
       const v = VA(res.credential, stored, expectedFor(req));
-      expect(v.signCount).toBe(n);
+      seen.push(v.signCount);
       stored.signCount = v.signCount;
     }
+    // Three sign-ins in the same second still rise by one each; the first starts at the clock, in seconds.
+    expect(seen).toEqual([NOW_S, NOW_S + 1, NOW_S + 2]);
     expect(h.svc.list()[0].lastUsedAt).toBeTruthy();
+  });
+  // A count that only added one fell behind the site's after an older copy of the passkey file came back
+  // (a restored backup, the .bak after a damaged save), and a site that checks the counter refused every
+  // sign-in until it had caught up.
+  it('an older copy of the passkey file coming back does not make the counter go backwards', async () => {
+    const { h, stored } = await withPasskey();
+    h.state.answer = (p) => ({ action: 'use', credentialId: p.accounts[0].credentialId });
+    const older = h.svc.load();                                  // the file as it was before these sign-ins
+    for (let n = 0; n < 5; n++) {
+      const req = getReq();
+      stored.signCount = VA((await h.svc.handleRequest(h.event(), req)).credential, stored, expectedFor(req)).signCount;
+    }
+    await h.svc.save(older);                                     // the backup is restored, a minute later
+    h.clock.ms += 60 * 1000;
+    const req = getReq();
+    const v = VA((await h.svc.handleRequest(h.event(), req)).credential, stored, expectedFor(req));
+    expect(v.signCount).toBeGreaterThan(stored.signCount);
+  });
+  it('a counter already ahead of the clock (a passkey from before, or a clock set back) still rises by one', async () => {
+    const { h, stored } = await withPasskey();
+    h.state.answer = (p) => ({ action: 'use', credentialId: p.accounts[0].credentialId });
+    const all = h.svc.load();
+    all[0].signCount = NOW_S + 5000;
+    await h.svc.save(all);
+    const req = getReq();
+    expect(VA((await h.svc.handleRequest(h.event(), req)).credential, stored, expectedFor(req)).signCount).toBe(NOW_S + 5001);
   });
   it('returns the user handle and the platform attachment', async () => {
     const { h } = await withPasskey();
@@ -379,7 +412,7 @@ describe('conditional mediation', () => {
     const r = await h.svc.conditionalChoose('c1', info.accounts[0].credentialId, undefined);
     expect(r.ok).toBe(true);
     const res = await pending;
-    expect(VA(res.credential, stored, expectedFor(req)).signCount).toBe(1);
+    expect(VA(res.credential, stored, expectedFor(req)).signCount).toBe(NOW_S);
   });
   it('a newer request aborts a waiting one, and an abort from the page ends it', async () => {
     const h = setup();

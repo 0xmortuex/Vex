@@ -26,6 +26,12 @@ const MAX_REQUEST_MS = 10 * 60 * 1000;
 const DEFAULT_REQUEST_MS = 5 * 60 * 1000;
 const UNDO_MS = 2 * 60 * 1000;
 const MAX_RECORDS = 2000;
+const MAX_ATTEMPTS = 30;
+const MAX_SIGNAL_IDS = 500;
+// A site that asks again this soon after Vex signed in with a passkey has probably refused it.
+const REPEAT_HINT_MS = 2 * 60 * 1000;
+// A list of accepted passkeys may have been read just before a new one was made: one this young is not set aside by it.
+const SIGNAL_GRACE_MS = 60 * 1000;
 const NATIVE_TRANSPORTS = new Set(['usb', 'nfc', 'ble']);
 
 const isB64u = (s, max = 4096) => typeof s === 'string' && s.length <= max && /^[A-Za-z0-9_-]*$/.test(s) && s.length % 4 !== 1;
@@ -112,6 +118,7 @@ function createPasskeyService({
   const pending = new Map();             // webContents id -> { id, cancel(reason) }
   const asks = new Map();                // ask id -> { resolve, wcId, handler }
   const conditional = new Map();         // request id -> { wcId, ctx }
+  const attempts = [];                   // what happened to the last requests, oldest first (memory only)
 
   // --- Storage --------------------------------------------------------------
   function load() {
@@ -138,6 +145,8 @@ function createPasskeyService({
   const publicView = (r) => ({
     credentialId: r.credentialId, rpId: r.rpId, rpName: r.rpName, userName: r.userName, userDisplayName: r.userDisplayName,
     nickname: r.nickname || '', createdAt: r.createdAt, lastUsedAt: r.lastUsedAt || null, deviceOnly: !r.backupEligible,
+    // The site said it does not accept this passkey any more (see signal()): kept, but not offered.
+    setAside: !!r.unknownAt, setAsideAt: r.unknownAt || null,
   });
 
   // --- Who is asking --------------------------------------------------------
@@ -236,30 +245,79 @@ function createPasskeyService({
     wc.once('destroyed', () => forgetContents(id));
   }
 
+  // --- What happened to the last requests ------------------------------------
+  // A site that refuses a passkey says only "an error occurred" (found 2026-11-10: Discord, after Vex had
+  // signed twice). This is the half Vex can see: what the site asked for and what Vex answered. Kept in
+  // memory only, the newest MAX_ATTEMPTS, never for a private or Tor tab, and never a key, a challenge or a
+  // signature: the site, the time, the passkey's name and the first characters of its id.
+  function noteAttempt(entry) {
+    const kept = { ...entry };
+    delete kept.conditional;
+    delete kept.hidden;
+    attempts.push(kept);
+    if (attempts.length > MAX_ATTEMPTS) attempts.shift();
+  }
+  // Newest first (Settings > Passkeys).
+  function attemptsList() {
+    if (isLocked()) throw new PasskeyError('NotAllowedError', 'Vex is locked');
+    return attempts.map(a => ({ ...a })).reverse();
+  }
+
   async function handleRequest(event, raw) {
+    const entry = { at: new Date(now()).toISOString(), op: raw && (raw.op === 'create' || raw.op === 'get') ? raw.op : '', host: '', rpId: '', outcome: '', detail: '' };
+    let keep = true;
+    try {
+      const res = await route(event, raw, entry);
+      entry.outcome = res.fallback ? 'native' : (res.kind === 'create' ? 'created' : 'signed');
+      return res;
+    } catch (err) {
+      const known = err instanceof PasskeyError;
+      // A field's waiting list ending because the page left or timed out is not an attempt.
+      if (entry.conditional && known && (err.name === 'AbortError' || /timed out/.test(err.message))) keep = false;
+      if (!entry.outcome) entry.outcome = known && err.name === 'AbortError' ? 'aborted' : 'refused';
+      if (!entry.detail) entry.detail = known ? err.message : 'Vex could not complete the request';
+      throw err;
+    } finally {
+      if (keep && entry.rpId && !entry.hidden) noteAttempt(entry);
+    }
+  }
+
+  async function route(event, raw, entry) {
     const wc = event.sender;
     const frame = event.senderFrame;
     if (!frame || frame !== wc.mainFrame) throw new PasskeyError('NotAllowedError', 'Passkeys are handled for the top page only');
     const req = normalizeRequest(raw);
+    entry.conditional = req.mediation === 'conditional';
+    const refused = whyRefused(wc);
+    // Nothing a private, Tor or burner tab asks is kept, not even in memory.
+    entry.hidden = !!refused;
     // A security key or phone: not Vex's to answer.
-    if (wantsNative(req.op, req)) return { fallback: true };
+    if (wantsNative(req.op, req)) {
+      try { const named = pc.resolveRpId(req.op === 'create' ? req.rp.id : req.rpId, frame.url); entry.rpId = named.rpId; entry.host = named.host; }
+      catch { /* vex-allow-empty-catch: the browser's own flow judges the site; this request is simply not recorded */ }
+      entry.detail = 'The site asked for a security key or a phone';
+      return { fallback: true };
+    }
     let site;
     try { site = pc.resolveRpId(req.op === 'create' ? req.rp.id : req.rpId, frame.url); }
     catch (err) { throw err instanceof PasskeyError ? err : new PasskeyError('SecurityError', err.message); }
+    entry.rpId = site.rpId;
+    entry.host = site.host;
     if (suppressedFor(site.host)) throw new PasskeyError('NotAllowedError', 'Passkeys are turned off for this site in Vex');
-    const refused = whyRefused(wc);
     if (refused) { toast(wc, refused + '. Use the site’s other sign-in methods.'); throw new PasskeyError('NotAllowedError', 'The request is not allowed'); }
     if (isLocked()) { toast(wc, 'Vex is locked. Unlock it to use a passkey.'); throw new PasskeyError('NotAllowedError', 'Vex is locked'); }
     watch(wc);
     if (req.mediation !== 'conditional' && askedTooOften(wc, site)) {
       toast(wc, site.host + ' asked for a passkey too many times, so Vex stopped asking for a minute.');
+      entry.detail = 'The site asked too many times, so Vex stopped asking for a minute';
       throw new PasskeyError('NotAllowedError', 'The request is not allowed');
     }
-    if (req.op === 'create') return create(wc, req, site);
-    return get(wc, req, site);
+    if (req.op === 'create') return create(wc, req, site, entry);
+    return get(wc, req, site, entry);
   }
 
-  async function create(wc, req, site) {
+  async function create(wc, req, site, entry = {}) {
+    entry.name = req.user.name;
     if (!req.algs.includes(pc.ALG_ES256)) throw new PasskeyError('NotSupportedError', 'Vex passkeys use the ES256 algorithm, which this site does not accept');
     const records = load();
     const own = records.filter(r => r.rpId === site.rpId);
@@ -272,6 +330,7 @@ function createPasskeyService({
         // Per spec the site is told this device already has a credential only
         // after the person has been shown it.
         await ask(wc, { kind: 'exists', host: site.host, rpId: site.rpId, rpName: req.rp.name, userName: req.user.name }, async () => ({ action: 'ok' }), req.timeoutMs);
+        entry.detail = 'A passkey for this account is already in Vex';
         throw new PasskeyError('InvalidStateError', 'A passkey for this account already exists on this device');
       }
       const wantPin = pinMode === 'required' || (pinMode === 'preferred' && hasPin());
@@ -288,8 +347,12 @@ function createPasskeyService({
         return { action: 'save', uv: uv.uv, nickname };
       }, req.timeoutMs);
       const a = await answerP;
-      if (!a || a.action === 'cancel' || a.action === 'never') { noteDeclined(wc, site); throw new PasskeyError('NotAllowedError', 'The passkey was not saved'); }
-      return await finishCreate(req, site, a);
+      if (!a || a.action === 'cancel' || a.action === 'never') { noteDeclined(wc, site); entry.outcome = 'cancelled'; throw new PasskeyError('NotAllowedError', 'The passkey was not saved'); }
+      const made = await finishCreate(req, site, a);
+      entry.uv = !!a.uv;
+      entry.credential = made.credential.id.slice(0, 8);
+      if (a.nickname) entry.name = a.nickname;
+      return made;
     } finally { drop(); }
   }
 
@@ -325,28 +388,35 @@ function createPasskeyService({
     };
   }
 
+  // The passkeys to offer: this site's, without the ones the site said it no longer accepts.
   function candidatesFor(req, site) {
-    const own = load().filter(r => r.rpId === site.rpId);
+    const own = load().filter(r => r.rpId === site.rpId && !r.unknownAt);
     if (!req.allowCredentials.length) return own;
     const ids = new Set(req.allowCredentials.map(c => c.id));
     return own.filter(r => ids.has(r.credentialId));
   }
 
+  // The counter a passkey reports. A synced one reports 0 for ever (a counter cannot be kept in step across
+  // devices). A device-only one counts up, and is never behind the clock in seconds: a count that only added
+  // one went BACKWARDS whenever an older copy of the passkey file came back (a restored backup, the .bak
+  // after a damaged save), and a site that checks the counter then refused every sign-in until it had
+  // caught up again. Seconds since 1970 fit the 32-bit field until 2106 and only ever rise.
+  const nextCount = (r) => (r.backupEligible ? 0 : Math.min(0xffffffff, Math.max((r.signCount || 0) + 1, Math.floor(now() / 1000))));
+
   async function signFor(req, site, record, uv) {
-    const authData = pc.buildAuthData({
-      rpId: site.rpId, userPresent: true, userVerified: !!uv,
-      backupEligible: !!record.backupEligible, backupState: !!record.backupEligible && syncOn(),
-      // A synced passkey reports 0 for ever (a counter cannot be kept in step
-      // across devices); a device-only one counts up.
-      signCount: record.backupEligible ? 0 : (record.signCount || 0) + 1,
-    });
-    const clientDataJSON = pc.buildClientDataJSON({ type: 'webauthn.get', challenge: req.challenge, origin: site.origin });
-    const signature = pc.signAssertion(pc.fromB64u(record.privateKeyPkcs8), authData, clientDataJSON);
     const list = load();
     const mine = list.find(r => r.credentialId === record.credentialId);
     if (!mine) throw new PasskeyError('NotAllowedError', 'That passkey is no longer on this device');
+    const signCount = nextCount(mine);
+    const authData = pc.buildAuthData({
+      rpId: site.rpId, userPresent: true, userVerified: !!uv,
+      backupEligible: !!record.backupEligible, backupState: !!record.backupEligible && syncOn(),
+      signCount,
+    });
+    const clientDataJSON = pc.buildClientDataJSON({ type: 'webauthn.get', challenge: req.challenge, origin: site.origin });
+    const signature = pc.signAssertion(pc.fromB64u(record.privateKeyPkcs8), authData, clientDataJSON);
     mine.lastUsedAt = new Date(now()).toISOString();
-    if (!record.backupEligible) mine.signCount = (mine.signCount || 0) + 1;
+    if (!mine.backupEligible) mine.signCount = signCount;
     await save(list);
     return {
       ok: true, kind: 'get',
@@ -358,16 +428,41 @@ function createPasskeyService({
     };
   }
 
-  async function get(wc, req, site) {
+  // What the site asked for against what Vex holds, for the record of this request.
+  function noteAsked(entry, req, site, matches) {
+    entry.asked = req.allowCredentials.length;
+    entry.saved = load().filter(r => r.rpId === site.rpId).length;
+    entry.matched = matches.length;
+  }
+  function noteSigned(entry, record, uv) {
+    entry.uv = !!uv;
+    entry.credential = record.credentialId.slice(0, 8);
+    entry.name = record.nickname || record.userDisplayName || record.userName;
+    entry.signCount = nextCount(record);
+  }
+
+  async function get(wc, req, site, entry = {}) {
     const mode = req.userVerification;
-    if (req.mediation === 'conditional') return getConditional(wc, req, site);
+    if (req.mediation === 'conditional') return getConditional(wc, req, site, entry);
     const drop = supersede(wc, req.id, (err) => cancelAsks(wc.id, err));
     try {
       const wantPin = mode === 'required' || (mode === 'preferred' && hasPin());
       const matches = candidatesFor(req, site);
+      noteAsked(entry, req, site, matches);
+      // The site named the passkeys it accepts for this account and none of Vex's is among them: the ones
+      // Vex does hold for the site were removed there, never finished being set up, or belong to another
+      // account. The sheet says so, or "no passkey here" would contradict Settings > Passkeys.
+      const held = matches.length ? [] : load().filter(r => r.rpId === site.rpId);
+      const unlisted = req.allowCredentials.length ? held.filter(r => !r.unknownAt).map(publicView) : [];
+      const setAside = held.filter(r => r.unknownAt).map(publicView);
+      // Vex signed in here a moment ago and the site is asking again: most often the site refused the
+      // passkey and showed only "an error occurred" (found 2026-11-10: twice in half a minute on Discord).
+      // The sheet says so, with what to do, instead of offering the same passkey as if nothing had happened.
+      const before = attempts.findLast(a => a.rpId === site.rpId && a.outcome === 'signed' && now() - Date.parse(a.at) < REPEAT_HINT_MS);
+      const repeat = before && matches.length ? { name: before.name || '', secondsAgo: Math.max(1, Math.round((now() - Date.parse(before.at)) / 1000)) } : null;
       const answerP = ask(wc, {
         kind: 'get', host: site.host, rpId: site.rpId,
-        accounts: matches.map(publicView),
+        accounts: matches.map(publicView), unlisted, setAside, repeat,
         uv: mode === 'required' ? 'required' : (wantPin ? 'optional' : 'none'), hasPin: hasPin(),
       }, async (a) => {
         if (a.action === 'native') return { action: 'native' };
@@ -379,8 +474,9 @@ function createPasskeyService({
         return { action: 'use', record, uv: uv.uv };
       }, req.timeoutMs);
       const a = await answerP;
-      if (!a || a.action === 'cancel') { noteDeclined(wc, site); throw new PasskeyError('NotAllowedError', 'The request was cancelled'); }
-      if (a.action === 'native') return { fallback: true };
+      if (!a || a.action === 'cancel') { noteDeclined(wc, site); entry.outcome = 'cancelled'; throw new PasskeyError('NotAllowedError', 'The request was cancelled'); }
+      if (a.action === 'native') { entry.detail = 'You chose a security key or a phone'; return { fallback: true }; }
+      noteSigned(entry, a.record, a.uv);
       return await signFor(req, site, a.record, a.uv);
     } finally { drop(); }
   }
@@ -388,9 +484,9 @@ function createPasskeyService({
   // Conditional mediation: no sheet; the request waits until the person picks
   // a passkey from the list under a field marked autocomplete="webauthn"
   // (or the page aborts / leaves).
-  function getConditional(wc, req, site) {
+  function getConditional(wc, req, site, entry = {}) {
     return new Promise((resolve, reject) => {
-      const ctx = { wcId: wc.id, req, site, uvMode: req.userVerification };
+      const ctx = { wcId: wc.id, req, site, uvMode: req.userVerification, entry };
       let done = false;
       const settle = (fn, value) => {
         if (done) return;
@@ -429,6 +525,8 @@ function createPasskeyService({
     const uv = await checkUv(ctx.uvMode, pin);
     if (uv.error) return { ok: false, error: uv.error, needsPin: ctx.uvMode === 'required' || hasPin() };
     clearTimeout(ctx.expire);
+    noteAsked(ctx.entry, ctx.req, ctx.site, ctx.matches());
+    noteSigned(ctx.entry, record, uv.uv);
     try { ctx.resolve(await signFor(ctx.req, ctx.site, record, uv.uv)); return { ok: true }; }
     catch (err) { ctx.reject(err); return { ok: false, error: err.message }; }
   }
@@ -441,6 +539,93 @@ function createPasskeyService({
     const p = pending.get(wcId);
     if (p) p.cancel(new PasskeyError('AbortError', 'The page went away'));
     cancelAsks(wcId, new PasskeyError('AbortError', 'The page went away'));
+  }
+
+  // --- What the site says about its passkeys (the WebAuthn signal methods) ----
+  // PublicKeyCredential.signalUnknownCredential / signalAllAcceptedCredentials / signalCurrentUserDetails:
+  // a site telling the passkey provider that a passkey is not one it knows (a sign-in with it has just
+  // failed, or it was removed from the account), which passkeys an account still has, and what the account
+  // is called now. Discord, Google and others call them. Without them a passkey whose setup never finished
+  // at the site, or that was removed there, stays in Vex and is offered for ever, and every sign-in with it
+  // ends in the site's "an error occurred" (found 2026-11-10).
+  //
+  // What a signal may do: set a passkey ASIDE (it is not offered any more; it stays in Settings > Passkeys,
+  // where it can be offered again or deleted), bring one back, or correct an account's names. Nothing is
+  // deleted and no key changes. The page must be one the passkey belongs to (the same rp id rule as a
+  // request), and it learns nothing: the answer is the same whether or not Vex holds the passkey.
+  function normalizeSignal(raw) {
+    const bad = (m) => new PasskeyError('TypeError', m);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw bad('Invalid passkey signal');
+    if (!['unknown', 'accepted', 'details'].includes(raw.kind)) throw bad('Invalid passkey signal');
+    if (typeof raw.rpId !== 'string' || !raw.rpId || raw.rpId.length > 253) throw bad('rpId is not valid');
+    const out = { kind: raw.kind, rpId: raw.rpId };
+    if (raw.kind === 'unknown') {
+      if (!isB64u(raw.credentialId, 1400) || !raw.credentialId) throw bad('credentialId is not valid');
+      out.credentialId = raw.credentialId;
+      return out;
+    }
+    if (!isB64u(raw.userId, 128) || !raw.userId) throw bad('userId is not valid');
+    out.userId = raw.userId;
+    if (raw.kind === 'accepted') {
+      if (!Array.isArray(raw.allAcceptedCredentialIds) || raw.allAcceptedCredentialIds.length > MAX_SIGNAL_IDS) throw bad('allAcceptedCredentialIds is not valid');
+      for (const id of raw.allAcceptedCredentialIds) if (!isB64u(id, 1400) || !id) throw bad('A credential id is not valid');
+      out.accepted = raw.allAcceptedCredentialIds.slice();
+      return out;
+    }
+    if (!text(raw.name, 512) || !text(raw.displayName, 512)) throw bad('The user name is not valid');
+    out.name = raw.name;
+    out.displayName = raw.displayName;
+    return out;
+  }
+  const nameOf = (r) => r.nickname || r.userDisplayName || r.userName || 'passkey';
+
+  async function signal(event, raw) {
+    const wc = event.sender;
+    const frame = event.senderFrame;
+    if (!frame || frame !== wc.mainFrame) return { ok: true };
+    const sig = normalizeSignal(raw);
+    let site;
+    try { site = pc.resolveRpId(sig.rpId, frame.url); }
+    catch (err) { throw err instanceof PasskeyError ? err : new PasskeyError('SecurityError', err.message); }
+    // Where Vex does not answer for passkeys it does not listen about them either.
+    if (whyRefused(wc) || isLocked() || suppressedFor(site.host)) return { ok: true };
+    const all = load();
+    const mine = all.filter(r => r.rpId === site.rpId);
+    const stamp = new Date(now()).toISOString();
+    const aside = [], back = [];
+    let renamed = false;
+    if (sig.kind === 'unknown') {
+      const r = mine.find(x => x.credentialId === sig.credentialId);
+      if (r && !r.unknownAt) { r.unknownAt = stamp; aside.push(r); }
+    } else if (sig.kind === 'accepted') {
+      const ids = new Set(sig.accepted);
+      for (const r of mine) {
+        if (r.userHandle !== sig.userId) continue;
+        if (ids.has(r.credentialId)) { if (r.unknownAt) { delete r.unknownAt; back.push(r); } }
+        else if (!r.unknownAt && now() - Date.parse(r.createdAt) > SIGNAL_GRACE_MS) { r.unknownAt = stamp; aside.push(r); }
+      }
+    } else {
+      for (const r of mine) {
+        if (r.userHandle !== sig.userId || (r.userName === sig.name && r.userDisplayName === sig.displayName)) continue;
+        r.userName = sig.name;
+        r.userDisplayName = sig.displayName;
+        r.updatedAt = stamp;
+        renamed = true;
+      }
+    }
+    if (!aside.length && !back.length && !renamed) return { ok: true };
+    await save(all);
+    for (const r of aside) toast(wc, site.host + ' no longer accepts your passkey "' + nameOf(r) + '", so Vex stopped offering it there. To use a passkey on this site again, add a new one in the site’s security settings.');
+    for (const r of back) toast(wc, site.host + ' accepts your passkey "' + nameOf(r) + '" again, so Vex offers it there again.', 'info');
+    return { ok: true };
+  }
+  // Settings > Passkeys, "Offer again": the person knows better than the site's signal.
+  async function restore(credentialId) {
+    const all = load();
+    const r = all.find(x => x.credentialId === credentialId);
+    if (!r) return { ok: false, error: 'That passkey is gone' };
+    if (r.unknownAt) { delete r.unknownAt; await save(all); }
+    return { ok: true };
   }
 
   // --- Settings -------------------------------------------------------------
@@ -483,7 +668,10 @@ function createPasskeyService({
     save: async (next) => {
       const keep = load().filter(r => !r.backupEligible);
       const byId = new Map(load().map(r => [r.credentialId, r]));
-      const merged = next.map(n => ({ ...n, backupEligible: true, signCount: 0, lastUsedAt: byId.get(n.credentialId)?.lastUsedAt || null }));
+      const merged = next.map(n => {
+        const here = byId.get(n.credentialId);
+        return { ...n, backupEligible: true, signCount: 0, lastUsedAt: here?.lastUsedAt || null, ...(here?.unknownAt ? { unknownAt: here.unknownAt } : {}) };
+      });
       await save([...keep, ...merged]);
     },
   };
@@ -509,12 +697,23 @@ function createPasskeyService({
     ipcMain.handle('passkeys:conditional-choose', (_e, id, credentialId, pin) => conditionalChoose(id, credentialId, pin));
     ipcMain.handle('passkeys:answer', (_e, id, a) => answer(id, a));
     ipcMain.handle('passkeys:list', () => list());
+    ipcMain.handle('passkeys:attempts', () => attemptsList());
+    ipcMain.handle('passkeys:restore', (_e, credentialId) => restore(credentialId));
+    // A page's signal about its passkeys (preload-passkeys.js). Only a wrong site is an error the page sees.
+    ipcMain.handle('passkeys:signal', async (event, raw) => {
+      try { return await signal(event, raw); }
+      catch (err) {
+        if (err instanceof PasskeyError) return { ok: false, name: err.name, message: err.message };
+        console.error('[Passkeys] signal failed:', err && err.message);
+        return { ok: true };
+      }
+    });
     ipcMain.handle('passkeys:delete', (_e, credentialId) => remove(credentialId));
     ipcMain.handle('passkeys:undo-delete', (_e, token) => undoRemove(token));
     ipcMain.handle('passkeys:rename', (_e, credentialId, nickname) => rename(credentialId, nickname));
   }
 
-  return { register, load, save, list, remove, undoRemove, rename, syncStore, handleRequest, answer, forgetContents, conditionalList, conditionalChoose, publicView, whyRefused, validateRecord };
+  return { register, load, save, list, attemptsList, signal, restore, remove, undoRemove, rename, syncStore, handleRequest, answer, forgetContents, conditionalList, conditionalChoose, publicView, whyRefused, validateRecord };
 }
 
-module.exports = { createPasskeyService, normalizeRequest, wantsNative };
+module.exports = { createPasskeyService, normalizeRequest, wantsNative, MAX_ATTEMPTS, MAX_SIGNAL_IDS, SIGNAL_GRACE_MS, REPEAT_HINT_MS };

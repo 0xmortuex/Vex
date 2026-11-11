@@ -225,8 +225,52 @@ function vexPasskeyShim(bridge, mode) {
     return $Promise.resolve({
       conditionalCreate: false, conditionalGet: yes, hybridTransport: false, passkeyPlatformAuthenticator: yes,
       userVerifyingPlatformAuthenticator: yes, relatedOrigins: false,
-      signalAllAcceptedCredentials: false, signalCurrentUserDetails: false, signalUnknownCredential: false,
+      signalAllAcceptedCredentials: yes, signalCurrentUserDetails: yes, signalUnknownCredential: yes,
     });
+  });
+
+  // What the site says about its passkeys (WebAuthn level 3, "signal methods"): a passkey it does not know,
+  // the passkeys an account still has, the account's current names. Vex sets aside a passkey the site no
+  // longer accepts instead of offering it for ever (src/main/passkeys.js, signal). Every value is base64url
+  // text, as the specification has it. The promise resolves the same whether or not Vex holds the passkey;
+  // only a malformed call (TypeError) or a site the page may not speak for (SecurityError) rejects.
+  if (refuse) return;
+  function b64uText(value, what) {
+    if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value) || value.length % 4 === 1) {
+      throw new TypeError("Failed to read the '" + what + "' property: The provided value is not a valid base64url string.");
+    }
+    return value;
+  }
+  function signalMethod(name, build) {
+    stat(name, function (options) {
+      var msg;
+      try {
+        if (!options || typeof options !== 'object') throw new TypeError("Failed to execute '" + name + "' on 'PublicKeyCredential': 1 argument required, but only 0 present.");
+        if (typeof options.rpId !== 'string' || !options.rpId) throw new TypeError("Failed to read the 'rpId' property: Required member is undefined.");
+        msg = JSON.parse(JSON.stringify(build(options)));
+      } catch (err) { return $Promise.reject(err); }
+      return new $Promise(function (resolve, reject) {
+        var sent;
+        try { sent = bridge.signal(msg); } catch (err) { resolve(undefined); return; }
+        $Promise.resolve(sent).then(function (res) {
+          if (res && res.ok === false && res.name === 'SecurityError') reject(fail('SecurityError', res.message || 'The relying party id is not valid for this page'));
+          else resolve(undefined);
+        }, function () { resolve(undefined); });
+      });
+    });
+  }
+  signalMethod('signalUnknownCredential', function (o) {
+    return { kind: 'unknown', rpId: o.rpId, credentialId: b64uText(o.credentialId, 'credentialId') };
+  });
+  signalMethod('signalAllAcceptedCredentials', function (o) {
+    var list = o.allAcceptedCredentialIds;
+    if (!list || typeof list.length !== 'number') throw new TypeError("Failed to read the 'allAcceptedCredentialIds' property: The provided value cannot be converted to a sequence.");
+    var ids = [];
+    for (var i = 0; i < list.length; i++) ids.push(b64uText(list[i], 'allAcceptedCredentialIds'));
+    return { kind: 'accepted', rpId: o.rpId, userId: b64uText(o.userId, 'userId'), allAcceptedCredentialIds: ids };
+  });
+  signalMethod('signalCurrentUserDetails', function (o) {
+    return { kind: 'details', rpId: o.rpId, userId: b64uText(o.userId, 'userId'), name: String(o.name), displayName: String(o.displayName) };
   });
 }
 
@@ -318,6 +362,7 @@ function vexPasskeyShim(bridge, mode) {
       });
     },
     cancel: (id) => { ipcRenderer.send('passkeys:cancel', String(id)); conditional.delete(String(id)); hideChooser(); },
+    signal: (msg) => ipcRenderer.invoke('passkeys:signal', msg),
   };
   try { contextBridge.executeInMainWorld({ func: vexPasskeyShim, args: [bridge, mode] }); }
   catch (err) { console.error('[Vex passkeys] could not install:', err && err.message); }

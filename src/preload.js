@@ -1255,6 +1255,10 @@ contextBridge.exposeInMainWorld('vex', {
   // never does.
   passkeysAnswer: (id, answer) => ipcRenderer.invoke('passkeys:answer', id, answer),
   passkeysList: () => ipcRenderer.invoke('passkeys:list'),
+  // What happened to the last passkey requests: sites, times and names only (memory, this run of Vex).
+  passkeysAttempts: () => ipcRenderer.invoke('passkeys:attempts'),
+  // Offer again a passkey the site said it no longer accepts.
+  passkeysRestore: (credentialId) => ipcRenderer.invoke('passkeys:restore', credentialId),
   passkeysDelete: (credentialId) => ipcRenderer.invoke('passkeys:delete', credentialId),
   passkeysUndoDelete: (token) => ipcRenderer.invoke('passkeys:undo-delete', token),
   passkeysRename: (credentialId, nickname) => ipcRenderer.invoke('passkeys:rename', credentialId, nickname),

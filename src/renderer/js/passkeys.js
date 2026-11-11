@@ -104,10 +104,17 @@
         <span class="pk-row-icon">${icon('key', 18)}</span>
         <span class="pk-row-text"><span class="pk-row-name">${esc(displayName(a))}</span><span class="pk-dim">${esc(a.userName)} · last used ${esc(when(a.lastUsedAt || a.createdAt))}</span></span>
       </label>`).join('');
+    // Vex holds a passkey for the site and still offers none: say which case it is,
+    // or "no passkey here" contradicts Settings › Passkeys.
+    const names = (list) => list.map(a => esc(displayName(a))).join(', ');
+    let none = `You have no passkey for ${site} on this device. You can use a security key or your phone, or sign in another way.`;
+    if ((p.setAside || []).length) none = `${site} no longer accepts the passkey Vex holds for it (${names(p.setAside)}), so Vex does not offer it. Sign in another way, then add a new passkey in the site’s security settings.`;
+    else if ((p.unlisted || []).length) none = `${site} did not ask for the passkey Vex holds for it (${names(p.unlisted)}). It may have been removed from your account there, belong to another account, or its setup never finished. Sign in another way, then add a passkey again in the site’s security settings.`;
     return {
       title: 'Sign in with a passkey',
-      body: `<div class="vex-dialog-msg">${accounts.length ? `Choose the passkey to sign in to ${site} with.` : `You have no passkey for ${site} on this device. You can use a security key or your phone, or sign in another way.`}</div>
+      body: `<div class="vex-dialog-msg">${accounts.length ? `Choose the passkey to sign in to ${site} with.` : none}</div>
         ${accounts.length ? `<div class="pk-rows" role="radiogroup" aria-label="Passkeys for ${esc(p.host)}">${rows}</div>` : ''}
+        ${accounts.length && p.repeat ? `<div class="pk-note pk-repeat" role="alert">${icon('warning', 15)}<span>Vex signed in here${p.repeat.name ? ` with “${esc(p.repeat.name)}”` : ''} ${p.repeat.secondsAgo < 90 ? esc(p.repeat.secondsAgo) + ' seconds' : 'a couple of minutes'} ago and the site is asking again. If the site showed an error, it is refusing this passkey: choose “Use a different method”, then add a new passkey in the site’s security settings.</span></div>` : ''}
         ${accounts.length ? pinBlock(p) : ''}
         <div class="pk-error" id="pk-error" role="alert"></div>`,
       actions: `<button class="vex-dialog-btn" data-pk="native" style="margin-right:auto">Use a security key or phone</button>
@@ -322,8 +329,9 @@
     host.innerHTML = [...bySite].map(([site, items]) => `<div class="pk-site"><div class="pk-site-name">${esc(items[0].rpName && items[0].rpName !== site ? items[0].rpName + ' · ' : '')}${esc(site)}</div>
       ${items.map(p => `<div class="pk-item" data-id="${esc(p.credentialId)}" data-search="${esc([p.rpId, p.rpName, p.userName, p.userDisplayName, p.nickname].filter(Boolean).join(' ').toLowerCase())}">
         <span class="pk-row-icon">${icon('key', 18)}</span>
-        <span class="pk-row-text"><span class="pk-row-name">${esc(displayName(p))}</span><span class="pk-dim">${esc(p.userName)} · created ${esc(when(p.createdAt))} · last used ${esc(when(p.lastUsedAt))} · ${p.deviceOnly ? 'this device only' : 'synced'}</span></span>
+        <span class="pk-row-text"><span class="pk-row-name">${esc(displayName(p))}</span><span class="pk-dim">${esc(p.userName)} · created ${esc(when(p.createdAt))} · last used ${esc(when(p.lastUsedAt))} · ${p.deviceOnly ? 'this device only' : 'synced'}</span>${p.setAside ? `<span class="pk-aside">The site said on ${esc(when(p.setAsideAt))} that it no longer accepts this passkey, so Vex does not offer it.</span>` : ''}</span>
         <span class="pk-item-actions">
+          ${p.setAside ? '<button type="button" class="btn-secondary" data-act="restore">Offer again</button>' : ''}
           <button type="button" class="btn-secondary" data-act="details">Details</button>
           <button type="button" class="btn-secondary" data-act="rename">Rename</button>
           <button type="button" class="btn-danger" data-act="delete">Delete</button>
@@ -359,7 +367,13 @@
     if (!item) return;
     if (act === 'details') {
       await vexAlert({ title: displayName(item), message:
-        `Site: ${item.rpId}\nAccount: ${item.userName}${item.userDisplayName && item.userDisplayName !== item.userName ? ' (' + item.userDisplayName + ')' : ''}\nCreated: ${when(item.createdAt)}\nLast used: ${when(item.lastUsedAt)}\nStored: ${item.deviceOnly ? 'on this device only' : 'synced through Vex Sync'}\nKey: ES256 (P-256), never leaves Vex\nPasskey ID: ${item.credentialId.slice(0, 12)}…` });
+        `Site: ${item.rpId}\nAccount: ${item.userName}${item.userDisplayName && item.userDisplayName !== item.userName ? ' (' + item.userDisplayName + ')' : ''}\nCreated: ${when(item.createdAt)}\nLast used: ${when(item.lastUsedAt)}\nStored: ${item.deviceOnly ? 'on this device only' : 'synced through Vex Sync'}\nKey: ES256 (P-256), never leaves Vex\nPasskey ID: ${item.credentialId.slice(0, 12)}…${item.setAside ? `\nNot offered: the site said on ${when(item.setAsideAt)} that it no longer accepts it` : ''}` });
+    } else if (act === 'restore') {
+      let r;
+      try { r = await window.vex.passkeysRestore(id); } catch (err) { toast('Could not offer it again: ' + err.message, 'error'); return; }
+      if (!r || !r.ok) { toast((r && r.error) || 'Could not offer that passkey again', 'error'); return; }
+      await refresh();
+      toast(`Vex offers the passkey for ${item.userName} on ${item.rpId} again. If the site still refuses it, add a new passkey in the site’s security settings.`);
     } else if (act === 'rename') {
       const name = await vexPrompt({ title: 'Rename passkey', label: 'Name', value: displayName(item), okLabel: 'Rename' });
       if (name === null) return;
@@ -375,6 +389,34 @@
       if (offer) offer({ message, undo: async () => { const u = await window.vex.passkeysUndoDelete(r.undo); if (!u || !u.ok) throw new Error((u && u.error) || 'Could not undo'); await refresh(); } });
       else toast(message);
     }
+  }
+
+  // --- Recent passkey requests (Settings › Passkeys) ---------------------------
+  // A site that refuses a passkey says only "an error occurred". This is the half
+  // Vex saw: what the site asked for and what Vex answered (main/passkeys.js keeps
+  // it in memory for this run of Vex only).
+  function attemptLine(a) {
+    const named = a.asked ? `the site named ${a.asked} passkey${VexPlural.s(a.asked)} (${a.matched} in Vex)` : 'the site named no passkey';
+    if (a.outcome === 'signed') return `Vex signed in with “${a.name || 'a passkey'}” · ${named}${a.uv ? ' · PIN checked' : ''}`;
+    if (a.outcome === 'created') return `Passkey made for ${a.name || 'the account'}${a.uv ? ' · PIN checked' : ''}`;
+    if (a.outcome === 'cancelled') return a.op === 'create' ? 'You did not save a passkey' : `You cancelled${a.op === 'get' && a.asked !== undefined ? ' · ' + named : ''}`;
+    if (a.outcome === 'native') return 'Left to a security key or a phone' + (a.detail ? ` · ${a.detail}` : '');
+    if (a.outcome === 'aborted') return 'The page ended the request';
+    return 'Not answered' + (a.detail ? `: ${a.detail}` : '');
+  }
+  function attemptTime(iso) {
+    const t = Date.parse(iso || '');
+    return Number.isFinite(t) ? new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+  }
+  async function showAttempts(box) {
+    const host = box.querySelector('.pk-attempts-list');
+    if (!host) return;
+    let list;
+    try { list = await window.vex.passkeysAttempts(); }
+    catch (err) { host.innerHTML = `<div class="pk-empty">${esc(/locked/i.test(err.message) ? 'Unlock Vex to see them.' : 'They could not be read: ' + err.message)}</div>`; return; }
+    if (!list.length) { host.innerHTML = '<div class="pk-empty">No site has asked for a passkey since Vex started.</div>'; return; }
+    host.innerHTML = list.map(a => `<div class="pk-attempt"><span class="pk-attempt-when">${esc(attemptTime(a.at))}</span><span class="pk-attempt-site">${esc(a.host || a.rpId)}</span><span class="pk-attempt-what">${esc(attemptLine(a))}</span></div>`).join('')
+      + (list.some(a => a.outcome === 'signed') ? '<div class="pk-dim pk-attempts-note">If a site still showed an error after Vex signed in, the site refused the passkey: it may have been removed from your account there. Sign in another way and add a new passkey in the site’s security settings.</div>' : '');
   }
 
   async function syncState() {
@@ -395,8 +437,11 @@
       <div class="pk-dim pk-sync-note" id="pk-sync-note">Passkeys made while this is off stay on this device. Passkeys cannot be exported.</div>
       <input type="search" class="pk-search" placeholder="Search passkeys" aria-label="Search passkeys" autocomplete="off" style="display:none">
       <div class="pk-list" aria-live="polite"></div>
+      ${typeof window.vex.passkeysAttempts === 'function' ? '<details class="pk-attempts"><summary>Recent passkey requests</summary><div class="pk-dim pk-attempts-intro">What sites asked for and what Vex answered, since Vex started. Kept in memory only; nothing from private or Tor tabs.</div><div class="pk-attempts-list"></div></details>' : ''}
       <div class="setting-info muted pk-limits">Limits: sites that insist on a passkey from one particular security-key model (some company and bank sign-ins) will not accept Vex. Hardware security keys and phones still work through the browser's own dialog (choose "Use a security key or phone"). Sign-in pop-up windows and embedded frames do not use Vex passkeys yet. Never offered on private or Tor tabs.</div>`;
     box.addEventListener('input', (e) => { if (e.target.classList && e.target.classList.contains('pk-search')) filterList(); });
+    const attempts = box.querySelector('.pk-attempts');
+    if (attempts) attempts.addEventListener('toggle', () => { if (attempts.open) showAttempts(box).catch(err => console.error('[Passkeys] the recent requests could not be shown:', err)); });
     box.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (!b) return;
