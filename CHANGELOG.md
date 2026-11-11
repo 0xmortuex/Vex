@@ -1,6 +1,6 @@
 # Changelog
 
-## v57.87.5 (2026-11-11) — 2FA codes that work with a wrong PC clock, passkeys that hear a site say no, and fewer freezes
+## v57.88.5 (2026-11-11) — 2FA codes that work with a wrong PC clock, passkeys that hear a site say no, and fewer freezes
 
 This release is about signing in. A 2FA code is made from the time, so a PC clock that was 19 seconds fast made a site refuse every code, and nothing said why. Vex now checks the clock, corrects the codes while it is wrong and tells you. Passkeys now listen when a site says it no longer accepts one, instead of offering it for ever, and Settings shows what each site asked for and what Vex answered. A likely cause of whole-browser freezes of two to five seconds is removed. One thing here reaches the internet by itself: the clock check, a single request with no cookies to detectportal.firefox.com when the Authenticator shows or fills a code. It has a switch in Settings › Autofill, and the privacy policy lists it.
 
@@ -19,7 +19,7 @@ This release is about signing in. A 2FA code is made from the time, so a PC cloc
 ### Fixed
 - **A likely cause of freezes of two to five seconds.** The "This time yesterday" lines of the Morning Brief read the whole Time travel journal six times over, about 200 ms of work and hundreds of megabytes of short-lived memory on a journal of a few weeks, and Vex could freeze behind it when memory was short. A moment is now one small read (16 ms on the same journal). A journal that has reached its 30 days is also no longer rewritten in full about once a minute.
 - **A passkey could be refused after an older copy of the passkey file came back.** A passkey that stays on this device reports a counter that must only rise. After a restored backup the counter was lower than the site remembered, and a site that checks it refused every sign-in until it had caught up. The counter is now never behind the clock.
-- **"Could not free the graphics card" at every game start.** With Ollama closed there is nothing of Vex's on the graphics card to free, yet every game start reported it as a problem (173 times in three days on one PC). It is now treated as what it is: nothing to free. An Ollama that is running and does not answer is still reported.
+- **"Could not free the graphics card" at every game start.** With Ollama closed there is nothing of Vex's on the graphics card to free, yet every game start reported it as a problem (173 times in three days on one PC). It is now treated as what it is: nothing to free. An Ollama that is running but slow to answer at a game start (23 times on the same PC) is asked once more, so its model is unloaded instead of staying on the card for the whole game; if it still does not answer, that is reported.
 - **"1 tabs were open".** The Morning Brief's "This time yesterday" line now says "1 tab was open" for one tab.
 - **"Could not join the Morning Brief" at every start.** Autopilot looked for the Morning Brief before the brief had loaded and reported a problem each time, although it joined a moment later. Nothing is reported now, and it still joins.
 
