@@ -74,6 +74,20 @@ describe('the sign-in sheet when the site asks again right after a sign-in', () 
     expect(note.querySelector('hex')).toBeNull();
     expect(document.querySelector('#vex-passkey-sheet [data-pk="use"]')).toBeTruthy();
   });
+  it('after a sign-in made without the Vex PIN, asks for the PIN this time and puts the cursor in it', async () => {
+    const l = await load();
+    l.ask(ask({ accounts: [held()], uv: 'optional', hasPin: true, repeat: { name: 'vesperhex', secondsAgo: 20, withoutPin: true } }));
+    expect(document.querySelector('#vex-passkey-sheet .pk-repeat').textContent).toBe('Vex signed in here with “vesperhex” 20 seconds ago without your Vex PIN and the site is asking again. Some sites refuse a passkey sign-in that was not verified: enter your Vex PIN this time.');
+    expect(document.activeElement.id).toBe('pk-pin');
+    expect(document.querySelector('label[for="pk-pin"]').textContent).toBe('Vex PIN (optional, but some sites refuse a sign-in without it)');
+  });
+  it('the cursor starts in the PIN field on any sign-in that shows one, and in the list when there is none', async () => {
+    const l = await load();
+    l.ask(ask({ accounts: [held()], uv: 'optional', hasPin: true, repeat: null }));
+    expect(document.activeElement.id).toBe('pk-pin');
+    l.ask(ask({ accounts: [held()], uv: 'none', hasPin: false, repeat: null }));
+    expect(document.activeElement.name).toBe('pk-account');
+  });
   it('says nothing on an ordinary sign-in', async () => {
     const l = await load();
     l.ask(ask({ accounts: [held()], repeat: null }));
@@ -122,7 +136,7 @@ describe('recent passkey requests', () => {
     expect(vexApi.passkeysAttempts).not.toHaveBeenCalled();
     vexApi._attempts = [
       { at: '2026-11-10T16:05:58Z', op: 'get', host: 'discord.com', rpId: 'discord.com', outcome: 'signed', detail: '', asked: 2, saved: 1, matched: 1, uv: true, credential: 'RP20zeO2', name: 'vesperhex', signCount: 22 },
-      { at: '2026-11-10T16:05:30Z', op: 'get', host: 'discord.com', rpId: 'discord.com', outcome: 'signed', detail: '', asked: 0, saved: 1, matched: 1, uv: false, credential: 'RP20zeO2', name: 'vesperhex', signCount: 21 },
+      { at: '2026-11-10T16:05:30Z', op: 'get', host: 'discord.com', rpId: 'discord.com', outcome: 'signed', detail: '', uvAsked: 'preferred', asked: 0, saved: 1, matched: 1, uv: false, credential: 'RP20zeO2', name: 'vesperhex', signCount: 21 },
       { at: '2026-11-10T16:04:00Z', op: 'get', host: 'github.com', rpId: 'github.com', outcome: 'cancelled', detail: 'The request was cancelled', asked: 1, saved: 2, matched: 1 },
       { at: '2026-11-10T16:03:00Z', op: 'get', host: 'bank.example', rpId: 'bank.example', outcome: 'native', detail: 'The site asked for a security key or a phone' },
       { at: '2026-11-10T16:02:00Z', op: 'create', host: 'x.com', rpId: 'x.com', outcome: 'created', detail: '', name: 'ada', uv: false, credential: 'abcdefgh' },
@@ -134,7 +148,7 @@ describe('recent passkey requests', () => {
     const what = [...document.querySelectorAll('.pk-attempt')].map(r => r.querySelector('.pk-attempt-site').textContent + ' | ' + r.querySelector('.pk-attempt-what').textContent);
     expect(what).toEqual([
       'discord.com | Vex signed in with “vesperhex” · the site named 2 passkeys (1 in Vex) · PIN checked',
-      'discord.com | Vex signed in with “vesperhex” · the site named no passkey',
+      'discord.com | Vex signed in with “vesperhex” · the site named no passkey · without your Vex PIN (the site prefers it)',
       'github.com | You cancelled · the site named 1 passkey (1 in Vex)',
       'bank.example | Left to a security key or a phone · The site asked for a security key or a phone',
       'x.com | Passkey made for ada',
@@ -158,5 +172,51 @@ describe('recent passkey requests', () => {
     vexApi._attempts = [{ at: '2026-11-10T16:05:58Z', op: 'get', host: '<img src=x onerror=1>', rpId: 'x', outcome: 'signed', detail: '', asked: 0, matched: 1, name: '<i>n</i>' }];
     await open();
     expect(document.querySelector('.pk-attempts-list img, .pk-attempts-list i')).toBeNull();
+  });
+});
+
+describe('the sheet in Turkish', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const loadI18n = () => { const file = require.resolve('../../src/renderer/js/i18n.js'); delete require.cache[file]; require(file); };
+  const withTurkish = async (fn) => {
+    const l = await load();
+    loadI18n();
+    localStorage.setItem('vex.lang', 'tr');
+    try { await fn(l); } finally { delete window.VexI18n; }
+  };
+  const msg = () => document.querySelector('#vex-passkey-sheet .vex-dialog-msg').textContent;
+
+  it('says its sentences in Turkish, with the site and the names in place and still escaped', async () => {
+    await withTurkish(async (l) => {
+      l.ask(ask({ accounts: [held()] }));
+      expect(msg()).toBe('discord.com sitesinde oturum açmak için kullanılacak geçiş anahtarını seçin.');
+      l.ask(ask());
+      expect(msg()).toMatch(/^Bu cihazda discord\.com için geçiş anahtarınız yok\./);
+      l.ask(ask({ setAside: [held({ nickname: 'Eski <b>anahtar</b>', setAside: true })] }));
+      expect(msg()).toBe('discord.com, Vex’in onun için tuttuğu geçiş anahtarını (Eski <b>anahtar</b>) artık kabul etmiyor; bu yüzden Vex onu önermiyor. Başka bir yolla oturum açın, sonra sitenin güvenlik ayarlarından yeni bir geçiş anahtarı ekleyin.');
+      expect(document.querySelector('#vex-passkey-sheet .vex-dialog-msg b')).toBeNull();
+      l.ask(ask({ accounts: [held()], uv: 'optional', hasPin: true, repeat: { name: 'vesperhex', secondsAgo: 20, withoutPin: true } }));
+      expect(document.querySelector('#vex-passkey-sheet .pk-repeat').textContent).toBe('Vex burada 20 saniye önce Vex PIN’iniz olmadan “vesperhex” ile oturum açtı ve site yeniden soruyor. Bazı siteler doğrulanmamış bir geçiş anahtarı oturumunu reddeder: bu kez Vex PIN’inizi girin.');
+      l.ask({ id: 'a9', kind: 'create', host: 'discord.com', rpId: 'discord.com', rpName: 'Discord', userName: 'ada', userDisplayName: 'Ada', existing: [], replaces: null, uv: 'none', hasPin: false, syncOn: false });
+      expect(document.querySelector('#pk-title').textContent).toBe('Discord için bir geçiş anahtarı kaydedilsin mi?');
+      expect(msg()).toMatch(/^Discord discord\.com sitesinde ada olarak parolasız oturum açın\./);
+    });
+  });
+
+  it('every sentence has the same English in the sheet and in the table, and a Turkish one with the same holes', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/passkeys.js'), 'utf8');
+    loadI18n();
+    try {
+      const { strings } = window.VexI18n;
+      const said = [...src.matchAll(/say\('(\w+)', '((?:[^'\\]|\\.)*)'/g)].map(m => [m[1], m[2]]);
+      expect(said.length).toBeGreaterThanOrEqual(13);
+      const holes = (s) => (s.match(/\{\w+\}/g) || []).sort().join(' ');
+      for (const [key, fallback] of said) {
+        expect(strings.en[key], key).toBe(fallback);
+        expect(typeof strings.tr[key], key).toBe('string');
+        expect(holes(strings.tr[key]), key).toBe(holes(fallback));
+      }
+    } finally { delete window.VexI18n; }
   });
 });

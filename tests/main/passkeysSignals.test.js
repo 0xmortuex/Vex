@@ -38,6 +38,8 @@ function setup(over = {}) {
     atomicWrite: async (f, bytes) => fs.promises.writeFile(f, bytes),
     userDataPath: dir,
     isLocked: () => state.locked,
+    hasPin: () => state.pin != null,
+    verifyPin: async (p) => (p === state.pin ? { ok: true } : { ok: false, error: 'Wrong PIN' }),
     ownerOf: () => ({ win, privatePartition: state.privateWindow ? 'private:1' : null }),
     partitionOf: () => state.partition,
     suppressedFor: () => state.suppressed,
@@ -209,7 +211,34 @@ describe('a site that asks again right after Vex signed in', () => {
     expect(h.state.asks[0].repeat).toBeNull();
     h.state.clock += 28 * 1000;
     await h.svc.handleRequest(h.event(), getReq());
-    expect(h.state.asks[1].repeat).toEqual({ name: 'Work laptop', secondsAgo: 28 });
+    expect(h.state.asks[1].repeat).toEqual({ name: 'Work laptop', secondsAgo: 28, withoutPin: false });
+  });
+  // The owner of the profile this was found in has a Vex PIN. Where a site only prefers verification the PIN
+  // is optional, and a sign-in made without it is one a site may refuse: the likeliest reason for being asked twice.
+  it('says when that sign-in was made without the Vex PIN on a site that prefers verification', async () => {
+    const h = await withPasskey();
+    h.state.pin = '2468';
+    use(h);                                                       // no PIN typed
+    await h.svc.handleRequest(h.event(), getReq());
+    h.state.clock += 20 * 1000;
+    await h.svc.handleRequest(h.event(), getReq());
+    expect(h.state.asks[1].repeat).toMatchObject({ withoutPin: true, secondsAgo: 20 });
+    expect(h.state.asks[1]).toMatchObject({ uv: 'optional', hasPin: true });
+  });
+  it('not when the PIN was typed, and not when there is no PIN to type', async () => {
+    const h = await withPasskey();
+    h.state.pin = '2468';
+    h.state.answer = (p) => ({ action: 'use', credentialId: p.accounts[0].credentialId, pin: '2468' });
+    await h.svc.handleRequest(h.event(), getReq());
+    h.state.clock += 20 * 1000;
+    await h.svc.handleRequest(h.event(), getReq());
+    expect(h.state.asks[1].repeat.withoutPin).toBe(false);
+    const none = await withPasskey();
+    use(none);
+    await none.svc.handleRequest(none.event(), getReq());
+    none.state.clock += 20 * 1000;
+    await none.svc.handleRequest(none.event(), getReq());
+    expect(none.state.asks[1].repeat.withoutPin).toBe(false);
   });
   it('not after two minutes, not after a cancel, and not for another site\'s sign-in', async () => {
     const h = await withPasskey();
@@ -235,7 +264,7 @@ describe('the record of recent requests', () => {
     const res = await h.svc.handleRequest(h.event(), req);
     const list = h.svc.attemptsList();
     expect(list[0]).toEqual({ at: new Date(h.state.clock).toISOString(), op: 'get', host: 'login.example.com', rpId: 'example.com', outcome: 'signed', detail: '',
-      asked: 2, saved: 1, matched: 1, uv: false, credential: h.id.slice(0, 8), name: 'Work laptop', signCount: Math.floor(h.state.clock / 1000) });
+      uvAsked: 'preferred', asked: 2, saved: 1, matched: 1, uv: false, credential: h.id.slice(0, 8), name: 'Work laptop', signCount: Math.floor(h.state.clock / 1000) });
     expect(list[1]).toMatchObject({ op: 'create', outcome: 'created', name: 'Work laptop', credential: h.id.slice(0, 8) });
     const text = JSON.stringify(list);
     for (const secret of [req.publicKey.challenge, res.credential.signature, h.svc.load()[0].privateKeyPkcs8, h.id]) expect(text).not.toContain(secret);

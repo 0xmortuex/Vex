@@ -26,6 +26,13 @@
     return new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
   const displayName = (a) => a.nickname || a.userDisplayName || a.userName || 'Passkey';
+  // A sentence of the sheet in the language Vex is in (js/i18n.js holds both), with its {holes} filled. The values
+  // are HTML that is already escaped; the sentences are Vex's own text.
+  function say(key, fallback, vars) {
+    let s = (window.VexI18n && typeof window.VexI18n.t === 'function' && window.VexI18n.t(key, fallback)) || fallback;
+    for (const [k, v] of Object.entries(vars || {})) s = s.split('{' + k + '}').join(String(v));
+    return s;
+  }
 
   // "Never for this site": the same list Settings › Privacy shows as the sites
   // where Vex does not offer passkeys (main reads it as 'vex.passkeySuppressedHosts').
@@ -70,24 +77,28 @@
       return `<div class="pk-note" role="alert">${icon('lock', 15)}<span>This site wants you to verify it is you. Set a Vex PIN in Settings, then try again. <button type="button" class="pk-link" data-pk-settings>Open Settings</button></span></div>`;
     }
     const need = p.uv === 'required';
-    return `<label class="vex-dialog-label" for="pk-pin">${need ? 'Vex PIN' : 'Vex PIN (optional)'}</label>
+    // Optional only where the site merely prefers it; said plainly, because a sign-in made without it is one some
+    // sites refuse with nothing but "an error occurred".
+    return `<label class="vex-dialog-label" for="pk-pin">${need ? 'Vex PIN' : 'Vex PIN (optional, but some sites refuse a sign-in without it)'}</label>
       <input class="vex-dialog-input" id="pk-pin" type="password" maxlength="128" autocomplete="off" aria-describedby="pk-error"${need ? ' aria-required="true"' : ''}>`;
   }
 
   function sheetHtml(p) {
     const site = `<strong>${esc(p.rpName || p.host)}</strong>${p.rpName && p.rpName !== p.host ? ` <span class="pk-host">${esc(p.host)}</span>` : ''}`;
     if (p.kind === 'exists') {
-      return { title: 'You already have a passkey here', body: `<div class="vex-dialog-msg">A passkey for ${esc(p.userName)} on ${site} is already on this device, so Vex did not make another.</div>`, actions: '<button class="vex-dialog-btn primary" data-pk="ok">OK</button>' };
+      return { title: 'You already have a passkey here', body: `<div class="vex-dialog-msg">${say('pkExists', 'A passkey for {user} on {site} is already on this device, so Vex did not make another.', { user: esc(p.userName), site })}</div>`, actions: '<button class="vex-dialog-btn primary" data-pk="ok">OK</button>' };
     }
     if (p.kind === 'create') {
       const others = (p.existing || []).filter(e => !p.replaces || e.credentialId !== p.replaces.credentialId);
       const blocked = p.uv === 'required' && !p.hasPin;
       return {
-        title: `Save a passkey for ${esc(p.rpName || p.host)}?`,
-        body: `<div class="vex-dialog-msg">Sign in to ${site} as <strong>${esc(p.userName)}</strong> without a password. The passkey is kept encrypted in Vex on this device${p.syncOn ? ' and syncs end-to-end encrypted through Vex Sync' : ' only'}.</div>
+        title: say('pkCreateTitle', 'Save a passkey for {site}?', { site: esc(p.rpName || p.host) }),
+        body: `<div class="vex-dialog-msg">${p.syncOn
+          ? say('pkCreateSync', 'Sign in to {site} as <strong>{user}</strong> without a password. The passkey is kept encrypted in Vex on this device and syncs end-to-end encrypted through Vex Sync.', { site, user: esc(p.userName) })
+          : say('pkCreate', 'Sign in to {site} as <strong>{user}</strong> without a password. The passkey is kept encrypted in Vex on this device only.', { site, user: esc(p.userName) })}</div>
           <label class="vex-dialog-label" for="pk-name">Name</label>
           <input class="vex-dialog-input" id="pk-name" maxlength="80" value="${esc(p.userDisplayName || p.userName)}" autocomplete="off">
-          ${p.replaces ? `<div class="pk-note">${icon('refresh', 15)}<span>This replaces the passkey you made for this account on ${esc(when(p.replaces.createdAt))}.</span></div>` : ''}
+          ${p.replaces ? `<div class="pk-note">${icon('refresh', 15)}<span>${say('pkReplaces', 'This replaces the passkey you made for this account on {date}.', { date: esc(when(p.replaces.createdAt)) })}</span></div>` : ''}
           ${others.length ? `<div class="pk-existing"><div class="pk-existing-title">Passkeys you already have here</div>${others.map(o => `<div class="pk-existing-row">${icon('key', 14)}<span>${esc(displayName(o))}</span><span class="pk-dim">${esc(o.userName)}</span></div>`).join('')}</div>` : ''}
           ${pinBlock(p)}
           <div class="pk-error" id="pk-error" role="alert"></div>`,
@@ -102,19 +113,31 @@
     const rows = accounts.map((a, i) => `<label class="pk-row">
         <input type="radio" name="pk-account" value="${esc(a.credentialId)}"${i === 0 ? ' checked' : ''}>
         <span class="pk-row-icon">${icon('key', 18)}</span>
-        <span class="pk-row-text"><span class="pk-row-name">${esc(displayName(a))}</span><span class="pk-dim">${esc(a.userName)} · last used ${esc(when(a.lastUsedAt || a.createdAt))}</span></span>
+        <span class="pk-row-text"><span class="pk-row-name">${esc(displayName(a))}</span><span class="pk-dim">${say('pkLastUsed', '{user} · last used {date}', { user: esc(a.userName), date: esc(when(a.lastUsedAt || a.createdAt)) })}</span></span>
       </label>`).join('');
     // Vex holds a passkey for the site and still offers none: say which case it is,
     // or "no passkey here" contradicts Settings › Passkeys.
     const names = (list) => list.map(a => esc(displayName(a))).join(', ');
-    let none = `You have no passkey for ${site} on this device. You can use a security key or your phone, or sign in another way.`;
-    if ((p.setAside || []).length) none = `${site} no longer accepts the passkey Vex holds for it (${names(p.setAside)}), so Vex does not offer it. Sign in another way, then add a new passkey in the site’s security settings.`;
-    else if ((p.unlisted || []).length) none = `${site} did not ask for the passkey Vex holds for it (${names(p.unlisted)}). It may have been removed from your account there, belong to another account, or its setup never finished. Sign in another way, then add a passkey again in the site’s security settings.`;
+    let none = say('pkNone', 'You have no passkey for {site} on this device. You can use a security key or your phone, or sign in another way.', { site });
+    if ((p.setAside || []).length) none = say('pkNoneAside', '{site} no longer accepts the passkey Vex holds for it ({names}), so Vex does not offer it. Sign in another way, then add a new passkey in the site’s security settings.', { site, names: names(p.setAside) });
+    else if ((p.unlisted || []).length) none = say('pkNoneUnlisted', '{site} did not ask for the passkey Vex holds for it ({names}). It may have been removed from your account there, belong to another account, or its setup never finished. Sign in another way, then add a passkey again in the site’s security settings.', { site, names: names(p.unlisted) });
+    // The site asked again right after a sign-in: which of the four sentences applies (seconds or minutes, with or without the PIN).
+    let again = '';
+    if (accounts.length && p.repeat) {
+      const pin = p.repeat.withoutPin && p.uv !== 'none' && p.hasPin;
+      const soon = p.repeat.secondsAgo < 90;
+      const vars = { name: esc(p.repeat.name || displayName(accounts[0])), n: esc(p.repeat.secondsAgo) };
+      again = pin
+        ? (soon ? say('pkRepeatPinSec', 'Vex signed in here with “{name}” {n} seconds ago without your Vex PIN and the site is asking again. Some sites refuse a passkey sign-in that was not verified: enter your Vex PIN this time.', vars)
+          : say('pkRepeatPinMin', 'Vex signed in here with “{name}” a couple of minutes ago without your Vex PIN and the site is asking again. Some sites refuse a passkey sign-in that was not verified: enter your Vex PIN this time.', vars))
+        : (soon ? say('pkRepeatSec', 'Vex signed in here with “{name}” {n} seconds ago and the site is asking again. If the site showed an error, it is refusing this passkey: choose “Use a different method”, then add a new passkey in the site’s security settings.', vars)
+          : say('pkRepeatMin', 'Vex signed in here with “{name}” a couple of minutes ago and the site is asking again. If the site showed an error, it is refusing this passkey: choose “Use a different method”, then add a new passkey in the site’s security settings.', vars));
+    }
     return {
       title: 'Sign in with a passkey',
-      body: `<div class="vex-dialog-msg">${accounts.length ? `Choose the passkey to sign in to ${site} with.` : none}</div>
+      body: `<div class="vex-dialog-msg">${accounts.length ? say('pkChoose', 'Choose the passkey to sign in to {site} with.', { site }) : none}</div>
         ${accounts.length ? `<div class="pk-rows" role="radiogroup" aria-label="Passkeys for ${esc(p.host)}">${rows}</div>` : ''}
-        ${accounts.length && p.repeat ? `<div class="pk-note pk-repeat" role="alert">${icon('warning', 15)}<span>Vex signed in here${p.repeat.name ? ` with “${esc(p.repeat.name)}”` : ''} ${p.repeat.secondsAgo < 90 ? esc(p.repeat.secondsAgo) + ' seconds' : 'a couple of minutes'} ago and the site is asking again. If the site showed an error, it is refusing this passkey: choose “Use a different method”, then add a new passkey in the site’s security settings.</span></div>` : ''}
+        ${again ? `<div class="pk-note pk-repeat" role="alert">${icon('warning', 15)}<span>${again}</span></div>` : ''}
         ${accounts.length ? pinBlock(p) : ''}
         <div class="pk-error" id="pk-error" role="alert"></div>`,
       actions: `<button class="vex-dialog-btn" data-pk="native" style="margin-right:auto">Use a security key or phone</button>
@@ -196,7 +219,8 @@
       }
       if (e.key === 'Tab' && window.VexFocusTrap) VexFocusTrap.onTab(e, overlay.firstElementChild);
     });
-    const first = overlay.querySelector('#pk-pin') && p.uv === 'required' ? overlay.querySelector('#pk-pin')
+    // On a sign-in the PIN field comes first whenever it is there: typing it is the path that works everywhere.
+    const first = overlay.querySelector('#pk-pin') && (p.uv === 'required' || p.kind === 'get') ? overlay.querySelector('#pk-pin')
       // With no passkey to choose (a site that has none here) there is no primary
       // button either; the focus still goes into the sheet, on the safe answer,
       // or Escape and Tab would act on the page behind it.
@@ -397,7 +421,7 @@
   // it in memory for this run of Vex only).
   function attemptLine(a) {
     const named = a.asked ? `the site named ${a.asked} passkey${VexPlural.s(a.asked)} (${a.matched} in Vex)` : 'the site named no passkey';
-    if (a.outcome === 'signed') return `Vex signed in with “${a.name || 'a passkey'}” · ${named}${a.uv ? ' · PIN checked' : ''}`;
+    if (a.outcome === 'signed') return `Vex signed in with “${a.name || 'a passkey'}” · ${named}${a.uv ? ' · PIN checked' : (a.uvAsked === 'required' || a.uvAsked === 'preferred' ? ' · without your Vex PIN (the site ' + (a.uvAsked === 'required' ? 'requires' : 'prefers') + ' it)' : '')}`;
     if (a.outcome === 'created') return `Passkey made for ${a.name || 'the account'}${a.uv ? ' · PIN checked' : ''}`;
     if (a.outcome === 'cancelled') return a.op === 'create' ? 'You did not save a passkey' : `You cancelled${a.op === 'get' && a.asked !== undefined ? ' · ' + named : ''}`;
     if (a.outcome === 'native') return 'Left to a security key or a phone' + (a.detail ? ` · ${a.detail}` : '');

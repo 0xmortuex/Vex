@@ -430,6 +430,8 @@ function createPasskeyService({
 
   // What the site asked for against what Vex holds, for the record of this request.
   function noteAsked(entry, req, site, matches) {
+    // Whether the site wanted the person verified: 'required', 'preferred' or 'discouraged'.
+    entry.uvAsked = req.userVerification;
     entry.asked = req.allowCredentials.length;
     entry.saved = load().filter(r => r.rpId === site.rpId).length;
     entry.matched = matches.length;
@@ -459,7 +461,11 @@ function createPasskeyService({
       // passkey and showed only "an error occurred" (found 2026-11-10: twice in half a minute on Discord).
       // The sheet says so, with what to do, instead of offering the same passkey as if nothing had happened.
       const before = attempts.findLast(a => a.rpId === site.rpId && a.outcome === 'signed' && now() - Date.parse(a.at) < REPEAT_HINT_MS);
-      const repeat = before && matches.length ? { name: before.name || '', secondsAgo: Math.max(1, Math.round((now() - Date.parse(before.at)) / 1000)) } : null;
+      // The likeliest reason, when it applies: that sign-in was made WITHOUT the Vex PIN on a site that prefers
+      // the person verified. A passkey provider that can verify normally does, so some sites refuse one that did
+      // not; the sheet then asks for the PIN this time.
+      const withoutPin = !!before && before.uv === false && before.uvAsked === 'preferred' && hasPin();
+      const repeat = before && matches.length ? { name: before.name || '', secondsAgo: Math.max(1, Math.round((now() - Date.parse(before.at)) / 1000)), withoutPin } : null;
       const answerP = ask(wc, {
         kind: 'get', host: site.host, rpId: site.rpId,
         accounts: matches.map(publicView), unlisted, setAside, repeat,
