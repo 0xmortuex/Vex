@@ -1125,6 +1125,20 @@ function vexOwnTextFocused(doc) {
       localStorage.setItem('vex.emailCodeAutofill', emailAutofillToggle.checked ? '1' : '0');
     });
   }
+  // The Authenticator's clock check (main/clock-check.js): on unless turned off. Main reads the saved value,
+  // so it is written there at once, and an open Authenticator looks again.
+  const totpClockToggle = document.getElementById('setting-totp-clock');
+  if (totpClockToggle) {
+    totpClockToggle.checked = localStorage.getItem('vex.totpClockCheck') !== '0';
+    totpClockToggle.addEventListener('change', async () => {
+      const value = totpClockToggle.checked ? '1' : '0';
+      localStorage.setItem('vex.totpClockCheck', value);
+      try {
+        await window.vex.persistSet('vex.totpClockCheck', value);
+        if (typeof Authenticator !== 'undefined' && Authenticator._el) await Authenticator._checkClock();
+      } catch (err) { console.error('[settings] the clock check choice could not be saved:', err.message); window.showToast?.('Could not save that: ' + err.message, 'error'); }
+    });
+  }
   const emailHiddenToggle = document.getElementById('setting-emailcode-hidden');
   if (emailHiddenToggle) {
     try { emailHiddenToggle.checked = localStorage.getItem('vex.emailCodeHiddenReader') === '1'; } catch {}

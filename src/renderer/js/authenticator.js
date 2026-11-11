@@ -32,6 +32,7 @@ const Authenticator = {
           </div>
         </div>
         <input id="auth-search" class="auth-search" type="search" placeholder="Search accounts" aria-label="Search accounts" autocomplete="off" style="display:none">
+        <div id="auth-clock" class="auth-clock" role="alert" style="display:none"></div>
         <div id="auth-list" class="auth-list"></div>
         <div class="auth-transfer" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
           <button type="button" id="auth-backup" class="auth-add-btn" title="Save every account in a file locked with a passphrase">Back up…</button>
@@ -77,6 +78,66 @@ const Authenticator = {
 
     await this._refreshList();
     this._startTicking();
+    this._checkClock();
+  },
+
+  // A code is made from the PC clock, so a wrong clock means a refused code and nothing
+  // says why (found 2026-11-10: 19 seconds fast, Discord answered "Invalid two-factor code").
+  // Main measures the clock against a web server's (main/clock-check.js) and, unless it was
+  // turned off here, makes the codes from the measured time while the clock is wrong. This
+  // line says which of the two is happening and holds the switch.
+  CLOCK_KEY: 'vex.totpClockCorrect',
+  _clockSize(r) {
+    const n = Math.abs(r.offsetSeconds);
+    return (n >= 120 ? Math.round(n / 60) + ' minutes ' : n + ' seconds ') + (r.ahead ? 'fast' : 'slow');
+  },
+  async _checkClock() {
+    const el = this._el;
+    const box = el && el.querySelector('#auth-clock');
+    if (!box || typeof window.vex.totpClockCheck !== 'function') return;
+    if (!this._accounts || !this._accounts.size) return;
+    let r;
+    try { r = await window.vex.totpClockCheck(); }
+    catch (err) { console.error('[Authenticator] the clock could not be checked:', this._plainError(err)); return; }
+    if (this._el !== el) return;
+    this._clock = r || null;
+    // Right, or switched off in Settings (r.off: nothing was asked, so nothing is known): no line.
+    if (!r || !r.wrong) { box.style.display = 'none'; box.textContent = ''; return; }
+    const size = this._clockSize(r);
+    box.classList.toggle('corrected', !!r.corrected);
+    box.setAttribute('role', r.corrected ? 'status' : 'alert');
+    box.innerHTML = `<span class="auth-clock-text"></span><span class="auth-clock-actions">
+        <button type="button" class="auth-clock-btn" data-clock="${r.corrected ? 'off' : 'on'}">${r.corrected ? 'Stop correcting' : 'Correct the codes'}</button>
+        ${typeof window.vex.totpOpenTimeSettings === 'function' ? '<button type="button" class="auth-clock-btn" data-clock="settings">Windows time settings</button>' : ''}
+      </span>`;
+    box.querySelector('.auth-clock-text').textContent = r.corrected
+      ? `Your PC clock is ${size}. Vex is correcting the codes, so they still work.`
+      : `Your PC clock is ${size}, so sites may refuse these codes.`;
+    box.style.display = '';
+    box.onclick = (e) => {
+      const b = e.target.closest('[data-clock]');
+      if (!b) return;
+      const act = b.dataset.clock;
+      if (act === 'settings') {
+        window.vex.totpOpenTimeSettings().then((res) => { if (!res || !res.ok) throw new Error((res && res.error) || 'no answer'); })
+          .catch((err) => window.showToast?.('Could not open the Windows time settings: ' + this._plainError(err), 'error'));
+        return;
+      }
+      this._setClockCorrect(act === 'on').catch((err) => window.showToast?.('Could not save that: ' + this._plainError(err), 'error'));
+    };
+  },
+  // Main reads the choice from the saved settings, so it is written there at once
+  // (not with the next batch) and the codes on screen are made again.
+  async _setClockCorrect(on) {
+    const value = JSON.stringify(!!on);
+    localStorage.setItem(this.CLOCK_KEY, value);
+    if (typeof window.vex.persistSet === 'function') await window.vex.persistSet(this.CLOCK_KEY, value);
+    await this._checkClock();
+    await this._tick();
+    // The button must not look as if it worked when it did not: a private window's settings stay in that
+    // window, so main (which makes the codes) never hears of the choice there.
+    const now = this._clock;
+    if (now && now.wrong && !!now.corrected !== !!on) throw new Error('this window cannot change it (a private window keeps its settings to itself); change it from an ordinary Vex window');
   },
 
   // Decode a QR code out of an image File and, if it's an otpauth:// URI, add it.
@@ -316,6 +377,10 @@ const Authenticator = {
   async _tick() {
     const panel = document.getElementById('panel-authenticator');
     if (!this._el || !panel || panel.style.display === 'none') return;
+    // The clock can go wrong, or be set right, while the panel is open: look again
+    // every half minute (main keeps its answer, so this is rarely a request).
+    this._clockTicks = (this._clockTicks || 0) + 1;
+    if (this._clockTicks % 30 === 0) this._checkClock();
     const codes = await window.vex.totpCodes().catch(() => []);
     this._codes = {};
     codes.forEach(c => { this._codes[c.id] = c; });
@@ -365,6 +430,13 @@ const Authenticator = {
       .auth-actions{display:flex;align-items:center;gap:10px}
       .auth-save{background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
       .auth-status{font-size:11.5px;color:var(--text-muted)}
+      .auth-clock{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:8px;padding:8px 10px;border:1px solid var(--danger,#e2231a);border-radius:8px;background:color-mix(in srgb, var(--danger,#e2231a) 10%, transparent);color:var(--text);font-size:12px;line-height:1.45}
+      .auth-clock.corrected{border-color:var(--border);background:rgba(127,127,127,.08)}
+      .auth-clock-text{flex:1 1 220px}
+      .auth-clock-actions{display:flex;flex-wrap:wrap;gap:6px}
+      .auth-clock-btn{background:none;border:1px solid var(--vex-border-medium,var(--border));border-radius:7px;padding:4px 9px;color:var(--text);font:inherit;font-size:11.5px;cursor:pointer}
+      .auth-clock-btn:hover{background:var(--vex-hover-fill,rgba(127,127,127,.13))}
+      .auth-clock-btn:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
       .auth-list{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:0;overflow-y:auto}
       .auth-empty{color:var(--text-muted);font-size:12.5px;text-align:center;padding:24px 8px;line-height:1.6}
       .auth-item{display:flex;align-items:center;justify-content:space-between;background:rgba(127,127,127,.06);border:1px solid var(--border);border-radius:10px;padding:9px 11px;cursor:pointer;user-select:none;transition:background .12s,border-color .12s,transform .06s}

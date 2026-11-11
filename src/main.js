@@ -3079,16 +3079,50 @@ function _parseOtpauth(uri) {
 }
 function _refuseWhileLocked() { if (_vexLocked) throw new Error('Vex is locked — unlock it first'); }
 ipcMain.handle('totp:list', () => (_refuseWhileLocked(), totpLoad()).map(e => ({ id: e.id, label: e.label, issuer: e.issuer, digits: e.digits, period: e.period })));
-ipcMain.handle('totp:codes', () => {
+// Is the PC clock right? (main/clock-check.js) A code made from a wrong clock is refused by the site. One HEAD
+// request with no cookies, asked when the Authenticator shows or fills a code (at most once in ten minutes while the
+// clock is right), recorded in the egress ledger like every other.
+const _clockCheck = require('./main/clock-check');
+const _clockRequest = _clockCheck.createRequest(net);
+const _clockFetch = _egressFetch(async (url) => {
+  const r = await _clockRequest(url);
+  return { ok: r.status >= 200 && r.status < 300, status: r.status, headers: { get: (k) => (String(k).toLowerCase() === 'date' ? r.date : null) }, raw: r };
+}, { feature: 'Authenticator clock check', kind: 'fetch' });
+const _clock = _clockCheck.createClockCheck({ request: async (url) => (await _clockFetch(url)).raw, probeUrl: _clockCheck.probeUrlFrom(process.env) });
+// Codes are made from the measured time while the PC clock is wrong, unless the person turned that off in the
+// Authenticator ('vex.totpClockCorrect'). A right clock is never corrected, so nothing depends on the server then.
+const _clockCorrectOn = () => _readPersistString('vex.totpClockCorrect', true) !== false;
+// The whole check can be switched off (Settings > Autofill, 'vex.totpClockCheck' = "0"): then nothing is asked of any
+// server, the codes come from the PC clock as they always did, and nothing is said about the clock.
+const _clockCheckOn = () => String(_readPersistString('vex.totpClockCheck', '1')) !== '0';
+ipcMain.handle('totp:codes', async () => {
   _refuseWhileLocked();
-  const now = Date.now();
-  return totpLoad().map(e => {
+  const entries = totpLoad();
+  if (!entries.length) return [];
+  const t = _clockCheckOn() ? await _clock.time() : { known: false };
+  const now = t.known && t.wrong && _clockCorrectOn() ? t.now : Date.now();
+  return entries.map(e => {
     try {
       const code = _totpCode(e.secret, e, now);
       const remaining = e.period - Math.floor((now / 1000) % e.period);
       return { id: e.id, code, period: e.period, remaining };
     } catch { return { id: e.id, code: null, period: e.period, remaining: 0, error: true }; }
   });
+});
+// → { offsetSeconds, wrong, ahead, checkedAt, corrected }: `corrected` says the codes are being made from the measured time.
+// `off: true` when the check is switched off: no request was made and nothing is known about the clock.
+ipcMain.handle('totp:clock-check', async () => {
+  _refuseWhileLocked();
+  if (!_clockCheckOn()) return { off: true, offsetSeconds: 0, wrong: false, ahead: false, corrected: false };
+  const r = await _clock.check();
+  return { ...r, corrected: r.wrong && _clockCorrectOn() };
+});
+// The Windows page where the clock is set ("Sync now"). Only that one address is ever opened.
+ipcMain.handle('totp:open-time-settings', async () => {
+  _refuseWhileLocked();
+  if (process.platform !== 'win32') return { ok: false, error: 'Only on Windows' };
+  await shell.openExternal('ms-settings:dateandtime');
+  return { ok: true };
 });
 ipcMain.handle('totp:add', async (_e, input) => {
   try {

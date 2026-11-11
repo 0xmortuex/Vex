@@ -630,6 +630,9 @@ contextBridge.exposeInMainWorld('vex', {
   // only ever gets metadata (totpList) and the finished 6-digit codes (totpCodes).
   totpList: () => ipcRenderer.invoke('totp:list'),
   totpCodes: () => ipcRenderer.invoke('totp:codes'),
+  // Is the PC clock right? A wrong clock makes every code wrong (main/clock-check.js).
+  totpClockCheck: () => ipcRenderer.invoke('totp:clock-check'),
+  totpOpenTimeSettings: () => ipcRenderer.invoke('totp:open-time-settings'),
   totpAdd: (input) => ipcRenderer.invoke('totp:add', input),
   totpDelete: (id) => ipcRenderer.invoke('totp:delete', id),
   totpRename: (id, issuer, label) => ipcRenderer.invoke('totp:rename', id, issuer, label),

@@ -79,7 +79,11 @@
     totpNoCode: 'That account has no code right now',
     totpNoField: 'No code field found on this page: click into the field and try again',
     totpFilled: 'Authenticator code filled', totpRemembered: 'Remembered for this site',
-    totpWhich: "Which account's code?", totpNotNow: 'Not now', totpCodesFor: 'Authenticator codes for' });
+    totpWhich: "Which account's code?", totpNotNow: 'Not now', totpCodesFor: 'Authenticator codes for',
+    totpClockFast: 'Your PC clock is {n} seconds fast, so the site may refuse this code. The Authenticator panel can correct it.',
+    totpClockSlow: 'Your PC clock is {n} seconds slow, so the site may refuse this code. The Authenticator panel can correct it.',
+    totpClockFastMin: 'Your PC clock is {n} minutes fast, so the site may refuse this code. The Authenticator panel can correct it.',
+    totpClockSlowMin: 'Your PC clock is {n} minutes slow, so the site may refuse this code. The Authenticator panel can correct it.' });
   Object.assign(strings.tr, { menuFillTotp: 'Kimlik doğrulayıcıdan kod doldur',
     totpOpenPage: 'Önce bir web sayfası açın',
     totpPrivate: 'Kimlik doğrulayıcı kodları gizli veya Tor sekmelerinde asla doldurulmaz',
@@ -93,7 +97,11 @@
     totpNoCode: 'Bu hesabın şu anda kodu yok',
     totpNoField: 'Bu sayfada kod alanı bulunamadı: alana tıklayıp yeniden deneyin',
     totpFilled: 'Kimlik doğrulayıcı kodu dolduruldu', totpRemembered: 'Bu site için hatırlandı',
-    totpWhich: 'Hangi hesabın kodu?', totpNotNow: 'Şimdi değil', totpCodesFor: 'Kimlik doğrulayıcı kodları:' });
+    totpWhich: 'Hangi hesabın kodu?', totpNotNow: 'Şimdi değil', totpCodesFor: 'Kimlik doğrulayıcı kodları:',
+    totpClockFast: 'Bilgisayarınızın saati {n} saniye ileri, bu yüzden site bu kodu reddedebilir. Kimlik doğrulayıcı paneli kodu düzeltebilir.',
+    totpClockSlow: 'Bilgisayarınızın saati {n} saniye geri, bu yüzden site bu kodu reddedebilir. Kimlik doğrulayıcı paneli kodu düzeltebilir.',
+    totpClockFastMin: 'Bilgisayarınızın saati {n} dakika ileri, bu yüzden site bu kodu reddedebilir. Kimlik doğrulayıcı paneli kodu düzeltebilir.',
+    totpClockSlowMin: 'Bilgisayarınızın saati {n} dakika geri, bu yüzden site bu kodu reddedebilir. Kimlik doğrulayıcı paneli kodu düzeltebilir.' });
   // Save a password by hand / generate one for a field (js/password-manual.js).
   Object.assign(strings.en, { menuSavePw: 'Save a password for this site…', menuGenPw: 'Generate a strong password',
     pwOpenPage: 'Open a web page first',

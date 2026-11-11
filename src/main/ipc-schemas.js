@@ -19,6 +19,8 @@ define('ollama:ensure', [shape({ approved: value => value === true, reason: oneO
 define('app:quit', []);
 // Does this network want a sign-in (main/captive-portal.js): the check takes nothing; the hosts and the minutes are checked again in main.
 define('captive:check', []);
+// Is the PC clock right, for the Authenticator's codes (main/clock-check.js): takes nothing.
+define('totp:clock-check totp:open-time-settings', []);
 define('captive:allow-http', [value => Array.isArray(value) && value.length > 0 && value.length <= 4 && value.every(h => typeof h === 'string' && h.length <= 253)]);
 define('captive:pause-secure-dns', [integer]);
 // Streaming-site skip buttons (main/streaming-skip.js, site-tweaks.js): the site and the kind are checked again in main.

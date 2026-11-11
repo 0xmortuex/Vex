@@ -856,6 +856,13 @@
     { id: 'preference-store', title: 'Preference store', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.volatileSplit'],
       permissions: { reads: ['the preference file and its checksum'], writes: ['the preference file and its checksum'], sends: [] } },
+    // The Authenticator's clock check (main/clock-check.js, js/authenticator.js): a code is made from the time, so a PC clock
+    // that is wrong makes every code wrong. The keys are the person's "Stop correcting" choice (absent means correct) and the
+    // Settings switch for the whole check (absent means on; "0" asks no server at all).
+    { id: 'authenticator-clock', title: 'Authenticator clock check', killSwitch: 'none', maturity: 'stable',
+      storageKeys: ['vex.totpClockCorrect', 'vex.totpClockCheck'],
+      permissions: { reads: ['how far the PC clock is from the clock of a web server'], writes: ['whether codes are corrected while the PC clock is wrong'],
+        sends: ['One request with no cookies to detectportal.firefox.com, to read the time, when the Authenticator shows or fills a code (at most once in ten minutes while the clock is right)'] } },
     { id: 'library-data', title: 'Notes, bookmarks and read later', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.notes', 'vex.bookmarks', 'vex.readLater', 'vex.annotations', 'vex.stickyNotes'],
       permissions: { reads: ['what you saved'], writes: ['what you saved'], sends: [] } },

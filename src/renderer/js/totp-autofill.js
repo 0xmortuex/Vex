@@ -355,6 +355,30 @@ const TotpAutofill = {
     if (!here()) return;   // origin, not exact URL: the 2FA step is a navigation
     this._inject(webview, code, url, chosen[0]);
     try { window.AutofillLog?.record('totp', url, true, chosen[0].issuer || chosen[0].label); } catch {}
+    this._warnIfClockWrong();
+  },
+
+  // The code just filled was made from a PC clock that is wrong and is not being
+  // corrected (the person turned that off in the Authenticator): say so, or the
+  // site's "invalid code" is all they see. Once in ten minutes at most.
+  _clockWarnedAt: 0,
+  CLOCK_WARN_EVERY_MS: 10 * 60 * 1000,
+  async _warnIfClockWrong() {
+    if (!window.vex || typeof window.vex.totpClockCheck !== 'function') return;
+    if (this._clockWarnedAt && Date.now() - this._clockWarnedAt < this.CLOCK_WARN_EVERY_MS) return;
+    let r;
+    try { r = await window.vex.totpClockCheck(); }
+    catch (err) { console.error('[TOTP] the clock could not be checked:', err && err.message); return; }
+    if (!r || !r.wrong || r.corrected) return;
+    this._clockWarnedAt = Date.now();
+    const n = Math.abs(r.offsetSeconds);
+    const minutes = n >= 120;
+    const key = 'totpClock' + (r.ahead ? 'Fast' : 'Slow') + (minutes ? 'Min' : '');
+    const fallback = 'Your PC clock is {n} ' + (minutes ? 'minutes ' : 'seconds ') + (r.ahead ? 'fast' : 'slow') + ', so the site may refuse this code. The Authenticator panel can correct it.';
+    const text = this._t(key, fallback).replace('{n}', String(minutes ? Math.round(n / 60) : n));
+    // Nobody pressed anything for this one, so it asks the attention gate; a code that will be refused is
+    // "critical" there (2FA), which is always let through.
+    if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: 'authenticator', urgency: 'critical', id: 'clock-wrong' }, () => { if (typeof window.showToast === 'function') window.showToast(text, 'warning', 9000); });
   },
 
 
@@ -603,6 +627,7 @@ const TotpAutofill = {
     try { window.AutofillLog?.record('totp', url, true, account.issuer || account.label); } catch { /* the log is optional */ }
     const name = String(account.issuer || account.label || '').trim();
     say((this._t('totpFilled', 'Authenticator code filled') + (name ? ' (' + name + ')' : '')) + (chosenByHand ? '. ' + this._t('totpRemembered', 'Remembered for this site') : ''));
+    this._warnIfClockWrong();
     return { ok: true, account };
   },
 
