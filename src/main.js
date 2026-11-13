@@ -9579,6 +9579,9 @@ function createWindow() {
     if (!on) { _share.releaseRoblox(); return { ok: true, off: true }; }
     try {
       // Reuse a ByeDPI that's already up (e.g. Discord bypass) — never restart it.
+      // One that is still starting counts: at launch Discord's saved mode is
+      // replayed just before this, and its process is not up yet.
+      await _byedpi.settled();
       const reused = _share.reuseExisting();
       if (reused != null) {
         return { ok: true, reused: true, port: reused };

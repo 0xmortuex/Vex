@@ -102,9 +102,32 @@ function stop() {
   _port = 0;
 }
 
+// One start at a time. At launch the window replays the saved Discord mode and
+// the saved Roblox bypass within milliseconds: both got past stop() while
+// neither had spawned yet, both spawned, and only the second was tracked, so
+// nothing ever stopped the first ciadpi.exe (found 2026-11-12). A caller that
+// arrives while a start is in flight gets THAT process's port, whatever flags
+// it asked for itself.
+let _starting = null;
+function start(userDataDir, downloadBuffer, presetIndex, customFlags) {
+  if (_starting) return _starting;
+  const run = _startOne(userDataDir, downloadBuffer, presetIndex, customFlags);
+  _starting = run;
+  const done = () => { if (_starting === run) _starting = null; };
+  run.then(done, done);
+  return run;
+}
+
+// Resolves when no start is in flight (at once when none is), so "is one
+// running?" can be asked after it. It never rejects: a start that failed is
+// reported to the caller that asked for it.
+function settled() {
+  return _starting ? _starting.then(() => {}, () => {}) : Promise.resolve();
+}
+
 // Launch ciadpi with a preset (or custom flags) on a free port; verify it's
 // listening, retrying once. Returns the SOCKS5 port. Throws on failure.
-async function start(userDataDir, downloadBuffer, presetIndex, customFlags) {
+async function _startOne(userDataDir, downloadBuffer, presetIndex, customFlags) {
   stop();
   const exe = await ensureBinary(userDataDir, downloadBuffer);
   const logPath = path.join(path.dirname(exe), 'ciadpi.log');
@@ -135,4 +158,4 @@ async function start(userDataDir, downloadBuffer, presetIndex, customFlags) {
   throw new Error('ByeDPI ' + lastErr);
 }
 
-module.exports = { start, stop, ensureBinary, parseFlags, PRESETS, BYEDPI_URL, getPort: () => _port, isRunning: () => !!_proc };
+module.exports = { start, stop, settled, ensureBinary, parseFlags, PRESETS, BYEDPI_URL, getPort: () => _port, isRunning: () => !!_proc };

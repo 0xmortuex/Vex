@@ -98,3 +98,58 @@ describe('byedpi start() after start() (auto-configure sweep, preset to preset)'
     expect(b.getPort()).toBe(0);
   });
 });
+
+// Found 2026-11-12 on the owner's PC: two ciadpi.exe under one Vex. At launch the window replays the
+// saved Discord mode and the saved Roblox bypass within milliseconds. Both got past stop() before
+// either had spawned, both spawned, and only the second was tracked: nothing ever stopped the first.
+describe('byedpi start() while another start() has not finished (launch: Discord, then Roblox)', () => {
+  afterEach(() => { for (const s of live) s.close(); live.clear(); });
+
+  it('starts ONE process and gives both callers its port', async () => {
+    const b = loadByedpi(0);
+    const dir = userDir();
+    const before = procs.length;
+    const [p1, p2] = await Promise.all([b.start(dir, null, 0), b.start(dir, null, 0)]);
+    expect(procs.length - before).toBe(1);
+    expect(p2).toBe(p1);
+    expect(b.getPort()).toBe(p1);
+    b.stop();
+    await sleep(40);
+    expect(live.size).toBe(0);           // and stop() ends everything that was started
+  });
+
+  it('settled() waits for the start in flight, so "is one running?" can be asked after it', async () => {
+    const b = loadByedpi(0);
+    const dir = userDir();
+    const first = b.start(dir, null, 0);
+    expect(b.isRunning()).toBe(false);   // the gap the second caller used to fall into
+    await b.settled();
+    expect(b.isRunning()).toBe(true);
+    expect(b.getPort()).toBe(await first);
+    b.stop();
+  });
+
+  it('settled() resolves at once when nothing is starting', async () => {
+    const b = loadByedpi(0);
+    await expect(b.settled()).resolves.toBeUndefined();
+  });
+
+  it('a start that fails is reported to its own caller only, and the next start still works', async () => {
+    const b = loadByedpi(0);
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-byedpi-test-'));   // no ciadpi.exe, and the download gives nothing
+    const failing = b.start(empty, async () => null, 0);
+    await expect(b.settled()).resolves.toBeUndefined();
+    await expect(failing).rejects.toThrow(/download failed/);
+    const port = await b.start(userDir(), null, 0);
+    expect(b.getPort()).toBe(port);
+    b.stop();
+  });
+
+  it('main.js lets the Roblox bypass wait for a start in flight before it looks for one to reuse', () => {
+    const src = fs.readFileSync(path.join(SRC, 'main.js'), 'utf8');
+    const start = src.indexOf('async function _applyRobloxBypass(');
+    const body = src.slice(start, src.indexOf('async function _applyDiscordBypass(', start));
+    expect(body.indexOf('await _byedpi.settled();')).toBeGreaterThan(-1);
+    expect(body.indexOf('await _byedpi.settled();')).toBeLessThan(body.indexOf('_share.reuseExisting()'));
+  });
+});
