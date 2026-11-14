@@ -45,8 +45,9 @@ describe('navigator.userAgentData agrees with the User-Agent', () => {
     expect(version(hev.fullVersionList, 'Google Chrome')).toBe('146.0.0.0');
     expect(hev.uaFullVersion).toBe('146.0.0.0');
     expect(version(hev.brands, 'Google Chrome')).toBe('146');
-    // The other brand is left as it was.
-    expect(version(hev.fullVersionList, 'Not/A)Brand')).toBe('24.0.0.0');
+    // The filler brand is Chrome 146's own, as in that identity's headers (tests/main/uaBrands.test.js).
+    expect(version(hev.fullVersionList, 'Not-A.Brand')).toBe('24.0.0.0');
+    expect(version(hev.fullVersionList, 'Not/A)Brand')).toBeUndefined();
   });
 
   it('a Tor tab ("Chrome 124") the same', async () => {
@@ -68,7 +69,7 @@ describe('navigator.userAgentData agrees with the User-Agent', () => {
     const MAIN = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
     const build = MAIN.slice(MAIN.indexOf('function buildIdentity(v)'), MAIN.indexOf('function buildIdentity(v)') + 700);
     expect(build).toContain('Chrome/${v}.0.0.0 Safari/537.36');
-    expect(build).toContain('"Google Chrome";v="${v}.0.0.0"');
+    expect(build).toContain('full: _secChUa(`${v}.0.0.0`),');
     expect(build).toContain('fullVer: `"${v}.0.0.0"`');
   });
 });

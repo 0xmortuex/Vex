@@ -273,8 +273,15 @@ const MasterVolume = {
       // a closed shadow root are found by their first play(); Web Audio from
       // the page itself goes through one gain per context. Installed when the
       // level first leaves 100%, so a page at 100% is never touched.
-      // The wrappers look the live instance up at call time and are marked, so
-      // they are put on a prototype once however often this script runs.
+      // The wrappers look the live instance up at call time, and are put on a
+      // prototype once however often this script runs.
+      // Each one is a Proxy of the browser's own function, never a function of
+      // ours: a page can read a function's source, and one of ours where the
+      // browser has a native one says "patched browser". Cloudflare's "Verify
+      // you are human" box, which is a frame, failed on attachShadow in every
+      // frame while the level was off 100% (found 2026-11-14; the same failure
+      // as the one in preload-webview.js, 2026-10-30). Which functions are
+      // already wrapped is kept on the shared audio object, not on them.
       var patched=false, wa=[], masters=new WeakMap(), OC=null, OD=null;
       function masterFor(dest){
         var OFF=window.OfflineAudioContext, c=dest.context; if(!c||c===A.ctx||(OFF&&c instanceof OFF)) return null;
@@ -284,48 +291,46 @@ const MasterVolume = {
       }
       function patch(){
         if(patched) return; patched=true;
+        var W=A.wrapped||(A.wrapped=new WeakMap());
+        function wrap(orig,apply){ var p=new Proxy(orig,{apply:apply}); W.set(p,orig); return p; }
         try{
           var op=HTMLMediaElement.prototype.play;
-          if(!op.__vexMV){
-            var np=function(){ var r=op.apply(this,arguments); try{ var s=window.__vexMV; if(s&&s.hook) s.hook(this); }catch(e){} return r; };
-            np.__vexMV=true; HTMLMediaElement.prototype.play=np;
+          if(!W.has(op)){
+            HTMLMediaElement.prototype.play=wrap(op,function(t,self,args){ var r=Reflect.apply(t,self,args); try{ var s=window.__vexMV; if(s&&s.hook) s.hook(self); }catch(e){} return r; });
           }
         }catch(e){}
         try{
           var oa=Element.prototype.attachShadow;
-          if(!oa.__vexMV){
-            var na=function(){ var r=oa.apply(this,arguments); try{ var s=window.__vexMV; if(s&&s.addRoot) s.addRoot(r); }catch(e){} return r; };
-            na.__vexMV=true; Element.prototype.attachShadow=na;
+          if(!W.has(oa)){
+            Element.prototype.attachShadow=wrap(oa,function(t,self,args){ var r=Reflect.apply(t,self,args); try{ var s=window.__vexMV; if(s&&s.addRoot) s.addRoot(r); }catch(e){} return r; });
           }
         }catch(e){}
         try{
           var AN=window.AudioNode, ADN=window.AudioDestinationNode;
           if(AN && ADN && AN.prototype && typeof AN.prototype.connect==='function'){
             OC=AN.prototype.connect; OD=AN.prototype.disconnect;
-            if(!OC.__vexMV){
-              var oc=OC, od=OD;
-              var nc=function(dest){
+            if(!W.has(OC)){
+              AN.prototype.connect=wrap(OC,function(t,self,args){
                 try{
-                  var s=window.__vexMV;
+                  var s=window.__vexMV, dest=args[0];
                   if(s && s.masterFor && dest instanceof ADN){
                     var m=s.masterFor(dest);
-                    if(m && this!==m && this.context===dest.context){ var a=Array.prototype.slice.call(arguments); a[0]=m; oc.apply(this,a); return dest; }
+                    if(m && self!==m && self.context===dest.context){ var a=Array.prototype.slice.call(args); a[0]=m; Reflect.apply(t,self,a); return dest; }
                   }
                 }catch(e){}
-                return oc.apply(this,arguments);
-              };
-              var nd=function(dest){
+                return Reflect.apply(t,self,args);
+              });
+              AN.prototype.disconnect=wrap(OD,function(t,self,args){
                 try{
-                  var s=window.__vexMV;
+                  var s=window.__vexMV, dest=args[0];
                   if(s && s.masterOf && dest instanceof ADN){
                     var m=s.masterOf(dest);
-                    if(m && this!==m){ var a=Array.prototype.slice.call(arguments); a[0]=m; return od.apply(this,a); }
+                    if(m && self!==m){ var a=Array.prototype.slice.call(args); a[0]=m; return Reflect.apply(t,self,a); }
                   }
                 }catch(e){}
-                return od.apply(this,arguments);
-              };
-              nc.__vexMV=nd.__vexMV=true; nc.__orig=oc; nd.__orig=od; AN.prototype.connect=nc; AN.prototype.disconnect=nd;
-            } else { OC=OC.__orig||OC; }
+                return Reflect.apply(t,self,args);
+              });
+            } else { OC=W.get(OC); }
           }
         }catch(e){}
       }

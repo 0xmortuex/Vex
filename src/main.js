@@ -3605,8 +3605,18 @@ const CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
 const MOBILE_UA = `Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Mobile Safari/537.36`;
 const _siteHeaders = require('./main/site-headers');
 const { applyGeoUserAgent: _applyGeoUserAgent } = require('./main/geo-user-agent');
-const CH_UA = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="99"`;
-const CH_UA_FULL = `"Chromium";v="${CHROME_FULL_VERSION}", "Google Chrome";v="${CHROME_FULL_VERSION}", "Not-A.Brand";v="99.0.0.0"`;
+// The brand list Chrome of this version sends, filler brand and order included (src/main/ua-brands.js).
+const { secChUa: _secChUa, withNavigationHints: _withNavigationHints, acceptLanguages: _acceptLanguages } = require('./main/ua-brands');
+const CH_UA = _secChUa(CHROME_MAJOR);
+const CH_UA_FULL = _secChUa(CHROME_FULL_VERSION);
+// A frame from another site runs in its own process, and session.setUserAgent does not reach it: its
+// scripts, its workers and its own requests said "vex/<version> ... Electron/<version>" while the page
+// around it and the frame's own address request said Chrome. The box on Cloudflare's "Verify you are
+// human" page is such a frame. This is the name every process starts with (found 2026-11-14).
+app.userAgentFallback = CHROME_UA;
+// The languages a page reads in navigator.languages (Electron: the app's, then Windows' own list), as the
+// Accept-Language list Chrome sends for them. Electron's own header names only the first. After app ready.
+const _chromeAcceptLanguages = () => _acceptLanguages([app.getLocale(), ...app.getPreferredSystemLanguages()]);
 // Add Access-Control-Allow-Origin to MEDIA responses so cross-origin <video>/
 // <audio> can be routed through Web Audio for the Master Volume boost (>100%).
 // Without CORS, tapping a cross-origin media element silences it, so boost falls
@@ -3618,7 +3628,7 @@ function wireClientHintsOnSession(ses) {
   if (!ses || ses.__vexCHWired) return;
   ses.__vexCHWired = true;
   ses.webRequest.onBeforeSendHeaders((details, callback) => {
-    const h = details.requestHeaders || {};
+    let h = details.requestHeaders || {};
     // An extension's header rules first, so the switches below still win.
     _dnrRequestHeaders(ses, details, h);
     // A header rule for a page origin the person listed (off at every start).
@@ -3644,6 +3654,8 @@ function wireClientHintsOnSession(ses) {
         case 'sec-ch-ua-platform': h[k] = '"Windows"'; break;
       }
     }
+    // A page or frame load carries none of them here, and every one of Chrome's does (src/main/ua-brands.js).
+    h = _withNavigationHints(h, { resourceType: details.resourceType, url: details.url, brands: (ch && ch.ua) || CH_UA });
     // Global Privacy Control, the referrer setting and a site's own
     // User-Agent (src/main/site-headers.js): this one listener, not a second.
     _siteHeaders.applyHeaders(h, {
@@ -9851,9 +9863,9 @@ function createWindow() {
   // layout (e.g. Roblox rendered its global footer in the middle of the page
   // instead of pinned to the bottom). defaultSession + the named panel
   // partitions were already covered; persist:main was the gap.
-  session.defaultSession.setUserAgent(CHROME_UA);
-  secureSessions.fromPartition('persist:main').setUserAgent(CHROME_UA);
-  partitions.forEach(p => secureSessions.fromPartition(p).setUserAgent(CHROME_UA));
+  session.defaultSession.setUserAgent(CHROME_UA, _chromeAcceptLanguages());
+  secureSessions.fromPartition('persist:main').setUserAgent(CHROME_UA, _chromeAcceptLanguages());
+  partitions.forEach(p => secureSessions.fromPartition(p).setUserAgent(CHROME_UA, _chromeAcceptLanguages()));
 
   // Normalize Sec-CH-UA Client Hints to match the spoofed Chrome UA on the same
   // sessions, so UA and CH agree (sites that sniff CH won't see Electron).
@@ -11028,8 +11040,8 @@ function buildIdentity(v) {
   return {
     ua: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${v}.0.0.0 Safari/537.36`,
     ch: {
-      ua: `"Chromium";v="${v}", "Google Chrome";v="${v}", "Not-A.Brand";v="99"`,
-      full: `"Chromium";v="${v}.0.0.0", "Google Chrome";v="${v}.0.0.0", "Not-A.Brand";v="99.0.0.0"`,
+      ua: _secChUa(v),
+      full: _secChUa(`${v}.0.0.0`),
       fullVer: `"${v}.0.0.0"`,
     },
   };
@@ -11617,7 +11629,7 @@ function _wireBrowsingSession(ses, partition) {
     ses.setProxy(routing.REFUSED_PROXY).catch(err => console.error(`[Routing] ${partition} could not be closed off:`, err));
     routing.markRoutedSession(ses, partition === 'persist:route-tor' ? 'tor' : 'proxy', webContents.getAllWebContents(), _syncTorLight);
   }
-  ses.setUserAgent(CHROME_UA);
+  ses.setUserAgent(CHROME_UA, _chromeAcceptLanguages());
   wireClientHintsOnSession(ses);
   wireAdblockerOnSession(ses, partition);
   wireDownloadsOnSession(ses, partition);
@@ -11702,7 +11714,7 @@ function _wireEphemeralBrowsing(ses, tag) {
     if (verdict === 'ad') _recordTracker(details.url, details.webContentsId);
     callback(blocked ? { cancel: true } : _httpsAnswer(details));
   });
-  ses.setUserAgent(CHROME_UA);
+  ses.setUserAgent(CHROME_UA, _chromeAcceptLanguages());
   wireClientHintsOnSession(ses);
 }
 

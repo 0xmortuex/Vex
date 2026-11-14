@@ -2524,37 +2524,49 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     var uaMajor = uaFull.split('.')[0];
     if(!/^[0-9]+$/.test(uaMajor)) { uaMajor = ''; uaFull = ''; }
     function majorOf(v){ return String(v==null?'':v).split('.')[0]; }
+    // The list is the one Chrome itself gives for that major version: Chromium, Google Chrome and
+    // a filler brand whose name, version and place all follow from the major. The rule is in
+    // src/main/ua-brands.js, which makes the Sec-CH-UA headers from it (a sandboxed preload cannot
+    // require that file; tests/main/uaBrands.test.js holds the two together). Before 2026-11-13
+    // "Google Chrome" was added at the end of this Chromium's own list, so the page saw another
+    // order and another filler than the header beside it said.
+    var FC=[' ','(',':','-','.','/',')',';','=','?','_'], FV=['8','99','24'], FO=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
     function addChrome(list, full){
       var out = (list||[]).map(function(x){return {brand:x.brand, version:x.version};});
       var c = out.filter(function(x){return x.brand==='Chromium';})[0];
-      if(c && uaMajor && majorOf(c.version)!==uaMajor){
-        out.forEach(function(x){ if(x.brand==='Chromium'||x.brand==='Google Chrome') x.version = full ? uaFull : uaMajor; });
-      }
-      if(!out.some(function(x){return x.brand==='Google Chrome';})){
-        if(c) out.push({brand:'Google Chrome', version:c.version});
-      }
-      return out;
+      if(!c) return out;
+      var version = (uaMajor && majorOf(c.version)!==uaMajor) ? (full ? uaFull : uaMajor) : c.version;
+      var m = parseInt(majorOf(version),10);
+      if(!(m>0)) return out;
+      var o = FO[m%6], res = [];
+      res[o[0]] = {brand:'Not'+FC[m%11]+'A'+FC[(m+1)%11]+'Brand', version:FV[m%3]+(full?'.0.0.0':'')};
+      res[o[1]] = {brand:'Chromium', version:version};
+      res[o[2]] = {brand:'Google Chrome', version:version};
+      return res;
     }
+    // Each replacement is a Proxy of the browser's own function, never a function of ours: a page can read a
+    // function's source, and a bot check that finds one written in JavaScript where a browser has a native one
+    // has found a patched browser (as with attachShadow further down, 2026-10-30). The Proxy calls the real one
+    // and changes only its answer. No mark is left on the functions: every change below gives the same answer
+    // when it is made twice.
+    if(typeof Proxy !== 'function' || typeof Reflect !== 'object') return;
+    function answering(orig, change){ return new Proxy(orig, { apply: function(target, self, args){ return change(Reflect.apply(target, self, args)); } }); }
     var bd = Object.getOwnPropertyDescriptor(proto,'brands');
-    if(bd && bd.get && bd.configurable && !bd.get.__vexPatched){
-      var origBrands = bd.get;
-      var getter = function(){ try{ return addChrome(origBrands.call(this)); }catch(e){ return origBrands.call(this); } };
-      getter.__vexPatched = true;
-      try{ Object.defineProperty(proto,'brands',{configurable:true,enumerable:bd.enumerable,get:getter}); }catch(e){}
+    if(bd && bd.get && bd.configurable){
+      try{ Object.defineProperty(proto,'brands',{configurable:true,enumerable:bd.enumerable,get:answering(bd.get,function(list){ try{ return addChrome(list); }catch(e){ return list; } })}); }catch(e){}
     }
     // A site asked for as a mobile site (its own User-Agent, set per site in
     // the site panel): the page's JS says the same thing the header does.
     var uaMobile = /Mobile/.test(String(navigator.userAgent||'')) && /Android/.test(String(navigator.userAgent||''));
     if(uaMobile){
       var md = Object.getOwnPropertyDescriptor(proto,'mobile');
-      if(md && md.get && md.configurable){ try{ Object.defineProperty(proto,'mobile',{configurable:true,enumerable:md.enumerable,get:function(){return true;}}); }catch(e){} }
+      if(md && md.get && md.configurable){ try{ Object.defineProperty(proto,'mobile',{configurable:true,enumerable:md.enumerable,get:answering(md.get,function(){return true;})}); }catch(e){} }
       var pd = Object.getOwnPropertyDescriptor(proto,'platform');
-      if(pd && pd.get && pd.configurable){ try{ Object.defineProperty(proto,'platform',{configurable:true,enumerable:pd.enumerable,get:function(){return 'Android';}}); }catch(e){} }
+      if(pd && pd.get && pd.configurable){ try{ Object.defineProperty(proto,'platform',{configurable:true,enumerable:pd.enumerable,get:answering(pd.get,function(){return 'Android';})}); }catch(e){} }
     }
-    if(typeof proto.getHighEntropyValues==='function' && !proto.getHighEntropyValues.__vexPatched){
-      var origHEV = proto.getHighEntropyValues;
-      var patched = function(hints){
-        return origHEV.call(this,hints).then(function(res){
+    if(typeof proto.getHighEntropyValues==='function'){
+      try{ Object.defineProperty(proto,'getHighEntropyValues',{configurable:true,writable:true,value:answering(proto.getHighEntropyValues,function(promise){
+        return promise.then(function(res){
           try{
             if(res && uaMobile){ res.mobile = true; if('platform' in res) res.platform = 'Android'; }
             if(res){
@@ -2565,9 +2577,18 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
           }catch(e){}
           return res;
         });
-      };
-      patched.__vexPatched = true;
-      try{ Object.defineProperty(proto,'getHighEntropyValues',{configurable:true,writable:true,value:patched}); }catch(e){}
+      })}); }catch(e){}
+    }
+    // JSON.stringify(navigator.userAgentData) goes through toJSON, which answered with this Chromium's own
+    // list (no "Google Chrome") beside a brands that had it.
+    if(typeof proto.toJSON==='function'){
+      try{ Object.defineProperty(proto,'toJSON',{configurable:true,writable:true,value:answering(proto.toJSON,function(o){
+        try{
+          if(o && Array.isArray(o.brands)) o.brands = addChrome(o.brands, false);
+          if(o && uaMobile){ o.mobile = true; o.platform = 'Android'; }
+        }catch(e){}
+        return o;
+      })}); }catch(e){}
     }
   }catch(e){}})();`;
   function inject() { runInMainWorld(shimSrc); }

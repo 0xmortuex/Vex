@@ -284,3 +284,39 @@ describe('every session gets the media CORS header', () => {
     expect(COMMANDS).toMatch(/id: 'master-volume', label: 'Master Volume'.*MasterVolume\.show\(\)/);
   });
 });
+
+// Found 2026-11-14: the owner's level was 250%, so this script ran in every frame of every page and put
+// functions of its own on four prototypes. Cloudflare's "Verify you are human" box, which is a frame and
+// reads the source of attachShadow, failed in Vex and passed in Chrome on the same PC.
+describe('what the script puts on a prototype reads as the browser\'s own', () => {
+  const four = () => [Element.prototype.attachShadow, HTMLMediaElement.prototype.play, window.AudioNode.prototype.connect, window.AudioNode.prototype.disconnect];
+
+  it('each is a native-reading function with no mark on it', () => {
+    fakeAudio(); pageAudio();
+    runInPage(MasterVolume._script(2.5));
+    for (const fn of four()) {
+      expect(Function.prototype.toString.call(fn)).toBe('function () { [native code] }');
+      expect(Object.getOwnPropertyNames(fn).filter(k => /vex|orig/i.test(k))).toEqual([]);
+      expect(fn.__vexMV).toBeUndefined();
+      expect(fn.__orig).toBeUndefined();
+    }
+    expect(MasterVolume._script(2.5)).not.toMatch(/\.__vexMV=true|\.__orig=/);
+  });
+
+  it('the script run again in the same page wraps nothing twice', () => {
+    fakeAudio(); pageAudio();
+    runInPage(MasterVolume._script(2.5));
+    const first = four();
+    delete window.__vexMV; // the page's state is gone, the shared audio object is not
+    runInPage(MasterVolume._script(3));
+    expect(four()).toEqual(first);
+    four().forEach((fn, i) => expect(fn).toBe(first[i]));
+  });
+
+  it('a page at 100% keeps the functions it had', () => {
+    fakeAudio(); pageAudio();
+    const before = four();
+    runInPage(MasterVolume._script(1));
+    four().forEach((fn, i) => expect(fn).toBe(before[i]));
+  });
+});

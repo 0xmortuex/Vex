@@ -100,7 +100,7 @@ describe('H2: off-the-record and burner sessions get what a private window gets'
   it('are wired as they are made', () => {
     expect(main).toMatch(/partition\.startsWith\('otr-'\)\) _wireEphemeralBrowsing\(ses, 'otr'\)/);
     const fn = main.slice(main.indexOf('function _wireEphemeralBrowsing'), main.indexOf('function openPrivateWindow'));
-    for (const piece of ['wireDownloadsOnSession(ses', 'wirePermissionsOnSession(ses', 'attachGuestPreloads(ses)', 'onBeforeRequest', 'onHeadersReceived', 'setUserAgent(CHROME_UA)', 'wireClientHintsOnSession(ses)', 'wireDisplayMediaOnSession(ses)']) {
+    for (const piece of ['wireDownloadsOnSession(ses', 'wirePermissionsOnSession(ses', 'attachGuestPreloads(ses)', 'onBeforeRequest', 'onHeadersReceived', 'setUserAgent(CHROME_UA, _chromeAcceptLanguages())', 'wireClientHintsOnSession(ses)', 'wireDisplayMediaOnSession(ses)']) {
       expect(fn, piece).toContain(piece);
     }
   });

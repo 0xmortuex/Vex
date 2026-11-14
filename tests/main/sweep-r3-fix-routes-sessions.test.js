@@ -152,9 +152,9 @@ describe('a session is wired the first time it is made', () => {
     };
     const fn = new Function('require', 'webContents', 'CHROME_UA', 'BROWSING_SESSIONS', 'wireClientHintsOnSession', 'wireAdblockerOnSession',
       'wireDownloadsOnSession', 'wirePermissionsOnSession', 'wireWebHidOnSession', 'wireDisplayMediaOnSession', '_addMediaCorsHeaders', '_scriptsOffCsp',
-      'attachGuestPreloads', 'wireSpellcheckOnSession', '_syncTorLight', src + '\nreturn _wireBrowsingSession;')(
+      'attachGuestPreloads', 'wireSpellcheckOnSession', '_syncTorLight', '_chromeAcceptLanguages', src + '\nreturn _wireBrowsingSession;')(
       m => (m === './main/routing' ? routing : require(m)), { getAllWebContents: () => [] }, 'UA', ['persist:main', 'persist:container-work'],
-      note('ch'), note('adblock'), note('downloads'), note('permissions'), note('hid'), note('display'), () => {}, () => {}, note('preloads'), note('spell'), async () => {});
+      note('ch'), note('adblock'), note('downloads'), note('permissions'), note('hid'), note('display'), () => {}, () => {}, note('preloads'), note('spell'), async () => {}, () => 'en-US,en,tr');
     fn(ses, partition);
     return { ses, calls: calls.map(c => c[0]) };
   }
@@ -162,7 +162,7 @@ describe('a session is wired the first time it is made', () => {
   it("a container named by hand gets persist:main's permission prompt, downloads, ad blocker and identity", () => {
     const { ses, calls } = wire('persist:container-x');
     expect(calls).toEqual(expect.arrayContaining(['permissions', 'downloads', 'adblock', 'ch', 'hid', 'display', 'preloads', 'spell']));
-    expect(ses.setUserAgent).toHaveBeenCalledWith('UA');
+    expect(ses.setUserAgent).toHaveBeenCalledWith('UA', 'en-US,en,tr');
     expect(ses.setProxy).not.toHaveBeenCalled();
     expect(ses.webRequest.onHeadersReceived).toHaveBeenCalled();
   });
