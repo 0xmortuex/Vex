@@ -1,5 +1,14 @@
 # Changelog
 
+## v57.97.3 (2026-11-14) — Cloudflare's "Verify you are human" box works, and one bypass process instead of two
+
+A small release with three fixes. On pages protected by Cloudflare, the "Verify you are human" box came back unticked in Vex while it passed in Chrome on the same PC. Vex says it is Chrome, but it did not say so the same way everywhere, and Master Volume at any level other than 100% made it worse. Both are put right; you still tick the box yourself. And the Discord and Roblox bypass no longer start a program each when Vex opens.
+
+### Fixed
+- **Cloudflare's "Verify you are human" box came back unticked.** Found on support.discord.com: the box spun and returned unticked in Vex, and passed in Chrome on the same PC. Four things Vex told a site did not match Chrome. Inside a frame from another site, which the box is, scripts and requests carried Vex's and Electron's names beside Chrome's. Page loads carried none of the brand headers Chrome sends with every one. The brand list in those headers and the one a page reads were different lists. And the language header named one language while the page saw two. All four now match what Chrome sends. Vex does not tick the box for you. Try: Open a page that shows Cloudflare's "Verify you are human" box and tick it.
+- **Master Volume at any level other than 100% broke the same box.** Off 100%, Master Volume put functions of its own in place of four of the browser's, in every frame of every page, and the box checks for exactly that. They now read as the browser's own, and the boost works as before. Try: Set Master Volume to 250%, open a page that shows the Cloudflare box and tick it.
+- **Two bypass programs ran when the Discord and Roblox bypass were both on.** When Vex opened, both bypasses started within milliseconds of each other and each started its own ciadpi.exe. Vex only kept track of the second, so it never stopped the first, not even when it closed. They now share one. Try: With the Discord bypass on Strong and the Roblox bypass on, start Vex and look in Task Manager: there is one ciadpi.exe.
+
 ## v57.92.5 (2026-11-11) — 2FA codes that work with a wrong PC clock, passkeys that hear a site say no, and fewer freezes
 
 This release is about signing in. A 2FA code is made from the time, so a PC clock that was 19 seconds fast made a site refuse every code, and nothing said why. Vex now checks the clock, corrects the codes while it is wrong and tells you. Passkeys now listen when a site says it no longer accepts one, instead of offering it for ever, and Settings shows what each site asked for and what Vex answered. A likely cause of whole-browser freezes of two to five seconds is removed. One thing here reaches the internet by itself: the clock check, a single request with no cookies to detectportal.firefox.com when the Authenticator shows or fills a code. It has a switch in Settings › Autofill, and the privacy policy lists it.
