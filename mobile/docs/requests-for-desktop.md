@@ -1,0 +1,114 @@
+# Requests for the desktop session
+
+The phone can't do these alone. Each one needs a change in `src/`, `workers/` or `docs/SYNC_PROTOCOL.md`, and the mobile session doesn't edit those files. What the phone already does without help:
+
+- It follows the desktop's current protocol: key proof (§2.7), a level-2 marker with its revision (§4.6, §4.7), and drops tombstones the computers cleared.
+- It writes its own open tabs as `sync:tabs:<id>` (§4.8) and lists every other device's, by name; an older desktop's `storage:tabs` still shows in its groups.
+- It shows the computer's history as read-only, from `preference:vex.history`, and your own themes from `preference:vex.customThemes`.
+- It syncs saved passwords and 2FA accounts as sealed items (§4.9), off until turned on, tested against `src/main/sync-secrets.js`.
+
+Everything below is the part that needs the desktop. Once a request lands, the phone side follows on `claude/mobile-browser-version-00t60f`.
+
+## 0. One gate for all of it: a marker level above 2
+
+New sources are only safe once no desktop at v2.35.1 or older is left on the account. Those desktops tombstone sources they don't know (§6 rule 1). So the proposal is one rule:
+
+- Level 2 now means copy-through, revision and clean-up (§4.6, §4.7); the phone writes it. Define level 3 as "understands §R1, §R3, §R4 below".
+- A desktop that ships them writes `{"level":3,"revision":…}`.
+- The phone writes a new source only when every device listed by `GET /sync/devices` has a marker at level 3 or higher. This works like the tile gate in §4.6.
+- §6 rule 5 must then allow level 3.
+
+## R1. Reading list (new, both sides own it)
+
+- **Source:** `preference:vex.readingList`, a list preference. Add it to `SYNC_KEYS` and `LIST_PREFERENCES`, and to §8.1 and §8.2.
+- **Item:**
+
+  ```
+  { "id": "rl_<ms>_<5 base36>", "url": http(s), "title": string, "at": ms int, "read": bool, "readAt"?: ms int }
+  ```
+
+  The list is newest first, with at most 2000 items.
+- **Validation (§8.4):** the same item rules as `vex.bookmarks`.
+- **Desktop UI:**
+  - "Add to reading list" in the page context menu and the star menu;
+  - a Reading list tab in the Library or History panel, with unread items first;
+  - marking an item read when its page is opened from the list.
+- Both sides own the source and push the full list (rule 2).
+
+## R2. Each device's open tabs — done on the desktop (v14.72.3+), one addition asked
+
+The desktop now sends `sync:tabs:<deviceId>` = `{ tabs: [{ url, title }] }` and lists other devices' tabs under History › Tabs from other devices; the phone writes its own the same way and reads the computers' (since 2026-10-12). What is lost is the **groups**: the old shared `storage:tabs` carried `groupId` and `storage:groups` the names and colours, and the phone showed the computer's tabs in its groups.
+
+- **Ask:** add optional `groupId` to each tab and an optional `groups: [{ id, name, color }]` beside `tabs` in the desktop's own `sync:tabs:<id>` value (§4.8). Readers that do not know them ignore them (the desktop's own `otherDeviceTabs` maps each tab to `{url, title}`), so no marker level is needed. The phone already draws groups with their colours when they are there.
+
+## R3. Each device's history and recently closed tabs
+
+The phone can't own `preference:vex.history` (rule 2), so the proposal is per-device sources:
+
+- **`sync:history:<deviceId>`:** a list of at most 1000 items, `{ "url", "title", "at": ms }`, newest first, with no private tabs.
+  - The desktop shows it under a "From your phone" filter in History, and in omnibox suggestions marked as from the phone.
+  - The desktop does not need to write one of its own, since it already writes `preference:vex.history`.
+- **`sync:closed:<deviceId>`:** a list of at most 25 items, `{ "url", "title", "closedAt": ms, "groupName"?: string }`.
+  - The desktop already keeps this shape in `localStorage['vex.recentlyClosed']` (`tabs.js`, `MAX_RECENTLY_CLOSED = 25`). Write it here as well.
+  - Show the phone's list in the History panel's "Recently closed".
+  - "Clear history" on a device clears its own two sources.
+- **Validation:** the bookmark item rules from §8.4 apply.
+
+## R4. Remote control of the desktop from the phone
+
+**Goal:** while Vex is open on the PC, the phone can see its tabs live and act on them, for example from the couch.
+
+### Transport
+
+The drop mailbox (§7) can't carry this: it has no addressing, whichever device fetches first consumes it, and polling it is slow. The sync worker already has Durable Objects, so the proposal is one per account:
+
+- `GET /remote/socket?device=<targetId>` (Bearer, registered) upgrades to a WebSocket.
+  - The desktop connects only while "Allow remote control" is on.
+  - The phone connects only while its remote screen is open.
+  - The DO relays frames between the controller and that target only.
+- **Frames:** `{ "id": seq, "blob": SyncCrypto.encrypt(payload, key) }`, encrypted with the account key (§3.2). The worker never sees a command.
+- **Without WebSockets:** `POST /remote/cmd {to, blob}` and `GET /remote/cmd?wait=25`, using long-poll with addressing and a 60 s TTL.
+
+### Commands (phone → desktop)
+
+The payload is `{ "op", ...args, "at": ms }`. The desktop rejects any payload older than 30 s, and any `id` it has already seen.
+
+| op | args | desktop does |
+|---|---|---|
+| `state` | — | replies with the tab list (as in R2, plus `id`, `audible`, `muted`, `loading`) and `{activeId, zoom, canBack, canForward}` |
+| `activate` / `close` | `tabId` | switches to or closes the tab |
+| `open` | `url` (http/https only), `background`? | opens a new tab |
+| `back` / `forward` / `reload` | `tabId`? | acts on that tab, or the active one if none is given |
+| `scroll` | `dy` (px), or `page: up/down`, or `top/bottom` | scrolls the active tab |
+| `media` | `play` / `pause` / `toggle` / `seek: ±s` / `volume: 0–1` / `mute` | acts on the first `<video>`/`<audio>` in the tab; YouTube is covered |
+| `zoom` | `in` / `out` / `reset` | sets the active tab's zoom |
+| `fullscreen` | — | toggles the video player's fullscreen |
+| `type` | `text` (≤ 500), `submit`? | types into the focused editable element only |
+| `group` | `groupId`, `collapsed` | collapses or expands a group |
+
+- **Replies (desktop → phone):** `{ "re": id, "ok": bool, "error"?, "state"? }`. The desktop also pushes `state` unasked, at most 2/s, whenever tabs, the active tab or media state change.
+
+### Safety
+
+These are the desktop's job:
+
+- **Off by default.** Turning it on happens on the PC, in Settings → Sync → "Let my phone control this computer", and is per device.
+- A visible indicator shows while a controller is connected, such as a title-bar pill "Controlled from <phone name>" with a Stop button. Revoking the device or signing out disconnects it at once.
+- **Commands it never runs:**
+  - JavaScript;
+  - `file:`, `vex:`, `about:` or `javascript:` URLs;
+  - anything in a private window;
+  - anything on the Vault or Settings pages;
+  - downloads and installs.
+- `type` refuses password fields.
+- A per-connection rate limit of 20 commands/s.
+
+### Spec
+
+Add §7.1 "Remote control" to `docs/SYNC_PROTOCOL.md`, with the endpoint, frame format, ops, replies, rejections and test vectors. Use the same style as §7.
+
+## What the phone will build once these land
+
+- **R1:** Reading list panel, "Add to reading list" in the page menu, and a swipe action to mark an item read.
+- **R2 and R3:** it writes its own tabs, groups, history and closed tabs, with no private tabs. History and Recently closed gain an "On your computer" view.
+- **R4:** a Remote screen showing live PC tabs in groups. Tapping a tab activates it; swiping closes it. It has a trackpad-style scroll strip, media controls (play/pause, seek ±10 s, volume using the phone's volume keys), zoom, back/forward/reload, "Open this phone tab on the PC", and type-to-PC.

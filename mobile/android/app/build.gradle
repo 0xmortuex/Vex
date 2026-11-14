@@ -1,0 +1,94 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace "com.vex.browser"
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.vex.browser"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "0.1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // LiteRT-LM ships native libraries for arm64-v8a and x86_64, and the
+        // x86_64 pair is twenty-odd megabytes for a phone that does not exist:
+        // every Android device this will ever run on is 64-bit ARM, and the
+        // emulator is not something Vex is tested in. 53 MB → half that.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+        aaptOptions {
+            // cap sync copies www/ into assets/public; leave its dotfiles alone.
+            ignoreAssetsPattern '!.svn:!.git:!.DS_Store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            // Compress the native libraries in the APK. Modern packaging stores
+            // them uncompressed so the loader can map them straight out of the
+            // APK — faster, and the right default for something installed from a
+            // store. But three of these are enormous (litertlm 22 MB, translate
+            // 16 MB), and a debug APK is a file that gets handed to somebody.
+            // Compressed it is half the size and costs one extraction at install.
+            // Release keeps the fast path.
+            packaging {
+                jniLibs {
+                    useLegacyPackaging = true
+                }
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+repositories {
+    flatDir {
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.core:core:$androidxCoreVersion"
+    implementation "androidx.activity:activity:$androidxActivityVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    // androidx.webkit carries the modern WebView surface: algorithmic darkening,
+    // multi-profile (private tabs), and the safe-browsing toggles.
+    implementation "androidx.webkit:webkit:$androidxWebkitVersion"
+    // Pull to refresh, and the fingerprint prompt that guards private tabs and
+    // the password vault.
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:$androidxSwipeRefreshVersion"
+    implementation "androidx.biometric:biometric:$androidxBiometricVersion"
+    // On-device AI, part one: LiteRT-LM runs a .litertlm model in this process,
+    // on the CPU, the GPU (ML Drift) or a Qualcomm NPU. Kotlin library, but
+    // every entry point Vex uses is @JvmOverloads or a callback interface, so no
+    // Kotlin toolchain is needed here — only the stdlib it brings with it.
+    implementation "com.google.ai.edge.litertlm:litertlm-android:$litertLmVersion"
+    // Scrapbook: MediaPipe's interactive segmenter cuts things out of photos
+    // with a 30 MB model downloaded on request, like the language models.
+    implementation "com.google.mediapipe:tasks-vision:$mediapipeTasksVersion"
+    // Part two: Gemini Nano, whose weights belong to the system rather than to
+    // Vex. Three fixed jobs, no download, only on a phone with AICore.
+    implementation "com.google.mlkit:genai-summarization:$mlkitGenAiVersion"
+    implementation "com.google.mlkit:genai-proofreading:$mlkitGenAiVersion"
+    implementation "com.google.mlkit:genai-rewriting:$mlkitGenAiVersion"
+    // Translation that never leaves the phone. The models are downloaded on
+    // request, one language at a time, so these add little to the APK.
+    implementation "com.google.mlkit:translate:$mlkitTranslateVersion"
+    implementation "com.google.mlkit:language-id:$mlkitLanguageIdVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+}
+
+// Written by cap sync — the dependency list for the installed Capacitor plugins.
+if (file('capacitor.build.gradle').exists()) {
+    apply from: 'capacitor.build.gradle'
+}
