@@ -7077,8 +7077,20 @@ async function _extApi(senderUrl, ses, request) {
       if (!res.ok) throw new Error(res.error);
       return undefined;
     }
+    // A write to chrome.storage made in one of the extension's pages, for its service worker: Electron tells the pages of a change and never
+    // the worker (the stand-ins say what changed). Only a worker that listens is told, and it is started for it if asleep, as Chrome starts it.
+    case 'storage.changed': {
+      needPerm('storage');
+      if (args.area !== 'local' && args.area !== 'session') throw new Error('Vex does not know the storage area ' + String(args.area));
+      if (!args.changes || typeof args.changes !== 'object' || Array.isArray(args.changes)) throw new Error('storage.changed needs what changed');
+      if (!manifest.background || !manifest.background.service_worker) return undefined;
+      if (!_extEvents.listeners(partition, 'storage.onChanged').some(l => l.extId === extId)) return undefined;
+      await _extWorkerSend(ses, ext, 'storage.onChanged', [args.changes, args.area]);
+      return undefined;
+    }
     case 'events.listen': {
       const type = String(args.type || '');
+      if (/^storage\./.test(type)) needPerm('storage');
       if (/^webRequest\./.test(type)) needPerm('webRequest');
       if (/^downloads\./.test(type)) needPerm('downloads');
       if (/^notifications\./.test(type)) needPerm('notifications');

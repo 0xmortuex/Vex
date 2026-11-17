@@ -19,6 +19,8 @@ const EVENTS = new Set([
   'cookies.onChanged',
   'downloads.onCreated', 'downloads.onChanged',
   'notifications.onClicked',
+  // Told to a service worker only (main.js, 'storage.changed'): Electron tells an extension's pages of a storage change and never its worker.
+  'storage.onChanged',
 ]);
 const MAX_TYPES = 200;
 

@@ -114,6 +114,99 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     };
   }
 
+  // chrome.storage.onChanged in a service worker. Electron tells an extension's pages when its storage changes and never its service worker
+  // (measured 2026-11-16 in Electron 42 with no Vex code: a page heard all four changes, the worker none). The Claude extension's worker
+  // learns that the person signed in from this event alone, so in Vex it never connected to claude.ai ("Claude in Chrome isn't connected"
+  // with the extension signed in). Vex tells the worker instead: a write the worker makes is told to its own listeners here, and a write
+  // made in one of the extension's pages is told to main ('storage.changed'), which tells the worker ('storage.onChanged'), started for it
+  // if it listens and is asleep. A page still hears Electron's own event. Not covered: a write made by a content script.
+  var swStorage = !!(manifest.background && manifest.background.service_worker) && !!c.storage;
+  var inWorker = typeof ServiceWorkerGlobalScope === 'function';
+  if (swStorage && (inWorker || api)) {
+    var storageFns = { '': [] };   // '' is chrome.storage.onChanged; 'local' and 'session' are that area's own onChanged
+    var tellStorage = function (area, changes) {
+      if (!changes || !Object.keys(changes).length) return;
+      if (!inWorker) {
+        api('storage.changed', { area: area, changes: changes }).catch(function (err) { console.error('[Vex] the service worker was not told of a storage change: ' + err.message); });
+        return;
+      }
+      var call = function (fn, args) { try { fn.apply(null, args); } catch (err) { setTimeout(function () { throw err; }, 0); } };
+      storageFns[''].slice().forEach(function (fn) { call(fn, [changes, area]); });
+      (storageFns[area] || []).slice().forEach(function (fn) { call(fn, [changes]); });
+    };
+    // What a write changed, as Chrome says it: only the keys whose stored value is different now.
+    var storageChanges = {
+      set: function (old, items) {
+        var out = {};
+        Object.keys(items || {}).forEach(function (k) {
+          var text = JSON.stringify(items[k]);
+          if (text === undefined) return;
+          if (Object.prototype.hasOwnProperty.call(old, k)) {
+            if (JSON.stringify(old[k]) === text) return;
+            out[k] = { oldValue: old[k], newValue: JSON.parse(text) };
+          } else out[k] = { newValue: JSON.parse(text) };
+        });
+        return out;
+      },
+      remove: function (old, keys) {
+        var out = {};
+        [].concat(keys == null ? [] : keys).forEach(function (k) { if (Object.prototype.hasOwnProperty.call(old, k)) out[k] = { oldValue: old[k] }; });
+        return out;
+      },
+      clear: function (old) {
+        var out = {};
+        Object.keys(old).forEach(function (k) { out[k] = { oldValue: old[k] }; });
+        return out;
+      },
+    };
+    ['local', 'session'].forEach(function (area) {
+      var a = c.storage[area];
+      if (!a || typeof a.get !== 'function') return;
+      var get = a.get.bind(a);
+      ['set', 'remove', 'clear'].forEach(function (name) {
+        if (typeof a[name] !== 'function') return;
+        var native = a[name].bind(a);
+        a[name] = function () {
+          var args = Array.prototype.slice.call(arguments);
+          var cb = typeof args[args.length - 1] === 'function' ? args.pop() : null;
+          var what = args[0];
+          // The values before the write. If they cannot be read the write still happens, and it is said that no event follows.
+          var before = get(name === 'set' ? Object.keys(what || {}) : name === 'remove' ? what : null).catch(function (err) {
+            console.error('[Vex] storage.' + area + '.' + name + ': the old values could not be read, so no change event follows: ' + err.message);
+            return null;
+          });
+          var after = function (old) { if (old) tellStorage(area, storageChanges[name](old, what)); };
+          if (!cb) return before.then(function (old) { return native.apply(null, args).then(function (v) { after(old); return v; }); });
+          // With a callback, the callback runs inside the area's own, where chrome.runtime.lastError can still be read.
+          before.then(function (old) {
+            native.apply(null, args.concat(function () { if (!c.runtime.lastError) after(old); return cb.apply(this, arguments); }));
+          });
+          return undefined;
+        };
+      });
+    });
+    if (inWorker) {
+      var toldMainOfStorage = false;
+      var ownStorageEvent = function (ev, key) {
+        if (!ev || typeof ev.addListener !== 'function') return;
+        var fns = storageFns[key] || (storageFns[key] = []);
+        ev.addListener = function (fn) {
+          if (typeof fn !== 'function') return;
+          if (fns.indexOf(fn) === -1) fns.push(fn);
+          if (!toldMainOfStorage) { toldMainOfStorage = true; tellMain('storage.onChanged'); }
+        };
+        ev.removeListener = function (fn) { var i = fns.indexOf(fn); if (i !== -1) fns.splice(i, 1); };
+        ev.hasListener = function (fn) { return fns.indexOf(fn) !== -1; };
+        ev.hasListeners = function () { return fns.length > 0; };
+      };
+      ownStorageEvent(c.storage.onChanged, '');
+      ownStorageEvent(c.storage.local && c.storage.local.onChanged, 'local');
+      ownStorageEvent(c.storage.session && c.storage.session.onChanged, 'session');
+      // A write made in one of the extension's pages, from main.
+      hubEvent('storage.onChanged').addListener(function (changes, area) { if (area === 'local' || area === 'session') tellStorage(area, changes); });
+    }
+  }
+
   if (!c.permissions) {
     var grantedPerms = [].concat(manifest.permissions || [], manifest.host_permissions || []);
     var origins = grantedPerms.filter(function (p) { return /[:/*<]/.test(p); });
