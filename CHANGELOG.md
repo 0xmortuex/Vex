@@ -1,5 +1,12 @@
 # Changelog
 
+## v57.99.8 (2026-11-17) — Claude in Chrome connects: claude.ai sees the signed-in Claude extension
+
+A small release with one fix. On claude.ai in Vex's Claude panel, the chat said "Claude in Chrome isn't connected" and offered "Check sign-in", while the Claude extension's own settings page showed you signed in. The extension's background script never heard that you had signed in, so it never connected. It hears it now.
+
+### Fixed
+- **claude.ai said "Claude in Chrome isn't connected" although the extension was signed in.** An extension's background script (its service worker) is told when the extension's saved data changes; that is how Claude's learns that you signed in, and only then does it connect to claude.ai. Electron tells an extension's pages of such a change and never its background script, so Claude's stayed signed out inside and, on the PC this was found on, had not tried to connect once in 19 days. Vex now tells the background script itself. This helps every extension whose background script waits for a change to its settings; a change made by the extension's script inside a web page is not passed on yet. Try: With the Claude extension signed in, open claude.ai in the Claude panel and ask it to open a website.
+
 ## v57.97.3 (2026-11-14) — Cloudflare's "Verify you are human" box works, and one bypass process instead of two
 
 A small release with three fixes. On pages protected by Cloudflare, the "Verify you are human" box came back unticked in Vex while it passed in Chrome on the same PC. Vex says it is Chrome, but it did not say so the same way everywhere, and Master Volume at any level other than 100% made it worse. Both are put right; you still tick the box yourself. And the Discord and Roblox bypass no longer start a program each when Vex opens.

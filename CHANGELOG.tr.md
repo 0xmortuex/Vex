@@ -2,6 +2,13 @@
 
 Bu dosya CHANGELOG.md’nin Türkçesidir. Vex Türkçe olduğunda “Yenilikler” kartı ve pencereleri bu metinleri gösterir; bir sürümün Türkçesi burada yoksa İngilizcesi gösterilir. Başlık biçimi İngilizce dosyayla aynıdır (`## v<sürüm> (tarih) — Başlık`), `(feature: kimlik)` etiketleri olduğu gibi kalır.
 
+## v57.99.8 (2026-11-17) — Claude in Chrome bağlanıyor: claude.ai oturumu açık Claude eklentisini görüyor
+
+Tek düzeltme içeren küçük bir sürüm. Vex’in Claude panelindeki claude.ai’de sohbet “Claude in Chrome isn’t connected” diyor ve “Check sign-in” düğmesini öneriyordu; oysa Claude eklentisinin kendi ayarlar sayfası oturumunuzun açık olduğunu gösteriyordu. Eklentinin arka plan betiği oturum açtığınızı hiç duymuyor, bu yüzden hiç bağlanmıyordu. Artık duyuyor.
+
+### Düzeltildi
+- **Eklentide oturum açıkken claude.ai “Claude in Chrome isn’t connected” diyordu.** Bir eklentinin arka plan betiğine (service worker), eklentinin kayıtlı verisi değiştiğinde haber verilir; Claude’unki oturum açtığınızı böyle öğrenir ve claude.ai’ye ancak ondan sonra bağlanır. Electron böyle bir değişikliği eklentinin sayfalarına bildiriyor, arka plan betiğine ise hiç bildirmiyordu; bu yüzden Claude’unki içeride oturumu kapalı kalıyordu ve bunun bulunduğu bilgisayarda 19 gün boyunca bir kez bile bağlanmayı denememişti. Vex artık arka plan betiğine kendisi haber veriyor. Bu, arka plan betiği ayarlarındaki bir değişikliği bekleyen her eklentiye yardımcı olur; eklentinin bir web sayfasının içinde çalışan betiğinin yaptığı değişiklik henüz iletilmiyor. Deneyin: Claude eklentisinde oturum açıkken Claude panelinde claude.ai’yi açın ve bir web sitesi açmasını isteyin.
+
 ## v57.97.3 (2026-11-14) — Cloudflare’ın “İnsan olduğunuzu doğrulayın” kutusu çalışıyor ve iki yerine tek atlatma programı
 
 Üç düzeltme içeren küçük bir sürüm. Cloudflare’ın koruduğu sayfalarda “İnsan olduğunuzu doğrulayın” kutusu, aynı bilgisayardaki Chrome’da geçerken Vex’te işaretsiz geri dönüyordu. Vex kendini Chrome olarak tanıtır, ama bunu her yerde aynı biçimde söylemiyordu; %100 dışındaki her düzeyde Ana Ses de durumu kötüleştiriyordu. İkisi de düzeltildi; kutuyu yine siz işaretlersiniz. Ayrıca Discord ve Roblox atlatması artık Vex açılırken ayrı ayrı birer program başlatmıyor.
