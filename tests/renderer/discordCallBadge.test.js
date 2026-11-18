@@ -1,67 +1,40 @@
 // @vitest-environment jsdom
 //
-// The Discord icon says, without opening the panel: in a call, muted or live,
-// deafened, sharing the screen.
+// The Discord icon says, without opening the panel, that Discord holds the microphone, the camera or the screen.
+// It is what the browser itself knows. Discord is a plain page in Vex: its Mute, Deafen and Stop Streaming buttons
+// are not read any more (the badge used to say muted, deafened or sharing from them), and no script runs in its page.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 require('../../src/renderer/js/vex-icons.js');
 require('../../src/renderer/js/vex-utils.js');
 const { SidebarManager } = require('../../src/renderer/js/sidebar.js');
 
-// Discord's own buttons, as it draws them.
-function discord({ muteLabel = 'Mute', muteChecked, deafLabel = 'Deafen', deafChecked, call = true, sharing = false } = {}) {
-  document.body.innerHTML = `
-    <button aria-label="${muteLabel}" ${muteChecked != null ? `aria-checked="${muteChecked}"` : ''}></button>
-    <button aria-label="${deafLabel}" ${deafChecked != null ? `aria-checked="${deafChecked}"` : ''}></button>
-    ${call ? '<button aria-label="Disconnect"></button>' : ''}
-    ${sharing ? '<button aria-label="Stop Streaming"></button>' : ''}`;
-  return (0, eval)(SidebarManager.DISCORD_STATE_SCRIPT);
-}
-
-describe('reading the call from Discord\'s buttons', () => {
-  it('live, muted the old way ("Unmute") and the new way (Mute pressed)', () => {
-    expect(discord()).toEqual({ inCall: true, muted: false, deafened: false, sharing: false });
-    expect(discord({ muteLabel: 'Unmute' }).muted).toBe(true);
-    expect(discord({ muteChecked: 'true' }).muted).toBe(true);
-    expect(discord({ muteChecked: 'false' }).muted).toBe(false);
-  });
-
-  it('deafened, sharing, and not in a call', () => {
-    expect(discord({ deafChecked: 'true' }).deafened).toBe(true);
-    expect(discord({ deafLabel: 'Undeafen' }).deafened).toBe(true);
-    expect(discord({ sharing: true }).sharing).toBe(true);
-    expect(discord({ call: false }).inCall).toBe(false);
-  });
-});
-
 describe('the badge', () => {
   it('says it in words and picks the icon', () => {
+    expect(SidebarManager.discordBadgeFor(null)).toBeNull();
     expect(SidebarManager.discordBadgeFor({ inCall: false })).toBeNull();
-    expect(SidebarManager.discordBadgeFor({ inCall: true, muted: false })).toEqual({ icon: 'mic', tone: 'live', title: 'In a Discord call: microphone live' });
-    expect(SidebarManager.discordBadgeFor({ inCall: true, muted: true, sharing: true })).toEqual({ icon: 'monitor', tone: 'off', title: 'In a Discord call: muted, sharing your screen' });
-    expect(SidebarManager.discordBadgeFor({ inCall: true, deafened: true })).toMatchObject({ icon: 'headphones', tone: 'off' });
+    expect(SidebarManager.discordBadgeFor({ inCall: true })).toEqual({ icon: 'mic', tone: 'live', title: 'Discord is using the microphone, the camera or the screen' });
   });
 
-  it('appears on the Discord icon, and goes when the call ends', async () => {
+  it('appears on the Discord icon while Discord holds the microphone, and goes when it lets go', async () => {
     document.body.innerHTML = '<div class="sidebar-icon" data-panel="discord"></div>';
-    let state = { inCall: true, muted: true, deafened: false, sharing: false };
-    // In a call: Discord holds the microphone, so its page is looked into.
-    SidebarManager.panelWebviews.discord = { executeJavaScript: vi.fn(async () => state), isCurrentlyAudible: () => false };
+    const wv = { executeJavaScript: vi.fn(async () => ({ inCall: true })), isCurrentlyAudible: () => false };
+    SidebarManager.panelWebviews.discord = wv;
     SidebarManager.panelCapture.discord = { mic: true };
     await SidebarManager.updateDiscordBadge();
     const b = document.querySelector('.icon-badge.discord-call');
-    expect(b.dataset.tone).toBe('off');
-    expect(b.title).toBe('In a Discord call: muted');
-    state = { inCall: false };
+    expect(b.dataset.tone).toBe('live');
+    expect(b.title).toBe('Discord is using the microphone, the camera or the screen');
+    delete SidebarManager.panelCapture.discord;
     await SidebarManager.updateDiscordBadge();
     expect(document.querySelector('.icon-badge.discord-call')).toBeNull();
+    expect(wv.executeJavaScript).not.toHaveBeenCalled();
     delete SidebarManager.panelWebviews.discord;
-    delete SidebarManager.panelCapture.discord;
   });
 });
 
-// It ran a script in Discord's hidden page every 10 s all day, on its own
-// timer that ignored games and a minimised Vex.
-describe('looking into Discord only when a call may be on', () => {
+describe('nothing is read from Discord\'s page', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div class="sidebar-icon" data-panel="discord"></div>';
     SidebarManager.panelCapture = {};
@@ -69,19 +42,18 @@ describe('looking into Discord only when a call may be on', () => {
     SidebarManager.sidePanel = null;
   });
 
-  it('does not run its script in a silent Discord with no microphone', async () => {
-    const wv = { executeJavaScript: vi.fn(async () => ({ inCall: true })), isCurrentlyAudible: () => false };
+  it('a Discord that only makes a sound has no badge, and its page is not looked into', async () => {
+    const wv = { executeJavaScript: vi.fn(async () => ({ inCall: true })), isCurrentlyAudible: () => true };
     SidebarManager.panelWebviews.discord = wv;
     expect(await SidebarManager.updateDiscordBadge()).toBeNull();
     expect(wv.executeJavaScript).not.toHaveBeenCalled();
     delete SidebarManager.panelWebviews.discord;
   });
 
-  it('looks when Discord is making a sound', async () => {
-    const wv = { executeJavaScript: vi.fn(async () => ({ inCall: true })), isCurrentlyAudible: () => true };
-    SidebarManager.panelWebviews.discord = wv;
-    expect(await SidebarManager.updateDiscordBadge()).toMatchObject({ tone: 'live' });
-    delete SidebarManager.panelWebviews.discord;
+  it('the script that read Discord\'s buttons is gone', () => {
+    expect(SidebarManager.DISCORD_STATE_SCRIPT).toBeUndefined();
+    const src = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/sidebar.js'), 'utf8');
+    expect(src).not.toMatch(/aria-label\^?="(Mute|Unmute|Deafen|Undeafen|Disconnect|Stop Streaming)/);
   });
 
   it('runs on the shared job timer, and not while the Discord panel is open', () => {

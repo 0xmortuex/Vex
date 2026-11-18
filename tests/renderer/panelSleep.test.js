@@ -314,13 +314,16 @@ describe('Discord rests when hidden and not in a call', () => {
     expect(window.vex.setBackgroundThrottling).toHaveBeenCalledTimes(1);
   });
 
-  it('a call keeps it awake: microphone in use, audible, or the Disconnect button in its page', async () => {
+  it('a call keeps it awake: microphone in use or audible; its page is never read for a Disconnect button', async () => {
     usage({ discord: NOW - 10 * 60000 });
     discordWebview({ audible: true });
     expect((await SidebarManager.checkDiscordThrottle(NOW)).inCall).toBe(true);
     SidebarManager.panelWebviews = {};
-    discordWebview({ disconnectButton: true });
-    expect((await SidebarManager.checkDiscordThrottle(NOW)).inCall).toBe(true);
+    const quiet = discordWebview({ disconnectButton: true });
+    expect((await SidebarManager.checkDiscordThrottle(NOW)).inCall).toBe(false);
+    if (quiet && quiet.executeJavaScript && quiet.executeJavaScript.mock) expect(quiet.executeJavaScript).not.toHaveBeenCalled();
+    SidebarManager._discordThrottled = false;
+    window.vex.setBackgroundThrottling.mockClear();
     SidebarManager.panelWebviews = {};
     discordWebview();
     SidebarManager.setPanelCapturing('discord', 'mic', true);

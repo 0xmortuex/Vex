@@ -106,7 +106,7 @@ function farbleOn(globalOn, partition, ses) {
 // Discord's microphone bar and the green "speaking" outline stayed on while the microphone was silent, in Vex only
 // (found 2026-10-31; switching the protection off fixed it). Matched by the page's site (farbleSite), so
 // canary.discord.com is covered and discord.com.example.test is not.
-const FARBLE_EXEMPT_SITES = new Set(['discord.com']);
+const FARBLE_EXEMPT_SITES = new Set(['discord.com', 'discordapp.com']);
 function farbleExemptSite(url) {
   return FARBLE_EXEMPT_SITES.has(farbleSite(url));
 }

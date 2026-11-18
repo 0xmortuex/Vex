@@ -17,7 +17,6 @@ const NOT_A_SURFACE = {
   'history-indexer.js': 'stores summaryBy on the history entry; history-panel.js draws the chip',
   'longdoc-engine.js': 'an engine; thread-digest.js shows its output with the chip',
   'project-compiler.js': 'the document it saves carries its own "written by <model>" footer (assemble)',
-  'vencord-bridge.js': 'returns text to comms-tools-ui.js, which shows it with the chip',
 };
 
 describe('every AI output surface carries the chip', () => {
@@ -31,7 +30,7 @@ describe('every AI output surface carries the chip', () => {
   });
 
   it('the files named as the place the chip is drawn really use it', () => {
-    for (const f of ['ai-panel.js', 'history-panel.js', 'thread-digest.js', 'comms-tools-ui.js']) expect(read(f), f).toMatch(/VexProvenance/);
+    for (const f of ['ai-panel.js', 'history-panel.js', 'thread-digest.js']) expect(read(f), f).toMatch(/VexProvenance/);
   });
 
   it('the list does not keep a file that no longer calls the router', () => {

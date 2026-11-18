@@ -1,6 +1,6 @@
 // === Community and chat tools: the screens, the commands and the Settings section ====
 //
-// One place for everything the person SEES of these ten features. The logic lives in
+// One place for everything the person SEES of these eight features. The logic lives in
 // the modules; this only draws and wires. Every action reports a failure in a toast.
 //
 //   Timezone helper             js/tz-helper.js            Ctrl+K "Timezone helper"
@@ -10,9 +10,7 @@
 //   Announcement composer       js/announce-composer.js    Ctrl+K "Announcement composer"
 //   Community metrics           js/community-metrics.js    Ctrl+K "Community numbers"
 //   Chat link harvester         js/link-harvester.js       Ctrl+K "Collect links"
-//   Discord status line         js/discord-status.js       Settings, Community and chat tools
 //   Moderator chores kit        js/mod-kit.js              Ctrl+K "Moderator kit"
-//   Vencord bridge              js/vencord-bridge.js       Ctrl+K "Discord mentions (bridge)"
 //
 // Nothing here reads a chat, posts, replies or changes anything on a site. The one
 // exception is the optional announcement webhook of the owner's own server, which
@@ -188,22 +186,6 @@ const CommsToolsUI = {
       }, { primary: true })));
       this._heading(body, 'Starting points');
       for (const p of DiscordNoise.PRESETS) body.appendChild(this._row(this._el('span', '', p.label), this._btn('Add', () => { DiscordNoise.addRule(p); draw(); })));
-      this._heading(body, 'Collapse noisy lines in the Discord page');
-      body.appendChild(this._note('Shrinks bot messages, and join, leave, boost and pin lines, to one faded row that opens when you point at it. A style sheet only: no script runs, nothing is read, and Discord is not changed. Off until you switch it on.'));
-      this._toggle(body, 'Collapse bot messages', () => DiscordNoise.collapse().bots, (v) => DiscordNoise.setCollapse({ bots: v }));
-      this._toggle(body, 'Collapse join, leave, boost and pin lines', () => DiscordNoise.collapse().system, (v) => DiscordNoise.setCollapse({ system: v }));
-      this._heading(body, 'Servers you never open');
-      body.appendChild(this._note('While this is on, Vex remembers only the number of each server whose page you open, from the address of the Discord page. It never reads a message, a channel name or a person. "Look at my servers" reads the server names in the server bar of Discord once, when you press it.'));
-      this._toggle(body, 'Remember which servers I open', () => DiscordNoise.tracking(), (v) => { DiscordNoise.setTracking(v); draw(); });
-      if (DiscordNoise.tracking()) {
-        const since = DiscordNoise.state().since;
-        const res = this._el('div', 'setting-info', since ? 'Watching since ' + this._when(since) + '. Vex knows nothing about servers before that.' : '');
-        body.appendChild(res);
-        body.appendChild(this._row(this._btn('Look at my servers', async () => {
-          const r = await DiscordNoise.findNeverOpened();
-          res.textContent = r.never.length ? 'Not opened since Vex started watching (' + r.never.length + ' of ' + r.servers + '): ' + r.never.map(x => x.name).join(', ') + '. Leaving a server is yours to do on Discord.' : 'You have opened all ' + r.servers + ' servers since Vex started watching.';
-        }), this._btn('Forget what I opened', () => { DiscordNoise.forgetOpened(); draw(); })));
-      }
       this._heading(body, 'Quiet-worthy');
       body.appendChild(this._note('Conversations and servers that notified you at least 5 times while none of it was marked read. This is only what the kept notifications say. Leaving a server is yours to do on Discord.'));
       const noisy = DiscordNoise.noisiest();
@@ -396,24 +378,6 @@ const CommsToolsUI = {
           draw();
         }),
         this._btn(todayOnly ? 'Show all' : 'Show today only', () => { todayOnly = !todayOnly; draw(); })));
-      this._heading(body, 'Channels you opted in');
-      body.appendChild(this._note('Press the button below to read the links of the messages already on the screen of an opted-in channel that is open. Only the address of each link is read, and only when you press it. A channel you did not opt in is never read.'));
-      const chans = LinkHarvester.channels();
-      if (!chans.length) body.appendChild(this._note('No channel is opted in.'));
-      for (const c of chans) body.appendChild(this._row(this._el('span', '', c.label), this._btn('Remove', () => { LinkHarvester.optOut(c.key); draw(); })));
-      body.appendChild(this._row(
-        this._btn('Opt in the channel that is open now', () => {
-          const open = LinkHarvester.openChannel();
-          if (!open) throw new Error('Open a Discord channel (the panel or a tab) first');
-          const c = LinkHarvester.optIn(open.url, open.label);
-          window.showToast?.('Opted in: ' + c.label);
-          draw();
-        }),
-        this._btn('Collect from the opted-in channels that are open', async () => {
-          const r = await LinkHarvester.harvestOpen();
-          window.showToast?.('Read ' + r.channels + ' channel(s): ' + r.added + ' new link(s), ' + r.seen + ' already known');
-          draw();
-        }, { primary: true })));
       const exp = LinkHarvester.expiring();
       if (exp.length) {
         this._heading(body, 'About to expire');
@@ -536,65 +500,6 @@ const CommsToolsUI = {
     return dlg;
   },
 
-  // ===== T3-005 Vencord bridge ===========================================================================================
-  async openBridge() {
-    if (typeof VencordBridge === 'undefined') throw new Error('The Vencord bridge is not loaded');
-    if (!VencordBridge.enabled()) throw new Error('The Vencord bridge is switched off: Settings, Community and chat tools');
-    const dlg = VexSettingsGroups.dialog({ id: 'vencord-bridge-dialog', title: 'Discord mentions (bridge)', sub: 'Read from a file your own Vencord plugin writes (docs/vencord-bridge.md). Vex does not read Discord.' });
-    const draw = async (refresh) => {
-      const body = dlg.body;
-      body.textContent = '';
-      const st = await VencordBridge.status();
-      if (!st.granted) {
-        body.appendChild(this._note('No folder has been chosen. Pick the folder your Vencord plugin writes vex-bridge.json into. Vex will read that one file, read-only.'));
-        body.appendChild(this._row(this._btn('Choose the folder', async () => { const r = await VencordBridge.pick(); if (r.ok) await draw(true); }, { primary: true })));
-        return;
-      }
-      body.appendChild(this._note('Folder: ' + st.folder + (st.found ? '. File found, saved ' + this._when(st.mtime) + '.' : '. No vex-bridge.json in it yet: your plugin writes it.')));
-      if (st.found && refresh !== false) {
-        try { await VencordBridge.read(); } catch (err) { body.appendChild(this._note('The file could not be read: ' + err.message)); }
-      }
-      const data = VencordBridge.data();
-      if (data) {
-        if (data.skipped) body.appendChild(this._note(data.skipped + ' entr' + (data.skipped === 1 ? 'y' : 'ies') + ' in the file did not fit the format and were left out.'));
-        const age = VencordBridge.age();
-        if (age != null && age > 24 * 3600000) body.appendChild(this._note('The file was made ' + this._ago(data.generatedAt) + '; your plugin may not be running.'));
-        const d = VencordBridge.digest();
-        this._heading(body, d.lines[0]);
-        const list = (title, items) => {
-          this._heading(body, title);
-          if (!items.length) body.appendChild(this._note('Nothing.'));
-          for (const m of items.slice(0, 25)) {
-            const box = this._box((VencordBridge._isNew(m.id) ? 'New  ' : '') + (m.author || 'someone') + (m.channelName ? ' in #' + m.channelName.replace(/^#/, '') : '') + (m.guildName ? ' (' + m.guildName + ')' : ''), m.text);
-            box.appendChild(this._note(this._ago(m.ts)));
-            const row = this._row();
-            if (m.url) row.append(this._btn('Open in Discord panel', () => { if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('discord'); return this._copy(m.url, 'the link; paste it in the Discord panel'); }));
-            row.append(this._btn('Make a task', () => { UnreadTask.add({ text: (m.author || '') + ': ' + m.text, source: 'Discord', url: m.url || '' }); window.showToast?.('Task added'); }));
-            box.appendChild(row);
-            body.appendChild(box);
-          }
-        };
-        list('Mentions', VencordBridge.mentions());
-        list('Replies to your messages', VencordBridge.replies());
-        this._heading(body, 'Channel catch-up');
-        if (!VencordBridge.channels().length) body.appendChild(this._note('The file has no channel messages.'));
-        for (const c of VencordBridge.channels()) {
-          body.appendChild(this._row(this._el('span', '', '#' + (c.name || c.channelId) + (c.guildName ? ' (' + c.guildName + ')' : '') + ': ' + c.messages.length + ' messages'),
-            this._btn('Catch me up', () => { const t = VencordBridge.catchUpText(c.channelId); VexSettingsGroups.dialog({ id: 'vencord-catchup-dialog', title: 'Catch-up: #' + (c.name || c.channelId), sub: 'Counted from the file, no AI.' }).body.appendChild(this._el('pre', '', t)); }),
-            this._btn('Summarize with the local AI', async () => { const t = await VencordBridge.summarizeLocal(c.channelId); VexSettingsGroups.dialog({ id: 'vencord-catchup-dialog', title: 'Summary: #' + (c.name || c.channelId), sub: 'Written by your local model; check it against the chat.' }).body.append(...(typeof VexProvenance !== 'undefined' ? [VexProvenance.chip({ kind: 'local', read: 'the chat messages in the file' })] : []), this._el('pre', '', t)); })));
-        }
-        body.appendChild(this._row(this._btn('Mark everything as seen', () => { VencordBridge.markAllSeen(); draw(false); })));
-      }
-      body.appendChild(this._row(this._btn('Refresh', () => draw(true)), this._btn('Use another folder', async () => { const r = await VencordBridge.pick(); if (r.ok) await draw(true); }),
-        this._btn('Stop using the bridge', async () => {
-          if (await window.vexConfirm({ title: 'Stop using the bridge?', message: 'Vex forgets the folder and which items you have seen. The file itself is not touched.', okLabel: 'Forget', cancelLabel: 'Keep', danger: true })) { await VencordBridge.forget(); await draw(false); }
-        }, { danger: true })));
-    };
-    this._bridgeDraw = draw;
-    await draw(true);
-    return dlg;
-  },
-
   // ===== right-click on selected text ========================================================================================
   // Items for the page menu (js/webview.js). Only for text the person selected, and never in an editable box.
   textItems(selection, webview, { editable = false } = {}) {
@@ -685,44 +590,12 @@ const CommsToolsUI = {
     T('Use the link harvester', () => LinkHarvester.enabled(), (v) => LinkHarvester.setEnabled(v));
     body.appendChild(this._row(open('Open collected links (' + LinkHarvester.links().length + ')', () => this.openLinks())));
 
-    this._heading(body, 'Discord status suggestions');
-    body.appendChild(this._note('By default Vex never changes your Discord status: when Game mode or Focus starts it suggests what to set, and copies the words. The status line can show on your New Tab page.'));
-    T('Suggest a status for Game and Focus', () => DiscordStatus.enabled(), (v) => DiscordStatus.setEnabled(v));
-    body.appendChild(this._note('Optional: let YOUR OWN Vencord plugin set it. Vex never holds your Discord token; it writes one small file (vex-status.json) into the Vencord bridge folder and your plugin applies it as your CUSTOM status (text and emoji; Online, Idle and Do Not Disturb stay yours), then puts your old status back when the mode ends and at the end time. You must ALSO switch on "allowStatus" in the settings of the Vencord plugin itself, or nothing happens (the plugin does not report back). The first change asks you to confirm the exact words. Each change is in the ledger with Undo. Using a client mod is against Discord\'s terms; that is your choice for your own account. Needs the plugin and the bridge folder (see docs/vencord-bridge.md).'));
-    T('Let my Vencord plugin set the status', () => DiscordStatus.state().apply, (v) => DiscordStatus.setApply(v));
-    body.appendChild(this._row(this._btn('Show what would be sent for Game mode', () => this._guard(() => {
-      const r = DiscordStatus.request('game', 0);
-      window.showToast?.('Game mode would set: ' + r.label.replace(/^Set Discord to /, ''));
-    }))));
-    T('Suggest it when a mode starts and ends', () => DiscordStatus.state().suggest, (v) => DiscordStatus.setSuggest(v));
-    T('Keep a status line for the New Tab page', () => DiscordStatus.state().line, (v) => DiscordStatus.setLine(v));
-    for (const mode of ['game', 'focus', 'back']) {
-      const t = DiscordStatus.state().texts[mode];
-      const sel = this._el('select', 'select'); sel.setAttribute('aria-label', 'Status for ' + mode);
-      for (const s of DiscordStatus.STATUSES) { const o = this._el('option', '', s); o.value = s; sel.appendChild(o); }
-      sel.value = t.status;
-      sel.addEventListener('change', () => this._guard(() => DiscordStatus.setText(mode, { status: sel.value })));
-      const txt = this._input(mode === 'back' ? 'no text' : 'Text, {end} is the time it ends', 'Status text for ' + mode, t.text);
-      txt.addEventListener('change', () => this._guard(() => { DiscordStatus.setText(mode, { text: txt.value }); window.showToast?.('Saved'); }));
-      body.appendChild(this._row(this._el('span', '', mode === 'game' ? 'Game mode:' : mode === 'focus' ? 'Focus:' : 'Back:'), sel, txt));
-    }
-    body.appendChild(this._row(this._btn('Set a status line for a while...', async () => {
-      const text = await window.vexPrompt({ title: 'Status line', message: 'The words to show on your New Tab page.', okLabel: 'Next' });
-      if (!text) return;
-      const min = await window.vexPrompt({ title: 'For how long?', message: 'Minutes (1 to 1440).', value: '60', okLabel: 'Show it' });
-      if (min) { DiscordStatus.setManual(text, Number(min)); window.showToast?.('Shown on the New Tab page (turn on the Status line section in the Morning Brief settings)'); }
-    }), this._btn('Clear it', () => { DiscordStatus.clearManual(); window.showToast?.('Cleared'); })));
-
     this._heading(body, 'Moderator kit');
     body.appendChild(this._note('A log, reports, templates and checklists for when you moderate. Records about people stay on this computer, are not synced, and take no action on any server.'));
     T('Use the moderator kit', () => ModKit.enabled(), (v) => ModKit.setEnabled(v));
     T('Also add each log line to a Notes note "Mod log" (Notes may sync)', () => ModKit.state().toNote, (v) => ModKit.setToNote(v));
     body.appendChild(this._row(open('Open the moderator kit', () => this.openModKit())));
 
-    this._heading(body, 'Vencord bridge');
-    body.appendChild(this._note('Reads one JSON file that YOUR Vencord plugin writes, from a folder you choose: mentions, replies and channel catch-up. Vex does not read Discord and does not change Vencord. See docs/vencord-bridge.md.'));
-    T('Use the Vencord bridge', () => VencordBridge.enabled(), (v) => VencordBridge.setEnabled(v));
-    body.appendChild(this._row(open('Open the bridge', () => this.openBridge())));
   },
 };
 
@@ -737,7 +610,7 @@ if (typeof window !== 'undefined') {
     }
   }
   if (typeof VexSettingsGroups !== 'undefined') {
-    VexSettingsGroups.register({ id: 'comms-tools', title: 'Community and chat tools', keywords: 'discord timezone time zone announcement webhook metrics members moderator mod log vencord bridge mentions meeting join zoom meet link harvester task status noise mute', render: (body) => CommsToolsUI.render(body) });
+    VexSettingsGroups.register({ id: 'comms-tools', title: 'Community and chat tools', keywords: 'discord timezone time zone announcement webhook metrics members moderator mod log meeting join zoom meet link harvester task status noise mute', render: (body) => CommsToolsUI.render(body) });
   }
 }
 if (typeof window !== 'undefined' && typeof CommandBar !== 'undefined' && CommandBar.commands) {
@@ -750,6 +623,5 @@ if (typeof window !== 'undefined' && typeof CommandBar !== 'undefined' && Comman
   add({ id: 'community-metrics', label: 'Community numbers', hint: 'Members, stars and name watch with change since last week', icon: 'users', action: () => CommsToolsUI.openMetrics() });
   add({ id: 'link-harvester', label: 'Collect links', hint: 'Links from pasted text and kept notifications; rescue expiring files', icon: 'link', action: () => CommsToolsUI.openLinks() });
   add({ id: 'mod-kit', label: 'Moderator kit', hint: 'Log, reports, templates and checklists for moderating', icon: 'flag', action: () => CommsToolsUI.openModKit() });
-  add({ id: 'vencord-bridge', label: 'Discord mentions (bridge)', hint: 'Mentions, replies and catch-up from your Vencord plugin\'s file', icon: 'message', action: () => CommsToolsUI.openBridge() });
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { CommsToolsUI };

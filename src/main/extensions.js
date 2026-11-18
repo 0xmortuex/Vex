@@ -182,15 +182,18 @@ function writeRemoving(extensionsDir, removing) {
 
 // ---- Where an extension is loaded ------------------------------------------
 // The browsing sessions get every extension. The app panels' partitions
-// (Discord, Spotify…) get only the ones whose content scripts name that site:
+// (Spotify, Roblox…) get only the ones whose content scripts name that site:
 // a generic extension does nothing useful there, and one with a persistent
 // background page (Manifest v2 — uBlock Origin) ran one idle copy per
 // partition, a process and ~35 MB each, eleven times over. Scope 'everywhere'
 // overrides that for an extension the user wants in every panel regardless.
+// The Discord panel gets NO extension, whatever its content scripts name and
+// whatever its scope: it is a plain web page in Vex (no client mod, no script
+// or style of an extension in Discord's page).
 const SCOPE_FILE = 'scope.json';
 const BROWSING_PARTITIONS = ['persist:main', 'persist:container-work', 'persist:container-personal', 'persist:container-shopping'];
+const NO_EXTENSION_PARTITIONS = Object.freeze(['persist:discord']);
 const APP_PARTITIONS = {
-  'persist:discord': ['discord.com', 'discordapp.com'],
   'persist:whatsapp': ['whatsapp.com'],
   'persist:claude': ['claude.ai', 'anthropic.com', 'gemini.google.com', 'chatgpt.com', 'openai.com'],
   'persist:spotify': ['spotify.com'],
@@ -402,7 +405,7 @@ module.exports = {
   CONTENT_SHIM_FILE, contentShimSource, withContentShim,
   tidyReplaced, SOURCES_FILE, readSources, writeSources,
   FILE_ACCESS_FILE, fileUrlPatterns, readFileAccess, writeFileAccess, migrateFileAccess,
-  DISABLED_FILE, SCOPE_FILE, BROWSING_PARTITIONS, APP_PARTITIONS,
+  DISABLED_FILE, SCOPE_FILE, BROWSING_PARTITIONS, APP_PARTITIONS, NO_EXTENSION_PARTITIONS,
   readMessages, localize, slugFromName, pickIcon, pickPages, clampPopupSize,
   archiveProblem, disabledPath, readDisabled, readDisabledFailClosed, writeDisabled,
   REMOVING_FILE, readRemoving, writeRemoving,

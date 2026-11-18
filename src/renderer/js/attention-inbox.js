@@ -284,8 +284,6 @@ if (typeof window !== 'undefined') {
           } catch (err) { window.VexProblems?.note('attention', 'A notice from Vex could not be shown', err); }
         }
       });
-      // A real Discord theme changed upstream (js/discord-theme.js checkPin): "Use the new version" pins the new file.
-      AttentionInbox.handle('theme-pin', (key) => window.DiscordTheme.acceptPin(key).catch((err) => { window.VexProblems?.note('Discord theme', 'The new theme version could not be used', err); }));
       // An installed extension's files changed without Vex installing or updating it (main/extension-fingerprint.js): "Turn it off" uses
       // the existing on/off path. Its folder is the row's id. Nothing is removed.
       AttentionInbox.handle('extension-changed', async (key, row) => {

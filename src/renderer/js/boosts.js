@@ -23,6 +23,9 @@ const VexBoosts = {
   },
 
   _host(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } },
+  // Discord is a plain page in Vex: no boost (zapped element, CSS or JS) is ever applied to it, and none can be made for it.
+  DISCORD_WHY: 'Boosts are not available on Discord: it is a plain page in Vex, with no style or script of yours in it',
+  isDiscordHost(host) { return /(^|\.)(discord\.com|discordapp\.com|discord\.gg)$/i.test(String(host || '')); },
   forHost(host) { return this.boosts[host] || null; },
 
   // Inject this site's boost into a webview. Idempotent per navigation —
@@ -37,8 +40,8 @@ const VexBoosts = {
     if (!host) return;
     const b = this.boosts[host];
     // `paused` is set by "This site is broken" (js/site-ladder.js): the boost
-    // is kept but not applied until it is put back.
-    if (!b || b.paused) { this._writeCss(webview, ''); return; }
+    // is kept but not applied until it is put back. A boost saved for Discord before is kept and never applied.
+    if (!b || b.paused || this.isDiscordHost(host)) { this._writeCss(webview, ''); return; }
     const cssParts = [];
     // Hidden elements are not applied on a banking, payment, sign-in or mail page, even on a site
     // that was zapped elsewhere (T3-090): a hidden "Confirm" or "Cancel" there costs more than an ad.
@@ -108,6 +111,7 @@ const VexBoosts = {
     const wv = this._activeWv();
     const host = this._activeHost();
     if (!wv || !host) { window.showToast?.('Open a page first'); return; }
+    if (this.isDiscordHost(host)) { window.showToast?.(this.DISCORD_WHY, 'error'); return; }
     // Never on a banking, payment, sign-in or mail page (T3-090): said once, before the picker starts.
     const pageUrl = (() => { try { return wv.getURL(); } catch { return ''; } })() || ('https://' + host + '/');
     const refused = typeof VexPageSensitivity !== 'undefined' ? VexPageSensitivity.reason(pageUrl) : null;
@@ -247,6 +251,7 @@ const VexBoosts = {
   openEditor(host) {
     host = host || this._activeHost();
     if (!host) { window.showToast?.('Open a page first'); return; }
+    if (this.isDiscordHost(host)) { window.showToast?.(this.DISCORD_WHY, 'error'); return; }
     const b = this.boosts[host] || { zaps: [], css: '', js: '' };
     const esc = (s) => window.escapeHtml(s);
     document.getElementById('boost-edit-modal')?.remove();

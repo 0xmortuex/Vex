@@ -156,8 +156,6 @@ contextBridge.exposeInMainWorld('vex', {
   onAttentionRows: (cb) => subscribe('vex:attention-rows', cb),
   // Fires once when a Discord stream pop-out window opens (discoverability hint).
   onDiscordPopoutOpen: (cb) => subscribe('vex:discord-popout-open', cb),
-  // The pop-out's "Back to Discord" button was pressed: show Discord.
-  onDiscordPopoutBack: (cb) => subscribe('vex:discord-popout-back', cb),
 
   // RSS feeds (fetched in main to dodge CORS)
   rssFetch: (url) => ipcRenderer.invoke('rss:fetch', url),
@@ -313,7 +311,6 @@ contextBridge.exposeInMainWorld('vex', {
   // A watched page read as a hidden tab would show it (main/page-render.js).
   pageWatchRender: (opts) => ipcRenderer.invoke('pagewatch:render', opts),
   crawlFetch: (url, accept) => ipcRenderer.invoke('crawl:fetch', url, accept),
-  setDiscordLite: (on) => ipcRenderer.invoke('discord:lite', on),
   mail: {
     accounts: () => ipcRenderer.invoke('mail:accounts'),
     add: (account) => ipcRenderer.invoke('mail:add', account),
@@ -348,16 +345,6 @@ contextBridge.exposeInMainWorld('vex', {
     sync: (payload) => ipcRenderer.invoke('unblock:sync', payload),
     status: () => ipcRenderer.invoke('unblock:status'),
   },
-  // One-click Vencord install into the Discord panel.
-  installVencord: () => ipcRenderer.invoke('discord:install-vencord'),
-  // Install a LOCAL Vencord build (your custom userplugins/plugins). Optional
-  // path points at the build's extension-chrome.zip or its repo/dist folder.
-  installVencordLocal: (path) => ipcRenderer.invoke('discord:install-vencord-local', path),
-  // Which Vencord plugin allocates how much (main/discord-heap.js): begin a sampling window on the Discord page, end it
-  // (keep=false throws it away), or read its heap once after a garbage collection. Numbers and plugin names only.
-  discordHeapBegin: (id, names) => ipcRenderer.invoke('discord:heap-begin', id, names),
-  discordHeapEnd: (id, keep) => ipcRenderer.invoke('discord:heap-end', id, keep),
-  discordHeapUsage: (id) => ipcRenderer.invoke('discord:heap-usage', id),
   // Auto-configure sweep progress: { phase:'testing'|'done', label, i, total, ok, via, preset }.
   onDiscordBypassProgress: (cb) => subscribe('discord:bypass-progress', cb),
   // Screen-share source picker (Discord Go Live / Share Screen).
@@ -527,15 +514,6 @@ contextBridge.exposeInMainWorld('vex', {
   devextReload: () => ipcRenderer.invoke('devext:reload'),
   devextStop: () => ipcRenderer.invoke('devext:stop'),
   devextStatus: () => ipcRenderer.invoke('devext:status'),
-  devextVencord: () => ipcRenderer.invoke('devext:vencord'),
-  devextVencordPick: () => ipcRenderer.invoke('devext:vencord-pick'),
-  devextVencordStatus: () => ipcRenderer.invoke('devext:vencord-status'),
-  devextVencordReload: () => ipcRenderer.invoke('devext:vencord-reload'),
-  devextVencordRestore: () => ipcRenderer.invoke('devext:vencord-restore'),
-  devextConsoleStart: () => ipcRenderer.invoke('devext:console-start'),
-  devextConsoleStop: () => ipcRenderer.invoke('devext:console-stop'),
-  devextConsoleClear: () => ipcRenderer.invoke('devext:console-clear'),
-  devextConsoleList: (level, since) => ipcRenderer.invoke('devext:console-list', level, since),
   castlabsBehind: (force) => ipcRenderer.invoke('castlabs:behind', force),
   // Settings > Video and music playback (DRM) and the playback banner (src/main/drm-health.js).
   drmStatus: (reported) => ipcRenderer.invoke('drm:status', reported),
@@ -547,16 +525,11 @@ contextBridge.exposeInMainWorld('vex', {
   makerReposStored: () => ipcRenderer.invoke('makerepos:stored'),
   makerReposRefresh: () => ipcRenderer.invoke('makerepos:refresh'),
   // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook (the address goes in once and
-  // never comes back) and the Vencord bridge file (a folder the owner picked, read-only).
+  // never comes back).
   commsWebhookStatus: () => ipcRenderer.invoke('comms:webhook-status'),
   commsWebhookSet: (url) => ipcRenderer.invoke('comms:webhook-set', url),
   commsWebhookClear: () => ipcRenderer.invoke('comms:webhook-clear'),
   commsWebhookSend: (req) => ipcRenderer.invoke('comms:webhook-send', req),
-  commsBridgeStatus: () => ipcRenderer.invoke('comms:bridge-status'),
-  commsBridgePick: () => ipcRenderer.invoke('comms:bridge-pick'),
-  commsBridgeRead: () => ipcRenderer.invoke('comms:bridge-read'),
-  commsBridgeForget: () => ipcRenderer.invoke('comms:bridge-forget'),
-  commsStatusWrite: (req) => ipcRenderer.invoke('comms:status-write', req),
   // The services' own public status pages, for the ones the person listed (main/status-check.js).
   statusCheck: (list) => ipcRenderer.invoke('status:check', list),
   // Local-service launcher and webhook inspector (main/local-services.js, main/webhook-inspector.js).
@@ -870,11 +843,6 @@ contextBridge.exposeInMainWorld('vex', {
   // What changed since the last launch (src/main/integrity-report.js): the Attention Inbox rows (js/integrity-notes.js)
   integrity: {
     report: () => ipcRenderer.invoke('integrity:report'),
-  },
-  // A real Discord theme's file pinned by its hash (src/main/content-pin.js): check on apply, accept the new version on the owner's click.
-  themePin: {
-    check: (id, url) => ipcRenderer.invoke('themepin:check', id, url),
-    accept: (id, url) => ipcRenderer.invoke('themepin:accept', id, url),
   },
   // Did a proxy or a new root certificate appear since the last time (src/main/network-drift.js): off until switched on in Settings.
   netDrift: {

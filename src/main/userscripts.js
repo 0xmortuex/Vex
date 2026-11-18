@@ -253,12 +253,16 @@ function userHostCovers(userHosts, host) {
   return (userHosts || []).some(u => h === u || h.endsWith('.' + u));
 }
 
+function isDiscordHost(host) { return /(^|\.)(discord\.com|discordapp\.com|discord\.gg)$/i.test(String(host || '')); }
+
 // Would this script run on this page? `script` is a stored entry.
 function scriptMatches(script, urlString) {
   const url = parseUrl(urlString);
   if (!isWebUrl(url)) return false;
   const meta = script.meta;
   const host = url.hostname.toLowerCase();
+  // Discord is a plain page in Vex: no userscript runs on it, in a tab either, whatever the script or its owner names.
+  if (isDiscordHost(host)) return false;
   const userHost = userHostCovers(script.userHosts, host);
   if (isSensitiveHost(host) && !userHost) return false;
   const href = url.href.split('#')[0];
@@ -661,6 +665,6 @@ function createUserscripts({ store, key = 'userscripts', log = console, crypto =
 module.exports = {
   LIMITS, OP_GRANT, SUPPORTED_GRANTS, RUN_AT,
   parseMetadata, parseMatchPattern, matchesPattern, compileGlobOrRegex, scriptMatches,
-  isSensitiveHost, isLocalOrPrivateHost, isIpLiteral, isWebUrl, tabAllowed, connectAllowed,
+  isSensitiveHost, isLocalOrPrivateHost, isIpLiteral, isWebUrl, isDiscordHost, tabAllowed, connectAllowed,
   compareVersions, describe, createUserscripts, grantReview, hasHighPower, gainsHighPower,
 };

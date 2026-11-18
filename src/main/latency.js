@@ -16,7 +16,7 @@ const SLOW_MS = 250;      // where a service stops being far away and starts bei
 const TARGETS = [
   { id: 'cloudflare', name: 'Your connection (Cloudflare)', host: '1.1.1.1', port: 443, baseline: true },
   { id: 'google', name: 'Your connection (Google)', host: '8.8.8.8', port: 443, baseline: true },
-  { id: 'discord', name: 'Discord', host: 'gateway.discord.gg', port: 443 },
+  { id: 'discord', name: 'Discord', host: 'discord.com', port: 443 },   // the site's own address, not its gateway
   { id: 'steam', name: 'Steam', host: 'api.steampowered.com', port: 443 },
   { id: 'riot', name: 'Riot (League, Valorant)', host: 'auth.riotgames.com', port: 443 },
   { id: 'roblox', name: 'Roblox', host: 'www.roblox.com', port: 443 },

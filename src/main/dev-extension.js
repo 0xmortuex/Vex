@@ -12,8 +12,6 @@
 //   - Not remembered across restarts: the loop is on while you work.
 //   - Reading is bounded: at most 400 files, 2 MB each, 6 MB in all, not into
 //     node_modules or .git, and nothing is followed out of the folder.
-//   - vencordStatus() is READ-ONLY guidance for the Vencord builds Vex has
-//     installed: name, version, time and a hash. It changes nothing.
 //
 // createDevExtension({ fs, path, load, unload, watch, absent, cautions, setTimer, clearTimer, now })
 
@@ -147,30 +145,7 @@ function createDevExtension({ fs, path, load, unload, watch, absent = [], cautio
       reloads: cur.reloads, loadedAt: cur.loadedAt, lastError: cur.lastError, report: cur.report };
   }
 
-  // READ-ONLY: the Vencord builds Vex has installed (folders named vencord-*).
-  function vencordStatus(extensionsDir) {
-    const crypto = require('crypto');
-    let names;
-    try { names = fs.readdirSync(extensionsDir, { withFileTypes: true }).filter(e => e.isDirectory() && e.name.startsWith('vencord-')).map(e => e.name); }
-    catch (err) { throw new Error('The extensions folder could not be read: ' + err.message, { cause: err }); }
-    return names.map((name) => {
-      const dir = path.join(extensionsDir, name);
-      let manifest;
-      try { manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8').replace(/^\uFEFF/, '')); } catch { manifest = null; /* vex-allow-empty-catch: an unreadable manifest is reported as loadable: false */ }
-      // The biggest top-level script is the bundle; hash it, nothing else.
-      let bundle = null;
-      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (!e.isFile() || !/\.js$/i.test(e.name)) continue;
-        const size = fs.statSync(path.join(dir, e.name)).size;
-        if (!bundle || size > bundle.size) bundle = { name: e.name, size };
-      }
-      let sha256 = '';
-      if (bundle && bundle.size <= 40 * 1024 * 1024) sha256 = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, bundle.name))).digest('hex');
-      return { folder: name, loadable: !!manifest, version: manifest ? String(manifest.version || '') : '', modified: fs.statSync(dir).mtimeMs, bundle: bundle ? bundle.name : '', bytes: bundle ? bundle.size : 0, sha256 };
-    }).sort((a, b) => b.modified - a.modified);
-  }
-
-  return { start, stop, reload, status, scan, vencordStatus };
+  return { start, stop, reload, status, scan };
 }
 
 module.exports = { createDevExtension, MAX_FILES, MAX_FILE, MAX_TOTAL };

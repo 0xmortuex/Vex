@@ -19,8 +19,10 @@ describe('site-tweaks registry', () => {
     // per-site tweaks stay scoped.
     const GLOBAL = ['hide-web-push'];
     const scoped = (host) => tweaksForHost(host).map(t => t.name).filter(n => !GLOBAL.includes(n));
-    expect(scoped('discord.com')).toContain('discord-always-visible');
-    expect(scoped('canary.discord.com')).toContain('discord-always-visible');
+    // Discord is a plain page: no tweak of its own, on any of its hosts.
+    expect(scoped('discord.com')).toEqual([]);
+    expect(scoped('canary.discord.com')).toEqual([]);
+    expect(scoped('discordapp.com')).toEqual([]);
     expect(scoped('www.tiktok.com')).toContain('hevc-mask');
     expect(scoped('www.instagram.com')).toContain('hevc-mask');
     expect(scoped('accounts.google.com')).toContain('google-uadata');
@@ -78,19 +80,12 @@ describe('site-tweaks registry', () => {
     expect(allowed.supported).toBe(true);
   });
 
-  it('discord tweak spoofs visibility in a bare context', () => {
-    const entry = SITE_TWEAKS.find(t => t.name === 'discord-always-visible');
-    const listeners = [];
-    const ctx = {
-      document: { addEventListener: (...a) => listeners.push(a) },
-      window: { addEventListener: (...a) => listeners.push(a) },
-      Object,
-    };
-    vm.createContext(ctx);
-    new vm.Script(entry.code).runInContext(ctx);
-    expect(ctx.document.visibilityState).toBe('visible');
-    expect(ctx.document.hidden).toBe(false);
-    expect(listeners.some(([name]) => name === 'visibilitychange')).toBe(true);
+  it('no tweak tells a page it is visible when it is not (the Discord spoof is gone)', () => {
+    expect(SITE_TWEAKS.find(t => t.name === 'discord-always-visible')).toBeUndefined();
+    for (const t of SITE_TWEAKS) {
+      expect(t.code).not.toMatch(/visibilityState|webkitHidden|visibilitychange|hasFocus|__vexRest/);
+      expect(String(t.hosts)).not.toMatch(/discord/i);
+    }
   });
 
   it('hide-web-push removes the entire Push surface so push reads as unsupported', () => {

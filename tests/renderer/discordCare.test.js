@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
-// Discord memory care (Wave 6): a notice that stays until answered, a Discord-only automatic refresh, rest mode,
-// Vencord off/on from the Discord button's menu, and the recommendations in the "Why is Discord big?" report.
+// Discord memory care (Wave 6): a notice that stays until answered, and a Discord-only automatic refresh.
+// Rest mode, Vencord off/on and the "Why is Discord big?" report are gone: Discord is a plain page in Vex.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { DiscordMemory } = require('../../src/renderer/js/discord-memory.js');
@@ -62,16 +62,19 @@ const press = (label) => [...document.querySelectorAll('#vex-discord-ask button'
 const labels = () => [...document.querySelectorAll('#vex-discord-ask button')].map(b => b.textContent);
 
 describe('the choices', () => {
-  it('start as on (the registry stages it off for an existing profile), with automatic refresh and rest off', () => {
-    expect(DiscordMemory.care()).toMatchObject({ on: true, auto: false, rest: false, offered: 0, lastAuto: 0 });
-    expect(DiscordMemory.restModeOn()).toBe(false);
+  it('start as on (the registry stages it off for an existing profile), with automatic refresh off', () => {
+    expect(DiscordMemory.care()).toEqual({ on: true, auto: false, offered: 0, lastAuto: 0 });
     expect(DiscordMemory.autoOn()).toBe(false);
   });
+  it('a record saved by an older Vex (rest mode, an unfinished Vencord measurement) is read without those', () => {
+    localStorage.setItem('vex.discordCare', JSON.stringify({ on: true, auto: true, rest: true, abPending: 'vencord-1', pluginPending: ['MessageLogger'] }));
+    expect(DiscordMemory.care()).toEqual({ on: true, auto: true, offered: 0, lastAuto: 0 });
+    for (const gone of ['restModeOn', 'setRest', 'lite', 'setLite', 'turnOffHeavyPlugins', 'vencordState', 'setVencord', 'toggleVencord', 'collect', 'buildReport', 'showWhyBig', 'measurementHold']) expect(DiscordMemory[gone]).toBeUndefined();
+  });
   it('the registry switch turns the whole thing off, and nothing it saved is lost', () => {
-    DiscordMemory.setAuto(true); DiscordMemory.setRest(true);
+    DiscordMemory.setAuto(true);
     DiscordMemory.setEnabled(false);
     expect(DiscordMemory.enabled()).toBe(false);
-    expect(DiscordMemory.restModeOn()).toBe(false);
     expect(DiscordMemory.autoOn()).toBe(false);
     DiscordMemory.setEnabled(true);
     expect(DiscordMemory.autoOn()).toBe(true);
@@ -79,10 +82,6 @@ describe('the choices', () => {
   it('an unreadable record is an error, not a silent default', () => {
     localStorage.setItem('vex.discordCare', '{nope');
     expect(() => DiscordMemory.care()).toThrow(/not readable/);
-  });
-  it('turning rest mode on or off applies it at once', () => {
-    DiscordMemory.setRest(true);
-    expect(sb.checkDiscordThrottle).toHaveBeenCalled();
   });
 });
 
@@ -244,115 +243,17 @@ describe('the limit cannot silently turn the check off', () => {
       expect(DiscordMemory.limitMB()).toBeGreaterThan(0);
     }
   });
-  it('mergeOnce keeps a saved Never as Never (a choice), and the report says so', async () => {
+  it('mergeOnce keeps a saved Never as Never (a choice)', () => {
     localStorage.setItem('vex.discordMemoryLimitMB', '0');
     DiscordMemory.mergeOnce();
     expect(DiscordMemory.limitMB()).toBe(0);
-    const text = DiscordMemory.buildReport(await reportData());
-    expect(text).toMatch(/WARNING: the limit is set to Never/);
-  });
-  it('a limit of 2 GB is called out too', async () => {
-    localStorage.setItem('vex.discordMemoryLimitMB', '2000');
-    expect(DiscordMemory.buildReport(await reportData())).toMatch(/WARNING: the limit is 1\.95 GB|WARNING: the limit is 2\.00 GB/);
   });
 });
 
-async function reportData(page = {}) {
-  window.vex.processes = vi.fn(async () => ({ processes: [{ pid: 99, memKB: 1638 * 1024, privKB: 1500 * 1024, cpu: 3, contents: [{ id: 11, kind: 'webview' }] }] }));
-  window.vexGuestEval = vi.fn(async () => ({ heap: { used: 300 * 1048576, total: 400 * 1048576, limit: 4096 * 1048576 }, nodes: 52000, vencord: true,
-    heavy: ['MessageLoggerEnhanced'], enabledPlugins: 40, spoofed: true, restFn: true, profiler: null, ...page }));
-  globalThis.WebviewManager = { scriptsOffIn: () => false };
-  return DiscordMemory.collect();
-}
-
-describe('Vencord off / on from the Discord button', () => {
-  it('the menu label follows the installed extension', () => {
-    expect(DiscordMemory.vencordMenuLabel({ installed: true, enabled: true })).toBe('Turn Vencord off');
-    expect(DiscordMemory.vencordMenuLabel({ installed: true, enabled: false })).toBe('Turn Vencord on');
-    expect(DiscordMemory.vencordMenuLabel({ installed: false })).toBe(null);
-    expect(DiscordMemory.vencordMenuLabel(null)).toBe('Turn Vencord off or on');
-  });
-  it('reads the state from the vencord-* extension', async () => {
-    expect(await DiscordMemory.vencordState()).toEqual({ installed: true, enabled: true, folder: 'vencord-1' });
-    extensions[0].enabled = false;
-    expect((await DiscordMemory.vencordState()).enabled).toBe(false);
-    extensions.length = 0;
-    expect((await DiscordMemory.vencordState()).installed).toBe(false);
-  });
-  it('turns it off through the same call as the Settings checkbox, reloads Discord, and says what is off', async () => {
-    const msg = await DiscordMemory.toggleVencord();
-    expect(window.vex.extensionsSetEnabled).toHaveBeenCalledWith('vencord-1', false);
-    expect(msg).toMatch(/themes and plugins are off/);
-    expect(sb._createPanelWebview).toHaveBeenCalledTimes(1);          // hidden: replaced without being shown
-    expect(DiscordMemory._vencord.enabled).toBe(false);
-  });
-  it('turns it back on', async () => {
-    extensions[0].enabled = false;
-    const msg = await DiscordMemory.toggleVencord();
-    expect(window.vex.extensionsSetEnabled).toHaveBeenCalledWith('vencord-1', true);
-    expect(msg).toMatch(/Vencord is on/);
-  });
-  it('a Discord in front is reloaded, not replaced', async () => {
-    sb.activePanel = 'discord';
-    await DiscordMemory.toggleVencord();
-    expect(sb.panelWebviews.discord.reload).toHaveBeenCalled();
-    expect(sb._createPanelWebview).not.toHaveBeenCalled();
-  });
-  it('refuses in a call and changes nothing', async () => {
-    sb._discordInCall = vi.fn(async () => true);
-    await expect(DiscordMemory.toggleVencord()).rejects.toThrow(/in a call/);
-    expect(window.vex.extensionsSetEnabled).not.toHaveBeenCalled();
-  });
-  it('says so when Vencord is not installed, and when the switch fails', async () => {
-    window.vex.extensionsSetEnabled = vi.fn(async () => ({ ok: false, error: 'Not found' }));
-    await expect(DiscordMemory.toggleVencord()).rejects.toThrow(/Turning Vencord off failed: Not found/);
-    extensions.length = 0;
-    await expect(DiscordMemory.toggleVencord()).rejects.toThrow(/not installed/);
-  });
-  it('the sidebar menu offers it for the Discord button only', () => {
-    const src = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/js/sidebar.js'), 'utf8');
-    expect(src).toMatch(/DiscordMemory\.vencordMenuLabel\(DiscordMemory\._vencord\)/);
-    expect(src).toMatch(/DiscordMemory\.toggleVencord\(\)/);
-  });
-  it('a measurement cut off with Vencord off turns it back on at the next start', async () => {
-    DiscordMemory._careWired = false;
-    extensions[0].enabled = false;
-    DiscordMemory._saveCare({ abPending: 'vencord-1' });
-    DiscordMemory._wireCare();
-    await vi.waitFor(() => expect(DiscordMemory.care().abPending).toBe(''));
-    expect(extensions[0].enabled).toBe(true);
+describe('nothing runs in Discord\'s page', () => {
+  it('the memory module has no page script, stylesheet or extension switch', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/js/discord-memory.js'), 'utf8');
+    expect(src).not.toMatch(/vexGuestEval|executeJavaScript|insertCSS|extensionsSetEnabled|window\.Vencord|setDiscordLite/);
   });
 });
 
-describe('the report', () => {
-  it('shows Vencord on/off, the care state and the rest state', async () => {
-    DiscordMemory.setRest(true);
-    const text = DiscordMemory.buildReport(await reportData());
-    expect(text).toMatch(/Vencord is ON \(the extension vencord-1\)/);
-    expect(text).toMatch(/Rest mode: on/);
-    extensions[0].enabled = false;
-    expect(DiscordMemory.buildReport(await reportData({ vencord: false, heavy: [] }))).toMatch(/Vencord is OFF/);
-  });
-  it('puts Vencord first in the recommendations, then the heavy plugins, and says the saving is not measured', async () => {
-    const text = DiscordMemory.buildReport(await reportData());
-    const recs = DiscordMemory.recommendations(await reportData());
-    expect(recs[0]).toMatch(/Vencord and its plugins are the first suspect/);
-    expect(recs[1]).toMatch(/MessageLoggerEnhanced/);
-    expect(text).toMatch(/NOT measured/);
-  });
-  it('lists the plugins by time when the profiler is there, and says how to get it when it is not', async () => {
-    const rows = [{ name: 'MessageLoggerEnhanced', totalMs: 900, fluxCalls: 5000, worstEvent: 'MESSAGE_CREATE' }];
-    const withP = DiscordMemory.buildReport(await reportData({ profiler: { seconds: 600, rows } }));
-    expect(withP).toMatch(/MessageLoggerEnhanced: 900 ms, 5000 events, slowest on MESSAGE_CREATE/);
-    expect(DiscordMemory.buildReport(await reportData())).toMatch(/Turn on the PluginProfiler plugin/);
-  });
-  it('recommends rest mode and automatic refresh only when they are off', async () => {
-    const d = await reportData();
-    expect(DiscordMemory.recommendations(d).join('\n')).toMatch(/rest mode/);
-    expect(DiscordMemory.recommendations(d).join('\n')).toMatch(/Refresh Discord automatically/);
-    DiscordMemory.setRest(true); DiscordMemory.setAuto(true);
-    const d2 = await reportData();
-    expect(DiscordMemory.recommendations(d2).join('\n')).not.toMatch(/rest mode/);
-    expect(DiscordMemory.recommendations(d2).join('\n')).not.toMatch(/Refresh Discord automatically/);
-  });
-});

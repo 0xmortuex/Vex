@@ -10,11 +10,8 @@
 //   - text you paste into the harvester;
 //   - the panel notifications Vex already keeps (js/panel-capture.js), only when you press
 //     "Collect from kept notifications" (not by itself, and only when that is on);
-//   - the channels you opted in one by one ("Opt in the channel that is open now"): when you
-//     press "Collect from the opted-in channels that are open", the links of the messages
-//     already on the screen of such a channel are read (the address of each link, nothing else:
-//     no message text, no names, no scrolling, no click). A channel you did not opt in is never read.
-// It never opens a chat, scrolls, signs in or runs in the background.
+// It never reads a page: reading the links on screen in a Discord channel you had opted in is gone
+// (Discord is a plain page in Vex). It never opens a chat, scrolls, signs in or runs in the background.
 //
 // For a link that will expire it offers, and does not do by itself:
 //   Open it now (a tab, so the file downloads under your control), Save for later (Read
@@ -30,22 +27,17 @@ const LinkHarvester = {
   REMIND_BEFORE_MS: 30 * 60000,
   // Hosts whose address carries an expiry.
   CDN: /(^|\.)(cdn\.discordapp\.com|media\.discordapp\.net)$/i,
-  MAX_CHANNELS: 20,
-  MAX_PAGE_LINKS: 200,
   // A Discord channel address: the server (or @me for direct messages) and the channel.
-  CHANNEL_URL: /^https:\/\/([a-z0-9-]+\.)?discord\.com\/channels\/(@me|\d{15,25})\/(\d{15,25})/i,
   // The addresses of the links in the messages on screen. Only the href of each link is returned.
-  PAGE_SCRIPT: "(() => { const root = document.querySelector('[data-list-id=\"chat-messages\"]'); if (!root) return { error: 'no-messages' }; const out = []; for (const a of root.querySelectorAll('a[href]')) { if (/^https?:/i.test(a.href)) out.push(a.href); if (out.length >= 200) break; } return { links: out }; })()",
 
   _now() { return Date.now(); },
 
   // ---- state -------------------------------------------------------------------------------
   state() {
-    const s = CommsStore.record(this.KEY, { on: true, links: [], channels: [] }, 'harvested links');
+    const s = CommsStore.record(this.KEY, { on: true, links: [] }, 'harvested links');
     return {
       on: s.on !== false,
       links: Array.isArray(s.links) ? s.links.filter(l => l && typeof l.id === 'string' && typeof l.url === 'string') : [],
-      channels: Array.isArray(s.channels) ? s.channels.filter(c => c && typeof c.key === 'string' && /^(@me|[0-9]+)\/[0-9]+$/.test(c.key)) : [],
     };
   },
   _save(s) { CommsStore.write(this.KEY, s); CommsStore.emit('vex:link-harvester'); },
@@ -123,66 +115,6 @@ const LinkHarvester = {
       added += r.added; seen += r.seen;
     }
     return { added, seen, scanned };
-  },
-
-  // ---- channels you opted in ----------------------------------------------------------------------
-  channels() { return this.state().channels; },
-  // 'serverId/channelId' (or '@me/channelId') of a Discord address, or ''.
-  channelKeyOf(url) { const m = this.CHANNEL_URL.exec(String(url || '')); return m ? m[2] + '/' + m[3] : ''; },
-  optIn(url, label) {
-    const key = this.channelKeyOf(url);
-    if (!key) throw new Error('Open the Discord channel you want to collect from first (a channel page, not the home or a settings page)');
-    const s = this.state();
-    if (s.channels.some(c => c.key === key)) throw new Error('That channel is already opted in');
-    if (s.channels.length >= this.MAX_CHANNELS) throw new Error('At most ' + this.MAX_CHANNELS + ' channels. Remove one first.');
-    const c = { key, label: CommsStore.line(label, 80) || 'Channel ' + key.split('/')[1], addedAt: this._now() };
-    s.channels.push(c);
-    this._save(s);
-    return c;
-  },
-  optOut(key) {
-    const s = this.state();
-    const next = s.channels.filter(c => c.key !== key);
-    if (next.length === s.channels.length) return false;
-    s.channels = next; this._save(s);
-    return true;
-  },
-  _pages() {
-    if (typeof DiscordTheme === 'undefined' || typeof DiscordTheme.pages !== 'function') throw new Error('The Discord pages are not available in this window');
-    return DiscordTheme.pages();
-  },
-  // The channel in front in a Discord page, as an opt-in candidate: { url, label } or null.
-  openChannel() {
-    for (const wv of this._pages()) {
-      const url = typeof vexGuestUrl === 'function' ? vexGuestUrl(wv) : '';
-      if (this.channelKeyOf(url)) return { url, label: typeof wv.getTitle === 'function' ? String(wv.getTitle() || '') : '' };
-    }
-    return null;
-  },
-  // Press-to-collect: the links on screen in every opted-in channel that is open right now.
-  // -> { channels: n read, added, seen }
-  async harvestOpen() {
-    if (!this.enabled()) throw new Error('The link harvester is switched off in Settings');
-    CommsStore.needKept('A collected link');
-    if (typeof window.vexGuestEval !== 'function') throw new Error('Pages cannot be read in this window');
-    const optedIn = new Map(this.channels().map(c => [c.key, c]));
-    if (!optedIn.size) throw new Error('No channel is opted in. Open one and press "Opt in the channel that is open now".');
-    const done = new Set();
-    let added = 0, seen = 0;
-    for (const wv of this._pages()) {
-      const key = this.channelKeyOf(typeof vexGuestUrl === 'function' ? vexGuestUrl(wv) : '');
-      if (!key || !optedIn.has(key) || done.has(key)) continue;
-      const r = await window.vexGuestEval(wv, this.PAGE_SCRIPT, false, 5000);
-      if (!r || r.error) throw new Error('The messages of ' + optedIn.get(key).label + ' are not on screen yet. Let the channel finish loading and try again.');
-      if (!Array.isArray(r.links)) throw new Error('Discord did not give a list of links');
-      done.add(key);
-      // A link to another Discord channel or message is not a thing to keep.
-      const external = r.links.filter(u => typeof u === 'string' && !/^https:\/\/([a-z0-9-]+\.)?discord\.com\/(channels|users)\//i.test(u)).slice(0, this.MAX_PAGE_LINKS);
-      const got = this.collect(external.join(' '), { source: 'Discord', channel: optedIn.get(key).label });
-      added += got.added; seen += got.seen;
-    }
-    if (!done.size) throw new Error('None of the channels you opted in is open right now');
-    return { channels: done.size, added, seen };
   },
 
   links() { return this.state().links; },

@@ -408,6 +408,8 @@ const AgentSafety = {
     try { u = new URL(String(url || '')); } catch { return 'That is not a valid address'; }
     if (!/^https?:$/.test(u.protocol)) return 'Only http and https pages are used';
     if (u.username || u.password) return 'Addresses with a login inside are not used';
+    // Discord is a plain page in Vex: the agent never reads it, clicks in it, types in it or goes to it.
+    if (/(^|\.)(discord\.com|discordapp\.com|discord\.gg)$/i.test(u.hostname)) return 'Discord is a plain page in Vex: nothing is automated, styled or scripted on it';
     if (this.DOWNLOAD_EXT.test(u.pathname + u.search)) return 'That address is a file download, and the agent never downloads or installs files';
     if (forNavigation && this.NAV_BLOCK_EXT.test(u.pathname)) return 'That address is a document the browser would download, and the agent never downloads files';
     let pa = null;

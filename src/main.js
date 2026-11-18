@@ -1876,7 +1876,7 @@ ipcMain.handle('power:lean', (_e, on) => _powerWatch().setLean(on));
 app.on('will-quit', () => { try { if (_powerWatchLazy) _powerWatchLazy.stop(); } catch {} });
 // battery-aware mode: end
 
-// Mute Discord without leaving the game (src/main/game-hotkeys.js). These are
+// System-wide hotkeys: quick capture and streamer mode (src/main/game-hotkeys.js). These are
 // system-wide, so each one is off until the user sets it.
 const _gameHotkeys = require('./main/game-hotkeys').createGameHotkeys({
   globalShortcut,
@@ -3451,10 +3451,6 @@ const _deviceGrants = require('./main/device-grants').createDeviceGrants({ userD
 const _deviceChooser = require('./main/device-chooser').createDeviceChooser({ ipcMain, webContents, secureSessions, grants: _deviceGrants, hygiene: _permHygiene, webSafety: _webSafety });
 _deviceChooser.registerIpc();
 
-// Lighter Discord (src/main/discord-lite.js): set by the renderer's switch.
-const { isHeavyDiscordMedia, stillVersionOf } = require('./main/discord-lite');
-let _discordLite = false;
-ipcMain.handle('discord:lite', (_e, on) => { _discordLite = !!on; return _discordLite; });
 
 // === Developer bench (renderer: js/dev-bench.js and the files it gathers) ===
 // Failed requests for a bug report (main/request-log.js), response overrides and
@@ -3541,13 +3537,6 @@ function wireAdblockerOnSession(ses, tag) {
     callback = _uploadWatch.wrap(details, tag, callback);
     // A folder opened in a tab goes to Vex's own folder browser (main/folder-viewer.js); every other request is untouched.
     if (_folderViewer.take(details, callback)) return;
-    // Lighter Discord: the animated decoration is fetched as the still one
-    // rather than not at all, so nothing can end up missing (discord-lite.js).
-    if (_discordLite && tag === 'persist:discord' && isHeavyDiscordMedia(details.url)) {
-      const still = stillVersionOf(details.url);
-      callback(still ? { redirectURL: still } : { cancel: true });
-      return;
-    }
     // Engine verdict (EasyList) ORed with the legacy domain list so we never
     // regress an existing block while the richer engine adds coverage. When the
     // engine isn't ready yet engineBlocks() returns null and the legacy list
@@ -4566,8 +4555,11 @@ if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true
 // Chrome extensions load into these sessions. Every PERSISTENT partition Vex
 // can put a page in is listed: regular tabs (persist:main), the sidebar panels,
 // and the container tabs — an extension the user installed should apply
-// everywhere they browse, not only in normal tabs. persist:discord matters
-// separately so the Vencord browser extension applies inside the Discord panel.
+// everywhere they browse, not only in normal tabs. persist:discord is listed
+// only so it counts as a partition Vex knows (_coverNewSession gives a session
+// it does not know EVERY extension) and so a copy still loaded there is found
+// and unloaded: no extension belongs in the Discord panel, which is a plain
+// page (main/extensions.js NO_EXTENSION_PARTITIONS).
 // Partitions created later (a new container, a panel repointed at runtime) are
 // picked up by _coverNewSession. In-memory sessions — Off-the-Record tabs, Tor,
 // burner identities — are deliberately absent: Electron refuses to load an
@@ -4720,33 +4712,6 @@ function _extEntriesOnDisk() {
     .filter(Boolean);
 }
 
-// Diagnostic log for the local-Vencord install flow — appended to
-// <userData>/vencord-install.log so a failure on a user's machine is
-// inspectable instead of a silent "nothing happened".
-function _vlog(msg) {
-  try { fs.appendFileSync(path.join(userDataPath, 'vencord-install.log'), `[${new Date().toISOString()}] ${msg}\n`); } catch {}
-}
-
-// Keep only the NEWEST vencord-* extension folder; remove the rest. Two Vencord
-// builds loaded at once conflict — whichever registers window.Vencord first wins,
-// and that's usually the OLDER one, so a freshly-installed build appears to do
-// nothing (exactly the "still the old plugin" report). Called at startup BEFORE
-// loadExtension (files aren't locked yet, so a delete that failed mid-session
-// succeeds here) and right after an install. Best-effort.
-// Keeping exactly one loadable Vencord build — see ./main/vencord-folders.js
-// for the ordering rule and why a manifest-less folder must go first.
-function _dedupeVencordFolders() {
-  // Never delete the loaded copy or whatever vencord-local.json points at.
-  const protect = [];
-  try { for (const x of secureSessions.fromPartition('persist:discord').getAllExtensions()) protect.push(x.path); }
-  catch (err) { console.error('[Extensions] could not read the Discord panel extensions, so the cleanup only removes marked folders:', err.message); }
-  try { const cfg = JSON.parse(fs.readFileSync(path.join(userDataPath, 'vencord-local.json'), 'utf8')); if (cfg && cfg.path) protect.push(cfg.path); }
-  catch (err) { if (err.code !== 'ENOENT') console.error('[Extensions] vencord-local.json could not be read:', err.message); }
-  return require('./main/vencord-folders').dedupeVencordFolders({
-    fs, path, dir: extensionsDir, log: _vlog, protect,
-  });
-}
-
 // Loads an extension into every session it must apply to. Returns the loaded
 // Extension AND every per-session failure, so callers can report the real
 // reason instead of a generic "it didn't load".
@@ -4810,7 +4775,8 @@ function _sessionsFor(extPath, manifest) {
   let m = manifest;
   if (!m) { try { m = JSON.parse(fs.readFileSync(path.join(extPath, 'manifest.json'), 'utf-8').replace(/^\uFEFF/, '')); } catch { m = null; } }
   const { partitions } = extHelpers.partitionsFor(m || {}, _readScopes()[path.basename(extPath)]);
-  return [session.defaultSession, ...partitions.map(p => secureSessions.fromPartition(p))];
+  // The Discord panel takes no extension (extensions.js NO_EXTENSION_PARTITIONS), whatever the rules above answer.
+  return [session.defaultSession, ...partitions.filter(p => !extHelpers.NO_EXTENSION_PARTITIONS.includes(p)).map(p => secureSessions.fromPartition(p))];
 }
 
 // Sessions that get their extensions only while a page is open in them, and
@@ -5146,6 +5112,8 @@ async function _coverNewSession(ses) {
   if (!ses || _coveredSessions.has(ses)) return;
   _coveredSessions.add(ses);
   if (typeof ses.isPersistent === 'function' && !ses.isPersistent()) return;
+  // The Discord panel's session takes no extension at all: Discord is a plain page in Vex.
+  if (extHelpers.NO_EXTENSION_PARTITIONS.some(p => secureSessions.fromPartition(p) === ses)) return;
   const disabled = _readDisabledFolders();
   // A partition Vex knows gets only the extensions that belong in it; a
   // session it does not know (a pinned site's, Tor's) gets them all, as before.
@@ -5169,9 +5137,6 @@ async function _coverNewSession(ses) {
 async function loadAllExtensionsOnStartup() {
   // An uninstall whose Undo was still on screen when Vex last stopped.
   _finishPendingRemovals('start');
-  // Collapse any duplicate Vencord builds to the newest BEFORE loading, so a
-  // stale build left behind by a locked-file delete can't shadow the new one.
-  _dedupeVencordFolders();
   _migrateFileAccess();
   // Before any extension starts, so one that adds to its saved items finds them.
   _restoreExtensionMenus();
@@ -5441,7 +5406,7 @@ async function _downloadBuffer(url) {
 
 // Extract a zip Buffer into the extensions dir (zip-slip-safe) and load it into
 // every EXT_PARTITIONS session. Mirrors extensions:install-zip but works from a
-// buffer (used by the Vencord auto-installer). forceSlug pins the folder name so
+// buffer. forceSlug pins the folder name so
 // a re-install can find + replace the old copy.
 // opts.skipPrefixes: archive paths left out (a Web Store package's _metadata/,
 // which Chromium refuses in an unpacked extension: names starting "_" are
@@ -5502,14 +5467,6 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
   if (!fs.existsSync(placedManifest)) {
     fs.rmSync(destFolder, { recursive: true, force: true });
     return { ok: false, error: 'manifest not at root after extract' };
-  }
-  // Vex made this Vencord folder, so the cleanup (vencord-folders.js) may remove it later.
-  if (slug === 'vencord') {
-    try { fs.writeFileSync(path.join(destFolder, require('./main/vencord-folders').MARKER), String(Date.now())); }
-    catch (err) {
-      fs.rmSync(destFolder, { recursive: true, force: true });
-      return { ok: false, error: 'Could not mark the new Vencord folder as installed by Vex: ' + err.message };
-    }
   }
   if (opts.manifestKey) {
     try {
@@ -5784,121 +5741,6 @@ ipcMain.handle('extensions:install-webstore', async (_e, input) => {
   }
 });
 
-// The installed Vencord a (re)install updates in place. Deleting it first gave
-// the new build a new folder, so a new extension id and empty storage: every
-// Vencord setting was lost on each reinstall (found 2026-09-29). Matched on
-// the folder rather than the name, since the official and local builds need
-// not share one. The copy loaded in the Discord panel wins, else the newest.
-function _installedVencord() {
-  const copies = _installedEntries().filter(e => e.manifest && /^vencord-/.test(e.folder));
-  if (!copies.length) return null;
-  let loaded = [];
-  try { loaded = secureSessions.fromPartition('persist:discord').getAllExtensions().map(x => path.resolve(x.path)); }
-  catch (err) { console.error('[Extensions] could not read the Discord panel extensions:', err.message); }
-  const mtime = e => fs.statSync(e.path).mtimeMs;
-  return copies.find(e => loaded.includes(path.resolve(e.path))) || copies.sort((a, b) => mtime(b) - mtime(a))[0];
-}
-
-// One-click Vencord: download the official chromium browser extension and load
-// it into the Discord panel session (persist:discord, included in EXT_PARTITIONS).
-ipcMain.handle('discord:install-vencord', async () => {
-  // Prefer a LOCAL build if one exists (Fadi's custom userplugins/plugins aren't
-  // in the official devbuild), so the familiar button never clobbers them with
-  // the upstream build. Falls back to the official download when there's no
-  // local build.
-  const localZip = _findLocalVencordZip();
-  if (localZip) {
-    try {
-      const buf = fs.readFileSync(localZip);
-      if (buf && buf.length >= 50000) {
-        try { require('./main/file-store').atomicWriteSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: localZip })); } catch {}
-        const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
-        if (r.ok) return { ...r, source: 'local:' + localZip };
-      }
-    } catch { /* fall back to official */ }
-  }
-  const URL_VENCORD = 'https://github.com/Vendicated/Vencord/releases/download/devbuild/extension-chrome.zip';
-  try {
-    const buf = await _downloadBuffer(URL_VENCORD);
-    if (!buf || buf.length < 50000) return { ok: false, error: 'download too small / failed' };
-    return await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
-  } catch (e) {
-    return { ok: false, error: (e && e.message) || 'install failed' };
-  }
-});
-
-// Install Vencord from a LOCAL build (Fadi's src/userplugins + src/plugins),
-// so custom plugins that aren't in the official devbuild show up in the Discord
-// panel. Point it at the `extension-chrome.zip` produced by `pnpm buildWeb`
-// (dist/extension-chrome.zip). Autodetects the common checkout, remembers the
-// last-used path, and replaces the official Vencord (slug 'vencord').
-function _findLocalVencordZip(customPath) {
-  const tryResolve = (p) => {
-    try {
-      if (!p || !fs.existsSync(p)) return null;
-      if (fs.statSync(p).isDirectory()) {
-        for (const sub of ['dist/extension-chrome.zip', 'extension-chrome.zip']) {
-          const q = path.join(p, sub);
-          if (fs.existsSync(q)) return q;
-        }
-        return null;
-      }
-      return /\.zip$/i.test(p) ? p : null;
-    } catch { return null; }
-  };
-  // An explicit path always wins. Otherwise gather every candidate that exists
-  // and pick the MOST RECENTLY BUILT zip — so a fresh `pnpm buildWeb` always
-  // wins over a stale path saved in vencord-local.json from an older build (the
-  // cause of "I reinstalled but it's still the old plugin").
-  if (customPath) { const r = tryResolve(customPath); if (r) return r; }
-  const cands = [];
-  cands.push('C:\\vencord-dev\\dist\\extension-chrome.zip');
-  cands.push('C:\\vencord-dev');
-  try {
-    const cfg = JSON.parse(fs.readFileSync(path.join(userDataPath, 'vencord-local.json'), 'utf8'));
-    if (cfg && cfg.path) cands.push(cfg.path);
-  } catch {}
-  const resolved = [];
-  for (const c of cands) { const r = tryResolve(c); if (r && !resolved.includes(r)) resolved.push(r); }
-  if (!resolved.length) return null;
-  resolved.sort((a, b) => {
-    try { return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs; } catch { return 0; }
-  });
-  return resolved[0];
-}
-ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
-  _vlog(`install-local: START (customPath=${customPath || 'none'})`);
-  try {
-    const zipPath = _findLocalVencordZip(customPath);
-    _vlog(`install-local: zip = ${zipPath || 'NOT FOUND'}`);
-    if (!zipPath) return { ok: false, error: 'No local Vencord build found. Build it first: cd vencord-dev && pnpm buildWeb' };
-    const buf = fs.readFileSync(zipPath);
-    _vlog(`install-local: read ${buf ? buf.length : 0} bytes`);
-    if (!buf || buf.length < 50000) return { ok: false, error: 'build zip too small / not a real build' };
-    try { require('./main/file-store').atomicWriteSync(path.join(userDataPath, 'vencord-local.json'), JSON.stringify({ path: zipPath })); } catch {}
-    _vlog(`install-local: before=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
-    const r = await _installExtFromZipBuffer(buf, 'vencord', _installedVencord());
-    _dedupeVencordFolders();
-    _vlog(`install-local: result ok=${r.ok} ${r.ok ? 'v' + r.version : 'err=' + r.error} after=[${_extEntries().map(e => e.folder).filter(f => /^vencord-/.test(f)).join(', ')}]`);
-    return r.ok ? { ...r, source: zipPath } : r;
-  } catch (e) {
-    _vlog(`install-local: EXCEPTION ${(e && e.stack) || e}`);
-    return { ok: false, error: (e && e.message) || 'install failed' };
-  }
-});
-
-// === Which Vencord plugin allocates how much (src/main/discord-heap.js) ===================
-// Read-only sampling heap profiler on the Discord panel's page, for a window the window asks for; the line map of the
-// installed Vencord decides which plugin a frame belongs to. Never a path or a command from a window.
-const _discordHeapModule = require('./main/discord-heap');
-const _discordHeap = _discordHeapModule.createDiscordHeap({
-  webContents,
-  isDiscordContents: (wc) => wc.session === secureSessions.fromPartition('persist:discord'),
-  loadManifest: () => { const v = _installedVencord(); return _discordHeapModule.loadRanges(v && v.path); },
-});
-ipcMain.handle('discord:heap-begin', (_e, id, names) => _discordHeap.begin(id, names));
-ipcMain.handle('discord:heap-end', (_e, id, keep) => _discordHeap.end(id, keep));
-ipcMain.handle('discord:heap-usage', (_e, id) => _discordHeap.usage(id));
 
 // === Uninstall with Undo ======================================================
 // The manager's Uninstall switches the extension off at once and lists it as
@@ -8226,38 +8068,6 @@ app.on('web-contents-created', (_event, contents) => {
         });
         win.on('unresponsive', () => { console.error('[discord-popout] window unresponsive'); });
 
-        // A way back: the window had none, closing it left you where you were.
-        require('./main/discord-popout-back').attach(win, {
-          label: async () => {
-            if (!mainWindow || mainWindow.isDestroyed()) return 'Back to Discord';
-            return mainWindow.webContents.executeJavaScript('window.vexTr ? window.vexTr("Back to Discord") : "Back to Discord"');
-          },
-          // User-driven, like pip:back-to-tab: the person pressed the pop-out's own button.
-          onBack: () => {
-            // The pop-out goes FIRST, Vex comes forward after it (as pip:back-to-tab does):
-            // closing the window afterwards hands the focus to whatever Windows picks,
-            // and measured in a real window Vex was restored but left behind another
-            // program. The renderer is told (Discord shown, and its own focus request)
-            // at the same moment, for the same reason.
-            let done = false;
-            const bringForward = () => {
-              if (done) return;
-              done = true;
-              if (!mainWindow || mainWindow.isDestroyed()) return;
-              if (mainWindow.isMinimized()) mainWindow.restore();
-              mainWindow.show();
-              // A raise the person asked for (pip:back-to-tab style: they pressed the pop-out's own button), so it bypasses the raise guard.
-              mainWindow.focus();
-              mainWindow.webContents.send('vex:discord-popout-back');
-            };
-            if (win.isDestroyed()) { bringForward(); return; }
-            win.once('closed', bringForward);
-            // A page can hold its window open (beforeunload): do not leave the person with nothing.
-            setTimeout(bringForward, 1500);
-            win.close();
-          },
-        });
-
         // Let the renderer surface a one-line discoverability hint.
         try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:discord-popout-open'); } catch {}
       } catch (err) { console.error('[discord-popout] setup failed:', err.message); }
@@ -8589,39 +8399,6 @@ ipcMain.handle('devext:pick', async (event) => {
 ipcMain.handle('devext:reload', async () => { await _devExt.reload(); return _devExt.status(); });
 ipcMain.handle('devext:stop', () => _devExt.stop());
 ipcMain.handle('devext:status', () => _devExt.status());
-ipcMain.handle('devext:vencord', () => _devExt.vencordStatus(extensionsDir));
-// Vencord dev reload and the Discord panel's console tray (main/discord-dev.js): the owner's own local build only.
-const _discordPanelContents = () => {
-  const ses = secureSessions.fromPartition('persist:discord');
-  return webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.session === ses);
-};
-const _discordDev = require('./main/discord-dev').createDiscordDev({
-  fs, path, crypto: require('crypto'), protectedDir: userDataPath,
-  installed: () => _installedVencord(),
-  reloadExtension: async (dir) => {
-    if (_boot.safeMode) throw new Error('Vex started in safe mode, which loads no extensions');
-    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
-    _unloadFromAllSessions(dir);
-    await _loadExtensionEverywhere(dir, manifest);
-  },
-  reloadPanel: () => { const list = _discordPanelContents().filter(wc => wc.getType() === 'webview'); for (const wc of list) wc.reloadIgnoringCache(); return list.length; },
-  panelContents: () => _discordPanelContents().filter(wc => wc.getType() === 'webview'),
-  redact: require('./renderer/js/redact').redactText,
-});
-ipcMain.handle('devext:vencord-pick', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  const opts = { title: 'The dist/browser.js of your own Vencord checkout', buttonLabel: 'Use this build', properties: ['openFile'], filters: [{ name: 'browser.js', extensions: ['js'] }] };
-  const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
-  if (r.canceled || !r.filePaths || !r.filePaths[0]) return { canceled: true };
-  return { canceled: false, ..._discordDev.grant(r.filePaths[0]) };
-});
-ipcMain.handle('devext:vencord-status', () => _discordDev.status());
-ipcMain.handle('devext:vencord-reload', () => _discordDev.reload());
-ipcMain.handle('devext:vencord-restore', () => _discordDev.restore());
-ipcMain.handle('devext:console-start', () => _discordDev.trayStart());
-ipcMain.handle('devext:console-stop', () => _discordDev.trayStop());
-ipcMain.handle('devext:console-clear', () => _discordDev.trayClear());
-ipcMain.handle('devext:console-list', (_event, level, since) => _discordDev.trayList({ level: level || 'verbose', since: since || 0 }));
 app.on('before-quit', () => { _devExt.stop().catch((err) => console.error('[DevExtension] could not unload on quit:', err.message)); });
 ipcMain.handle('cloud:token-save', (_event, token) => {
   if (typeof token !== 'string' || token.length < 24 || token.length > 512) throw new Error('Use a token of 24–512 characters');
@@ -8713,32 +8490,20 @@ ipcMain.handle('fx:tcmb', () => _fxRates.tcmb());
 // More from the creator (main/maker-repos.js): the public repositories list, fetched only when the person presses Refresh; the refreshed copy is kept in the profile folder.
 require('./main/maker-repos').registerMakerRepos({ ipcMain, dir: path.join(app.getPath('userData'), 'maker-repos'), fs, path, publicFetch: boundedPublicFetch, userAgent: 'Vex/' + app.getVersion() + ' (+https://github.com/0xmortuex/Vex)' });
 // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook, sealed by the OS
-// in comms-webhook.enc and never handed back, and the folder of the Vencord bridge file, read-only.
+// in comms-webhook.enc and never handed back.
 const _commsTools = require('./main/comms-tools').createCommsTools({
-  secretStore, webhookFile: path.join(userDataPath, 'comms-webhook.enc'), bridgeConfigFile: path.join(userDataPath, 'comms-bridge.json'), statusSeqFile: path.join(userDataPath, 'comms-status-seq.json'), fetch: boundedNetFetch,
+  secretStore, webhookFile: path.join(userDataPath, 'comms-webhook.enc'), fetch: boundedNetFetch,
   confirm: async ({ title, message, okLabel }) => {
     const win = BrowserWindow.getFocusedWindow() || undefined;
     const opts = { type: 'warning', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
     const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
     return r.response === 0;
   },
-  pickFolder: async () => {
-    const win = BrowserWindow.getFocusedWindow();
-    const opts = { title: 'Folder where your Vencord plugin writes vex-bridge.json', buttonLabel: 'Use this folder', properties: ['openDirectory'] };
-    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
-    return r.canceled || !r.filePaths || !r.filePaths[0] ? null : r.filePaths[0];
-  },
 });
 ipcMain.handle('comms:webhook-status', () => _commsTools.webhookStatus());
 ipcMain.handle('comms:webhook-set', (_event, url) => _commsTools.webhookSet(url));
 ipcMain.handle('comms:webhook-clear', () => _commsTools.webhookClear());
 ipcMain.handle('comms:webhook-send', (_event, req) => _commsTools.webhookSend(req));
-ipcMain.handle('comms:bridge-status', () => _commsTools.bridgeStatus());
-ipcMain.handle('comms:bridge-pick', () => _commsTools.bridgePick());
-ipcMain.handle('comms:bridge-read', () => _commsTools.bridgeRead());
-ipcMain.handle('comms:bridge-forget', () => _commsTools.bridgeForget());
-// The status channel (T3-062): Vex writes one fixed command file (vex-status.json) the owner's own Vencord plugin applies.
-ipcMain.handle('comms:status-write', (_event, req) => _commsTools.statusWrite(req));
 // Status pages the person listed (main/status-check.js): the services' own public Statuspage summaries, read-only.
 const _statusCheck = require('./main/status-check').createStatusCheck({ publicFetch: boundedPublicFetch });
 ipcMain.handle('status:check', (_event, list) => _statusCheck.check(list));
@@ -9426,29 +9191,12 @@ function createWindow() {
   // IMAP/SMTP client, not a webview. See src/main/gmail/.)
   partitions.forEach(partName => {
     const ses = secureSessions.fromPartition(partName);
-    // The Discord panel additionally drops CSP entirely so the Vencord browser
-    // extension can inject its bundle + load themes/QuickCSS (the extension would
-    // normally relax CSP via declarativeNetRequest, which Electron only partly
-    // supports). Scoped to persist:discord only — every other session keeps CSP.
-    const stripAllCsp = (partName === 'persist:discord');
-
+    // No session has its Content-Security-Policy or X-Frame-Options taken away: the Discord panel used to (for Vencord), and is a plain page now.
     ses.webRequest.onHeadersReceived((details, callback) => {
       if (_docViewers.take(details, callback)) return;
       if (_pdfViewer.take(details, callback)) return;
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
-      if (stripAllCsp && /^https:\/\/(?:[a-z0-9-]+\.)?discord\.com(?::443)?\//i.test(details.url) && details.resourceType === 'mainFrame') {
-        delete responseHeaders['x-frame-options'];
-        delete responseHeaders['X-Frame-Options'];
-        delete responseHeaders['X-FRAME-OPTIONS'];
-        for (const k of Object.keys(responseHeaders)) {
-          const lk = k.toLowerCase();
-          if (lk === 'content-security-policy' || lk === 'content-security-policy-report-only') {
-            if (stripAllCsp) delete responseHeaders[k];
-            else responseHeaders[k] = responseHeaders[k].map(csp => csp.replace(/frame-ancestors[^;]*;?/gi, ''));
-          }
-        }
-      }
       // ...and is not allowed to set any either.
       if (Object.keys(_siteRules).length && SiteRules.blocksCookies(_siteRules, details.url)) {
         for (const k of Object.keys(responseHeaders)) if (k.toLowerCase() === 'set-cookie') delete responseHeaders[k];
@@ -9552,8 +9300,9 @@ function createWindow() {
   // Rigorous: TWO requests must both succeed, so a flaky single pass (the DPI is
   // probabilistic) doesn't get mistaken for a working bypass.
   async function _testDiscordRobust() {
+    // Two page addresses, never one of Discord's API or gateway addresses: Vex calls none of those.
     if (!(await _testOne('https://discord.com/app'))) return false;
-    return await _testOne('https://discord.com/api/v9/gateway');
+    return await _testOne('https://discord.com/login');
   }
 
   // --- Roblox panel bypass: Roblox is blocked by the same ISP/DPI, so the
@@ -12097,27 +11846,6 @@ ipcMain.handle('integrity:report', async (event) => {
   _healthFromMainWindow(event);
   try { return await _integrity.run(); }
   catch (err) { console.error('[Integrity] report failed:', err); return { ok: false, error: err.message, notes: [] }; }
-});
-// A real Discord theme's file pinned by its hash (src/main/content-pin.js, js/discord-theme.js). The fetch goes through the egress ledger
-// as "Discord theme check" and only to the hosts the theme list uses (content-pin.js refuses any other).
-const _themePin = require('./main/content-pin').createContentPin({
-  dir: path.join(userDataPath, 'theme-pins'), fs,
-  fetchText: async (url) => {
-    const res = await boundedNetFetch(url, { redirect: 'error', maxBytes: 1024 * 1024 + 1, timeoutMs: 20000, egress: { feature: 'Discord theme check', kind: 'fetch' } });
-    if (!res.ok) throw new Error('The theme site answered ' + res.status);
-    return res.text();
-  },
-  log: console,
-});
-ipcMain.handle('themepin:check', async (event, id, url) => {
-  _healthFromMainWindow(event);
-  try { return await _themePin.check(id, url); }
-  catch (err) { console.error('[ThemePin] check failed:', err); return { ok: false, error: err.message }; }
-});
-ipcMain.handle('themepin:accept', async (event, id, url) => {
-  _healthFromMainWindow(event);
-  try { return await _themePin.accept(id, url); }
-  catch (err) { console.error('[ThemePin] accept failed:', err); return { ok: false, error: err.message }; }
 });
 // Did a proxy or a new root certificate appear since the last time (src/main/network-drift.js, js/network-drift.js)? Off until the owner
 // switches it on. Two read-only Windows commands, by absolute path and an argument list (no shell); only a fingerprint is kept.

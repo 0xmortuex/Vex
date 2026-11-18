@@ -11,7 +11,7 @@ const oneOf = values => value => values.includes(value);
 const shape = fields => value => object(value) && Object.entries(fields).every(([key, check]) => check(value[key]));
 const schemas = new Map();
 function define(names, checks) { for (const name of names.split(' ')) schemas.set(name, checks); }
-define('app:started window-minimize window-maximize window-close storage:flushed storage:flush-failed storage:flush browsing:clear-data browsing:clear-history get-start-page-path get-start-page-url get-user-data-path persist-get-all adblocker-get-state app:metrics close-pip-window is-pip-open oauth-popup:dismiss screen-share:get-quality recall:clear recall:stats privacy:get-config privacy:tracker-stats privacy:tracker-reset vault:list vault:health totp:list totp:codes permissions:renderer-ready permissions:list permissions:clear-all hid:renderer-ready downloads:open-folder toggle-fullscreen is-fullscreen identity:create tor:create check-for-updates widevine:status widevine:retry get-app-version updates:list app:restart app:focus fx:rates set-as-default-browser is-default-browser sidebar-config:get app:processes app:diagnostics app:safe-mode system:gpu system:dev-ports hotkeys:get extensions:release-idle extensions:list extensions:install-folder extensions:install-zip extensions:open-folder discord:install-vencord sync-load-key sync-load-meta routing:get-all sync-clear-state pip:close pip:toggle-pin pip:back-to-tab', []);
+define('app:started window-minimize window-maximize window-close storage:flushed storage:flush-failed storage:flush browsing:clear-data browsing:clear-history get-start-page-path get-start-page-url get-user-data-path persist-get-all adblocker-get-state app:metrics close-pip-window is-pip-open oauth-popup:dismiss screen-share:get-quality recall:clear recall:stats privacy:get-config privacy:tracker-stats privacy:tracker-reset vault:list vault:health totp:list totp:codes permissions:renderer-ready permissions:list permissions:clear-all hid:renderer-ready downloads:open-folder toggle-fullscreen is-fullscreen identity:create tor:create check-for-updates widevine:status widevine:retry get-app-version updates:list app:restart app:focus fx:rates set-as-default-browser is-default-browser sidebar-config:get app:processes app:diagnostics app:safe-mode system:gpu system:dev-ports hotkeys:get extensions:release-idle extensions:list extensions:install-folder extensions:install-zip extensions:open-folder sync-load-key sync-load-meta routing:get-all sync-clear-state pip:close pip:toggle-pin pip:back-to-tab', []);
 define('extensions:install-catalog', [string(60)]);
 // The documents Vex ships, by name (src/main/legal-docs.js), and "Quit Vex".
 define('legal:read', [oneOf(['PRIVACY.md', 'TERMS.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'])]);
@@ -100,8 +100,6 @@ define('backup:auto-read', [string(120)]);
 // agreed to the ones that need a yes; an undo names the run it returned.
 define('health:scan', []);
 define('integrity:report', []);
-// A real Discord theme's file is pinned by its hash (main/content-pin.js): the theme id and its address; main checks both again.
-define('themepin:check themepin:accept', [string(40), string(400)]);
 // "Did a proxy or a new root certificate appear?" (main/network-drift.js): read the switch, set it, look now. Nothing is sent from a window but a yes or no.
 define('netdrift:get netdrift:check', []);
 define('netdrift:set', [boolean]);
@@ -463,7 +461,6 @@ define('mail:message', [string(64), integer]);
 // which is how "What's new" asks after an update. Requiring it rejected that
 // call, so the popup never appeared after an update (2026-09-07 to v2.32.31).
 define('updates:notes', [optional(string(40))]);
-define('discord:lite', [boolean]);
 define('crawl:fetch', [string(4096), optional(value => value === 'text/html' || value === 'text/plain')]);
 define('links:check', [value => Array.isArray(value) && value.length <= 2000 && value.every(string(4096))]);
 define('links:follow-one', [string(4096)]);
@@ -506,11 +503,6 @@ define('unblock:sync', [shape({
 })]);
 define('unblock:status', []);
 define('discord:set-bypass-mode', [oneOf(['off','light','strong','auto']), optional(shape({ preset: optional(value => Number.isInteger(value)), custom: optional(string(4096)) }))]);
-define('discord:install-vencord-local', [optional(string())]);
-// Which Vencord plugin allocates how much (main/discord-heap.js): the Discord page's id, then the plugin names.
-define('discord:heap-begin', [integer, optional(value => Array.isArray(value) && value.length <= 600 && value.every(string(64)))]);
-define('discord:heap-end', [integer, boolean]);
-define('discord:heap-usage', [integer]);
 // Light and dark (src/main/system-theme.js): is Windows in dark mode.
 define('system-theme:get', []);
 // A New Tab background image: your own theme's (by its id, js/theme-studio.js),
@@ -787,10 +779,7 @@ define('devfeeds:notes', [oneOf(['npm', 'pypi']), string(120), string(60), strin
 // Developer desk (main/dev-desk.js), plugin dev loop (main/dev-extension.js) and the Electron
 // ticker (main/castlabs-ticker.js). Folders come only from main's folder dialog; a path to open
 // is checked against the granted folders in main.
-define('devdesk:config devdesk:grant-root devext:pick devext:reload devext:stop devext:status devext:vencord', []);
-// The owner's own Vencord build and the Discord panel's console tray (main/discord-dev.js): no path comes from a window.
-define('devext:vencord-pick devext:vencord-status devext:vencord-reload devext:vencord-restore devext:console-start devext:console-stop devext:console-clear', []);
-define('devext:console-list', [optional(oneOf(['verbose', 'info', 'warning', 'error'])), optional(value => Number.isSafeInteger(value) && value >= 0)]);
+define('devdesk:config devdesk:grant-root devext:pick devext:reload devext:stop devext:status', []);
 define('devdesk:set-config', [shape({ enabled: optional(boolean), editor: optional(string(20)), terminal: optional(string(20)) })]);
 define('devdesk:revoke-root devdesk:open-terminal devdesk:branch', [string(500)]);
 define('devdesk:open-file', [shape({ path: string(500), line: optional(integer), col: optional(integer) })]);
@@ -876,8 +865,7 @@ define('fx:tcmb', []);
 define('makerepos:refresh makerepos:stored', []);
 // Community and chat tools (main/comms-tools.js). The webhook address goes in once and never comes back;
 // a post is one text of at most 2000 characters. The bridge channels take no arguments: main reads one fixed file.
-define('comms:webhook-status comms:webhook-clear comms:bridge-status comms:bridge-pick comms:bridge-read comms:bridge-forget', []);
-define('comms:status-write', [shape({ action: oneOf(['set', 'clear']), text: optional(string(512)), emojiName: optional(string(32)), expiresAt: optional(value => Number.isFinite(value) && value > 0) })]);
+define('comms:webhook-status comms:webhook-clear', []);
 define('comms:webhook-set', [string(300)]);
 define('comms:webhook-send', [shape({ content: string(2000), allowEveryone: optional(boolean) })]);
 // The status pages to read (main/status-check.js): up to 12 addresses, each judged there.

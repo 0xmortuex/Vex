@@ -2,8 +2,8 @@
 //
 // Wave 3, community and chat tools: timezone helper (T3-020), unread to task (T3-021), meeting links
 // (T3-047), Discord noise tools (T3-013), announcement composer (T3-050), community numbers (T3-059),
-// link harvester (T3-060), Discord status suggestions (T3-062), moderator kit (T3-063), Vencord bridge
-// receiver (T3-005). Every module is checked against its own safety promise as well as its behaviour.
+// link harvester (T3-060), moderator kit (T3-063). The Discord status feature (T3-062) and the Vencord bridge
+// receiver (T3-005) are gone: Discord is a plain page in Vex. Every module is checked against its own safety promise as well as its behaviour.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const fs = require('fs');
@@ -12,10 +12,10 @@ const ROOT = path.resolve(__dirname, '../..');
 const JS = path.join(ROOT, 'src/renderer/js');
 const fresh = (rel) => { const p = path.join(JS, rel); delete require.cache[require.resolve(p)]; return require(p); };
 
-const NAMES = ['CommsStore', 'VexTimezone', 'UnreadTask', 'MeetingLinks', 'DiscordNoise', 'AnnounceComposer', 'CommunityMetrics', 'LinkHarvester', 'DiscordStatus', 'ModKit',
-  'VencordBridge', 'OpenTasks', 'MeetingPrep', 'TabManager', 'PanelCapture', 'VipRules', 'VexConsent', 'VexLedger', 'VexAttention', 'AttentionState', 'AttentionInbox',
+const NAMES = ['CommsStore', 'VexTimezone', 'UnreadTask', 'MeetingLinks', 'DiscordNoise', 'AnnounceComposer', 'CommunityMetrics', 'LinkHarvester', 'ModKit',
+  'OpenTasks', 'MeetingPrep', 'TabManager', 'PanelCapture', 'VipRules', 'VexConsent', 'VexLedger', 'VexAttention', 'AttentionState', 'AttentionInbox',
   'VexQuickReminder', 'PageWatch', 'ReadLater', 'VexCopySource', 'VexJobs', 'AIRouter', 'VexBrief', 'SidebarManager'];
-let CS, TZ, UT, ML, DN, AC, CM, LH, DS, MK, VB, toasts;
+let CS, TZ, UT, ML, DN, AC, CM, LH, MK, toasts;
 
 function load() {
   for (const n of NAMES) delete globalThis[n];
@@ -29,9 +29,7 @@ function load() {
   globalThis.AnnounceComposer = AC = fresh('announce-composer.js').AnnounceComposer;
   globalThis.CommunityMetrics = CM = fresh('community-metrics.js').CommunityMetrics;
   globalThis.LinkHarvester = LH = fresh('link-harvester.js').LinkHarvester;
-  globalThis.DiscordStatus = DS = fresh('discord-status.js').DiscordStatus;
   globalThis.ModKit = MK = fresh('mod-kit.js').ModKit;
-  globalThis.VencordBridge = VB = fresh('vencord-bridge.js').VencordBridge;
 }
 
 // Several modules wire themselves to the document when they load; a fresh copy per test would leave every earlier copy listening.
@@ -296,10 +294,10 @@ describe('T3-013 Discord noise tools', () => {
     expect(DN.ruleCovers(noisy[0])).toBe(true);
   });
 
-  it('touches the page only by the opt-in stylesheet and one read of the server bar: no script of its own, no input, no network', () => {
+  it('never touches the Discord page: no stylesheet, no script, no read of the server bar, no input, no network', () => {
     const src = fs.readFileSync(path.join(JS, 'discord-noise.js'), 'utf8');
-    expect(src).not.toMatch(/executeJavaScript|sendInputEvent|webContents|\.fetch\(|XMLHttpRequest/);
-    expect(src.match(/vexGuestEval\(/g)).toHaveLength(1);       // the server bar, on a click
+    expect(src).not.toMatch(/executeJavaScript|insertCSS|vexGuestEval|querySelector|sendInputEvent|webContents|\.fetch\(|XMLHttpRequest/);
+    for (const gone of ['collapse', 'collapseCss', 'setCollapse', 'applyTo', 'applyAll', 'onPageReady', 'tracking', 'setTracking', 'recordUrl', 'serversFromPage', 'findNeverOpened', 'RAIL_SCRIPT', 'BOT_SELECTOR']) expect(DN[gone]).toBeUndefined();
   });
 });
 
@@ -541,87 +539,14 @@ describe('T3-060 chat link harvester', () => {
     expect(LH.collectFromNotifications()).toEqual({ added: 1, seen: 0, scanned: 1 });
   });
 
-  it('reads a chat only through the opted-in channel path and never goes to the network by itself', () => {
+  it('never reads a page and never goes to the network by itself', () => {
     const src = fs.readFileSync(path.join(JS, 'link-harvester.js'), 'utf8');
-    expect(src).not.toMatch(/executeJavaScript|\bfetch\(|XMLHttpRequest|setInterval|VexJobs/);
+    expect(src).not.toMatch(/executeJavaScript|vexGuestEval|\bfetch\(|XMLHttpRequest|setInterval|VexJobs/);
   });
 
   it('keeps nothing in a private window', () => {
     window.VexTabPolicy = { isPrivateWindow: true };
     expect(() => LH.collect('https://a.test/x')).toThrow(/private window/);
-  });
-});
-
-describe('T3-062 Discord status follows Game and Focus mode', () => {
-  const att = (...ids) => ({ quiet: ids.length > 0, sources: ids.map(id => ({ id, until: id === 'focus' ? new Date(2026, 9, 16, 22, 30).getTime() : 0 })) });
-  let suggested, inbox;
-  beforeEach(() => {
-    suggested = [];
-    globalThis.VexAttention = { suggest: vi.fn((o) => { suggested.push(o); return true; }) };
-    inbox = null;
-  });
-
-  it('suggests once when a mode starts and the way back when it ends, and never touches Discord', () => {
-    expect(DS.follow(att())).toBe('');
-    expect(DS.follow(att('game'))).toBe('start');
-    expect(DS.follow(att('game', 'quiet-switch'))).toBe('');                // still the same mode
-    expect(DS.follow(att())).toBe('end');
-    expect(suggested.map(s => s.id)).toEqual(['game', 'back']);
-    expect(suggested[0].title).toBe('Set Discord to Do Not Disturb: "In a game, back later"?');
-    expect(suggested[1].title).toBe('Set Discord to Online?');
-    expect(suggested[0].action.label).toBe('Copy status text');
-    const src = fs.readFileSync(path.join(JS, 'discord-status.js'), 'utf8');
-    expect(src).not.toMatch(/executeJavaScript|insertCSS|sendInputEvent|webContents|\.fetch\(|XMLHttpRequest|userSettings|\/users\/@me/);
-  });
-
-  it('puts the end time of a Focus block in the words, or drops it when unknown', () => {
-    expect(DS.advice('focus', new Date(2026, 9, 16, 22, 30).getTime()).text).toBe('Focusing until 22:30');
-    expect(DS.advice('focus', 0).text).toBe('Focusing');
-    DS.follow(att('focus'));
-    expect(suggested[0].title).toContain('Focusing until 22:30');
-  });
-
-  it('game wins over focus, and nothing is suggested when suggestions are off or the feature is off', () => {
-    expect(DS.modeOf(att('focus', 'game')).mode).toBe('game');
-    DS.setSuggest(false);
-    expect(DS.follow(att('game'))).toBe('');
-    DS.follow(att());
-    DS.setSuggest(true); DS.setEnabled(false);
-    expect(DS.follow(att('game'))).toBe('');
-    expect(suggested).toHaveLength(0);
-  });
-
-  it('does not suggest the way back when the start was never suggested', () => {
-    DS.setSuggest(false);
-    DS.follow(att('game'));
-    DS.setSuggest(true);
-    expect(DS.follow(att())).toBe('');
-    expect(suggested).toHaveLength(0);
-  });
-
-  it('copies the words and opens the Discord panel on the button, nothing more', async () => {
-    const copied = [];
-    Object.assign(navigator, { clipboard: { writeText: async (t) => copied.push(t) } });
-    const panels = [];
-    globalThis.SidebarManager = { openPanel: (p) => panels.push(p) };
-    await DS.act('game');
-    expect(copied).toEqual(['In a game, back later']);
-    expect(panels).toEqual(['discord']);
-    expect(toasts[0].m).toMatch(/Do Not Disturb/);
-  });
-
-  it('keeps editable wording, rejects an unknown status, and shows a status line on the New Tab page', () => {
-    DS.setText('game', { status: 'Idle', text: 'Match in progress' });
-    expect(DS.advice('game').label).toBe('Set Discord to Idle: "Match in progress"');
-    expect(() => DS.setText('game', { status: 'Gone' })).toThrow(/A Discord status is/);
-    expect(DS.currentLine(att())).toBe('');
-    expect(DS.currentLine(att('game'))).toBe('Match in progress');
-    DS.setManual('Back at 9', 30);
-    expect(DS.currentLine(att())).toBe('Back at 9');
-    DS.clearManual();
-    DS.setLine(false);
-    expect(DS.currentLine(att('game'))).toBe('');
-    expect(() => DS.setManual('x', 0)).toThrow(/1 minute/);
   });
 });
 
@@ -715,103 +640,6 @@ describe('T3-063 moderator chores kit', () => {
   });
 });
 
-describe('T3-005 Vencord bridge receiver', () => {
-  const file = () => ({
-    schema: 'vex-bridge/1', generatedAt: NOW, account: 'mortuex',
-    mentions: [{ id: 'm1', author: 'Sam', text: '@mortuex look at this', ts: NOW - 5000, channelId: '1', channelName: 'dev', guildName: 'Srv' }, { id: 'm2', author: 'Alex', text: 'hey', ts: NOW - 9000, channelId: '2', channelName: 'chat', guildName: 'Srv' }],
-    replies: [{ id: 'r1', author: 'Lee', text: 'thanks', ts: NOW - 1000, channelId: '1', channelName: 'dev', guildName: 'Srv' }],
-    channels: [{ channelId: '1', name: 'dev', guildName: 'Srv', messages: [
-      { id: 'a', author: 'Sam', text: 'Should we ship Friday?', ts: NOW - 40000 }, { id: 'b', author: 'Lee', text: 'We agreed to ship Friday', ts: NOW - 30000 },
-      { id: 'c', author: 'Sam', text: '@mortuex can you check https://ci.test/run/9', ts: NOW - 20000 }, { id: 'd', author: 'Alex', text: 'ok', ts: NOW - 10000 }] }],
-  });
-  let reads;
-  beforeEach(() => {
-    reads = 0;
-    window.vex = {
-      commsBridgeStatus: async () => ({ granted: true, folder: 'C:\\bridge', found: true, mtime: NOW, size: 100 }),
-      commsBridgeRead: async () => { reads++; return { ok: true, mtime: NOW, data: { ...file(), account: 'mortuex', skipped: 0 } }; },
-      commsBridgePick: async () => ({ ok: true }), commsBridgeForget: async () => ({ ok: true, granted: false }),
-    };
-  });
-
-  it('reads nothing until asked, then digests the new mentions and replies', async () => {
-    expect(reads).toBe(0);
-    expect(VB.mentions()).toEqual([]);
-    await VB.read();
-    expect(reads).toBe(1);
-    expect(VB.mentions().map(m => m.id)).toEqual(['m1', 'm2']);
-    const d = VB.digest();
-    expect(d.mentions).toBe(2); expect(d.replies).toBe(1);
-    expect(d.lines[0]).toBe('2 new mentions, 1 new reply');
-    expect(d.channels[0]).toMatchObject({ name: '#dev (Srv)', n: 2 });
-  });
-
-  it('remembers only the ids it showed, so new means new', async () => {
-    await VB.read();
-    VB.markSeen(['m1']);
-    expect(VB.mentions({ onlyNew: true }).map(m => m.id)).toEqual(['m2']);
-    VB.markAllSeen();
-    expect(VB.digest().mentions).toBe(0);
-    const kept = JSON.parse(localStorage.getItem('vex.vencordBridge'));
-    expect(Object.keys(kept).sort()).toEqual(['lastRead', 'on', 'seen']);
-    expect(JSON.stringify(kept)).not.toMatch(/look at this|thanks/);          // no message text on disk
-  });
-
-  it('catches you up on a channel by counting: questions, decisions, mentions of you, links', async () => {
-    await VB.read();
-    const c = VB.catchUp('1');
-    expect(c.count).toBe(4);
-    expect(c.authors[0]).toEqual({ name: 'Sam', n: 2 });
-    expect(c.questions.map(q => q.text)).toEqual(['Should we ship Friday?']);
-    expect(c.decisions.map(q => q.text)).toEqual(['We agreed to ship Friday']);
-    expect(c.mentionedYou).toHaveLength(1);
-    expect(c.links).toEqual(['https://ci.test/run/9']);
-    expect(VB.catchUpText('1')).toMatch(/4 messages in #dev \(Srv\)/);
-    expect(() => VB.catchUp('nope')).toThrow(/not in the file/);
-  });
-
-  it('summarizes with the local model only', async () => {
-    await VB.read();
-    const calls = [];
-    globalThis.AIRouter = { callOn: async (backend, kind, req) => { calls.push([backend, kind, req.message]); return { result: 'Ship Friday; Sam asks about CI.' }; } };
-    expect(await VB.summarizeLocal('1')).toBe('Ship Friday; Sam asks about CI.');
-    expect(calls[0][0]).toBe('local');
-    expect(calls[0][2]).toContain('Sam: Should we ship Friday?');
-    globalThis.AIRouter = { callOn: async () => ({ result: '  ' }) };
-    await expect(VB.summarizeLocal('1')).rejects.toThrow(/returned nothing/);
-  });
-
-  it('is off or private: reads nothing', async () => {
-    VB.setEnabled(false);
-    await expect(VB.read()).rejects.toThrow(/switched off/);
-    VB.setEnabled(true);
-    window.VexTabPolicy = { isPrivateWindow: true };
-    await expect(VB.read()).rejects.toThrow(/private window/);
-    expect(reads).toBe(0);
-  });
-
-  it('the brief section reads only when the file is there, and says nothing when there is nothing new', async () => {
-    const p = await VB.briefPayload();
-    expect(p.summary).toBe('2 new mentions, 1 new reply');
-    VB.markAllSeen();
-    expect(await VB.briefPayload()).toBeNull();
-    window.vex.commsBridgeStatus = async () => ({ granted: false });
-    expect(await VB.briefPayload()).toBeNull();
-  });
-
-  it('forgetting clears the session and the seen ids', async () => {
-    await VB.read(); VB.markAllSeen();
-    await VB.forget();
-    expect(VB.data()).toBeNull();
-    expect(VB.state().seen).toEqual([]);
-  });
-
-  it('the receiver never writes or reaches the network: the window module only asks main', () => {
-    const src = fs.readFileSync(path.join(JS, 'vencord-bridge.js'), 'utf8');
-    expect(src).not.toMatch(/\bfetch\(|XMLHttpRequest|executeJavaScript|setInterval|VexJobs/);
-  });
-});
-
 describe('the shared helpers', () => {
   it('report a damaged record instead of replacing it', () => {
     localStorage.setItem('vex.modKit', '{oops');
@@ -826,9 +654,9 @@ describe('the shared helpers', () => {
 
 describe('wiring', () => {
   const html = fs.readFileSync(path.join(ROOT, 'src/renderer/index.html'), 'utf8');
-  const IDS = ['tz-helper', 'unread-task', 'meeting-links', 'discord-noise', 'announce-composer', 'community-metrics', 'link-harvester', 'discord-status', 'mod-kit', 'vencord-bridge'];
+  const IDS = ['tz-helper', 'unread-task', 'meeting-links', 'discord-noise', 'announce-composer', 'community-metrics', 'link-harvester', 'mod-kit'];
 
-  it('has a manifest and a Minimal Vex row for each of the ten, all staged as new', () => {
+  it('has a manifest and a Minimal Vex row for each of the eight, all staged as new', () => {
     vi.resetModules();
     globalThis.VexRegistry = fresh('feature-registry.js').VexRegistry;
     globalThis.VexUsage = fresh('vex-usage.js').VexUsage;
@@ -844,7 +672,7 @@ describe('wiring', () => {
 
   it('loads the scripts in an order where each one finds what it needs at load time', () => {
     const order = ['js/jobs.js', 'js/vex-ledger.js', 'js/brief.js', 'js/vex-attention.js', 'js/attention-inbox.js', 'js/panel-capture.js', 'js/comms-store.js', 'js/tz-helper.js', 'js/unread-task.js', 'js/meeting-links.js',
-      'js/discord-noise.js', 'js/announce-composer.js', 'js/community-metrics.js', 'js/link-harvester.js', 'js/discord-status.js', 'js/mod-kit.js', 'js/vencord-bridge.js', 'js/comms-tools-ui.js', 'js/vex-usage-registry.js'];
+      'js/discord-noise.js', 'js/announce-composer.js', 'js/community-metrics.js', 'js/link-harvester.js', 'js/mod-kit.js', 'js/comms-tools-ui.js', 'js/vex-usage-registry.js'];
     const at = order.map(s => html.indexOf('<script src="' + s + '"'));
     expect(at.every(i => i > 0), JSON.stringify(order.filter((s, i) => at[i] < 0))).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
@@ -852,7 +680,7 @@ describe('wiring', () => {
 
   it('registers each feature command once', () => {
     const ui = fs.readFileSync(path.join(JS, 'comms-tools-ui.js'), 'utf8');
-    for (const c of ['timezone-helper', 'task-from-selection', 'meeting-links', 'discord-noise', 'announce-composer', 'community-metrics', 'link-harvester', 'mod-kit', 'vencord-bridge']) expect(ui).toContain("id: '" + c + "'");
+    for (const c of ['timezone-helper', 'task-from-selection', 'meeting-links', 'discord-noise', 'announce-composer', 'community-metrics', 'link-harvester', 'mod-kit']) expect(ui).toContain("id: '" + c + "'");
   });
 
   it('the page menu asks for its items by the name the UI module exports', () => {
@@ -876,7 +704,7 @@ describe('wiring', () => {
   });
 
   it('no module of this set talks to the network on its own (Vex-side fetch/XHR is absent)', () => {
-    for (const f of ['comms-store', 'tz-helper', 'unread-task', 'meeting-links', 'discord-noise', 'announce-composer', 'community-metrics', 'link-harvester', 'discord-status', 'mod-kit', 'vencord-bridge', 'comms-tools-ui']) {
+    for (const f of ['comms-store', 'tz-helper', 'unread-task', 'meeting-links', 'discord-noise', 'announce-composer', 'community-metrics', 'link-harvester', 'mod-kit', 'comms-tools-ui']) {
       expect(fs.readFileSync(path.join(JS, f + '.js'), 'utf8'), f).not.toMatch(/\bfetch\(|XMLHttpRequest|\bWebSocket\b|sendBeacon/);
     }
   });

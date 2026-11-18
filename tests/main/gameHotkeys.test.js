@@ -1,4 +1,4 @@
-// src/main/game-hotkeys.js — reaching Discord from inside a fullscreen game.
+// src/main/game-hotkeys.js — system-wide hotkeys (quick capture, streamer mode). The three that pressed Discord's buttons are gone.
 //
 // Muting yourself meant alt-tabbing out of the game, finding Vex, finding the
 // panel, clicking — by which time the moment has gone. Discord's own app has
@@ -44,56 +44,57 @@ describe('which combinations are allowed', () => {
 describe('registering them', () => {
   it('takes only the actions it knows, and reports what it took', () => {
     const { hk, globalShortcut } = harness();
-    const r = hk.set({ 'discord-mute': 'Ctrl+Shift+M', 'not-a-thing': 'Ctrl+Shift+Q' });
-    expect(r.applied).toEqual({ 'discord-mute': 'Ctrl+Shift+M' });
+    const r = hk.set({ 'quick-capture': 'Ctrl+Shift+M', 'not-a-thing': 'Ctrl+Shift+Q' });
+    expect(r.applied).toEqual({ 'quick-capture': 'Ctrl+Shift+M' });
     expect(r.errors).toEqual([]);
     expect(globalShortcut.register).toHaveBeenCalledTimes(1);
-    expect(hk.current()).toEqual({ 'discord-mute': 'Ctrl+Shift+M' });
+    expect(hk.current()).toEqual({ 'quick-capture': 'Ctrl+Shift+M' });
   });
 
   it('a combination another program already holds is reported, not swallowed', () => {
     const { hk } = harness({ taken: ['Ctrl+Shift+M'] });
-    const r = hk.set({ 'discord-mute': 'Ctrl+Shift+M' });
+    const r = hk.set({ 'quick-capture': 'Ctrl+Shift+M' });
     expect(r.applied).toEqual({});
-    expect(r.errors).toEqual([{ action: 'discord-mute', accel: 'Ctrl+Shift+M', error: 'Another program already has Ctrl+Shift+M' }]);
+    expect(r.errors).toEqual([{ action: 'quick-capture', accel: 'Ctrl+Shift+M', error: 'Another program already has Ctrl+Shift+M' }]);
     expect(hk.current()).toEqual({});
   });
 
   it('a plain key is refused with a reason', () => {
     const { hk } = harness();
-    expect(hk.set({ 'discord-mute': 'M' }).errors[0].error).toMatch(/needs a modifier/);
+    expect(hk.set({ 'quick-capture': 'M' }).errors[0].error).toMatch(/needs a modifier/);
   });
 
   it('only what registered is saved, so a stolen key does not come back dead', () => {
     const { hk, saved } = harness({ taken: ['Ctrl+Shift+D'] });
-    hk.set({ 'discord-mute': 'Ctrl+Shift+M', 'discord-deafen': 'Ctrl+Shift+D' });
-    expect(saved).toEqual([{ 'discord-mute': 'Ctrl+Shift+M' }]);
+    hk.set({ 'quick-capture': 'Ctrl+Shift+M', 'streamer-toggle': 'Ctrl+Shift+D' });
+    expect(saved).toEqual([{ 'quick-capture': 'Ctrl+Shift+M' }]);
   });
 
   it('setting again releases the old combination first', () => {
     const { hk, globalShortcut } = harness();
-    hk.set({ 'discord-mute': 'Ctrl+Shift+M' });
-    hk.set({ 'discord-mute': 'Ctrl+Alt+M' });
+    hk.set({ 'quick-capture': 'Ctrl+Shift+M' });
+    hk.set({ 'quick-capture': 'Ctrl+Alt+M' });
     expect(globalShortcut.unregister).toHaveBeenCalledWith('Ctrl+Shift+M');
-    expect(hk.current()).toEqual({ 'discord-mute': 'Ctrl+Alt+M' });
+    expect(hk.current()).toEqual({ 'quick-capture': 'Ctrl+Alt+M' });
   });
 
   it('pressing one reports the action', () => {
     const { hk, registered, onAction } = harness();
-    hk.set({ 'discord-deafen': 'Ctrl+Shift+D' });
+    hk.set({ 'streamer-toggle': 'Ctrl+Shift+D' });
     registered.get('Ctrl+Shift+D')();
-    expect(onAction).toHaveBeenCalledWith('discord-deafen');
+    expect(onAction).toHaveBeenCalledWith('streamer-toggle');
   });
 
   it('starts from what was saved before, and an unreadable file is not fatal', () => {
-    const { hk } = harness({ stored: { 'discord-mute': 'Ctrl+Shift+M' } });
-    expect(hk.apply().applied).toEqual({ 'discord-mute': 'Ctrl+Shift+M' });
+    const { hk } = harness({ stored: { 'quick-capture': 'Ctrl+Shift+M' } });
+    expect(hk.apply().applied).toEqual({ 'quick-capture': 'Ctrl+Shift+M' });
     const broken = createGameHotkeys({ globalShortcut: { register: () => true, unregister: () => {} }, onAction: () => {}, load: () => { throw new Error('unreadable'); } });
     expect(broken.apply().applied).toEqual({});
   });
 
-  it('offers quick capture, the Discord three and streamer mode — and no push-to-talk, because a global shortcut cannot see the key release', () => {
-    expect(Object.keys(ACTIONS)).toEqual(['quick-capture', 'discord-mute', 'discord-deafen', 'discord-hangup', 'streamer-toggle']);
+  it('offers quick capture and streamer mode, and nothing that presses a button in Discord (they are gone) — no push-to-talk either, because a global shortcut cannot see the key release', () => {
+    expect(Object.keys(ACTIONS)).toEqual(['quick-capture', 'streamer-toggle']);
+    expect(Object.keys(ACTIONS).some(a => /discord/.test(a))).toBe(false);
     expect(Object.keys(ACTIONS)).not.toContain('discord-push-to-talk');
   });
 });

@@ -152,6 +152,16 @@
   const newId = (p) => p + Date.now().toString(36) + (++counter).toString(36) + Math.random().toString(36).slice(2, 6);
   const clip = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').slice(0, n);
 
+  // Discord is a plain page in Vex: an automation is never recorded on it and a run never opens it or acts in it.
+  const DISCORD_HOST = /(^|\.)(discord\.com|discordapp\.com|discord\.gg)$/i;
+  const DISCORD_WHY = 'Discord is a plain page in Vex: nothing is automated, styled or scripted on it';
+  // Why this address is off limits because it is Discord's ('' = it is not Discord's).
+  function discordRefusal(url) {
+    let host = '';
+    try { host = new URL(String(url)).hostname; } catch (e) { return ''; }
+    return DISCORD_HOST.test(host) ? DISCORD_WHY : '';
+  }
+
   function isSensitive(d) { return autoIsSensitive(d); }
   function looksLikeSecretValue(v) { return baseSecretValue(v); }
 
@@ -162,6 +172,7 @@
     try { u = new URL(String(input)); } catch (e) { throw new Error('"' + clip(input, 80) + '" is not a web address'); }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('Only http and https addresses can be opened');
     if (u.username || u.password) throw new Error('An address with a login inside it is not recorded');
+    if (DISCORD_HOST.test(u.hostname)) throw new Error(DISCORD_WHY);
     let trimmed = false;
     for (const k of [...u.searchParams.keys()]) if (SECRETY_PARAM.test(k)) { u.searchParams.delete(k); trimmed = true; }
     if (u.hash && /(access_token|id_token|token|code)=/i.test(u.hash)) { u.hash = ''; trimmed = true; }
@@ -175,6 +186,7 @@
     try { u = new URL(String(url)); } catch (e) { return 'That is not a web address'; }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'Only http and https pages are opened';
     if (u.username || u.password) return 'Addresses with a login inside are not opened';
+    if (DISCORD_HOST.test(u.hostname)) return DISCORD_WHY;
     if (DOWNLOAD_EXT.test(u.pathname)) return 'That address is a file download; a run never downloads or installs files';
     if (!allowLocal) {
       const priv = typeof isPrivateHost === 'function' ? isPrivateHost : (typeof VexPrivateAddress !== 'undefined' ? VexPrivateAddress.isPrivateHost : require('./private-address.js').isPrivateHost);
@@ -418,7 +430,7 @@
   const api = {
     autoFold, autoClassify, autoIsSensitive, agentIsSensitiveField: baseSensitive,
     STEP_TYPES, ACTING, CONFIRM, LIMITS, PARTITION_RE, SCHEDULE_KINDS,
-    isSensitive, looksLikeSecretValue, classifyTarget, cleanUrl, urlRefusal, describeStep, cleanTarget, cleanStep, cleanSchedule,
+    isSensitive, looksLikeSecretValue, classifyTarget, cleanUrl, urlRefusal, discordRefusal, describeStep, cleanTarget, cleanStep, cleanSchedule,
     normalizeRecording, exportRecording, importRecording, stepsFromEvents, rateRefusal, redact, newId,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

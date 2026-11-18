@@ -11,7 +11,7 @@ const fresh = (p) => { delete require.cache[require.resolve(p)]; return require(
 const WAVE3 = [
   'ai-recipes', 'ai-spend-cap', 'announce-composer', 'archive-on-cite', 'autoscroll', 'chat-new-domain', 'chat-throwaway',
   'cheat-sheet', 'clipboard-tripwire', 'cloudflare-shortcuts', 'community-metrics', 'container-memory', 'content-board',
-  'cookie-reject', 'deadline-ledger', 'defender-shortcut', 'diagnostics-bundle', 'discord-noise', 'discord-status',
+  'cookie-reject', 'deadline-ledger', 'defender-shortcut', 'diagnostics-bundle', 'discord-noise',
   'download-desk', 'download-guard', 'draft-check', 'drops-desk', 'essentials', 'expense-capture', 'extension-diff',
   'feature-sheet', 'first-use-sheet', 'follow-ups', 'form-assist', 'game-timers', 'gesture-editor', 'guest-session',
   'holiday-planner', 'intent-search', 'jump-list', 'link-harvester', 'link-hints', 'load-failure', 'local-services',
@@ -23,7 +23,7 @@ const WAVE3 = [
   'spell-lang', 'split-keys', 'startup-budget', 'startup-check', 'storage-ledger', 'study-glossary', 'study-ledger',
   'study-notes', 'summary-cache', 'syllabus-check', 'tab-hold', 'tab-names', 'tab-select', 'tab-text-find', 'tab-thumbs',
   'tl-equivalent', 'tos-highlighter', 'travel-mode', 'turkish-helpers', 'two-minute', 'tz-helper', 'unread-task',
-  'usage-counters', 'vault-hygiene', 'vencord-bridge', 'version-review', 'video-later', 'watch-judgement', 'webhook-inspector',
+  'usage-counters', 'vault-hygiene', 'version-review', 'video-later', 'watch-judgement', 'webhook-inspector',
   'weekday-set', 'what-i-changed', 'whats-new-me', 'window-set', 'workspace-archive', 'writing-desk', 'your-data',
 ];
 

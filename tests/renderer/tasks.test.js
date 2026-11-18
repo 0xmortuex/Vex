@@ -29,7 +29,7 @@ const READING = {
   url: 'https://discord.com/channels/@me', heapMB: 480, heapLimitMB: 2048,
   nodes: 38402, images: 120, media: 2, playing: 1,
   frames: ['youtube.com', 'discord.com', 'discord.com'], workers: 1,
-  storeMB: 1200, storeDetail: [['caches', 900], ['indexedDB', 280]], vencord: 34,
+  storeMB: 1200, storeDetail: [['caches', 900], ['indexedDB', 280]],
 };
 const guest = (id, url) => ({
   getWebContentsId: () => id,
@@ -203,7 +203,10 @@ describe('what is inside one app', () => {
     expect(find('embedded').n).toBe('3 frames');
     expect(find('embedded').detail).toMatch(/discord\.com ×2/);
     expect(find('disk').n).toBe('1.2 GB');
-    expect(find('Vencord').n).toBe('34');
+    // Nothing of a client mod is read from the page, and there is no Lighter Discord row any more.
+    expect(find('Vencord')).toBeUndefined();
+    expect(find('Animated')).toBeUndefined();
+    expect(VexTasks.INSIDE_SCRIPT || '').not.toMatch(/Vencord|VexPluginProfiler/);
   });
 
   it('says so plainly when the app is not loaded', async () => {
@@ -224,26 +227,6 @@ describe('what is inside one app', () => {
     expect(reloaded).toEqual([501]);
     await acts.find(a => a.label.startsWith('Clear')).run();
     expect(reloaded).toEqual([501, 'hard:501']);
-  });
-
-  it('says what Vex is already doing about animated emoji, and offers it when it is off', async () => {
-    globalThis.SidebarManager.panelWebviews = { discord: guest(501, 'https://discord.com/channels/@me') };
-    let lite = true;
-    globalThis.DiscordMemory = { lite: () => lite, setLite: async (on) => { lite = on; } };
-    const d = await VexTasks.inside({ panel: 'discord' });
-    const row = VexTasks.insideRows(d).find(r => r.what.includes('Animated'));
-    expect(row.n).toBe('already still');
-    expect(row.detail).toMatch(/GIFs people post still play/);
-    expect(VexTasks.insideActions({ panel: 'discord' }, d).map(a => a.label)).not.toContain('Make emoji and avatars still');
-
-    lite = false;
-    const off = VexTasks.insideRows(d).find(r => r.what.includes('Animated'));
-    expect(off.n).toBe('animating');
-    const act = VexTasks.insideActions({ panel: 'discord' }, d).find(a => a.label === 'Make emoji and avatars still');
-    expect(act).toBeTruthy();
-    await act.run();
-    expect(lite).toBe(true);
-    expect(reloaded).toContain(501);
   });
 
   it('never sleeps a panel that is in a call or making a sound', async () => {
@@ -323,39 +306,3 @@ describe('the window', () => {
   });
 });
 
-// "34 plugins running" is a fact with no consequence. PluginProfiler wraps
-// every plugin's start, event handlers and context menus and times them; when
-// it is there, this row becomes a name and a number.
-describe('what the Vencord plugins cost', () => {
-  const row = (d) => VexTasks.insideRows({ ...READING, ...d }).find(r => r.what === 'Vencord plugins running');
-
-  it('without the profiler, says how to get the figures', () => {
-    expect(row({ plugins: null }).n).toBe('34');
-    expect(row({ plugins: null }).detail).toMatch(/PluginProfiler/);
-  });
-
-  it('with it, names the dearest ones and over how long', () => {
-    const detail = row({
-      plugins: {
-        seconds: 600,
-        measured: 2,
-        rows: [
-          { name: 'MessageLogger', totalMs: 4200, fluxCalls: 18000, worstEvent: 'MESSAGE_CREATE' },
-          { name: 'Translate', totalMs: 60, fluxCalls: 12, worstEvent: '' },
-          { name: 'Quiet', totalMs: 0, fluxCalls: 0, worstEvent: '' },
-        ],
-      },
-    }).detail;
-    expect(detail).toMatch(/Measured over 10 minutes/);
-    expect(detail).toMatch(/MessageLogger 4\.2 s across 18,000 events/);
-    expect(detail).toMatch(/Translate 60 ms/);
-    expect(detail).not.toMatch(/Quiet/);          // nothing measurable, not named
-  });
-
-  // A plugin that patches Discord once at startup costs nothing afterwards,
-  // and the row has to be able to say that rather than imply guilt.
-  it('says plainly when nothing has cost anything', () => {
-    const detail = row({ plugins: { seconds: 120, measured: 0, rows: [{ name: 'Quiet', totalMs: 0, fluxCalls: 0, worstEvent: '' }] } }).detail;
-    expect(detail).toMatch(/none of them has cost anything measurable/);
-  });
-});

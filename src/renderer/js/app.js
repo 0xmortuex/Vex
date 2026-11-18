@@ -1363,8 +1363,7 @@ function vexOwnTextFocused(doc) {
   // Safe mode says why this launch is stripped down (js/safe-mode-banner.js).
   if (typeof SafeModeBanner !== 'undefined') SafeModeBanner.init();
 
-  // Discord hotkeys that reach into a fullscreen game, and streamer mode
-  // (js/game-mode.js).
+  // The system-wide hotkey for streamer mode, and streamer mode itself (js/game-mode.js).
   if (typeof GameMode !== 'undefined') GameMode.init();
   // Game mode and the game's guide (js/game-session.js).
   if (typeof GameSession !== 'undefined') Promise.resolve(GameSession.init()).catch(err => window.VexProblems?.note('Game mode', 'Could not start', err));
@@ -1478,10 +1477,6 @@ function vexOwnTextFocused(doc) {
       window.showToast?.('Pop-out floats on top · Ctrl+Shift+P to toggle');
     });
   } catch {}
-  // Its "Back to Discord" button: Discord's panel (or its tab), as for a PiP "Back to tab".
-  window.vex?.onDiscordPopoutBack?.(() => {
-    if (typeof PiPManager !== 'undefined') PiPManager.returnToSource({ panel: 'discord' });
-  });
 
   // AI Skills (saved prompts) + Boosts (per-site customization)
   if (typeof VexSkills !== 'undefined') VexSkills.init();

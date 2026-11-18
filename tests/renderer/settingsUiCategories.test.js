@@ -50,7 +50,7 @@ describe('SettingsUI category matching', () => {
     expect(catFor('Route all of Vex')).toBe('Privacy');
     expect(catFor('Site Settings')).toBe('Permissions');
     expect(catFor('Gaming and streaming')).toBe('Performance');
-    expect(catFor('Discord hotkeys')).toBe('Performance');
+    expect(catFor('System-wide hotkeys')).toBe('Performance');
     expect(catFor('Your local models')).toBe('AI');
   });
 

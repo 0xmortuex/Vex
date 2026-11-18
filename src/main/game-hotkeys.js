@@ -1,10 +1,9 @@
-// === Reaching Discord without leaving the game =============================
+// === System-wide hotkeys: quick capture and streamer mode ==================
 //
-// The Discord panel is the point of having Discord inside the browser — but
-// muting yourself means alt-tabbing out of a fullscreen game, finding Vex,
-// finding the panel, and clicking. By then the moment has passed. Discord's own
-// app has global hotkeys for exactly this; a Discord living in a browser panel
-// had none.
+// There used to be three more here, which pressed Discord's Mute, Deafen and
+// Disconnect buttons inside its page from a fullscreen game. They are gone:
+// Discord is a plain page in Vex, and Vex presses nothing in it. A combination
+// saved for one of them is simply not registered any more.
 //
 // These are system-wide: they work while the game has the screen. Each one is
 // off until the user sets it, because a global hotkey takes that combination
@@ -16,9 +15,6 @@
 // shortcuts only report the press. A half-working one is worse than none.
 const ACTIONS = {
   'quick-capture': 'Note something, set a reminder or a timer, or Ctrl+Enter to keep a clip, from anywhere',
-  'discord-mute': 'Mute or unmute yourself in Discord',
-  'discord-deafen': 'Deafen or undeafen yourself in Discord',
-  'discord-hangup': 'Leave the Discord call',
   'streamer-toggle': 'Turn streamer mode on or off (blur codes, passwords, emails)',
 };
 

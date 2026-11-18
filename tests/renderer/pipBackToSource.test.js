@@ -11,7 +11,6 @@ const fs = require('fs'), path = require('path');
 const { PiPManager } = require('../../src/renderer/js/pip-manager.js');
 const SIDEBAR = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/sidebar.js'), 'utf8');
 const APP = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/app.js'), 'utf8');
-const backBtn = require('../../src/main/discord-popout-back.js');
 
 beforeEach(() => {
   document.body.innerHTML = '<button id="pip-btn"></button>';
@@ -80,47 +79,11 @@ describe('leftNative (Chromium\'s own player closed)', () => {
   });
 });
 
-describe('the Discord pop-out window\'s Back to Discord button', () => {
-  it('the injected script builds a closed-shadow button that logs the mark on click, once', () => {
-    const code = backBtn.buttonScript('Discord’a dön');
-    const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-    new Function(code)(); new Function(code)();
-    expect(document.querySelectorAll('#vex-popout-back')).toHaveLength(1);
-    expect(code).toContain(JSON.stringify('Discord’a dön'));
-    expect(code).toContain('mode:"closed"');
-    spy.mockRestore();
-  });
-
-  it('recognises only its own message, in both Electron signatures', () => {
-    expect(backBtn.isBackMessage(backBtn.messageOf({ message: backBtn.MARK }))).toBe(true);
-    expect(backBtn.isBackMessage(backBtn.messageOf({}, backBtn.MARK))).toBe(true);
-    expect(backBtn.isBackMessage(backBtn.messageOf({ message: 'hello' }))).toBe(false);
-  });
-
-  it('attach: a mark in the console calls onBack; the button goes in on load', async () => {
-    const handlers = {};
-    const wc = { isDestroyed: () => false, on: (ev, fn) => { handlers[ev] = fn; }, executeJavaScript: vi.fn(() => Promise.resolve()) };
-    const onBack = vi.fn();
-    backBtn.attach({ webContents: wc }, { label: async () => 'Back', onBack });
-    await handlers['did-finish-load']();
-    expect(wc.executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('vex-popout-back'));
-    handlers['console-message']({ message: 'noise' });
-    expect(onBack).not.toHaveBeenCalled();
-    handlers['console-message']({ message: backBtn.MARK });
-    expect(onBack).toHaveBeenCalledTimes(1);
-  });
-
-  it('is wired: main attaches it to the pop-out and the renderer shows Discord', () => {
+describe('the Discord pop-out window is left as Discord draws it', () => {
+  it('no Back to Discord button is put into its page', () => {
     const MAIN = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
-    expect(MAIN).toMatch(/discord-popout-back'\)\.attach\(win,/);
-    expect(MAIN).toContain("send('vex:discord-popout-back')");
-    expect(APP).toMatch(/onDiscordPopoutBack[\s\S]*?returnToSource\(\{ panel: 'discord' \}\)/);
-  });
-
-  it('brings Vex forward again once the pop-out has closed (closing the focused window hands the focus elsewhere)', () => {
-    const MAIN = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
-    expect(MAIN).toMatch(/win\.once\('closed', bringForward\);[\s\S]*?win\.close\(\);/);
-    // ...and the renderer is told from inside bringForward, not before the window is gone
-    expect(MAIN).toMatch(/const bringForward = \(\) => \{[\s\S]*?mainWindow\.focus\(\);\s*mainWindow\.webContents\.send\('vex:discord-popout-back'\);/);
+    expect(MAIN).not.toMatch(/discord-popout-back/);
+    expect(APP).not.toMatch(/onDiscordPopoutBack/);
+    expect(fs.existsSync(path.join(__dirname, '../../src/main/discord-popout-back.js'))).toBe(false);
   });
 });

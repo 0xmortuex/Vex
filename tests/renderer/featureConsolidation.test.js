@@ -13,9 +13,14 @@ const sidebarSrc = fs.readFileSync(path.join(jsDir, 'sidebar.js'), 'utf8');
 const htmlSrc = fs.readFileSync(path.join(__dirname, '../../src/renderer/index.html'), 'utf8');
 const registeredElsewhere = require('./_catalogTargets.js').commandIds;
 
+// Taken out on purpose after the consolidation, not lost by it (2026-11-17): Discord is a plain page in Vex, so the
+// tools that read or changed its page, and the two features built on a Discord client mod, are gone.
+const REMOVED_ON_PURPOSE = ['discord-why-big', 'discord-measure', 'discord-plugin-ram', 'discord-status', 'vencord-bridge'];
+
 describe('feature consolidation keeps every id', () => {
   it('every pre-merge catalogue id still resolves to an entry', () => {
-    const lost = before.ids.filter(id => !VexFeatures.get(id));
+    const lost = before.ids.filter(id => !VexFeatures.get(id) && !REMOVED_ON_PURPOSE.includes(id));
+    for (const id of REMOVED_ON_PURPOSE) expect(VexFeatures.get(id), id).toBeFalsy();
     expect(lost).toEqual([]);
   });
 
@@ -44,7 +49,7 @@ describe('feature consolidation keeps every id', () => {
   });
 
   it('every pre-merge Ctrl+K command id is still registered', () => {
-    const lost = before.cmds.filter(c => !(new RegExp("id: '" + c + "'").test(commandSrc) || registeredElsewhere.has(c)));
+    const lost = before.cmds.filter(c => !REMOVED_ON_PURPOSE.includes(c) && !(new RegExp("id: '" + c + "'").test(commandSrc) || registeredElsewhere.has(c)));
     expect(lost).toEqual([]);
   });
 

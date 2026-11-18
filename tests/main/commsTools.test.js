@@ -22,9 +22,9 @@ function memStore() {
 let dir, store, calls, respond, picked, asked, answer;
 function make(over = {}) {
   return T.createCommsTools({
-    secretStore: store, webhookFile: 'hook.enc', bridgeConfigFile: path.join(dir, 'comms-bridge.json'), statusSeqFile: path.join(dir, 'comms-status-seq.json'),
+    secretStore: store, webhookFile: 'hook.enc',
     fetch: async (url, init) => { calls.push({ url, init }); return respond(url, init); },
-    pickFolder: async () => picked, confirm: async (q) => { asked.push(q); return answer; }, now: () => 1_700_000_000_000, ...over,
+    confirm: async (q) => { asked.push(q); return answer; }, now: () => 1_700_000_000_000, ...over,
   });
 }
 beforeEach(() => {
@@ -130,87 +130,5 @@ describe('T3-050 webhook', () => {
     await c.webhookSet(HOOK);
     await c.webhookClear();
     expect((await c.webhookStatus()).has).toBe(false);
-  });
-});
-
-describe('T3-005 bridge file', () => {
-  const good = () => ({
-    schema: 'vex-bridge/1', generatedAt: 1_700_000_000_000, account: { name: 'mortuex' },
-    mentions: [{ id: 'm1', author: 'Sam', text: '@mortuex look', ts: 1_700_000_000_000, channelId: '1111111111', channelName: 'dev', guildName: 'Srv', url: 'https://discord.com/channels/2222222222/1111111111/3333333333' }],
-    replies: [{ id: 'r1', author: 'Alex', text: 'ok', ts: '2023-11-14T22:13:20Z' }],
-    channels: [{ channelId: '11', name: 'dev', guildName: 'Srv', messages: [{ id: 'a', author: 'Sam', text: 'Should we ship?', ts: 1_700_000_000_000 }] }],
-  });
-
-  it('needs a folder first, and reads nothing without one', () => {
-    const c = make();
-    expect(c.bridgeStatus()).toEqual({ granted: false, folder: '', found: false });
-    expect(() => c.bridgeRead()).toThrow(/No bridge folder/);
-  });
-
-  it('remembers the chosen folder, reads exactly vex-bridge.json and cleans it', async () => {
-    fs.writeFileSync(path.join(dir, 'vex-bridge.json'), JSON.stringify(good()));
-    fs.writeFileSync(path.join(dir, 'other.json'), '{}');
-    picked = dir;
-    const c = make();
-    const p = await c.bridgePick();
-    expect(p.ok).toBe(true); expect(p.found).toBe(true);
-    const r = c.bridgeRead();
-    expect(r.data.mentions[0]).toMatchObject({ id: 'm1', author: 'Sam', channelName: 'dev' });
-    expect(r.data.replies[0].ts).toBe(Date.parse('2023-11-14T22:13:20Z'));
-    expect(r.data.channels[0].messages).toHaveLength(1);
-    expect(r.data.skipped).toBe(0);
-  });
-
-  it('a cancelled picker changes nothing', async () => {
-    picked = null;
-    expect(await make().bridgePick()).toEqual({ ok: false, canceled: true });
-  });
-
-  it('refuses a file in the wrong shape, too large, not JSON, or missing', async () => {
-    picked = dir;
-    const c = make();
-    await c.bridgePick();
-    expect(() => c.bridgeRead()).toThrow(/no vex-bridge.json yet/);
-    fs.writeFileSync(path.join(dir, 'vex-bridge.json'), 'not json');
-    expect(() => c.bridgeRead()).toThrow(/not valid JSON/);
-    fs.writeFileSync(path.join(dir, 'vex-bridge.json'), JSON.stringify({ schema: 'other/9' }));
-    expect(() => c.bridgeRead()).toThrow(/vex-bridge\/1/);
-    fs.writeFileSync(path.join(dir, 'vex-bridge.json'), JSON.stringify({ schema: 'vex-bridge/1', pad: 'x'.repeat(T.MAX_BRIDGE_BYTES + 10) }));
-    expect(() => c.bridgeRead()).toThrow(/larger than/);
-  });
-
-  it('does not follow a link in the folder', async () => {
-    picked = dir;
-    const real = path.join(os.tmpdir(), 'vex-comms-target-' + process.pid + '.json');
-    fs.writeFileSync(real, JSON.stringify(good()));
-    try {
-      fs.symlinkSync(real, path.join(dir, 'vex-bridge.json'));
-    } catch (err) { fs.unlinkSync(real); return; } // symlinks need privileges on Windows; nothing to prove then
-    const c = make();
-    await c.bridgePick();
-    expect(() => c.bridgeRead()).toThrow(/link or a folder/);
-    fs.unlinkSync(real);
-  });
-
-  it('sanitize drops what does not fit and says how many, rejects a link that is not a Discord one, and caps text', () => {
-    const g = good();
-    g.mentions.push({ id: '', text: 'no id', ts: 1 }, { id: 'x', text: '', ts: 1 }, { id: 'y', text: 'bad link', ts: 1, url: 'https://evil.example/channels/1/2' });
-    g.mentions.push({ id: 'long', text: 'z'.repeat(5000), ts: 5 });
-    const s = T.sanitizeBridge(g);
-    expect(s.skipped).toBe(3);
-    expect(s.mentions.map(m => m.id)).toEqual(['m1', 'long']);
-    expect(s.mentions[1].text).toHaveLength(2000);
-    expect(() => T.sanitizeBridge({ schema: 'vex-bridge/1', mentions: 'nope' })).toThrow(/not a list/);
-    expect(() => T.sanitizeBridge([])).toThrow(/not a JSON object/);
-  });
-
-  it('forgetting removes the folder and never deletes the file', async () => {
-    fs.writeFileSync(path.join(dir, 'vex-bridge.json'), JSON.stringify(good()));
-    picked = dir;
-    const c = make();
-    await c.bridgePick();
-    expect(c.bridgeForget()).toEqual({ ok: true, granted: false });
-    expect(c.bridgeStatus().granted).toBe(false);
-    expect(fs.existsSync(path.join(dir, 'vex-bridge.json'))).toBe(true);
   });
 });

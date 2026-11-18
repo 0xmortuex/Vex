@@ -21,50 +21,14 @@
 //               'dom-script' — inject a <script> element. Subject to page CSP
 //                              (TikTok's blocks it — verified 2026-07-07), but
 //                              runs synchronously before any parser-created
-//                              script, which the Discord visibility spoof
-//                              relies on to win the race against Discord's own
-//                              visibility listeners.
+//                              script. No tweak uses it now: the Discord
+//                              visibility spoof that did was removed (Discord
+//                              is a plain page in Vex and gets no tweak).
 //   code      — self-contained main-world source. Must swallow its own errors:
 //               it runs inside untrusted pages.
 'use strict';
 
 const SITE_TWEAKS = [
-  {
-    // Keep Discord (in the Vex panel) always "visible" to its own app logic.
-    // The panel is display:none whenever you switch to another tab, which
-    // flips the page's visibilityState to 'hidden'. Discord reacts by tearing
-    // down its gateway WebSocket and, when it can't resume on return, does a
-    // full reload — the "random disconnection → loading screen". Spoofing the
-    // Page Visibility API stops the reconnect/reload. Scoped to Discord so
-    // other sites' visibility behaviour (video auto-pause, etc.) is untouched.
-    name: 'discord-always-visible',
-    hosts: /(^|\.)(discord\.com|discordapp\.com)$/i,
-    mechanism: 'dom-script',
-    code: '(function(){try{' +
-      // "Discord rest mode" (js/discord-memory.js, off by default): while the
-      // panel is hidden and not in a call the host calls window.__vexRest(true),
-      // and the page then tells Discord the TRUTH (hidden), so it can go into
-      // its own idle mode. __vexRest(false) puts the spoof back at once.
-      'var rest=false,pass=false;' +
-      'var D=(typeof Document!=="undefined")?Document.prototype:null;' +
-      'var real=function(n){try{var d=D&&Object.getOwnPropertyDescriptor(D,n);return d&&d.get?d.get.call(document):undefined;}catch(e){return undefined;}};' +
-      'var realFocus=D&&D.hasFocus;' +
-      'var vis=function(){return rest?(real("visibilityState")||"hidden"):"visible";};' +
-      'var hid=function(){if(!rest)return false;var h=real("hidden");return h===undefined?true:h;};' +
-      'Object.defineProperty(document,"visibilityState",{get:vis,configurable:true});' +
-      'Object.defineProperty(document,"webkitVisibilityState",{get:vis,configurable:true});' +
-      'Object.defineProperty(document,"hidden",{get:hid,configurable:true});' +
-      'Object.defineProperty(document,"webkitHidden",{get:hid,configurable:true});' +
-      'var block=function(e){if(!rest&&!pass)e.stopImmediatePropagation();};' +
-      'window.addEventListener("visibilitychange",block,true);' +
-      'document.addEventListener("visibilitychange",block,true);' +
-      'window.addEventListener("webkitvisibilitychange",block,true);' +
-      'document.addEventListener("webkitvisibilitychange",block,true);' +
-      'try{Object.defineProperty(document,"hasFocus",{value:function(){return (rest&&realFocus)?realFocus.call(document):true;},configurable:true,writable:true});}catch(e){}' +
-      'try{Object.defineProperty(window,"__vexRest",{value:function(on){on=!!on;if(on===rest)return rest;rest=on;' +
-        'try{pass=true;document.dispatchEvent(new Event("visibilitychange"));}catch(e){}finally{pass=false;}return rest;},configurable:true});}catch(e){}' +
-      '}catch(e){}})();',
-  },
   {
     // Hide HEVC/H.265 support from short-video sites. They probe the browser
     // (MediaSource.isTypeSupported / canPlayType / mediaCapabilities) and

@@ -143,9 +143,14 @@ describe('capture hotkey and inbox (main)', () => {
   const gs = () => { const held = new Set(); return { register: (a) => { if (held.has(a)) return false; held.add(a); return true; }, unregister: (a) => held.delete(a) }; };
   it('refuses a key two actions share and the boss key', () => {
     const h = createGameHotkeys({ globalShortcut: gs(), onAction() {}, reserved: ['CommandOrControl+Alt+H'] });
-    const r = h.set({ 'quick-capture': 'Ctrl+Shift+Y', 'discord-mute': 'control+shift+y', 'streamer-toggle': 'Ctrl+Alt+H' });
+    const r = h.set({ 'quick-capture': 'Ctrl+Shift+Y', 'streamer-toggle': 'control+shift+y' });
     expect(Object.keys(r.applied)).toEqual(['quick-capture']);
-    expect(r.errors.map(e => e.action).sort()).toEqual(['discord-mute', 'streamer-toggle']);
+    expect(r.errors.map(e => e.action)).toEqual(['streamer-toggle']);
+    expect(r.errors[0].error).toMatch(/one key cannot do two things/);
+    const boss = h.set({ 'quick-capture': 'Ctrl+Shift+Y', 'streamer-toggle': 'Ctrl+Alt+H' });
+    expect(Object.keys(boss.applied)).toEqual(['quick-capture']);
+    expect(boss.errors.map(e => e.action)).toEqual(['streamer-toggle']);
+    expect(boss.errors[0].error).toMatch(/hiding the window/);
   });
   it('keeps clips in a file and survives a reload', () => {
     const files = new Map();

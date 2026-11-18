@@ -1,28 +1,15 @@
 // === Vex while you are gaming or streaming =================================
 //
-// Two problems that only exist because Discord lives in a browser panel and
-// the browser is on the same screen as the game:
-//
-//   Reaching Discord. Muting yourself meant alt-tabbing out of a fullscreen
-//   game, finding Vex, finding the panel, clicking — by which time the moment
-//   has gone. Discord's own app has system-wide hotkeys; the panel had none.
-//   Main registers them (src/main/game-hotkeys.js) and sends the action here,
-//   and here we press the button inside Discord.
+// A problem that only exists because the browser is on the same screen as the
+// game. (There used to be a second part here: system-wide hotkeys that pressed
+// Discord's Mute, Deafen and Disconnect buttons inside its page. They are gone:
+// Discord is a plain page in Vex and nothing presses its buttons for you.)
 //
 //   Being on camera. Vex holds passwords, one-time codes, an email address in
 //   every tab title and a notification for each one. Sharing a screen or
 //   recording puts all of it in front of an audience. Streamer mode blanks the
 //   things that matter while the screen is being captured.
 const GameMode = {
-  // ---- Discord, from inside a game ----------------------------------------
-  // Discord's own controls, found by what they are labelled — the class names
-  // change every few weeks, the labels do not.
-  CLICKS: {
-    'discord-mute': ['button[aria-label^="Mute"]', 'button[aria-label^="Unmute"]'],
-    'discord-deafen': ['button[aria-label^="Deafen"]', 'button[aria-label^="Undeafen"]'],
-    'discord-hangup': ['button[aria-label="Disconnect"]', 'button[aria-label^="Disconnect"]'],
-  },
-
   init() {
     this.initGaming();
     if (!window.vex || typeof window.vex.onHotkey !== 'function') return false;
@@ -33,39 +20,7 @@ const GameMode = {
 
   async run(action) {
     if (action === 'streamer-toggle') return this.toggleStreamer();
-    const selectors = this.CLICKS[action];
-    if (!selectors) return false;
-    // The panel, or the tab when Discord opens as a tab.
-    const wv = window.DiscordMemory ? DiscordMemory.webview() : ((typeof SidebarManager !== 'undefined' && SidebarManager.panelWebviews) ? SidebarManager.panelWebviews.discord : null);
-    if (!wv) { window.showToast?.('Open the Discord panel once, and the hotkey will work from anywhere', 'error'); return false; }
-    const code = `(() => {
-      const found = ${JSON.stringify(selectors)}.map(s => document.querySelector(s)).find(Boolean);
-      if (!found) return null;
-      found.click();
-      return (found.getAttribute('aria-label') || '').trim();
-    })()`;
-    try {
-      const was = await window.vexGuestEval(wv, code, true, 4000);
-      if (!was) { window.showToast?.('Discord is not in a call', 'info'); return false; }
-      // The label is what it was BEFORE the click, so the new state is the
-      // opposite: pressing "Mute" means you are now muted.
-      window.showToast?.(this._said(was));
-      return true;
-    } catch (err) {
-      VexProblems?.note('Discord hotkey', 'Could not reach the Discord panel', err);
-      window.showToast?.('Could not reach Discord: ' + ((err && err.message) || ''), 'error');
-      return false;
-    }
-  },
-
-  _said(label) {
-    const l = String(label).toLowerCase();
-    if (l.startsWith('unmute')) return 'Microphone on';
-    if (l.startsWith('mute')) return 'Microphone muted';
-    if (l.startsWith('undeafen')) return 'Sound on';
-    if (l.startsWith('deafen')) return 'Deafened';
-    if (l.startsWith('disconnect')) return 'Left the call';
-    return label;
+    return false;
   },
 
   // ---- Streamer mode -------------------------------------------------------

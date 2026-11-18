@@ -178,25 +178,11 @@ describe('asleep when idle', () => {
 describe('the limit, lowered once', () => {
   it('a limit left at the old 1.5 GB becomes 1 GB once; a choice after that is kept', () => {
     localStorage.setItem(DiscordMemory.KEY, '1500');
-    window.vex.setDiscordLite = vi.fn(async () => true);
     DiscordMemory.start();
     expect(DiscordMemory.limitMB()).toBe(1000);
     DiscordMemory.setLimitMB(1500);
     DiscordMemory.start();
     expect(DiscordMemory.limitMB()).toBe(1500);
-    clearInterval(DiscordMemory._timer);
-  });
-});
-
-describe('a private window', () => {
-  it('leaves Lighter Discord to the main window (main refuses it discord: channels)', () => {
-    window.vex.setDiscordLite = vi.fn(async () => true);
-    window.VexTabPolicy = { isPrivateWindow: true };
-    DiscordMemory.start();
-    expect(window.vex.setDiscordLite).not.toHaveBeenCalled();
-    delete window.VexTabPolicy;
-    DiscordMemory.start();
-    expect(window.vex.setDiscordLite).toHaveBeenCalledTimes(1);
     clearInterval(DiscordMemory._timer);
   });
 });
@@ -236,24 +222,6 @@ describe('Discord as a tab', () => {
     TabManager.tabs.push({ id: 7, url: 'https://discord.com/app', partition: 'persist:discord' });
     WebviewManager.webviews.set(7, wv);
     expect(DiscordMemory.webview()).toBe(wv);
-  });
-});
-
-describe('the heaviest plugins', () => {
-  it('turns them off through Vencord and reloads Discord', async () => {
-    const wv = sb.panelWebviews.discord;
-    wv.reload = vi.fn();
-    window.Vencord = { Settings: { plugins: { MessageLoggerEnhanced: { enabled: true }, MessageLogger: { enabled: false }, WhoReacted: { enabled: true }, Other: { enabled: true } } } };
-    window.vexGuestEval = vi.fn(async (_wv, code) => (0, eval)(code));
-    expect(await DiscordMemory.turnOffHeavyPlugins()).toEqual(['MessageLoggerEnhanced', 'WhoReacted']);
-    expect(window.Vencord.Settings.plugins.Other.enabled).toBe(true);
-    expect(wv.reload).toHaveBeenCalled();
-    delete window.Vencord;
-  });
-
-  it('says so when Vencord is not there', async () => {
-    window.vexGuestEval = vi.fn(async (_wv, code) => (0, eval)(code));
-    await expect(DiscordMemory.turnOffHeavyPlugins()).rejects.toThrow(/Vencord is not running/);
   });
 });
 

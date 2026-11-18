@@ -94,6 +94,11 @@ function createRunner({ now = () => Date.now(), sleep = (ms) => new Promise(r =>
       if (executed >= Model.LIMITS.maxSteps) return fail(i, step, 'steps');
       if (now() - startedAt - waited > budget) return fail(i, step, 'duration', 'The run took longer than ' + Math.round(budget / 1000) + ' seconds');
       executed++;
+      // Discord is a plain page in Vex: a run never acts in it, however the page got there (a link, a redirect).
+      if (step.type !== 'open') {
+        const onDiscord = Model.discordRefusal(await driver.currentUrl());
+        if (onDiscord) return await fail(i, step, 'navigation-refused', onDiscord);
+      }
 
       // Waits for a person: returns 'approve' | 'skip' | 'stop' | 'timeout'.
       const ask = async (kind, why, extra) => {

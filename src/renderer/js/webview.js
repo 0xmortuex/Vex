@@ -764,8 +764,6 @@ const WebviewManager = {
         if (typeof Annotations !== 'undefined' && t && t.url) Annotations.applyTo(webview, t.url);
         // Glossary hover cards for terms you confirmed (js/study-glossary.js).
         if (typeof VexStudyGlossary !== 'undefined' && t && t.url) VexStudyGlossary.applyTo(webview, t.url);
-        // Discord as a tab in the Vex theme (js/discord-theme.js).
-        if (window.DiscordTheme && t && t.partition === 'persist:discord') DiscordTheme.onPageReady(webview);
       } catch {}
     });
 

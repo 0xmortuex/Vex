@@ -327,23 +327,6 @@ const VexTasks = {
       workers,
       storeMB: store && store.usage != null ? Math.round(store.usage / 1048576) : null,
       storeDetail: (store && store.usageDetails) ? Object.entries(store.usageDetails).map(([k, v]) => [k, Math.round(v / 1048576)]).filter(p => p[1] >= 1) : [],
-      vencord: t(() => (window.Vencord && window.Vencord.Plugins && window.Vencord.Plugins.plugins)
-        ? Object.values(window.Vencord.Plugins.plugins).filter(p => p && p.started).length : null, null),
-      // What each of those plugins actually costs, when PluginProfiler is one
-      // of them: it wraps every plugin's start, flux handler and context menu
-      // and times them, and publishes a plain snapshot on window for exactly
-      // this. A count is a fact with no consequence; "this one has spent four
-      // seconds of your afternoon" is something you can act on.
-      plugins: t(() => {
-        const bridge = window.VexPluginProfiler;
-        if (!bridge || typeof bridge.snapshot !== 'function') return null;
-        const rows = bridge.snapshot();
-        return {
-          seconds: typeof bridge.measuredFor === 'function' ? bridge.measuredFor() : 0,
-          rows: rows.slice(0, 5).map(r => ({ name: String(r.name).slice(0, 40), totalMs: Math.round(r.totalMs || 0), fluxCalls: r.fluxCalls || 0, worstEvent: String(r.worstEvent || '').slice(0, 40) })),
-          measured: rows.filter(r => (r.totalMs || 0) >= 1).length,
-        };
-      }, null),
     };
   })()`,
 
@@ -404,34 +387,6 @@ const VexTasks = {
       rows.push({ what: 'Kept on your disk', n: d.storeMB >= 1024 ? (d.storeMB / 1024).toFixed(1) + ' GB' : d.storeMB + ' MB',
         detail: (d.storeDetail.length ? d.storeDetail.map(([k, v]) => k.replace(/([A-Z])/g, ' $1').toLowerCase() + ' ' + v + ' MB').join(', ') + ' — ' : '') + 'not memory, but it is read into memory as you use it, and it can all be fetched again.' });
     }
-    if (/discord\.com/.test(d.url || '') && typeof DiscordMemory !== 'undefined') {
-      const on = DiscordMemory.lite();
-      rows.push({
-        what: 'Animated emoji and avatars',
-        n: on ? 'already still' : 'animating',
-        detail: on
-          ? 'Lighter Discord is on, so every animated emoji, avatar and sticker is fetched as a still picture. Each animated one is a video that would otherwise be decoded frame by frame, all day, whether or not you are looking at it. GIFs people post still play.'
-          : 'Every animated emoji, avatar and sticker on screen is a video being decoded frame by frame, all day. Vex can fetch them as still pictures instead — the button below.',
-      });
-    }
-    if (d.vencord != null) {
-      // The count on its own was a fact with no consequence. With the
-      // profiler running it becomes a name and a number.
-      const pp = d.plugins;
-      let detail = 'Each one patches Discord as it runs. Ones you do not use are worth switching off. '
-        + 'Turn on the PluginProfiler plugin and this row says what each of them actually costs.';
-      if (pp && pp.rows && pp.rows.length) {
-        const mins = Math.max(1, Math.round((pp.seconds || 0) / 60));
-        const dearest = pp.rows.filter(r => r.totalMs >= 1);
-        detail = dearest.length
-          ? 'Measured over ' + mins + ' minute' + VexPlural.s(mins) + ': '
-            + dearest.map(r => r.name + ' ' + this._ms(r.totalMs) + (r.fluxCalls ? ' across ' + r.fluxCalls.toLocaleString() + ' events' : '')).join(', ')
-            + '. The rest have cost nothing measurable.'
-          : 'Measured over ' + mins + ' minute' + VexPlural.s(mins) + ': none of them has cost anything measurable yet. '
-            + 'A plugin that patches Discord once at startup costs nothing afterwards.';
-      }
-      rows.push({ what: 'Vencord plugins running', n: String(d.vencord), detail });
-    }
     return rows;
   },
 
@@ -484,18 +439,6 @@ const VexTasks = {
         label: 'Put it to sleep',
         why: 'Hands back everything above until you click the tab again, which brings it back where you left it.',
         run: async () => { await TabManager.sleepTab(target.tab, true); return name + ' is asleep'; },
-      });
-    }
-    if (/discord\.com/.test(d.url || '') && typeof DiscordMemory !== 'undefined' && !DiscordMemory.lite()) {
-      acts.push({
-        label: 'Make emoji and avatars still',
-        why: 'Fetches every animated emoji, avatar, sticker and server icon as a still picture instead of a moving one. They still appear — they just stop being videos your machine decodes all day. GIFs people post are untouched.',
-        run: async () => {
-          await DiscordMemory.setLite(true);
-          const wv = this._guestFor(target);
-          try { if (wv) wv.reload(); } catch { /* it will apply on the next load */ }
-          return 'Animated emoji and avatars are still pictures now — ' + name + ' is reloading';
-        },
       });
     }
     return acts;

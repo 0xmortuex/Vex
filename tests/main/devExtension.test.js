@@ -63,15 +63,7 @@ describe('plugin dev loop', () => {
     expect(unloads.length).toBeGreaterThan(0);
     expect(dev.status().active).toBe(false);
   });
-  it('reads installed Vencord builds without changing them', () => {
-    const base = path.join(dir, 'extensions');
-    fs.mkdirSync(path.join(base, 'vencord-1'), { recursive: true });
-    fs.writeFileSync(path.join(base, 'vencord-1', 'manifest.json'), JSON.stringify({ version: '1.2.3' }));
-    fs.writeFileSync(path.join(base, 'vencord-1', 'browser.js'), 'abc');
-    fs.mkdirSync(path.join(base, 'other'));
-    const list = dev.vencordStatus(base);
-    expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ folder: 'vencord-1', version: '1.2.3', bundle: 'browser.js', loadable: true });
-    expect(list[0].sha256).toMatch(/^[0-9a-f]{64}$/);
+  it('has no Vencord helper any more', () => {
+    expect(dev.vencordStatus).toBeUndefined();
   });
 });

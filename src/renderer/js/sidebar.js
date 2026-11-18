@@ -641,7 +641,6 @@ const SidebarManager = {
       ['recall-panel-content', () => { if (typeof Recall !== 'undefined') return Recall.renderSettings(el('recall-panel-content')); }],
       ['privacy-panel-content', () => { if (typeof PrivacyPack !== 'undefined') return PrivacyPack.renderSettings(el('privacy-panel-content')); }],
       ['discord-bypass-setting', () => { if (window.DiscordBypass) return DiscordBypass.renderSetting(el('discord-bypass-setting')); }],
-      ['discord-theme-setting', () => { if (window.DiscordTheme) return DiscordTheme.renderSetting(el('discord-theme-setting')); }],
       ['ai-memory-panel-content', () => { if (typeof AIMemory !== 'undefined') return AIMemory.renderSettings(el('ai-memory-panel-content')); }],
       ['webllm-panel-content', () => { if (typeof WebLLM !== 'undefined') return WebLLM.renderSettings(el('webllm-panel-content')); }],
       ['mcp-panel-content', () => { if (typeof McpClient !== 'undefined') return McpClient.renderSettings(el('mcp-panel-content')); }],
@@ -732,9 +731,6 @@ const SidebarManager = {
       // What one of its notifications said (title and body, cut short), kept in
       // the list of Notifications from panels only when that site was opted in.
       if (e.channel === 'vex-notification-seen') {
-        // Discord resting (rest mode) wakes for five minutes when it has just spoken: it is connected, so its
-        // follow-up messages and a call ring should not wait for the next look.
-        if (panelName === 'discord') this._wakeDiscordFor(5 * 60000);
         if (typeof PanelCapture !== 'undefined') PanelCapture.fromHost(panelName, e.args && e.args[0], wv);
         return;
       }
@@ -804,7 +800,6 @@ const SidebarManager = {
       if (typeof PasswordVault !== 'undefined') { try { PasswordVault.autofill(wv, wv.getURL()); } catch {} }
       if (typeof TotpAutofill !== 'undefined') { try { TotpAutofill.autofill(wv, wv.getURL()); } catch {} }
       if (typeof EmailCodeAutofill !== 'undefined') { try { EmailCodeAutofill.tryFill(wv, wv.getURL()); } catch {} }
-      if (window.DiscordTheme) DiscordTheme.onPageReady(wv);
     });
     // A never-asked microphone/camera reads 'denied' to the page, so a site
     // like WhatsApp shows its own "allow it in the address bar" box instead of
@@ -1521,11 +1516,6 @@ const SidebarManager = {
   // Returns the reason, in words, or '' when it is safe to sleep.
   panelBusy(name) {
     if (this.isPanelCapturing(name)) return 'it is using the microphone or camera';
-    // A Discord memory measurement needs the page to stay loaded until it is done (js/discord-memory.js).
-    if (name === 'discord' && typeof DiscordMemory !== 'undefined' && typeof DiscordMemory.measurementHold === 'function') {
-      const held = DiscordMemory.measurementHold();
-      if (held) return held;
-    }
     const wv = this.panelWebviews[name];
     try { if (wv && typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) return 'it is making a sound'; }
     catch { /* a panel mid-teardown cannot be asked */ }
@@ -1554,8 +1544,9 @@ const SidebarManager = {
   // Discord's <webview> is created with backgroundThrottling off so a hidden
   // panel reconnects instantly; left that way it burned ~35% of a core all day
   // (3,763 s of CPU in three hours, measured). Hidden for two minutes with no
-  // call — no microphone in use, not audible, no Disconnect button in its
-  // page — throttling goes back on; shown again, or a call, and it is off.
+  // call — no microphone or camera in use, and not audible — throttling goes
+  // back on; shown again, or a call, and it is off. Nothing is read from
+  // Discord's page for this: it is a plain page, and Vex runs no script in it.
   discordRestPrefs() {
     return { enabled: localStorage.getItem('vex.discordRestHidden') !== '0', afterMs: 2 * 60000 };
   },
@@ -1563,10 +1554,7 @@ const SidebarManager = {
   async _discordInCall(wv) {
     if (this.isPanelCapturing('discord')) return true;
     try { if (typeof wv.isCurrentlyAudible === 'function' && wv.isCurrentlyAudible()) return true; } catch {}
-    if (typeof wv.executeJavaScript !== 'function') return false;
-    try {
-      return !!(await wv.executeJavaScript(`!!document.querySelector('button[aria-label="Disconnect"], [class*="rtcConnectionStatus"]')`, true));
-    } catch { return false; }
+    return false;
   },
 
   async _setDiscordThrottle(on) {
@@ -1583,15 +1571,12 @@ const SidebarManager = {
   async checkDiscordThrottle(now = Date.now()) {
     const wv = this.panelWebviews.discord;
     if (!wv) return null;
-    // A Discord being measured is treated as in sight: not throttled, not rested (js/discord-memory.js measurementHold).
-    const held = typeof DiscordMemory !== 'undefined' && typeof DiscordMemory.measurementHold === 'function' && !!DiscordMemory.measurementHold();
-    const visible = this.activePanel === 'discord' || this.sidePanel === 'discord' || held;
+    const visible = this.activePanel === 'discord' || this.sidePanel === 'discord';
     const prefs = this.discordRestPrefs();
     // The page learns whether it is in sight (preload-webview.js stops its video scan while it is not).
     this._tellDiscordHidden(wv, !visible);
     if (visible || !prefs.enabled) {
       await this._setDiscordThrottle(false);
-      if (this._discordResting) await this._setDiscordResting(false);
       return { visible, inCall: null, throttled: false };
     }
     let usage = {};
@@ -1599,31 +1584,14 @@ const SidebarManager = {
     if (now - (Number(usage.discord) || 0) < prefs.afterMs) return { visible, inCall: null, throttled: !!this._discordThrottled };
     const inCall = await this._discordInCall(wv);
     await this._setDiscordThrottle(!inCall);
-    // Discord rest mode (off by default, js/discord-memory.js): hidden and not in a call, the page is
-    // told the truth about being hidden so it can idle. A call, or a notification that just arrived,
-    // puts the always-visible spoof back.
-    const rest = !inCall && typeof DiscordMemory !== 'undefined' && DiscordMemory.restModeOn() && now >= (this._discordWakeUntil || 0);
-    if (rest || this._discordResting) await this._setDiscordResting(rest);
-    return rest ? { visible, inCall, throttled: true, resting: true } : { visible, inCall, throttled: !inCall };
-  },
-
-  // The page-world half is window.__vexRest in site-tweaks.js (the visibility spoof). Idempotent there,
-  // so it is simply asked again on every look: a reloaded page starts spoofed and is brought back in line.
-  async _setDiscordResting(on) {
-    const wv = this.panelWebviews.discord;
-    if (!wv || typeof wv.executeJavaScript !== 'function') return false;
-    try {
-      await wv.executeJavaScript('(function(){var f=window.__vexRest;if(typeof f!=="function")return null;return f(' + (on ? 'true' : 'false') + ');})()', true);
-    } catch (err) { window.VexProblems?.note('Discord rest', 'Could not set the page’s visibility', err); return false; }
-    this._discordResting = !!on;
-    return true;
+    return { visible, inCall, throttled: !inCall };
   },
 
   _tellDiscordHidden(wv, hidden) {
     if (typeof wv.send !== 'function') return;
     try { wv.send('vex-hidden', !!hidden); }
     catch (err) {
-      // A page only just created (a refresh, or Discord loaded in the background for a measurement) cannot be sent to
+      // A page only just created (a refresh) cannot be sent to
       // until it has emitted dom-ready. That is not a problem: look again once it has, and tell it then.
       if (/dom-ready/.test(String(err && err.message))) {
         if (wv.dataset && wv.dataset.hiddenRetry === '1') return;
@@ -1636,12 +1604,6 @@ const SidebarManager = {
       }
       window.VexProblems?.note('Discord rest', 'Could not tell the page it is hidden', err);
     }
-  },
-
-  // A Discord notification just arrived: the page is awake for a while whatever the rest mode says.
-  _wakeDiscordFor(ms) {
-    this._discordWakeUntil = Date.now() + ms;
-    if (this._discordResting) this._setDiscordResting(false).catch(err => window.VexProblems?.note('Discord rest', 'Could not wake the page', err));
   },
 
   // Both on the shared job timer (js/jobs.js). Resting Discord matters most
@@ -1667,50 +1629,19 @@ const SidebarManager = {
   },
 
   // ---- Discord call state on its icon --------------------------------------------
-  // Read by Discord's button labels (class names change every few weeks, the
-  // labels do not). Muted is either "Unmute" (older) or "Mute" pressed
-  // (aria-checked) (newer); the same for Deafen. Sharing: "Stop Streaming".
-  DISCORD_STATE_SCRIPT: `(() => {
-    const q = (s) => document.querySelector(s);
-    const btn = (prefix) => q('button[aria-label^="' + prefix + '"]');
-    const mute = btn('Mute') || btn('Unmute');
-    const deaf = btn('Deafen') || btn('Undeafen');
-    const on = (b, word) => !!b && ((b.getAttribute('aria-label') || '').startsWith('Un' + word.toLowerCase()) || b.getAttribute('aria-checked') === 'true');
-    return {
-      inCall: !!q('button[aria-label="Disconnect"], [class*="rtcConnectionStatus"]'),
-      muted: on(mute, 'Mute'),
-      deafened: on(deaf, 'Deafen'),
-      sharing: !!q('button[aria-label^="Stop Streaming"], button[aria-label^="Stop Sharing"]'),
-    };
-  })()`,
-
-  // → { icon, tone, title } for the badge, or null when not in a call.
+  // From what the browser itself knows: the panel holds the microphone, the camera
+  // or the screen. Vex reads nothing from Discord's page (it used to read the Mute,
+  // Deafen and Stop Streaming buttons), so the badge no longer says muted or deafened.
+  // → { icon, tone, title } for the badge, or null when Discord holds no microphone, camera or screen.
   discordBadgeFor(s) {
     if (!s || !s.inCall) return null;
-    const parts = [s.deafened ? 'deafened' : s.muted ? 'muted' : 'microphone live', s.sharing ? 'sharing your screen' : ''].filter(Boolean);
-    return {
-      icon: s.sharing ? 'monitor' : s.deafened ? 'headphones' : 'mic',
-      tone: s.deafened || s.muted ? 'off' : 'live',
-      title: 'In a Discord call: ' + parts.join(', '),
-    };
+    return { icon: 'mic', tone: 'live', title: 'Discord is using the microphone, the camera or the screen' };
   },
 
-  // Discord's page is only looked into when something says a call may be on
-  // (it holds the microphone, camera or screen, or it is making a sound):
-  // this ran a script in the hidden page every 10 s all day for nothing.
   async updateDiscordBadge() {
-    const wv = window.DiscordMemory ? DiscordMemory.webview() : this.panelWebviews.discord;
     const btn = document.querySelector('.sidebar-icon[data-panel="discord"]');
     if (!btn) return null;
-    let state = null;
-    let maybeCall = this.isPanelCapturing('discord');
-    if (!maybeCall && wv && typeof wv.isCurrentlyAudible === 'function') {
-      try { maybeCall = wv.isCurrentlyAudible(); } catch { maybeCall = false; }   // still attaching: nothing playing yet
-    }
-    if (maybeCall && wv && typeof wv.executeJavaScript === 'function') {
-      try { state = await wv.executeJavaScript(this.DISCORD_STATE_SCRIPT, true); } catch { state = null; }   // still loading
-    }
-    const badge = this.discordBadgeFor(state);
+    const badge = this.discordBadgeFor({ inCall: this.isPanelCapturing('discord') });
     let el = btn.querySelector('.icon-badge.discord-call');
     if (!badge) { if (el) el.remove(); return null; }
     if (!el) { el = document.createElement('span'); el.className = 'icon-badge discord-call'; btn.appendChild(el); }
@@ -2434,42 +2365,6 @@ const SidebarManager = {
     }
   },
 
-  // One-click Vencord: the official build into the Discord panel, then
-  // Discord reloaded so it runs. Resolves true when it is installed (also
-  // when it loads only after a restart), false when it failed — said in a toast.
-  async installVencord() {
-    window.showToast?.('Downloading Vencord…');
-    try {
-      const r = await window.vex?.installVencord?.();
-      if (r && r.ok) {
-        // In safe mode it is put in place, not loaded (found 2026-09-29).
-        if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return true; }
-        window.showToast?.(`Vencord ${r.version || ''} installed — reloading Discord`);
-        if (this._reopenDiscordTab()) return true;
-        const wv = this.panelWebviews['discord'];
-        if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
-        return true;
-      }
-      window.showToast?.('Vencord install failed: ' + ((r && r.error) || 'unknown'), 'error');
-      return false;
-    } catch (e) {
-      window.showToast?.('Vencord install failed', 'error');
-      return false;
-    }
-  },
-
-  // Discord set to open as a tab (js/discord-memory.js): a just-installed
-  // Vencord build only runs in a fresh page, and showPanel('discord') merely
-  // switched to the old tab, still on the previous build. The tab is closed
-  // and opened again. Returns false when Discord is a panel.
-  _reopenDiscordTab() {
-    if (!window.DiscordMemory || DiscordMemory.mode() !== 'tab') return false;
-    const t = DiscordMemory.discordTab();
-    if (t) TabManager.closeTab(t.id);
-    DiscordMemory.openTab();
-    return true;
-  },
-
   // A desktop notification from a panel was clicked: Vex to the front, and
   // the panel open (Discord as a tab: its tab).
   openFromNotification(panelName) {
@@ -2676,83 +2571,6 @@ const SidebarManager = {
         items.push({ label: 'Switch to Disney+', action: () => this.switchPanelService(panelName, 'disney') });
         items.push({ label: 'Switch to Roku Channel', action: () => this.switchPanelService(panelName, 'roku') });
       } else if (panelName === 'discord') {
-        // One-click Vencord (plugins/themes) install into the Discord panel.
-        items.push({
-          label: 'Install / Update Vencord',
-          action: () => { this.installVencord(); }
-        });
-        // Discord in the Vex colour theme, through Vencord (js/discord-theme.js).
-        if (window.DiscordTheme) {
-          const matchOn = DiscordTheme.isOn();
-          items.push({
-            label: matchOn ? 'Match my Vex theme: On' : 'Match my Vex theme: Off',
-            action: () => {
-              DiscordTheme.setOn(!matchOn).then((now) => {
-                if (now !== matchOn) window.showToast?.(now ? 'Discord now follows your Vex theme' : 'Discord keeps its own look');
-              }, (err) => window.showToast?.('Discord theme not changed — ' + err.message, 'error'));
-            }
-          });
-        }
-        // Install YOUR local Vencord build (custom userplugins that aren't in the
-        // official devbuild). Point Vex at the extension-chrome.zip from `pnpm buildWeb`.
-        items.push({
-          label: 'Install my Vencord build (custom plugins)',
-          action: async () => {
-            window.showToast?.('Installing your Vencord build…');
-            try {
-              const r = await window.vex?.installVencordLocal?.();
-              if (r && r.ok) {
-                // In safe mode it is put in place, not loaded (found 2026-09-29).
-                if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return; }
-                // Fully RECREATE the Discord panel webview (don't just reload it):
-                // a reloaded webContents can keep running the previously-loaded
-                // Vencord build, so an updated plugin wouldn't show up. A brand-new
-                // webview binds the freshly-installed extension. Then switch to it
-                // so the result is unmissable, and say where the feature lives.
-                // Discord opening as a tab: that tab is the one made fresh.
-                if (this._reopenDiscordTab()) {
-                  window.showToast?.(`Vencord ${r.version || ''} installed. In Discord, right-click a server → “Bulk Export Servers”.`, 'success');
-                  return;
-                }
-                try {
-                  const old = this.panelWebviews['discord'];
-                  if (old) { try { old.remove(); } catch {} }
-                  delete this.panelWebviews['discord'];
-                  const panelEl = document.getElementById('panel-discord');
-                  // By panel name: in the browser looks the bar sits in the sidebar header.
-                  if (panelEl) { try { document.querySelectorAll('.panel-navbar[data-panel="discord"]').forEach(n => n.remove()); } catch {} }
-                  if (this.activePanel === 'discord') this.activePanel = null;
-                } catch {}
-                this.showPanel('discord');
-                window.showToast?.(`Vencord ${r.version || ''} installed. In Discord, right-click a server → “Bulk Export Servers”.`, 'success');
-              } else {
-                const why = (r && r.error) || 'unknown';
-                window.showToast?.('Vencord install failed: ' + why, 'error');
-                if (typeof vexAlert === 'function') {
-                  vexAlert({ title: 'Couldn’t install your Vencord build', message: why + '\n\nBuild it first:\n  cd vencord-dev && pnpm buildWeb\n\nThat writes dist/extension-chrome.zip, which Vex looks for.' });
-                }
-              }
-            } catch (e) { window.showToast?.('Vencord install failed: ' + (e && e.message || 'error'), 'error'); }
-          }
-        });
-        // Vencord off / on: the Vencord extension's own switch (the same call as the On checkbox in
-        // Settings > Extensions), then Discord reloads so it takes effect. The label follows the state
-        // last read; the action reads it again, so a stale label never does the opposite of what it says.
-        if (window.DiscordMemory) {
-          const label = DiscordMemory.vencordMenuLabel(DiscordMemory._vencord);
-          if (label) {
-            items.push({
-              label,
-              action: () => {
-                DiscordMemory.toggleVencord().then(
-                  (msg) => window.showToast?.(msg),
-                  (err) => window.showToast?.(err.message, 'error'));
-              }
-            });
-          }
-          DiscordMemory.vencordState().catch(err => window.VexProblems?.note('Discord memory', 'Vencord state unknown', err));
-        }
-        items.push({ separator: true });
         // Block bypass: a single "auto-configure" action that sweeps every method
         // and an off switch (for people running Zapret). js/discord-bypass.js
         // is loaded in every window, but main refuses the bypass from a

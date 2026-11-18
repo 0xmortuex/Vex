@@ -34,7 +34,7 @@ const GUEST_CHANNELS = new Set(['extensions:external-ids', 'extensions:external-
   // Vex's own viewer for office documents and e-books (vex-office://view/, main/office-viewer.js): downloading the original, opening it with Windows,
   // printing. Each handler checks that the asking frame is that page.
   'officeview:download', 'officeview:open-external', 'officeview:print']);
-const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'drm:clear-site', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
+const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'drm:clear-site', 'panelguard:throttle', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect', 'tabs:person-navigated',
   // The site panel's per-page permissions and certificate (main.js): a private
   // window's page keeps its answers in memory, so these stay allowed there.
@@ -58,7 +58,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'drm:clear-site', 'pan
 // (main.js, _siteSessionFor). Writes that would land in the main profile are
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
-const PRIVATE_DISABLED = /^(?:cachebudget:(?:set|run)|speedtest:|links:follow-one|websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|threat:(?:set-enabled|set-auto-update|update|forget-host)|siterules:set|navprivacy:set|siteforget:|streamskip:(?:set|matched)|lyrics:|ollama:ensure|captive:(?:allow-http|pause-secure-dns)|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|cards:|addresses:|passkeys:(?:list|attempts|restore|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|bypass:|unblock:|window:keep-on-top|devdesk:|devext:|castlabs:|devbench:|hygiene:|gccbridge:|secondscreen:|pip:memory|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|devices:(?:select-respond|grants-list|grants-revoke)|gui-style:set|updates:(?:download|cancel|install|backup)|backup:|lifeboat:|signins:|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|automations:|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|wallpaper:(?:catalogue|download|save|remove|clear-cache)|makerepos:refresh|downloads:(?:choose-folder|set-ask|set-media-names|set-resume|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history|release-assist|mods-plan|mods-apply|mods-undo|mods-history|motw-check|open-defender|defender-scan|extract-here)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|integrity:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|aikey:|devfeeds:|repos:|startup:|applock:|profilecrypt:|transcribe:|voice:|ocrlang:(?:download|cancel|remove)|photoprep:|tabs:preconnect|jump:|jumplist:|windows:|sources:|pdftool:|comms:|status:|localsvc:|webhook:|themepin:|netdrift:|agentpolicy:set|agentaudit:|evomcp:|oshook:|feedback:|spellcheck:set-languages|panelguard:|gameoverlay:|folderview:(?!set-enabled))/;
+const PRIVATE_DISABLED = /^(?:cachebudget:(?:set|run)|speedtest:|links:follow-one|websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|threat:(?:set-enabled|set-auto-update|update|forget-host)|siterules:set|navprivacy:set|siteforget:|streamskip:(?:set|matched)|lyrics:|ollama:ensure|captive:(?:allow-http|pause-secure-dns)|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|cards:|addresses:|passkeys:(?:list|attempts|restore|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|bypass:|unblock:|window:keep-on-top|devdesk:|devext:|castlabs:|devbench:|hygiene:|gccbridge:|secondscreen:|pip:memory|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|devices:(?:select-respond|grants-list|grants-revoke)|gui-style:set|updates:(?:download|cancel|install|backup)|backup:|lifeboat:|signins:|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|automations:|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|wallpaper:(?:catalogue|download|save|remove|clear-cache)|makerepos:refresh|downloads:(?:choose-folder|set-ask|set-media-names|set-resume|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history|release-assist|mods-plan|mods-apply|mods-undo|mods-history|motw-check|open-defender|defender-scan|extract-here)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|integrity:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|aikey:|devfeeds:|repos:|startup:|applock:|profilecrypt:|transcribe:|voice:|ocrlang:(?:download|cancel|remove)|photoprep:|tabs:preconnect|jump:|jumplist:|windows:|sources:|pdftool:|comms:|status:|localsvc:|webhook:|netdrift:|agentpolicy:set|agentaudit:|evomcp:|oshook:|feedback:|spellcheck:set-languages|panelguard:|gameoverlay:|folderview:(?!set-enabled))/;
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
@@ -70,8 +70,6 @@ const PRIVATE_DISABLED = /^(?:cachebudget:(?:set|run)|speedtest:|links:follow-on
 const UI_ONLY_CHANNELS = new Set([
   // In-game overlay: Vex's own window sets it up, turns it on and answers its music buttons (main/game-overlay-ipc.js).
   'gameoverlay:config', 'gameoverlay:toggle', 'gameoverlay:status', 'gameoverlay:music-answer',
-  // The sampling heap profiler on the Discord panel (main/discord-heap.js): Vex's own window only.
-  'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage',
   // The language the native dialogs speak (main/i18n-main.js).
   'i18n:set-language',
   // Starting another browser with an address (main/open-in-browser.js): Vex's own window only.
@@ -117,8 +115,7 @@ const UI_ONLY_CHANNELS = new Set([
   'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping', 'devfeeds:notes', 'fx:tcmb', 'makerepos:refresh', 'makerepos:stored', 'status:check',
   // Developer desk, plugin dev loop and the Electron ticker: Vex's own window only.
   'devdesk:config', 'devdesk:set-config', 'devdesk:grant-root', 'devdesk:revoke-root', 'devdesk:open-file', 'devdesk:open-terminal', 'devdesk:branch', 'devdesk:ports',
-  'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind', 'drm:status', 'drm:repair', 'drm:clear-site',
-  'devext:vencord-pick', 'devext:vencord-status', 'devext:vencord-reload', 'devext:vencord-restore', 'devext:console-start', 'devext:console-stop', 'devext:console-clear', 'devext:console-list',
+  'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'castlabs:behind', 'drm:status', 'drm:repair', 'drm:clear-site',
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
   // Whether Vex's own text viewer is on (main/text-viewer.js): the interface tells main, never a page.
   'docview:set-enabled', 'docview:forget-settings',
@@ -132,8 +129,8 @@ const UI_ONLY_CHANNELS = new Set([
   'imageview:set-enabled', 'imageview:forget-settings',
   // Whether Vex's own PDF viewer is on (main/pdf-viewer.js): the interface tells main, never a page.
   'pdfview:set-enabled', 'pdfview:forget-places',
-  // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
-  'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send', 'comms:bridge-status', 'comms:bridge-pick', 'comms:bridge-read', 'comms:bridge-forget', 'comms:status-write',
+  // The owner's announcement webhook (main/comms-tools.js): Vex's own window only.
+  'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send',
   // The local-service launcher and the webhook inspector: starting programs and opening a port are Vex's own window only.
   'localsvc:status', 'localsvc:arm', 'localsvc:pick-folder', 'localsvc:add', 'localsvc:pick-program', 'localsvc:add-custom', 'localsvc:remove', 'localsvc:start', 'localsvc:stop', 'localsvc:logs',
   'webhook:start', 'webhook:stop', 'webhook:status', 'webhook:list', 'webhook:get', 'webhook:clear',
@@ -148,8 +145,6 @@ const UI_ONLY_CHANNELS = new Set([
   'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
   // Health check: scans and repairs the profile folder (main/health-check.js).
   'health:scan', 'health:fix', 'health:undo',
-  // Pinning a real Discord theme's file by its hash (main/content-pin.js): Vex's own window only.
-  'themepin:check', 'themepin:accept',
   // The proxy and root-certificate look (main/network-drift.js): Vex's own window only.
   'netdrift:get', 'netdrift:set', 'netdrift:check',
   // The agreement at start (js/legal.js): its documents, its "Quit Vex", and

@@ -166,8 +166,15 @@ describe('where an extension is loaded', () => {
     expect(w.partitions).toEqual(ext.BROWSING_PARTITIONS);
   });
 
+  it('no extension goes into the Discord panel, whatever it names and whatever its scope', () => {
+    expect(ext.NO_EXTENSION_PARTITIONS).toEqual(['persist:discord']);
+    expect(Object.keys(ext.APP_PARTITIONS)).not.toContain('persist:discord');
+    expect(ext.partitionsFor(vencord).partitions).toEqual(ext.BROWSING_PARTITIONS);
+    expect(ext.partitionsFor(vencord, 'everywhere').partitions).not.toContain('persist:discord');
+    expect(ext.partitionsFor(ublock, 'everywhere').partitions).not.toContain('persist:discord');
+  });
+
   it('a site-specific one goes to that site\'s panel as well', () => {
-    expect(ext.partitionsFor(vencord).partitions).toEqual([...ext.BROWSING_PARTITIONS, 'persist:discord']);
     expect(ext.partitionsFor(rosuite).partitions).toEqual([...ext.BROWSING_PARTITIONS, 'persist:roblox']);
     expect(ext.contentHosts(rosuite).hosts).toEqual(['www.roblox.com', 'web.roblox.com']);
   });
@@ -181,7 +188,7 @@ describe('where an extension is loaded', () => {
   it('"everywhere" puts it in every partition', () => {
     const w = ext.partitionsFor(ublock, 'everywhere');
     expect(w.partitions).toEqual([...ext.BROWSING_PARTITIONS, ...Object.keys(ext.APP_PARTITIONS)]);
-    expect(w.partitions).toHaveLength(10);
+    expect(w.partitions).toHaveLength(9);
   });
 
   it('remembers only the override, and refuses a corrupt file', () => {

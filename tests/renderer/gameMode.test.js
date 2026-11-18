@@ -2,8 +2,8 @@
 //
 // Vex is on the same screen as the game and the stream.
 //
-//   The hotkey presses Discord's own button inside the panel, so muting works
-//   from a fullscreen game.
+//   The hotkeys that pressed Discord's own buttons are gone (Discord is a plain page in Vex).
+//
 //   Streamer mode blurs one-time codes, passwords and notification text while
 //   something is being captured — Vex holds all of it, and sharing a screen
 //   puts it in front of an audience.
@@ -26,39 +26,13 @@ beforeEach(() => {
   globalThis.VexProblems = { note: vi.fn() };
 });
 
-describe('the Discord hotkeys', () => {
-  it('presses the real button and says what happened', async () => {
-    expect(await GameMode.run('discord-mute')).toBe(true);
-    // The selectors go in JSON-encoded, so the quotes inside are escaped.
-    expect(guestCode).toContain(JSON.stringify(GameMode.CLICKS['discord-mute']));
-    expect(guestCode).toMatch(/aria-label\^=.{1,3}Mute/);
-    expect(guestCode).toContain('found.click()');
-    expect(window.vexGuestEval).toHaveBeenCalledWith({ id: 'discord-wv' }, expect.any(String), true, 4000);
-    expect(window.showToast).toHaveBeenCalledWith('Microphone muted');
-  });
-
-  it('reads the state from the label as it was before the click', () => {
-    expect(GameMode._said('Mute')).toBe('Microphone muted');
-    expect(GameMode._said('Unmute (Ctrl+Shift+M)')).toBe('Microphone on');
-    expect(GameMode._said('Deafen')).toBe('Deafened');
-    expect(GameMode._said('Undeafen')).toBe('Sound on');
-    expect(GameMode._said('Disconnect')).toBe('Left the call');
-  });
-
-  it('says so when Discord is not in a call, and when the panel was never opened', async () => {
-    window.vexGuestEval = vi.fn(async () => null);
-    expect(await GameMode.run('discord-mute')).toBe(false);
-    expect(window.showToast).toHaveBeenCalledWith('Discord is not in a call', 'info');
-
-    globalThis.SidebarManager.panelWebviews = {};
-    expect(await GameMode.run('discord-mute')).toBe(false);
-    expect(window.showToast).toHaveBeenCalledWith('Open the Discord panel once, and the hotkey will work from anywhere', 'error');
-  });
-
-  it('a panel that will not answer is recorded rather than silently doing nothing', async () => {
-    window.vexGuestEval = vi.fn(async () => { throw new Error('guest is gone'); });
-    expect(await GameMode.run('discord-mute')).toBe(false);
-    expect(VexProblems.note).toHaveBeenCalledWith('Discord hotkey', 'Could not reach the Discord panel', expect.any(Error));
+describe('the hotkeys that pressed buttons in Discord are gone', () => {
+  it('a Discord action does nothing and nothing is run in a page', async () => {
+    for (const action of ['discord-mute', 'discord-deafen', 'discord-hangup']) expect(await GameMode.run(action)).toBe(false);
+    expect(window.vexGuestEval).not.toHaveBeenCalled();
+    expect(GameMode.CLICKS).toBeUndefined();
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/js/game-mode.js'), 'utf8');
+    expect(src).not.toMatch(/vexGuestEval|executeJavaScript|button\[aria-label/);
   });
 
   it('ignores an action it does not know', async () => {

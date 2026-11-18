@@ -1,6 +1,6 @@
 // === Preload script for webviews — video PiP + detection ===
 //
-// Per-site main-world patches (Discord visibility spoof, HEVC mask, …) live in
+// Per-site main-world patches (HEVC mask, Web Push, …) live in
 // src/site-tweaks.js, registered as its OWN preload next to this one: webview
 // preloads run sandboxed, where require() only resolves 'electron', so this
 // file cannot require the registry locally.

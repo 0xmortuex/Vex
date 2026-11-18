@@ -15,15 +15,10 @@ const read = f => fs.readFileSync(path.resolve(f), 'utf8').replace(/\r\n/g, '\n'
 const MAIN = read('src/main.js');
 const between = (from, to) => MAIN.slice(MAIN.indexOf(from), MAIN.indexOf(to, MAIN.indexOf(from)));
 
-describe('Vencord reinstall updates in place', () => {
-  it('no install path deletes the old build first', () => {
+describe('a reinstall updates in place', () => {
+  it('no install path deletes the old build first, and Vex has no Vencord installer any more', () => {
     expect(MAIN).not.toMatch(/_removeExtBySlugPrefix/);
-    const official = between("ipcMain.handle('discord:install-vencord'", '\n});\n');
-    const local = between("ipcMain.handle('discord:install-vencord-local'", '\n});\n');
-    for (const handler of [official, local]) {
-      expect(handler).toMatch(/_installExtFromZipBuffer\(buf, 'vencord', _installedVencord\(\)\)/);
-      expect(handler).not.toMatch(/_installExtFromZipBuffer\(buf, 'vencord'\)/);
-    }
+    expect(MAIN).not.toMatch(/discord:install-vencord|_installedVencord|_findLocalVencordZip|vencord-folders/);
   });
 
   it('the installed build is handed down to the in-place replace', () => {
@@ -31,12 +26,9 @@ describe('Vencord reinstall updates in place', () => {
     // The copy handed down is the one updated; none handed down, the same
     // extension by key or source record, never by name alone (EX1).
     expect(between('async function _activateInstalledFolder', '\n}\n')).toMatch(/if \(copyToUpdate !== undefined\) previous = copyToUpdate;/);
-    const find = between('function _installedVencord', '\n}\n');
     // Every folder on disk (safe mode or not), less one being uninstalled
     // with its Undo still on screen.
-    expect(find).toMatch(/_installedEntries\(\)/);
     expect(between('function _installedEntries', '\n}\n')).toMatch(/_extEntriesOnDisk\(\)\.filter\(e => !removing\[e\.folder\]\)/);
-    expect(find).toMatch(/\^vencord-/);
   });
 });
 
