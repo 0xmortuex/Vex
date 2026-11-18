@@ -1,8 +1,21 @@
 # Changelog
 
-## v57.99.8 (2026-11-17) — Claude in Chrome connects: claude.ai sees the signed-in Claude extension
+## v58.7.3 (2026-11-18) — Discord is a plain web page in Vex, and Claude in Chrome connects
 
-A small release with one fix. On claude.ai in Vex's Claude panel, the chat said "Claude in Chrome isn't connected" and offered "Check sign-in", while the Claude extension's own settings page showed you signed in. The extension's background script never heard that you had signed in, so it never connected. It hears it now.
+Two changes. Discord in Vex is now the plain discord.com page: Vex adds no client mod, script, style or extension to it and presses nothing in it. Everything that did is removed, and that takes several Discord features with it; they are listed under Removed. And on claude.ai in Vex's Claude panel, the chat said "Claude in Chrome isn't connected" while the Claude extension's own settings page showed you signed in. The extension's background script never heard that you had signed in, so it never connected. It hears it now.
+
+### Changed
+- **Discord is a plain web page.** The Discord panel, and Discord opened as a tab, loads discord.com and Vex adds nothing to it: no Vencord, no extension in its session, no script or style of Vex's, and the page's own security policy is left as Discord sends it. Vex no longer tells Discord it is visible while it is hidden, so a Discord that was hidden for a long time may show its loading screen and reconnect when you open it. The block bypass is unchanged: it only changes how the connection is made. Try: Open the Discord panel and sign in.
+- **Boosts, userscripts, page automations and the Vex agent refuse Discord.** On discord.com, discordapp.com and discord.gg, in a tab too, a boost is not applied and cannot be made, no userscript runs, an automation is not recorded or run, and the agent does not read, click or type. Each says so when you try. Try: Open discord.com in a tab, press Ctrl+K and choose Boost This Site.
+- **The badge on the Discord icon says less.** It shows while Discord holds the microphone, the camera or the screen, which the browser itself knows. It no longer says muted, deafened or sharing, because Vex no longer reads Discord's buttons. For the same reason "in a call" now means the microphone or camera is in use or Discord is making a sound.
+- **Vex asks Discord for ordinary pages only.** The test that tries a block bypass, and "Is it me or the server", used to contact Discord's gateway. They ask discord.com itself now.
+
+### Removed
+- **Vencord in Vex.** Install / Update Vencord, Install my Vencord build, Turn Vencord off or on, the Vencord tools in the Plugin dev loop, and the Vencord bridge are gone. A Vencord you installed earlier stays in Settings › Extensions and no longer loads in the Discord panel; remove it there.
+- **Match Discord to my Vex theme, Lighter Discord and Discord rest mode.** Each changed Discord's page or what it loads.
+- **The system-wide hotkeys for Mute, Deafen and Leave the call.** They pressed Discord's buttons. The hotkeys for quick capture and streamer mode stay.
+- **Discord status suggestions, and three page readers.** "Collapse noisy lines" and "Servers you never open" in the Discord noise tools, and "Channels you opted in" in Collect links. The noise rules for kept notifications and the rest of Collect links stay.
+- **Why is Discord big?, Measure Discord and Plugin memory.** The memory limit, its notice and the automatic refresh stay, and read only how much memory the panel's process holds.
 
 ### Fixed
 - **claude.ai said "Claude in Chrome isn't connected" although the extension was signed in.** An extension's background script (its service worker) is told when the extension's saved data changes; that is how Claude's learns that you signed in, and only then does it connect to claude.ai. Electron tells an extension's pages of such a change and never its background script, so Claude's stayed signed out inside and, on the PC this was found on, had not tried to connect once in 19 days. Vex now tells the background script itself. This helps every extension whose background script waits for a change to its settings; a change made by the extension's script inside a web page is not passed on yet. Try: With the Claude extension signed in, open claude.ai in the Claude panel and ask it to open a website.
